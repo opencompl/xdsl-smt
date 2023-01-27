@@ -1,0 +1,5 @@
+z3-solver==4.12.1.0
+xdsl==0.8.1
+lit<16.0.0
+pytest<8.0
+filecheck==0.0.23
