@@ -13,7 +13,7 @@ from xdsl.dialects.builtin import (FunctionType, StringAttr)
 from xdsl.utils.exceptions import VerifyException
 
 from .smt_printer_interface import (SMTLibOp, SMTLibScriptOp, SimpleSMTLibOp,
-                                   SMTLibSort, SMTConversionCtx)
+                                    SMTLibSort, SMTConversionCtx)
 
 
 @irdl_attr_definition

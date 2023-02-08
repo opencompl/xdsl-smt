@@ -5,8 +5,10 @@ from typing import Annotated, TypeVar
 
 from xdsl.dialects.builtin import IntAttr
 
-from xdsl.ir import (Attribute, Dialect, OpResult, Operation, ParametrizedAttribute, SSAValue)
-from xdsl.irdl import (OpAttr, Operand, ParameterDef, irdl_op_definition, irdl_attr_definition)
+from xdsl.ir import (Attribute, Dialect, OpResult, Operation,
+                     ParametrizedAttribute, SSAValue)
+from xdsl.irdl import (OpAttr, Operand, ParameterDef, irdl_op_definition,
+                       irdl_attr_definition)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 
@@ -99,7 +101,9 @@ class ConstantOp(Operation, SMTLibOp):
                              ctx: SMTConversionCtx) -> None:
         print(self.value.as_smtlib_str(), file=stream, end='')
 
+
 _OpT = TypeVar("_OpT", bound="BinaryBVOp")
+
 
 class BinaryBVOp(Operation):
     res: Annotated[OpResult, BitVectorType]
@@ -153,4 +157,5 @@ class SDivOp(BinaryBVOp, SimpleSMTLibOp):
         return "bvsdiv"
 
 
-SMTBitVectorDialect = Dialect([ConstantOp, AddOp, OrOp, SDivOp], [BitVectorType, BitVectorValue])
+SMTBitVectorDialect = Dialect([ConstantOp, AddOp, OrOp, SDivOp],
+                              [BitVectorType, BitVectorValue])
