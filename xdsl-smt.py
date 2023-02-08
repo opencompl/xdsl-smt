@@ -6,12 +6,14 @@ from xdsl.xdsl_opt_main import xDSLOptMain
 from dialects.smt_dialect import SMTDialect
 from dialects.smt_printer_interface import print_to_smtlib
 from xdsl.dialects.builtin import Builtin
+from xdsl.dialects.arith import Arith
 from xdsl.dialects.func import Func
 
 
 class OptMain(xDSLOptMain):
 
     def register_all_dialects(self):
+        self.ctx.register_dialect(Arith)
         self.ctx.register_dialect(Builtin)
         self.ctx.register_dialect(Func)
         self.ctx.register_dialect(SMTDialect)
