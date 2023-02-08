@@ -1,0 +1,8 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    smt.check_sat
+}
+
+// CHECK: (check-sat)

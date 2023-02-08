@@ -1,0 +1,16 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %fun: !fun<[!smt.bool], [!smt.bool]> = smt.define_fun() {
+        ^bb0(%x: !smt.bool):
+            smt.return(%x : !smt.bool)
+    }
+    %true: !smt.bool = smt.constant_bool true
+    %res: !smt.bool = smt.call(%fun: !fun<[!smt.bool], [!smt.bool]>, %true: !smt.bool)
+    smt.assert %res
+}
+
+// CHECK: (define-fun {{.*}} ((tmp Bool)) Bool
+// CHECK-NEXT: tmp)
+// CHECK-NEXT: (assert ({{.*}} true))

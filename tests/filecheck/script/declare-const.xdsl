@@ -1,0 +1,8 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %cst: !smt.bool = smt.declare_const
+}
+
+// CHECK: (declare-const {{.*}} Bool)
