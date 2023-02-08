@@ -1,0 +1,13 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %six: !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<6: 32>
+    %four: !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<4: 32>
+    %two: !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<2: 32>
+    %div: !smt.bv.bv<32> = smt.bv.or %four, %two
+    %eq: !smt.bool = smt.eq %six, %div
+    smt.assert %eq
+}
+
+// CHECK: (assert (= (_ bv6 32) (bvor (_ bv4 32) (_ bv2 32))))
