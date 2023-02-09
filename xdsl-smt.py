@@ -11,6 +11,7 @@ from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
 from dialects.smt_printer_interface import print_to_smtlib
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from dialects.smt_utils_dialect import SMTUtilsDialect
 
 
 class OptMain(xDSLOptMain):
@@ -21,6 +22,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Func)
         self.ctx.register_dialect(SMTDialect)
         self.ctx.register_dialect(SMTBitVectorDialect)
+        self.ctx.register_dialect(SMTUtilsDialect)
 
     def register_all_passes(self):
         super().register_all_passes()

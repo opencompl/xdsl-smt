@@ -1,0 +1,14 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %fun: !fun<[!smt.bool, !smt.bool], [!smt.utils.pair<!smt.bool, !smt.bool>]> = smt.define_fun() {
+        ^bb0(%fst: !smt.bool, %snd: !smt.bool):
+            %p: !smt.utils.pair<!smt.bool, !smt.bool> = smt.utils.pair(%fst : !smt.bool, %snd: !smt.bool)
+            smt.return(%p : !smt.utils.pair<!smt.bool, !smt.bool>)
+    }
+}
+
+// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT: (define-fun fun ((tmp Bool) (tmp_0 Bool)) (Pair Bool Bool)
+// CHECK-NEXT:   (pair tmp tmp_0))
