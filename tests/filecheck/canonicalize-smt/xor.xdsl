@@ -1,0 +1,30 @@
+// RUN: xdsl-smt.py %s -p=canonicalize_smt -t=smt | filecheck %s
+
+builtin.module() {
+    %true: !smt.bool = smt.constant_bool true
+    %false: !smt.bool = smt.constant_bool false
+
+    %x: !smt.bool = smt.declare_const
+
+    %a: !smt.bool = smt.xor %true, %x
+    smt.assert %a
+
+    %b: !smt.bool = smt.xor %false, %x
+    smt.assert %b
+
+    %c: !smt.bool = smt.xor %x, %true
+    smt.assert %c
+
+    %d: !smt.bool = smt.xor %x, %false
+    smt.assert %d
+
+    %e: !smt.bool = smt.xor %x, %x
+    smt.assert %e
+}
+
+// CHECK:      (declare-const x Bool)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert false)

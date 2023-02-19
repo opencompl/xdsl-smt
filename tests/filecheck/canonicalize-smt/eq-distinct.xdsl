@@ -1,0 +1,50 @@
+// RUN: xdsl-smt.py %s -p=canonicalize_smt -t=smt | filecheck %s
+
+builtin.module() {
+    %true: !smt.bool = smt.constant_bool true
+    %false: !smt.bool = smt.constant_bool false
+
+    %x: !smt.bool = smt.declare_const
+
+    %a: !smt.bool = smt.eq %true, %x
+    smt.assert %a
+
+    %b: !smt.bool = smt.eq %false, %x
+    smt.assert %b
+
+    %c: !smt.bool = smt.eq %x, %true
+    smt.assert %c
+
+    %d: !smt.bool = smt.eq %x, %false
+    smt.assert %d
+
+    %e: !smt.bool = smt.eq %x, %x
+    smt.assert %e
+
+    %f: !smt.bool = smt.distinct %true, %x
+    smt.assert %f
+
+    %g: !smt.bool = smt.distinct %false, %x
+    smt.assert %g
+
+    %h: !smt.bool = smt.distinct %x, %true
+    smt.assert %h
+
+    %i: !smt.bool = smt.distinct %x, %false
+    smt.assert %i
+
+    %j: !smt.bool = smt.distinct %x, %x
+    smt.assert %j
+}
+
+// CHECK:      (declare-const x Bool)
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert true)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert (not x))
+// CHECK-NEXT: (assert x)
+// CHECK-NEXT: (assert false)
