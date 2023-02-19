@@ -112,6 +112,19 @@ def remove_pairs_from_function_return(module: ModuleOp):
             funcs.append(firstFunc)
             funcs.append(secondFunc)
 
+            # Replace all calls of this function by calls to the new functions.
+            for use in set(func.ret.uses):
+                call = use.operation
+                assert (isinstance(call, CallOp))
+                callFirst = CallOp.create(
+                    result_types=[firstFunc.ret.typ.outputs.data[0]],
+                    operands=[firstFunc.ret] + list(call.args))
+                callSecond = CallOp.create(
+                    result_types=[secondFunc.ret.typ.outputs.data[0]],
+                    operands=[secondFunc.ret] + list(call.args))
+                mergeCalls = PairOp.from_values(callFirst.res, callSecond.res)
+                Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
+
 
 def lower_pairs(ctx: MLContext, module: ModuleOp):
     # Remove pairs from function arguments.
