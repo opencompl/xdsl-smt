@@ -244,8 +244,8 @@ class ReturnOp(Operation):
     ret: Operand
 
     @staticmethod
-    def from_ret_values(ret_values: list[SSAValue]):
-        return ReturnOp.create(operands=ret_values)
+    def from_ret_value(ret_value: SSAValue):
+        return ReturnOp.create(operands=[ret_value])
 
     def verify_(self):
         parent = self.parent_op()
