@@ -1,5 +1,5 @@
-// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | filecheck %s
-// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | z3 -in
+// RUN: xdsl-smt.py %s -p=arith_to_smt,canonicalize_smt -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -p=arith_to_smt,canonicalize_smt -t=smt | z3 -in
 
 
 builtin.module() {
@@ -11,4 +11,4 @@ builtin.module() {
 
 // CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
 // CHECK-NEXT: (define-fun tmp () (Pair Bool (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:   (pair (or false false) (pair (_ bv3 32) false)))
+// CHECK-NEXT:   (pair false (pair (_ bv3 32) false)))
