@@ -12,8 +12,8 @@ from xdsl.irdl import (OpAttr, Operand, ParameterDef, irdl_op_definition,
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 
-from .smt_printer_interface import SMTConversionCtx
-from .smt_dialect import SMTLibOp, SMTLibSort, SimpleSMTLibOp
+from traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
+from traits.effects import Pure
 
 
 @irdl_attr_definition
@@ -74,7 +74,7 @@ class BitVectorValue(ParametrizedAttribute):
 
 
 @irdl_op_definition
-class ConstantOp(Operation, SMTLibOp):
+class ConstantOp(Operation, Pure, SMTLibOp):
     name = "smt.bv.constant"
     value: OpAttr[BitVectorValue]
     res: Annotated[OpResult, BitVectorType]
@@ -105,7 +105,7 @@ class ConstantOp(Operation, SMTLibOp):
 _OpT = TypeVar("_OpT", bound="BinaryBVOp")
 
 
-class BinaryBVOp(Operation):
+class BinaryBVOp(Operation, Pure):
     res: Annotated[OpResult, BitVectorType]
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]

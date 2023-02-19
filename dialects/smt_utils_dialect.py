@@ -9,6 +9,7 @@ from xdsl.irdl import (Operand, ParameterDef, irdl_attr_definition,
                        irdl_op_definition)
 
 from .smt_dialect import SMTLibSort, SimpleSMTLibOp
+from traits.effects import Pure
 
 _F = TypeVar("_F", bound=Attribute)
 _S = TypeVar("_S", bound=Attribute)
@@ -34,10 +35,12 @@ class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort):
     def from_params(first: _F, second: _S) -> PairType[_F, _S]:
         return PairType([first, second])
 
+
 AnyPairType: TypeAlias = PairType[Attribute, Attribute]
 
+
 @irdl_op_definition
-class PairOp(Operation, SimpleSMTLibOp):
+class PairOp(Operation, Pure, SimpleSMTLibOp):
     name = "smt.utils.pair"
 
     res: Annotated[OpResult, AnyPairType]
@@ -63,7 +66,7 @@ class PairOp(Operation, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class FirstOp(Operation, SimpleSMTLibOp):
+class FirstOp(Operation, Pure, SimpleSMTLibOp):
     name = "smt.utils.first"
 
     res: OpResult
@@ -89,7 +92,7 @@ class FirstOp(Operation, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class SecondOp(Operation, SimpleSMTLibOp):
+class SecondOp(Operation, Pure, SimpleSMTLibOp):
     name = "smt.utils.second"
 
     res: OpResult
@@ -115,4 +118,3 @@ class SecondOp(Operation, SimpleSMTLibOp):
 
 
 SMTUtilsDialect = Dialect([PairOp, FirstOp, SecondOp], [PairType])
-

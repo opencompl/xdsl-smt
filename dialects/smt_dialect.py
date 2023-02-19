@@ -12,8 +12,10 @@ from xdsl.printer import Printer
 from xdsl.dialects.builtin import (FunctionType, StringAttr)
 from xdsl.utils.exceptions import VerifyException
 
-from .smt_printer_interface import (SMTLibOp, SMTLibScriptOp, SimpleSMTLibOp,
-                                    SMTLibSort, SMTConversionCtx)
+from traits.effects import Pure
+
+from traits.smt_printer import (SMTLibOp, SMTLibScriptOp, SimpleSMTLibOp,
+                                SMTLibSort, SMTConversionCtx)
 
 
 @irdl_attr_definition
@@ -43,7 +45,7 @@ class YieldOp(Operation):
 
 
 @irdl_op_definition
-class ForallOp(Operation, SMTLibOp):
+class ForallOp(Operation, Pure, SMTLibOp):
     """Universal quantifier."""
     name = "smt.forall"
 
@@ -78,7 +80,7 @@ class ForallOp(Operation, SMTLibOp):
 
 
 @irdl_op_definition
-class ExistsOp(Operation, SMTLibOp):
+class ExistsOp(Operation, Pure, SMTLibOp):
     """Existential quantifier."""
     name = "smt.exists"
 
@@ -113,7 +115,7 @@ class ExistsOp(Operation, SMTLibOp):
 
 
 @irdl_op_definition
-class CallOp(Operation, SMTLibOp):
+class CallOp(Operation, Pure, SMTLibOp):
     """Call to an SMT function."""
     name = "smt.call"
 
@@ -322,7 +324,7 @@ class CheckSatOp(Operation, SMTLibScriptOp):
 _OpT = TypeVar("_OpT", bound=Operation)
 
 
-class BinaryBoolOp(Operation):
+class BinaryBoolOp(Operation, Pure):
     """Base class for binary boolean operations."""
     res: Annotated[OpResult, BoolType]
     lhs: Annotated[Operand, BoolType]
@@ -347,7 +349,7 @@ class BinaryBoolOp(Operation):
         printer.print_ssa_value(self.rhs)
 
 
-class BinaryTOp(Operation):
+class BinaryTOp(Operation, Pure):
     """Base class for binary operations with boolean results."""
     res: Annotated[OpResult, BoolType]
     lhs: Operand
@@ -394,7 +396,7 @@ class BoolAttr(Data[bool]):
 
 
 @irdl_op_definition
-class ConstantBoolOp(Operation, SMTLibOp):
+class ConstantBoolOp(Operation, Pure, SMTLibOp):
     """Boolean constant."""
 
     name = "smt.constant_bool"
@@ -432,7 +434,7 @@ class ConstantBoolOp(Operation, SMTLibOp):
 
 
 @irdl_op_definition
-class NotOp(Operation, SimpleSMTLibOp):
+class NotOp(Operation, Pure, SimpleSMTLibOp):
     """Boolean negation."""
 
     name = "smt.not"
@@ -514,7 +516,7 @@ class DiscinctOp(BinaryTOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class IteOp(Operation, SimpleSMTLibOp):
+class IteOp(Operation, Pure, SimpleSMTLibOp):
     """If-then-else."""
 
     name = "smt.ite"

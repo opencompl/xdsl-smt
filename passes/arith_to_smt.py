@@ -7,7 +7,7 @@ from xdsl.dialects.func import FuncOp, Return
 
 import dialects.smt_bitvector_dialect as bv_dialect
 from dialects.smt_bitvector_dialect import BitVectorType
-from dialects.smt_printer_interface import SMTLibSort
+from traits.smt_printer import SMTLibSort
 from dialects.smt_utils_dialect import AnyPairType, PairOp, PairType
 from dialects.smt_dialect import BoolType, ConstantBoolOp, DefineFunOp, ReturnOp, OrOp
 
