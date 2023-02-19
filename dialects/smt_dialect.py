@@ -442,6 +442,10 @@ class NotOp(Operation, Pure, SimpleSMTLibOp):
     res: Annotated[OpResult, BoolType]
     arg: Annotated[Operand, BoolType]
 
+    @staticmethod
+    def get(operand: SSAValue) -> NotOp:
+        return NotOp.create(result_types=[BoolType()], operands=[operand])
+
     @classmethod
     def parse(cls, result_types: list[Attribute], parser: BaseParser) -> NotOp:
         val = parser.parse_operand()
