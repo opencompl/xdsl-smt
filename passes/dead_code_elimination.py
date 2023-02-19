@@ -14,5 +14,5 @@ class RemoveDeadPattern(RewritePattern):
 
 
 def dead_code_elimination(ctx: MLContext, module: ModuleOp):
-    walker = PatternRewriteWalker(RemoveDeadPattern())
+    walker = PatternRewriteWalker(RemoveDeadPattern(), walk_reverse=True)
     walker.rewrite_module(module)
