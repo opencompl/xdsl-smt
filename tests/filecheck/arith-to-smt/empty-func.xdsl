@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=arith_to_smt | filecheck %s
+// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | filecheck %s
 // RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | z3 -in
 
 
@@ -10,11 +10,6 @@ builtin.module() {
 }
 
 
-// CHECK: builtin.module() {
-// CHECK-NEXT:   %0 : !fun<[!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>], [!smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>]> = smt.define_fun() ["name" = "test"] {
-// CHECK-NEXT:   ^0(%1 : !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>):
-// CHECK-NEXT:     %2 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:     %3 : !smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>> = smt.utils.pair(%2 : !smt.bool, %1 : !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>)
-// CHECK-NEXT:     smt.return(%3 : !smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>)
-// CHECK-NEXT:   }
-// CHECK-NEXT: }
+// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT: (define-fun tmp ((tmp_0 (Pair (_ BitVec 32) Bool))) (Pair Bool (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:   (pair false tmp_0))
