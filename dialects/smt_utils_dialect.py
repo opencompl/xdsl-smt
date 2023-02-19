@@ -4,6 +4,8 @@ from io import IOBase
 from typing import Annotated, Generic, TypeAlias, TypeVar, cast
 from xdsl.ir import (Attribute, Dialect, OpResult, Operation,
                      ParametrizedAttribute, SSAValue)
+from xdsl.parser import BaseParser
+from xdsl.printer import Printer
 from xdsl.utils.exceptions import VerifyException
 from xdsl.irdl import (Operand, ParameterDef, irdl_attr_definition,
                        irdl_op_definition)
@@ -61,6 +63,21 @@ class PairOp(Operation, Pure, SimpleSMTLibOp):
             raise VerifyException(
                 "{self.name} result type is incompatible with operand types.")
 
+    @classmethod
+    def parse(cls, result_types: list[Attribute],
+              parser: BaseParser) -> PairOp:
+        first = parser.parse_operand()
+        parser.parse_characters(",", "Expected `,`")
+        second = parser.parse_operand()
+        return PairOp.build(result_types=[PairType([first.typ, second.typ])],
+                            operands=[first, second])
+
+    def print(self, printer: Printer) -> None:
+        printer.print(" ")
+        printer.print_ssa_value(self.first)
+        printer.print(", ")
+        printer.print_ssa_value(self.second)
+
     def op_name(self) -> str:
         return "pair"
 
@@ -86,6 +103,18 @@ class FirstOp(Operation, Pure, SimpleSMTLibOp):
         if self.res.typ != pair_typ.first:
             raise VerifyException(
                 "{self.name} result type is incompatible with operand types.")
+
+    @classmethod
+    def parse(cls, result_types: list[Attribute],
+              parser: BaseParser) -> FirstOp:
+        val = parser.parse_operand()
+        assert (isinstance(val.typ, PairType))
+        typ = cast(AnyPairType, val.typ)
+        return cls.build(result_types=[typ.first], operands=[val])
+
+    def print(self, printer: Printer) -> None:
+        printer.print(" ")
+        printer.print_ssa_value(self.pair)
 
     def op_name(self) -> str:
         return "first"
@@ -115,6 +144,18 @@ class SecondOp(Operation, Pure, SimpleSMTLibOp):
                 "{self.name} operand is expected to be a {PairType.name} type")
         pair_typ = cast(AnyPairType, pair.typ)
         return SecondOp.create(result_types=[pair_typ.second], operands=[pair])
+
+    @classmethod
+    def parse(cls, result_types: list[Attribute],
+              parser: BaseParser) -> SecondOp:
+        val = parser.parse_operand()
+        assert (isinstance(val.typ, PairType))
+        typ = cast(AnyPairType, val.typ)
+        return cls.build(result_types=[typ.second], operands=[val])
+
+    def print(self, printer: Printer) -> None:
+        printer.print(" ")
+        printer.print_ssa_value(self.pair)
 
 
 SMTUtilsDialect = Dialect([PairOp, FirstOp, SecondOp], [PairType])
