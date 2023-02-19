@@ -8,8 +8,9 @@ for the SMT dialects
 
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import MLContext, OpResult, Operation, SSAValue
-from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
+from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern
 import dialects.smt_dialect as smt
+import dialects.smt_utils_dialect as smt_utils
 
 from passes.dead_code_elimination import dead_code_elimination
 
@@ -206,11 +207,33 @@ class FoldCorePattern(RewritePattern):
             return
 
 
-constant_fold_core_patterns = []
+class FoldUtilsPattern(RewritePattern):
+
+    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+
+        # first (pair x y) -> x
+        if isinstance(op, smt_utils.FirstOp):
+            if not isinstance(op.pair, OpResult):
+                return None
+            if not isinstance(op.pair.op, smt_utils.PairOp):
+                return None
+            rewriter.replace_matched_op([], [op.pair.op.first])
+            return
+
+        # second (pair x y) -> y
+        if isinstance(op, smt_utils.SecondOp):
+            if not isinstance(op.pair, OpResult):
+                return None
+            if not isinstance(op.pair.op, smt_utils.PairOp):
+                return None
+            rewriter.replace_matched_op([], [op.pair.op.second])
+            return
 
 
 def canonicalize_smt(ctx: MLContext, module: ModuleOp):
-    walker = PatternRewriteWalker(FoldCorePattern())
+    walker = PatternRewriteWalker(
+        GreedyRewritePatternApplier([FoldCorePattern(),
+                                     FoldUtilsPattern()]))
     walker.rewrite_module(module)
 
     # Finish with dead code elimination
