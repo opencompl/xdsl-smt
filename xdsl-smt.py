@@ -11,6 +11,7 @@ from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
 from passes.canonicalize_smt import canonicalize_smt
 from passes.dead_code_elimination import dead_code_elimination
+from passes.lower_pairs import lower_pairs
 from traits.smt_printer import print_to_smtlib
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_utils_dialect import SMTUtilsDialect
@@ -32,6 +33,7 @@ class OptMain(xDSLOptMain):
         self.available_passes['arith_to_smt'] = arith_to_smt
         self.available_passes['dce'] = dead_code_elimination
         self.available_passes['canonicalize_smt'] = canonicalize_smt
+        self.available_passes['lower_pairs'] = lower_pairs
 
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         super().register_all_arguments(arg_parser)
