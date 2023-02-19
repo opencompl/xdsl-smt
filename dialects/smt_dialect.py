@@ -329,6 +329,10 @@ class BinaryBoolOp(Operation):
     rhs: Annotated[Operand, BoolType]
 
     @classmethod
+    def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
+        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
+
+    @classmethod
     def parse(cls: type[_OpT], result_types: list[Attribute],
               parser: BaseParser) -> _OpT:
         lhs = parser.parse_operand()
