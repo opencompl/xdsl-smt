@@ -12,6 +12,7 @@ from dialects.smt_dialect import SMTDialect
 from dialects.smt_printer_interface import print_to_smtlib
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_utils_dialect import SMTUtilsDialect
+from passes.arith_to_smt import arith_to_smt
 
 
 class OptMain(xDSLOptMain):
@@ -26,6 +27,7 @@ class OptMain(xDSLOptMain):
 
     def register_all_passes(self):
         super().register_all_passes()
+        self.available_passes['arith_to_smt'] = arith_to_smt
 
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         super().register_all_arguments(arg_parser)

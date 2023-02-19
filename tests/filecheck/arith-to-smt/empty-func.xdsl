@@ -1,0 +1,20 @@
+// RUN: xdsl-smt.py %s -p=arith_to_smt | filecheck %s
+// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | z3 -in
+
+
+builtin.module() {
+  func.func() ["sym_name" = "test", "function_type" = !fun<[!i32], [!i32]>, "sym_visibility" = "private"] {
+  ^bb0(%x: !i32):
+    func.return(%x: !i32)
+  }
+}
+
+
+// CHECK: builtin.module() {
+// CHECK-NEXT:   %0 : !fun<[!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>], [!smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>]> = smt.define_fun() ["name" = "test"] {
+// CHECK-NEXT:   ^0(%1 : !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>):
+// CHECK-NEXT:     %2 : !smt.bool = smt.constant_bool false
+// CHECK-NEXT:     %3 : !smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>> = smt.utils.pair(%2 : !smt.bool, %1 : !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>)
+// CHECK-NEXT:     smt.return(%3 : !smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>)
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
