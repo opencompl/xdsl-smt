@@ -330,9 +330,9 @@ SMTBitVectorDialect = Dialect(
         UDivOp,
         SDivOp,
         # Bitwise
+        NotOp,
         OrOp,
         AndOp,
-        NotOp,
         NAndOp,
         NorOp,
         XNorOp

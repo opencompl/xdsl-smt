@@ -1,0 +1,48 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %x: !smt.bv.bv<32> = smt.declare_const
+    %y: !smt.bv.bv<32> = smt.declare_const
+    %z: !smt.bv.bv<32> = smt.declare_const
+
+// CHECK:      (declare-const x (_ BitVec 32))
+// CHECK-NEXT: (declare-const y (_ BitVec 32))
+// CHECK-NEXT: (declare-const z (_ BitVec 32))
+
+    %not: !smt.bv.bv<32> = smt.bv.not %x
+    %eq_not: !smt.bool = smt.eq %z, %not
+    smt.assert %eq_not
+
+// CHECK-NEXT: (assert (= z (bvnot x)))
+
+    %or: !smt.bv.bv<32> = smt.bv.or %x, %y
+    %eq_or: !smt.bool = smt.eq %z, %or
+    smt.assert %eq_or
+
+// CHECK-NEXT: (assert (= z (bvor x y)))
+
+    %and: !smt.bv.bv<32> = smt.bv.and %x, %y
+    %eq_and: !smt.bool = smt.eq %z, %and
+    smt.assert %eq_and
+
+// CHECK-NEXT: (assert (= z (bvand x y)))
+
+    %nand: !smt.bv.bv<32> = smt.bv.nand %x, %y
+    %eq_nand: !smt.bool = smt.eq %z, %nand
+    smt.assert %eq_nand
+
+// CHECK-NEXT: (assert (= z (bvnand x y)))
+
+    %nor: !smt.bv.bv<32> = smt.bv.nor %x, %y
+    %eq_nor: !smt.bool = smt.eq %z, %nor
+    smt.assert %eq_nor
+
+// CHECK-NEXT: (assert (= z (bvnor x y)))
+
+    %xnor: !smt.bv.bv<32> = smt.bv.xnor %x, %y
+    %eq_xnor: !smt.bool = smt.eq %z, %xnor
+    smt.assert %eq_xnor
+
+// CHECK-NEXT: (assert (= z (bvxnor x y)))
+}
