@@ -1,0 +1,90 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %x: !smt.bv.bv<32> = smt.declare_const
+    %y: !smt.bv.bv<32> = smt.declare_const
+    %z: !smt.bv.bv<32> = smt.declare_const
+
+// CHECK:      (declare-const x (_ BitVec 32))
+// CHECK-NEXT: (declare-const y (_ BitVec 32))
+// CHECK-NEXT: (declare-const z (_ BitVec 32))
+
+    // add
+    %add: !smt.bv.bv<32> = smt.bv.add %x, %y
+    %eq_add: !smt.bool = smt.eq %z, %add
+    smt.assert %eq_add
+
+// CHECK-NEXT: (assert (= z (bvadd x y)))
+
+    // sub
+    %sub: !smt.bv.bv<32> = smt.bv.sub %x, %y
+    %eq_sub: !smt.bool = smt.eq %z, %sub
+    smt.assert %eq_sub
+
+// CHECK-NEXT(assert (= z (bvsub x y)))
+
+    // mul
+    %mul: !smt.bv.bv<32> = smt.bv.mul %x, %y
+    %eq_mul: !smt.bool = smt.eq %z, %mul
+    smt.assert %eq_mul
+
+// CHECK-NEXT(assert (= z (bvmul x y)))
+
+    // urem
+    %urem: !smt.bv.bv<32> = smt.bv.urem %x, %y
+    %eq_urem: !smt.bool = smt.eq %z, %urem
+    smt.assert %eq_urem
+
+// CHECK-NEXT(assert (= z (bvurem x y)))
+
+    // srem
+    %srem: !smt.bv.bv<32> = smt.bv.srem %x, %y
+    %eq_srem: !smt.bool = smt.eq %z, %srem
+    smt.assert %eq_srem
+
+// CHECK-NEXT(assert (= z (bvsrem x y)))
+
+    // smod
+    %smod: !smt.bv.bv<32> = smt.bv.smod %x, %y
+    %eq_smod: !smt.bool = smt.eq %z, %smod
+    smt.assert %eq_smod
+
+// CHECK-NEXT(assert (= z (bvsmod x y)))
+
+    // shl
+    %shl: !smt.bv.bv<32> = smt.bv.shl %x, %y
+    %eq_shl: !smt.bool = smt.eq %z, %shl
+    smt.assert %eq_shl
+
+// CHECK-NEXT(assert (= z (bvshl x y)))
+
+    // lshr
+    %lshr: !smt.bv.bv<32> = smt.bv.lshr %x, %y
+    %eq_lshr: !smt.bool = smt.eq %z, %lshr
+    smt.assert %eq_lshr
+
+// CHECK-NEXT(assert (= z (bvlshr x y)))
+
+    // ashr
+    %ashr: !smt.bv.bv<32> = smt.bv.ashr %x, %y
+    %eq_ashr: !smt.bool = smt.eq %z, %ashr
+    smt.assert %eq_ashr
+
+// CHECK-NEXT(assert (= z (bvashr x y)))
+
+    // udiv
+    %udiv: !smt.bv.bv<32> = smt.bv.udiv %x, %y
+    %eq_udiv: !smt.bool = smt.eq %z, %udiv
+    smt.assert %eq_udiv
+
+// CHECK-NEXT(assert (= z (bvudiv x y)))
+
+    // sdiv
+    %sdiv: !smt.bv.bv<32> = smt.bv.sdiv %x, %y
+    %eq_sdiv: !smt.bool = smt.eq %z, %sdiv
+    smt.assert %eq_sdiv
+
+// CHECK-NEXT(assert (= z (bvsdiv x y)))
+}
+
