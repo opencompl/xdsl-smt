@@ -4,18 +4,20 @@ import argparse
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl.dialects.builtin import Builtin
-from xdsl.dialects.arith import Arith
 from xdsl.dialects.func import Func
 
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
+from dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from dialects.arith_dialect import Arith
+from dialects.smt_utils_dialect import SMTUtilsDialect
+
 from passes.canonicalize_smt import canonicalize_smt
 from passes.dead_code_elimination import dead_code_elimination
 from passes.lower_pairs import lower_pairs
-from traits.smt_printer import print_to_smtlib
-from dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from dialects.smt_utils_dialect import SMTUtilsDialect
 from passes.arith_to_smt import arith_to_smt
+
+from traits.smt_printer import print_to_smtlib
 
 
 class OptMain(xDSLOptMain):
