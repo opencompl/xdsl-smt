@@ -1,14 +1,14 @@
 from typing import cast
-from xdsl.dialects.arith import Constant
 from xdsl.ir import Attribute, MLContext, OpResult, Operation, SSAValue
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern, op_type_rewrite_pattern
 from xdsl.dialects.builtin import IntegerAttr, IntegerType, ModuleOp, FunctionType
 from xdsl.dialects.func import FuncOp, Return
 
 import dialects.smt_bitvector_dialect as bv_dialect
+import dialects.arith_dialect as arith
 from dialects.smt_bitvector_dialect import BitVectorType
 from traits.smt_printer import SMTLibSort
-from dialects.smt_utils_dialect import AnyPairType, PairOp, PairType
+from dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
 from dialects.smt_dialect import BoolType, ConstantBoolOp, DefineFunOp, ReturnOp, OrOp
 
 
@@ -23,6 +23,18 @@ def get_constant_bv_ops(value: int, width: int) -> list[Operation]:
     return [constant, poison, pair]
 
 
+def get_value_and_poison(
+        value: SSAValue) -> tuple[list[Operation], SSAValue, SSAValue]:
+    """
+    Create a list of operations that extract the value and poison indicator
+    of a converted integer type. Also return the created operations to
+    extract these values.
+    """
+    value_op = FirstOp.from_value(value)
+    poison_op = SecondOp.from_value(value)
+    return [value_op, poison_op], value_op.res, poison_op.res
+
+
 def convert_type(type: Attribute) -> Attribute:
     """Convert a type to an SMT sort"""
     if isinstance(type, IntegerType):
@@ -34,7 +46,8 @@ def convert_type(type: Attribute) -> Attribute:
 
 
 def convert_constant(
-        op: Constant) -> tuple[list[Operation], list[OpResult], SSAValue]:
+        op: arith.Constant
+) -> tuple[list[Operation], list[OpResult], SSAValue]:
     constant_value = cast(IntegerAttr[IntegerType], op.value)
     ops = get_constant_bv_ops(constant_value.value.data,
                               constant_value.typ.width.data)
@@ -43,12 +56,38 @@ def convert_constant(
     return ops, new_res_val, true_op.res
 
 
+def convert_ori(
+    op: arith.Ori, ssa_mapping: dict[SSAValue, SSAValue]
+) -> tuple[list[Operation], list[OpResult], SSAValue]:
+    lhs_deconstruct, lhs_val, lhs_poison = get_value_and_poison(
+        ssa_mapping[op.lhs])
+    rhs_deconstruct, rhs_val, rhs_poison = get_value_and_poison(
+        ssa_mapping[op.rhs])
+
+    res_val_op = bv_dialect.OrOp.get(lhs_val, rhs_val)
+    res_poison_op = OrOp.get(lhs_poison, rhs_poison)
+    res_op = PairOp.from_values(res_val_op.res, res_poison_op.res)
+
+    true_op = ConstantBoolOp.from_bool(False)
+    new_ops = (lhs_deconstruct + rhs_deconstruct +
+               [res_val_op, res_poison_op, res_op, true_op])
+
+    return new_ops, [res_op.res], true_op.res
+
+
 def convert_op(
         op: Operation,
         ssa_mapping: dict[SSAValue,
                           SSAValue]) -> tuple[list[Operation], SSAValue]:
-    if isinstance(op, Constant):
+    """
+    Convert an arith operation to SMT.
+    The new operations are returned, as well as an SSA value indicating
+    if the operation triggered undefined behavior.
+    """
+    if isinstance(op, arith.Constant):
         new_ops, new_res, ub_value = convert_constant(op)
+    elif isinstance(op, arith.Ori):
+        new_ops, new_res, ub_value = convert_ori(op, ssa_mapping)
     else:
         raise Exception(f"Cannot convert '{op.name}' operation")
 
@@ -87,6 +126,14 @@ class FuncToSMTPattern(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: FuncOp, rewriter: PatternRewriter):
+        """
+        Convert a `func` function to an smt function.
+        All `iN` arguments are translated to `pair<bv<N>, bool>`, the first
+        value being the actual value of the integer, and the second one being
+        a poison indicator.
+        Functions also return an additional argument, representing if undefined
+        behavior was triggered.
+        """
         # We only handle single-block regions for now
         assert len(op.body.blocks) == 1
 
