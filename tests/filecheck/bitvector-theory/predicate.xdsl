@@ -1,0 +1,52 @@
+// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -t=smt | z3 -in
+
+builtin.module() {
+    %x: !smt.bv.bv<32> = smt.declare_const
+    %y: !smt.bv.bv<32> = smt.declare_const
+
+// CHECK:      (declare-const x (_ BitVec 32))
+// CHECK-NEXT: (declare-const y (_ BitVec 32))
+
+    %ule: !smt.bool = smt.bv.ule %x, %y
+    smt.assert %ule
+
+// CHECK-NEXT: (assert (bvule x y))
+
+    %ult: !smt.bool = smt.bv.ult %x, %y
+    smt.assert %ult
+
+// CHECK-NEXT: (assert (bvult x y))
+
+    %uge: !smt.bool = smt.bv.uge %x, %y
+    smt.assert %uge
+
+// CHECK-NEXT: (assert (bvuge x y))
+
+    %ugt: !smt.bool = smt.bv.ugt %x, %y
+    smt.assert %ugt
+
+// CHECK-NEXT: (assert (bvugt x y))
+
+    %sle: !smt.bool = smt.bv.sle %x, %y
+    smt.assert %sle
+
+// CHECK-NEXT: (assert (bvsle x y))
+
+    %slt: !smt.bool = smt.bv.slt %x, %y
+    smt.assert %slt
+
+// CHECK-NEXT: (assert (bvslt x y))
+
+    %sge: !smt.bool = smt.bv.sge %x, %y
+    smt.assert %sge
+
+// CHECK-NEXT: (assert (bvsge x y))
+
+    %sgt: !smt.bool = smt.bv.sgt %x, %y
+    smt.assert %sgt
+
+// CHECK-NEXT: (assert (bvsgt x y))
+
+}
+

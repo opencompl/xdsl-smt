@@ -14,6 +14,7 @@ from xdsl.printer import Printer
 
 from traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
 from traits.effects import Pure
+from dialects.smt_dialect import BoolType
 
 
 @irdl_attr_definition
@@ -120,12 +121,12 @@ class UnaryBVOp(Operation, Pure):
         printer.print_ssa_value(self.arg)
 
     @classmethod
-    def get(cls, arg: SSAValue) -> UnaryBVOp:
+    def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
         return cls.create(result_types=[arg.typ], operands=[arg])
 
     def verify_(self):
         if not (self.res.typ == self.arg.typ):
-            raise ValueError("Operand and result must have same type")
+            raise ValueError("Operand and result must have the same type")
 
 
 _BOpT = TypeVar("_BOpT", bound="BinaryBVOp")
@@ -151,7 +152,7 @@ class BinaryBVOp(Operation, Pure):
         printer.print_ssa_value(self.rhs)
 
     @classmethod
-    def get(cls, lhs: SSAValue, rhs: SSAValue) -> BinaryBVOp:
+    def get(cls: type[_BOpT], lhs: SSAValue, rhs: SSAValue) -> _BOpT:
         return cls.create(result_types=[lhs.typ], operands=[lhs, rhs])
 
     def verify_(self):
@@ -313,6 +314,105 @@ class XNorOp(BinaryBVOp, SimpleSMTLibOp):
         return "bvxnor"
 
 
+################################################################################
+#                                  Predicate                                   #
+################################################################################
+
+_BPOpT = TypeVar("_BPOpT", bound="BinaryPredBVOp")
+
+
+class BinaryPredBVOp(Operation, Pure):
+    res: Annotated[OpResult, BoolType]
+    lhs: Annotated[Operand, BitVectorType]
+    rhs: Annotated[Operand, BitVectorType]
+
+    @classmethod
+    def parse(cls: type[_BPOpT], result_types: list[Attribute],
+              parser: BaseParser) -> _BPOpT:
+        lhs = parser.parse_operand()
+        parser.parse_char(",")
+        rhs = parser.parse_operand()
+        return cls.get(lhs, rhs)
+
+    def print(self, printer: Printer) -> None:
+        printer.print(" ")
+        printer.print_ssa_value(self.lhs)
+        printer.print(", ")
+        printer.print_ssa_value(self.rhs)
+
+    @classmethod
+    def get(cls: type[_BPOpT], lhs: SSAValue, rhs: SSAValue) -> _BPOpT:
+        return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
+
+    def verify_(self):
+        if not (self.lhs.typ == self.rhs.typ):
+            raise ValueError("Operands must have the same type")
+
+
+@irdl_op_definition
+class UleOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.ule"
+
+    def op_name(self) -> str:
+        return "bvule"
+
+
+@irdl_op_definition
+class UltOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.ult"
+
+    def op_name(self) -> str:
+        return "bvult"
+
+
+@irdl_op_definition
+class UgeOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.uge"
+
+    def op_name(self) -> str:
+        return "bvuge"
+
+
+@irdl_op_definition
+class UgtOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.ugt"
+
+    def op_name(self) -> str:
+        return "bvugt"
+
+
+@irdl_op_definition
+class SleOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.sle"
+
+    def op_name(self) -> str:
+        return "bvsle"
+
+
+@irdl_op_definition
+class SltOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.slt"
+
+    def op_name(self) -> str:
+        return "bvslt"
+
+
+@irdl_op_definition
+class SgeOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.sge"
+
+    def op_name(self) -> str:
+        return "bvsge"
+
+
+@irdl_op_definition
+class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.sgt"
+
+    def op_name(self) -> str:
+        return "bvsgt"
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -335,6 +435,15 @@ SMTBitVectorDialect = Dialect(
         AndOp,
         NAndOp,
         NorOp,
-        XNorOp
+        XNorOp,
+        # Predicate
+        UleOp,
+        UltOp,
+        UgeOp,
+        UgtOp,
+        SleOp,
+        SltOp,
+        SgeOp,
+        SgtOp,
     ],
     [BitVectorType, BitVectorValue])
