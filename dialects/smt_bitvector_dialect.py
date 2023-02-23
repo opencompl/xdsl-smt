@@ -201,7 +201,7 @@ class URemOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.urem"
 
     def op_name(self) -> str:
-        return "urem"
+        return "bvurem"
 
 
 @irdl_op_definition
@@ -209,7 +209,7 @@ class SRemOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.srem"
 
     def op_name(self) -> str:
-        return "srem"
+        return "bvsrem"
 
 
 @irdl_op_definition
@@ -217,7 +217,7 @@ class SModOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.smod"
 
     def op_name(self) -> str:
-        return "smod"
+        return "bvsmod"
 
 
 @irdl_op_definition
@@ -225,7 +225,7 @@ class ShlOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.shl"
 
     def op_name(self) -> str:
-        return "shl"
+        return "bvshl"
 
 
 @irdl_op_definition
@@ -233,7 +233,7 @@ class LShrOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.lshr"
 
     def op_name(self) -> str:
-        return "lshr"
+        return "bvlshr"
 
 
 @irdl_op_definition
@@ -241,7 +241,7 @@ class AShrOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.ashr"
 
     def op_name(self) -> str:
-        return "ashr"
+        return "bvashr"
 
 
 @irdl_op_definition
@@ -317,9 +317,9 @@ SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
         # Arithmetic
+        NegOp,
         AddOp,
         SubOp,
-        NegOp,
         MulOp,
         URemOp,
         SRemOp,
