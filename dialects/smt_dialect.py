@@ -123,6 +123,15 @@ class CallOp(Operation, Pure, SMTLibOp):
     func: Annotated[Operand, FunctionType]
     args: VarOperand
 
+    @staticmethod
+    def get(func: Operand, args: list[Operand]) -> CallOp:
+        if not isinstance(func.typ, FunctionType):
+            raise Exception("Expected function type, got ", func.typ)
+        return CallOp.build(
+            operands=[func, args],
+            result_types=[func.typ.outputs.data[0]],
+        )
+
     def verify_(self) -> None:
         assert isinstance(self.func.typ, FunctionType)
         if len(self.args) != len(self.func.typ.inputs.data):
