@@ -46,6 +46,13 @@ printed as a SMTLib script with
 python xdsl-smt.py file.xdsl -t smt
 ```
 
+You can also directly run the SMTLib script with
+
+```bash
+python xdsl-smt.py file.xdsl -t smt | z3
+```
+or any other SMTLib solver.
+
 ## Running passes with `xdsl-smt`
 
 `xdsl-smt` uses the `-p` command to run passes on a program.
@@ -68,5 +75,6 @@ The translation validator can be run with
 ```
 
 This command will check that the second program is a valid refinement of the first one.
-`z3` is only used as an example here, and other SMT solver that supports SMTLib can
-be used instead.
+
+In order to simplify debugging the refinement script, you can pass the `-opt` option
+to `xdsl-tv.py` to simplify obvious expressions and remove the use of the `pair` datatype.
