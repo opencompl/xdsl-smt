@@ -1,8 +1,8 @@
 # xdsl-smt
 
-This repository containts a work in progress implementation of an SMTLib dialect for xDSL.
+This repository contains a work-in-progress implementation of an SMTLib dialect for xDSL.
 
-It currently contains the implementation of the core theory of SMTLib, and a partial implementation
+It currently contains the implementation of the core theory of SMTLib and a partial implementation
 of the bitvector theory.
 
 ## Installation
@@ -36,7 +36,7 @@ python xdsl-smt.py file.mlir -o new.xdsl
 
 ## Printing SMTLib
 
-When a program only contain `SMTLib` operations and attributes, it can be 
+When a program only contains `SMTLib` operations and attributes, it can be 
 printed as a SMTLib script with
 
 ```bash
@@ -54,5 +54,5 @@ python xdsl-smt.py file.xdsl -p=dce,arith_to_smt -t smt
 `xdsl-smt` defines the following passes:
 * `dce`: Eliminate dead code.
 * `canonicalize_smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
-* `lower_pairs`: Try to remove usage of `pair` datatypes. This duplicate function definitions when they return pairs.
+* `lower_pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
 * `arith_to_smt`: Convert `arith` operations and attributes to the `smt` dialect
