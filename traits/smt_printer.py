@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import abstractmethod
 
 from dataclasses import dataclass, field
-from io import IOBase
+from typing import IO
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import OpResult, SSAValue, Operation
 
@@ -11,7 +11,7 @@ class SMTLibSort:
     """Mark an attribute to be an SMTLib sort."""
 
     @abstractmethod
-    def print_sort_to_smtlib(self, stream: IOBase) -> None:
+    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
         """Print an attribute to an SMTLib representation."""
         ...
 
@@ -24,7 +24,7 @@ class SMTLibOp:
     """
 
     @abstractmethod
-    def print_expr_to_smtlib(self, stream: IOBase,
+    def print_expr_to_smtlib(self, stream: IO[str],
                              ctx: SMTConversionCtx) -> None:
         """Print the operation to an SMTLib representation."""
         ...
@@ -44,7 +44,7 @@ class SimpleSMTLibOp(SMTLibOp):
     `(expr_name <arg0> <arg1> ... <argN>)`.
     """
 
-    def print_expr_to_smtlib(self, stream: IOBase,
+    def print_expr_to_smtlib(self, stream: IO[str],
                              ctx: SMTConversionCtx) -> None:
         assert isinstance(self, Operation)
         print(f"({self.op_name()}", file=stream, end='')
@@ -95,7 +95,7 @@ class SMTConversionCtx:
         self.names.add(name)
         return name
 
-    def print_expr_to_smtlib(self, val: SSAValue, stream: IOBase) -> None:
+    def print_expr_to_smtlib(self, val: SSAValue, stream: IO[str]) -> None:
         """
         Print the SSA value expression in the SMTLib format.
         """
@@ -108,7 +108,7 @@ class SMTConversionCtx:
         op.print_expr_to_smtlib(stream, self)
 
 
-def print_to_smtlib(module: ModuleOp, stream: IOBase) -> None:
+def print_to_smtlib(module: ModuleOp, stream: IO[str]) -> None:
     """
     Print a program to its SMTLib representation.
     """

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from io import IOBase
-from typing import Annotated, TypeVar
+from typing import Annotated, TypeVar, IO
 
 from xdsl.irdl import (OpAttr, OptOpAttr, SingleBlockRegion, VarOperand,
                        irdl_attr_definition, irdl_op_definition, Operand)
@@ -22,7 +21,7 @@ from traits.smt_printer import (SMTLibOp, SMTLibScriptOp, SimpleSMTLibOp,
 class BoolType(ParametrizedAttribute, SMTLibSort):
     name = "smt.bool"
 
-    def print_sort_to_smtlib(self, stream: IOBase) -> None:
+    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
         print("Bool", file=stream, end='')
 
 
@@ -64,7 +63,7 @@ class ForallOp(Operation, Pure, SMTLibOp):
             raise ValueError("Region does not end in yield")
         return yield_op.ret
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(forall (", file=stream, end='')
         for idx, param in enumerate(self.body.blocks[0].args):
             assert isinstance(param.typ, SMTLibSort)
@@ -99,7 +98,7 @@ class ExistsOp(Operation, Pure, SMTLibOp):
             raise ValueError("Region does not end in yield")
         return yield_op.ret
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(exists (", file=stream, end='')
         for idx, param in enumerate(self.body.blocks[0].args):
             assert isinstance(param.typ, SMTLibSort)
@@ -144,7 +143,7 @@ class CallOp(Operation, Pure, SMTLibOp):
         if self.res.typ != self.func.typ.outputs.data[0]:
             raise VerifyException("Incorrect return type")
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(", file=stream, end='')
         for idx, operand in enumerate(self.operands):
             if idx != 0:
@@ -210,7 +209,7 @@ class DefineFunOp(Operation, SMTLibScriptOp):
                                      attributes={"name": name},
                                      regions=[region])
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(define-fun ", file=stream, end='')
 
         # Print the function name
@@ -273,7 +272,7 @@ class DeclareConstOp(Operation, SMTLibScriptOp):
     name = "smt.declare_const"
     res: OpResult
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         name = ctx.get_fresh_name(self.res)
         typ = self.res.typ
         assert isinstance(typ, SMTLibSort)
@@ -296,10 +295,14 @@ class AssertOp(Operation, SMTLibScriptOp):
     name = "smt.assert"
     op: Annotated[Operand, BoolType]
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(assert ", file=stream, end='')
         ctx.print_expr_to_smtlib(self.op, stream)
         print(")", file=stream)
+
+    @staticmethod
+    def get(arg: Operation | SSAValue) -> AssertOp:
+        return AssertOp.build(operands=[arg])
 
     @classmethod
     def parse(cls: type[AssertOp], result_types: list[Attribute],
@@ -316,7 +319,7 @@ class CheckSatOp(Operation, SMTLibScriptOp):
     """Check if the current set of assertions is satisfiable."""
     name = "smt.check_sat"
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(check-sat)", file=stream)
 
     @classmethod
@@ -417,7 +420,7 @@ class ConstantBoolOp(Operation, Pure, SMTLibOp):
     res: Annotated[OpResult, BoolType]
     value: OpAttr[BoolAttr]
 
-    def print_expr_to_smtlib(self, stream: IOBase, ctx: SMTConversionCtx):
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         if self.value.data:
             print("true", file=stream, end='')
         else:
