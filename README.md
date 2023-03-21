@@ -5,6 +5,9 @@ This repository contains a work-in-progress implementation of an SMTLib dialect 
 It currently contains the implementation of the core theory of SMTLib and a partial implementation
 of the bitvector theory.
 
+It also contains a partial lowering from `arith` + `func` to `smt`, and a translation
+validation tool between `arith` + `func` programs. 
+
 ## Installation
 
 To install the project for developers, follow the following commands:
@@ -56,3 +59,14 @@ python xdsl-smt.py file.xdsl -p=dce,arith_to_smt -t smt
 * `canonicalize_smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
 * `lower_pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
 * `arith_to_smt`: Convert `arith` operations and attributes to the `smt` dialect
+
+## Running the translation validation tool
+
+The translation validator can be run with
+```bash
+./xdsl-tv.py file_before.xdsl file_after.xdsl | ./xdsl-smt.py -t smt | z3
+```
+
+This command will check that the second program is a valid refinement of the first one.
+`z3` is only used as an example here, and other SMT solver that supports SMTLib can
+be used instead.
