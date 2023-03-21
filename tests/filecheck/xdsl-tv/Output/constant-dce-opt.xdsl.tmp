@@ -1,0 +1,6 @@
+builtin.module() {
+  func.func() ["sym_name" = "test", "function_type" = !fun<[], [!i32]>, "sym_visibility" = "private"] {
+    %x : !i32 = arith.constant() ["value" = 3 : !i32]
+    func.return(%x : !i32)
+  }
+}
