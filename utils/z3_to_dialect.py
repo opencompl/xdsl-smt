@@ -1,6 +1,6 @@
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, overload
 from xdsl.dialects.builtin import IntegerType
-from xdsl.ir import SSAValue
+from xdsl.ir import Operation, SSAValue
 from z3 import BitVec, Bool
 from dialects.smt_bitvector_dialect import BitVectorType
 
@@ -60,5 +60,8 @@ def to_z3_consts(*vals: SSAValue) -> tuple[Z3Expr, ...]:
     return tuple(to_z3_const(val) for val in vals)
 
 
-def z3_to_dialect():
-    pass
+def z3_to_dialect(expr: Any) -> tuple[list[Operation], SSAValue]:
+    global z3_to_values
+    if expr in z3_to_values:
+        return [], z3_to_values[expr]
+    raise NotImplementedError(f'Cannot convert {expr} to the SMT dialect')
