@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=lower_pairs | filecheck %s
+// RUN: xdsl-smt.py %s -p=lower-pairs | filecheck %s
 
 builtin.module() {
   %0 : !fun<[], [!smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>]> = smt.define_fun() ["fun_name" = "test"] {

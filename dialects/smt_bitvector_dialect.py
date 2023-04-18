@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from io import IOBase
-from typing import Annotated, TypeVar
+from typing import Annotated, TypeVar, IO
 
 from xdsl.dialects.builtin import IntAttr
 
-from xdsl.ir import (Attribute, Dialect, OpResult, Operation,
-                     ParametrizedAttribute, SSAValue)
+from xdsl.ir import (Attribute, Dialect, OpResult, ParametrizedAttribute,
+                     SSAValue)
 from xdsl.irdl import (OpAttr, Operand, ParameterDef, irdl_op_definition,
-                       irdl_attr_definition)
+                       irdl_attr_definition, IRDLOperation)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 
@@ -22,7 +21,7 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort):
     name = "smt.bv.bv"
     width: ParameterDef[IntAttr]
 
-    def print_sort_to_smtlib(self, stream: IOBase):
+    def print_sort_to_smtlib(self, stream: IO[str]):
         print(f"(_ BitVec {self.width.data})", file=stream, end='')
 
     @staticmethod
@@ -34,7 +33,7 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort):
         parser.parse_char("<")
         width = parser.parse_int_literal()
         parser.parse_char(">")
-        return [IntAttr.build(width)]
+        return [IntAttr(width)]
 
     def print_parameters(self, printer: Printer) -> None:
         printer.print("<", self.width.data, ">")
@@ -68,14 +67,14 @@ class BitVectorValue(ParametrizedAttribute):
         parser.parse_char(":")
         width = parser.parse_int_literal()
         parser.parse_char(">")
-        return [IntAttr.build(value), IntAttr.build(width)]
+        return [IntAttr(value), IntAttr(width)]
 
     def print_parameters(self, printer: Printer) -> None:
         printer.print("<", self.value.data, ": ", self.width.data, ">")
 
 
 @irdl_op_definition
-class ConstantOp(Operation, Pure, SMTLibOp):
+class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.bv.constant"
     value: OpAttr[BitVectorValue]
     res: Annotated[OpResult, BitVectorType]
@@ -98,7 +97,7 @@ class ConstantOp(Operation, Pure, SMTLibOp):
     def print(self, printer: Printer) -> None:
         printer.print(" ", self.value)
 
-    def print_expr_to_smtlib(self, stream: IOBase,
+    def print_expr_to_smtlib(self, stream: IO[str],
                              ctx: SMTConversionCtx) -> None:
         print(self.value.as_smtlib_str(), file=stream, end='')
 
@@ -106,7 +105,7 @@ class ConstantOp(Operation, Pure, SMTLibOp):
 _UOpT = TypeVar("_UOpT", bound="UnaryBVOp")
 
 
-class UnaryBVOp(Operation, Pure):
+class UnaryBVOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BitVectorType]
     arg: Annotated[Operand, BitVectorType]
 
@@ -132,7 +131,7 @@ class UnaryBVOp(Operation, Pure):
 _BOpT = TypeVar("_BOpT", bound="BinaryBVOp")
 
 
-class BinaryBVOp(Operation, Pure):
+class BinaryBVOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BitVectorType]
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]
@@ -321,7 +320,7 @@ class XNorOp(BinaryBVOp, SimpleSMTLibOp):
 _BPOpT = TypeVar("_BPOpT", bound="BinaryPredBVOp")
 
 
-class BinaryPredBVOp(Operation, Pure):
+class BinaryPredBVOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BoolType]
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]

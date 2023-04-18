@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from io import IOBase
-from typing import Annotated, Generic, TypeAlias, TypeVar, cast
-from xdsl.ir import (Attribute, Dialect, OpResult, Operation,
-                     ParametrizedAttribute, SSAValue)
+from typing import Annotated, Generic, TypeAlias, TypeVar, cast, IO
+from xdsl.ir import (Attribute, Dialect, OpResult, ParametrizedAttribute,
+                     SSAValue)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 from xdsl.utils.exceptions import VerifyException
 from xdsl.irdl import (Operand, ParameterDef, irdl_attr_definition,
-                       irdl_op_definition)
+                       irdl_op_definition, IRDLOperation)
 
 from .smt_dialect import SMTLibSort, SimpleSMTLibOp
 from traits.effects import Pure
 
-_F = TypeVar("_F", bound=Attribute)
-_S = TypeVar("_S", bound=Attribute)
+_F = TypeVar("_F", bound=Attribute, covariant=True)
+_S = TypeVar("_S", bound=Attribute, covariant=True)
 
 
 @irdl_attr_definition
@@ -24,7 +23,10 @@ class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort):
     first: ParameterDef[_F]
     second: ParameterDef[_S]
 
-    def print_sort_to_smtlib(self, stream: IOBase) -> None:
+    def __init__(self: PairType[_F, _S], first: _F, second: _S):
+        super().__init__([first, second])
+
+    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
         assert isinstance(self.first, SMTLibSort)
         assert isinstance(self.second, SMTLibSort)
         print("(Pair ", file=stream, end='')
@@ -33,16 +35,12 @@ class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort):
         self.second.print_sort_to_smtlib(stream)
         print(")", file=stream, end='')
 
-    @staticmethod
-    def from_params(first: _F, second: _S) -> PairType[_F, _S]:
-        return PairType([first, second])
-
 
 AnyPairType: TypeAlias = PairType[Attribute, Attribute]
 
 
 @irdl_op_definition
-class PairOp(Operation, Pure, SimpleSMTLibOp):
+class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.pair"
 
     res: Annotated[OpResult, AnyPairType]
@@ -51,7 +49,7 @@ class PairOp(Operation, Pure, SimpleSMTLibOp):
 
     @staticmethod
     def from_values(first: SSAValue, second: SSAValue) -> PairOp:
-        result_type = PairType.from_params(first.typ, second.typ)
+        result_type = PairType(first.typ, second.typ)
         return PairOp.create(result_types=[result_type],
                              operands=[first, second])
 
@@ -69,8 +67,8 @@ class PairOp(Operation, Pure, SimpleSMTLibOp):
         first = parser.parse_operand()
         parser.parse_characters(",", "Expected `,`")
         second = parser.parse_operand()
-        return PairOp.build(result_types=[PairType([first.typ, second.typ])],
-                            operands=[first, second])
+        return PairOp.create(result_types=[PairType(first.typ, second.typ)],
+                             operands=[first, second])
 
     def print(self, printer: Printer) -> None:
         printer.print(" ")
@@ -83,7 +81,7 @@ class PairOp(Operation, Pure, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class FirstOp(Operation, Pure, SimpleSMTLibOp):
+class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.first"
 
     res: OpResult
@@ -121,7 +119,7 @@ class FirstOp(Operation, Pure, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class SecondOp(Operation, Pure, SimpleSMTLibOp):
+class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.second"
 
     res: OpResult

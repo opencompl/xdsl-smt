@@ -4,3 +4,4 @@ builtin.module() {
     func.return(%x : !i32)
   }
 }
+

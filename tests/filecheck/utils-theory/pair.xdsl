@@ -10,5 +10,5 @@ builtin.module() {
 }
 
 // CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun fun ((tmp Bool) (tmp_0 Bool)) (Pair Bool Bool)
-// CHECK-NEXT:   (pair tmp tmp_0))
+// CHECK-NEXT: (define-fun fun ((fst Bool) (snd Bool)) (Pair Bool Bool)
+// CHECK-NEXT:   (pair fst snd))

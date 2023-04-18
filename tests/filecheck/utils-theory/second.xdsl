@@ -9,5 +9,5 @@ builtin.module() {
     }
 }
 
-// CHECK: (define-fun {{.*}} (({{.*}} (Pair Bool Bool))) Bool
-// CHECK-NEXT: (second tmp))
+// CHECK: (define-fun {{.*}} ((x (Pair Bool Bool))) Bool
+// CHECK-NEXT: (second x))

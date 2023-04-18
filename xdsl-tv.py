@@ -17,9 +17,9 @@ from dialects.smt_utils_dialect import (AnyPairType, FirstOp, PairType,
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 
-from passes.lower_pairs import lower_pairs
-from passes.arith_to_smt import arith_to_smt
-from passes.canonicalize_smt import canonicalize_smt
+from passes.lower_pairs import LowerPairs
+from passes.arith_to_smt import ArithToSMT
+from passes.canonicalize_smt import CanonicalizeSMT
 
 from traits.smt_printer import print_to_smtlib
 
@@ -173,8 +173,8 @@ if __name__ == "__main__":
     assert (isinstance(module_after, ModuleOp))
 
     # Convert both module to SMTLib
-    arith_to_smt(ctx, module)
-    arith_to_smt(ctx, module_after)
+    ArithToSMT().apply(ctx, module)
+    ArithToSMT().apply(ctx, module_after)
 
     # Collect the function from both modules
     if (len(module.ops) != len(module_after.ops)
@@ -198,6 +198,6 @@ if __name__ == "__main__":
     block.add_ops(function_refinement(func, func_after))
 
     if args.opt:
-        lower_pairs(ctx, new_module)
-        canonicalize_smt(ctx, new_module)
+        LowerPairs().apply(ctx, new_module)
+        CanonicalizeSMT().apply(ctx, new_module)
     print_to_smtlib(new_module, sys.stdout)

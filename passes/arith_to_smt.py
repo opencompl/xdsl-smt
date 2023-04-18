@@ -3,6 +3,7 @@ from xdsl.ir import Attribute, MLContext, OpResult, Operation, SSAValue
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern, op_type_rewrite_pattern
 from xdsl.dialects.builtin import IntegerAttr, IntegerType, ModuleOp, FunctionType
 from xdsl.dialects.func import FuncOp, Return
+from xdsl.passes import ModulePass
 
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.arith_dialect as arith
@@ -38,8 +39,7 @@ def get_value_and_poison(
 def convert_type(type: Attribute) -> Attribute:
     """Convert a type to an SMT sort"""
     if isinstance(type, IntegerType):
-        return PairType.from_params(BitVectorType.from_int(type.width.data),
-                                    BoolType())
+        return PairType(BitVectorType.from_int(type.width.data), BoolType())
     if isinstance(type, SMTLibSort):
         return type
     raise Exception("Cannot convert {type} attribute")
@@ -117,7 +117,7 @@ def merge_types_with_pairs(types: list[Attribute]) -> Attribute:
 
     res: Attribute = types[-1]
     for i in reversed(range(len(types) - 1)):
-        res = AnyPairType.from_params(types[i], res)
+        res = AnyPairType(types[i], res)
     return res
 
 
@@ -185,6 +185,9 @@ class FuncToSMTPattern(RewritePattern):
         rewriter.replace_matched_op(smt_func, new_results=[])
 
 
-def arith_to_smt(ctx: MLContext, module: ModuleOp):
-    walker = PatternRewriteWalker(FuncToSMTPattern())
-    walker.rewrite_module(module)
+class ArithToSMT(ModulePass):
+    name = "arith-to-smt"
+
+    def apply(self, ctx: MLContext, op: ModuleOp):
+        walker = PatternRewriteWalker(FuncToSMTPattern())
+        walker.rewrite_module(op)

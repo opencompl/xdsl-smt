@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=canonicalize_smt -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -p=canonicalize-smt -t=smt | filecheck %s
 
 builtin.module() {
     %true: !smt.bool = smt.constant_bool true

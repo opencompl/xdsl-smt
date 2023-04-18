@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=lower_pairs | filecheck %s
+// RUN: xdsl-smt.py %s -p=lower-pairs | filecheck %s
 
 builtin.module() {
   %0 : !fun<[!smt.bool], [!smt.utils.pair<!smt.bool, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>>]> = smt.define_fun() ["fun_name" = "test"] {
@@ -30,12 +30,12 @@ builtin.module() {
 // CHECK-NEXT:     smt.return(%5 : !smt.bv.bv<32>)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   %6 : !fun<[!smt.bool], [!smt.bool]> = smt.define_fun() ["fun_name" = "test_second_second"] {
-// CHECK-NEXT:   ^2(%7 : !smt.bool):
-// CHECK-NEXT:     %8 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:     smt.return(%8 : !smt.bool)
+// CHECK-NEXT:   ^2(%arg : !smt.bool):
+// CHECK-NEXT:     %7 : !smt.bool = smt.constant_bool false
+// CHECK-NEXT:     smt.return(%7 : !smt.bool)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   %true : !smt.bool = smt.constant_bool true
-// CHECK-NEXT:   %9 : !smt.bool = smt.call(%6 : !fun<[!smt.bool], [!smt.bool]>, %true : !smt.bool)
-// CHECK-NEXT:   smt.assert %9
+// CHECK-NEXT:   %8 : !smt.bool = smt.call(%6 : !fun<[!smt.bool], [!smt.bool]>, %true : !smt.bool)
+// CHECK-NEXT:   smt.assert %8
 // CHECK-NEXT: }
 

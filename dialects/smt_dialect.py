@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Annotated, TypeVar, IO
 
 from xdsl.irdl import (OpAttr, OptOpAttr, SingleBlockRegion, VarOperand,
-                       irdl_attr_definition, irdl_op_definition, Operand)
-from xdsl.ir import (Block, Dialect, OpResult, Operation, Data,
+                       irdl_attr_definition, irdl_op_definition, Operand,
+                       IRDLOperation)
+from xdsl.ir import (Block, Dialect, OpResult, Data, Operation,
                      ParametrizedAttribute, Attribute, SSAValue, Region)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
@@ -26,7 +27,7 @@ class BoolType(ParametrizedAttribute, SMTLibSort):
 
 
 @irdl_op_definition
-class YieldOp(Operation):
+class YieldOp(IRDLOperation):
     """`smt.yield` is used to return a result from a region."""
 
     name = "smt.yield"
@@ -44,7 +45,7 @@ class YieldOp(Operation):
 
 
 @irdl_op_definition
-class ForallOp(Operation, Pure, SMTLibOp):
+class ForallOp(IRDLOperation, Pure, SMTLibOp):
     """Universal quantifier."""
     name = "smt.forall"
 
@@ -79,7 +80,7 @@ class ForallOp(Operation, Pure, SMTLibOp):
 
 
 @irdl_op_definition
-class ExistsOp(Operation, Pure, SMTLibOp):
+class ExistsOp(IRDLOperation, Pure, SMTLibOp):
     """Existential quantifier."""
     name = "smt.exists"
 
@@ -114,7 +115,7 @@ class ExistsOp(Operation, Pure, SMTLibOp):
 
 
 @irdl_op_definition
-class CallOp(Operation, Pure, SMTLibOp):
+class CallOp(IRDLOperation, Pure, SMTLibOp):
     """Call to an SMT function."""
     name = "smt.call"
 
@@ -158,7 +159,7 @@ class CallOp(Operation, Pure, SMTLibOp):
 
 
 @irdl_op_definition
-class DefineFunOp(Operation, SMTLibScriptOp):
+class DefineFunOp(IRDLOperation, SMTLibScriptOp):
     """Define a function."""
     name = "smt.define_fun"
 
@@ -199,8 +200,10 @@ class DefineFunOp(Operation, SMTLibScriptOp):
     @staticmethod
     def from_function_type(func_type: FunctionType,
                            name: str | StringAttr | None = None):
-        block = Block.from_arg_types(func_type.inputs.data)
-        region = Region.from_block_list([block])
+        block = Block(arg_types=func_type.inputs.data)
+        region = Region([block])
+        if isinstance(name, str):
+            name = StringAttr(name)
         if name is None:
             return DefineFunOp.create(result_types=[func_type],
                                       regions=[region])
@@ -248,7 +251,7 @@ class DefineFunOp(Operation, SMTLibScriptOp):
 
 
 @irdl_op_definition
-class ReturnOp(Operation):
+class ReturnOp(IRDLOperation):
     """The return operation of a function."""
     name = "smt.return"
     ret: Operand
@@ -266,7 +269,7 @@ class ReturnOp(Operation):
 
 
 @irdl_op_definition
-class DeclareConstOp(Operation, SMTLibScriptOp):
+class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     """Declare a constant value."""
 
     name = "smt.declare_const"
@@ -290,7 +293,7 @@ class DeclareConstOp(Operation, SMTLibScriptOp):
 
 
 @irdl_op_definition
-class AssertOp(Operation, SMTLibScriptOp):
+class AssertOp(IRDLOperation, SMTLibScriptOp):
     """Assert that a boolean expression is true."""
     name = "smt.assert"
     op: Annotated[Operand, BoolType]
@@ -315,7 +318,7 @@ class AssertOp(Operation, SMTLibScriptOp):
 
 
 @irdl_op_definition
-class CheckSatOp(Operation, SMTLibScriptOp):
+class CheckSatOp(IRDLOperation, SMTLibScriptOp):
     """Check if the current set of assertions is satisfiable."""
     name = "smt.check_sat"
 
@@ -336,7 +339,7 @@ class CheckSatOp(Operation, SMTLibScriptOp):
 _OpT = TypeVar("_OpT", bound=Operation)
 
 
-class BinaryBoolOp(Operation, Pure):
+class BinaryBoolOp(IRDLOperation, Pure):
     """Base class for binary boolean operations."""
     res: Annotated[OpResult, BoolType]
     lhs: Annotated[Operand, BoolType]
@@ -352,7 +355,7 @@ class BinaryBoolOp(Operation, Pure):
         lhs = parser.parse_operand()
         parser.parse_characters(",", "Expected `,`")
         rhs = parser.parse_operand()
-        return cls.build(result_types=[BoolType([])], operands=[lhs, rhs])
+        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
 
     def print(self, printer: Printer) -> None:
         printer.print(" ")
@@ -361,7 +364,7 @@ class BinaryBoolOp(Operation, Pure):
         printer.print_ssa_value(self.rhs)
 
 
-class BinaryTOp(Operation, Pure):
+class BinaryTOp(IRDLOperation, Pure):
     """Base class for binary operations with boolean results."""
     res: Annotated[OpResult, BoolType]
     lhs: Operand
@@ -377,7 +380,7 @@ class BinaryTOp(Operation, Pure):
         lhs = parser.parse_operand()
         parser.parse_characters(",", "Expected `,`")
         rhs = parser.parse_operand()
-        return cls.build(result_types=[BoolType([])], operands=[lhs, rhs])
+        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
 
     def print(self, printer: Printer) -> None:
         printer.print(" ")
@@ -406,13 +409,12 @@ class BoolAttr(Data[bool]):
             return False
         raise ValueError("Expected 'true' or 'false'")
 
-    @staticmethod
-    def print_parameter(data: bool, printer: Printer) -> None:
-        printer.print(str(data))
+    def print_parameter(self, printer: Printer) -> None:
+        printer.print(str(self.data))
 
 
 @irdl_op_definition
-class ConstantBoolOp(Operation, Pure, SMTLibOp):
+class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     """Boolean constant."""
 
     name = "smt.constant_bool"
@@ -450,7 +452,7 @@ class ConstantBoolOp(Operation, Pure, SMTLibOp):
 
 
 @irdl_op_definition
-class NotOp(Operation, Pure, SimpleSMTLibOp):
+class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
     """Boolean negation."""
 
     name = "smt.not"
@@ -536,7 +538,7 @@ class DiscinctOp(BinaryTOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class IteOp(Operation, Pure, SimpleSMTLibOp):
+class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     """If-then-else."""
 
     name = "smt.ite"

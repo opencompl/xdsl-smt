@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=arith_to_smt,lower_pairs | filecheck %s
+// RUN: xdsl-smt.py %s -p=arith-to-smt,lower-pairs | filecheck %s
 
 
 builtin.module() {

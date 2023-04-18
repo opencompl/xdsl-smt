@@ -8,11 +8,12 @@ for the SMT dialects
 
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import MLContext, OpResult, Operation, SSAValue
+from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern
 import dialects.smt_dialect as smt
 import dialects.smt_utils_dialect as smt_utils
 
-from passes.dead_code_elimination import dead_code_elimination
+from passes.dead_code_elimination import DeadCodeElimination
 
 
 class FoldCorePattern(RewritePattern):
@@ -230,11 +231,15 @@ class FoldUtilsPattern(RewritePattern):
             return
 
 
-def canonicalize_smt(ctx: MLContext, module: ModuleOp):
-    walker = PatternRewriteWalker(
-        GreedyRewritePatternApplier([FoldCorePattern(),
-                                     FoldUtilsPattern()]))
-    walker.rewrite_module(module)
+class CanonicalizeSMT(ModulePass):
 
-    # Finish with dead code elimination
-    dead_code_elimination(ctx, module)
+    name = 'canonicalize-smt'
+
+    def apply(self, ctx: MLContext, op: ModuleOp):
+        walker = PatternRewriteWalker(
+            GreedyRewritePatternApplier(
+                [FoldCorePattern(), FoldUtilsPattern()]))
+        walker.rewrite_module(op)
+
+        # Finish with dead code elimination
+        DeadCodeElimination().apply(ctx, op)

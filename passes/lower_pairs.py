@@ -9,11 +9,12 @@ from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute, MLContext
 from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern, op_type_rewrite_pattern
 from xdsl.rewriter import Rewriter
+from xdsl.passes import ModulePass
 
 from dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
 from dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
 from passes.canonicalize_smt import FoldUtilsPattern
-from passes.dead_code_elimination import dead_code_elimination
+from passes.dead_code_elimination import DeadCodeElimination
 
 
 class RemovePairArgsFunction(RewritePattern):
@@ -126,21 +127,25 @@ def remove_pairs_from_function_return(module: ModuleOp):
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 
-def lower_pairs(ctx: MLContext, module: ModuleOp):
-    # Remove pairs from function arguments.
-    walker = PatternRewriteWalker(
-        GreedyRewritePatternApplier([
-            RemovePairArgsFunction(),
-            RemovePairArgsCall(),
-        ]))
-    walker.rewrite_module(module)
+class LowerPairs(ModulePass):
 
-    # Remove pairs from function return.
-    remove_pairs_from_function_return(module)
+    name = 'lower-pairs'
 
-    # Simplify pairs away
-    walker = PatternRewriteWalker(FoldUtilsPattern())
-    walker.rewrite_module(module)
+    def apply(self, ctx: MLContext, op: ModuleOp):
+        # Remove pairs from function arguments.
+        walker = PatternRewriteWalker(
+            GreedyRewritePatternApplier([
+                RemovePairArgsFunction(),
+                RemovePairArgsCall(),
+            ]))
+        walker.rewrite_module(op)
 
-    # Apply DCE pass
-    dead_code_elimination(ctx, module)
+        # Remove pairs from function return.
+        remove_pairs_from_function_return(op)
+
+        # Simplify pairs away
+        walker = PatternRewriteWalker(FoldUtilsPattern())
+        walker.rewrite_module(op)
+
+        # Apply DCE pass
+        DeadCodeElimination().apply(ctx, op)

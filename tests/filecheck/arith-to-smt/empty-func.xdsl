@@ -1,5 +1,5 @@
-// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | filecheck %s
-// RUN: xdsl-smt.py %s -p=arith_to_smt -t=smt | z3 -in
+// RUN: xdsl-smt.py %s -p=arith-to-smt -t=smt | filecheck %s
+// RUN: xdsl-smt.py %s -p=arith-to-smt -t=smt | z3 -in
 
 
 builtin.module() {

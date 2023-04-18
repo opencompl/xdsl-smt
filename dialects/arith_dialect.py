@@ -1,11 +1,11 @@
-from xdsl.ir import Attribute, Dialect, Operation, OpResult
-from xdsl.irdl import (OpAttr, Operand, irdl_op_definition)
+from xdsl.ir import Attribute, Dialect, OpResult
+from xdsl.irdl import (OpAttr, Operand, irdl_op_definition, IRDLOperation)
 
 from traits.effects import Pure
 
 
 @irdl_op_definition
-class Addf(Operation, Pure):
+class Addf(IRDLOperation, Pure):
     name = "arith.addf"
     lhs: Operand
     rhs: Operand
@@ -13,7 +13,7 @@ class Addf(Operation, Pure):
 
 
 @irdl_op_definition
-class Addi(Operation, Pure):
+class Addi(IRDLOperation, Pure):
     name = "arith.addi"
     lhs: Operand
     rhs: Operand
@@ -21,7 +21,7 @@ class Addi(Operation, Pure):
 
 
 @irdl_op_definition
-class AdduiCarry(Operation, Pure):
+class AdduiCarry(IRDLOperation, Pure):
     name = "arith.addui_carry"
     lhs: Operand
     rhs: Operand
@@ -30,7 +30,7 @@ class AdduiCarry(Operation, Pure):
 
 
 @irdl_op_definition
-class Andi(Operation, Pure):
+class Andi(IRDLOperation, Pure):
     name = "arith.andi"
     lhs: Operand
     rhs: Operand
@@ -38,14 +38,14 @@ class Andi(Operation, Pure):
 
 
 @irdl_op_definition
-class Bitcast(Operation, Pure):
+class Bitcast(IRDLOperation, Pure):
     name = "arith.bitcast"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Ceildivsi(Operation, Pure):
+class Ceildivsi(IRDLOperation, Pure):
     name = "arith.ceildivsi"
     lhs: Operand
     rhs: Operand
@@ -53,7 +53,7 @@ class Ceildivsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Ceildivui(Operation, Pure):
+class Ceildivui(IRDLOperation, Pure):
     name = "arith.ceildivui"
     lhs: Operand
     rhs: Operand
@@ -61,7 +61,7 @@ class Ceildivui(Operation, Pure):
 
 
 @irdl_op_definition
-class Cmpf(Operation, Pure):
+class Cmpf(IRDLOperation, Pure):
     name = "arith.cmpf"
     lhs: Operand
     rhs: Operand
@@ -69,7 +69,7 @@ class Cmpf(Operation, Pure):
 
 
 @irdl_op_definition
-class Cmpi(Operation, Pure):
+class Cmpi(IRDLOperation, Pure):
     name = "arith.cmpi"
     lhs: Operand
     rhs: Operand
@@ -77,14 +77,14 @@ class Cmpi(Operation, Pure):
 
 
 @irdl_op_definition
-class Constant(Operation, Pure):
+class Constant(IRDLOperation, Pure):
     name = "arith.constant"
     value: OpAttr[Attribute]
     result: OpResult
 
 
 @irdl_op_definition
-class Divf(Operation, Pure):
+class Divf(IRDLOperation, Pure):
     name = "arith.divf"
     lhs: Operand
     rhs: Operand
@@ -92,7 +92,7 @@ class Divf(Operation, Pure):
 
 
 @irdl_op_definition
-class Divsi(Operation, Pure):
+class Divsi(IRDLOperation, Pure):
     name = "arith.divsi"
     lhs: Operand
     rhs: Operand
@@ -100,7 +100,7 @@ class Divsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Divui(Operation, Pure):
+class Divui(IRDLOperation, Pure):
     name = "arith.divui"
     lhs: Operand
     rhs: Operand
@@ -108,42 +108,42 @@ class Divui(Operation, Pure):
 
 
 @irdl_op_definition
-class Extf(Operation, Pure):
+class Extf(IRDLOperation, Pure):
     name = "arith.extf"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Extsi(Operation, Pure):
+class Extsi(IRDLOperation, Pure):
     name = "arith.extsi"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Extui(Operation, Pure):
+class Extui(IRDLOperation, Pure):
     name = "arith.extui"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Fptosi(Operation, Pure):
+class Fptosi(IRDLOperation, Pure):
     name = "arith.fptosi"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Fptoui(Operation, Pure):
+class Fptoui(IRDLOperation, Pure):
     name = "arith.fptoui"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Floordivsi(Operation, Pure):
+class Floordivsi(IRDLOperation, Pure):
     name = "arith.floordivsi"
     lhs: Operand
     rhs: Operand
@@ -151,21 +151,21 @@ class Floordivsi(Operation, Pure):
 
 
 @irdl_op_definition
-class IndexCast(Operation, Pure):
+class IndexCast(IRDLOperation, Pure):
     name = "arith.index_cast"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class IndexCastui(Operation, Pure):
+class IndexCastui(IRDLOperation, Pure):
     name = "arith.index_castui"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Maxf(Operation, Pure):
+class Maxf(IRDLOperation, Pure):
     name = "arith.maxf"
     lhs: Operand
     rhs: Operand
@@ -173,7 +173,7 @@ class Maxf(Operation, Pure):
 
 
 @irdl_op_definition
-class Maxsi(Operation, Pure):
+class Maxsi(IRDLOperation, Pure):
     name = "arith.maxsi"
     lhs: Operand
     rhs: Operand
@@ -181,7 +181,7 @@ class Maxsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Maxui(Operation, Pure):
+class Maxui(IRDLOperation, Pure):
     name = "arith.maxui"
     lhs: Operand
     rhs: Operand
@@ -189,7 +189,7 @@ class Maxui(Operation, Pure):
 
 
 @irdl_op_definition
-class Minf(Operation, Pure):
+class Minf(IRDLOperation, Pure):
     name = "arith.minf"
     lhs: Operand
     rhs: Operand
@@ -197,7 +197,7 @@ class Minf(Operation, Pure):
 
 
 @irdl_op_definition
-class Minsi(Operation, Pure):
+class Minsi(IRDLOperation, Pure):
     name = "arith.minsi"
     lhs: Operand
     rhs: Operand
@@ -205,7 +205,7 @@ class Minsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Minui(Operation, Pure):
+class Minui(IRDLOperation, Pure):
     name = "arith.minui"
     lhs: Operand
     rhs: Operand
@@ -213,7 +213,7 @@ class Minui(Operation, Pure):
 
 
 @irdl_op_definition
-class Mulf(Operation, Pure):
+class Mulf(IRDLOperation, Pure):
     name = "arith.mulf"
     lhs: Operand
     rhs: Operand
@@ -221,7 +221,7 @@ class Mulf(Operation, Pure):
 
 
 @irdl_op_definition
-class Muli(Operation, Pure):
+class Muli(IRDLOperation, Pure):
     name = "arith.muli"
     lhs: Operand
     rhs: Operand
@@ -229,14 +229,14 @@ class Muli(Operation, Pure):
 
 
 @irdl_op_definition
-class Negf(Operation, Pure):
+class Negf(IRDLOperation, Pure):
     name = "arith.negf"
     operand: Operand
     result: OpResult
 
 
 @irdl_op_definition
-class Ori(Operation, Pure):
+class Ori(IRDLOperation, Pure):
     name = "arith.ori"
     lhs: Operand
     rhs: Operand
@@ -244,7 +244,7 @@ class Ori(Operation, Pure):
 
 
 @irdl_op_definition
-class Remf(Operation, Pure):
+class Remf(IRDLOperation, Pure):
     name = "arith.remf"
     lhs: Operand
     rhs: Operand
@@ -252,7 +252,7 @@ class Remf(Operation, Pure):
 
 
 @irdl_op_definition
-class Remsi(Operation, Pure):
+class Remsi(IRDLOperation, Pure):
     name = "arith.remsi"
     lhs: Operand
     rhs: Operand
@@ -260,7 +260,7 @@ class Remsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Remui(Operation, Pure):
+class Remui(IRDLOperation, Pure):
     name = "arith.remui"
     lhs: Operand
     rhs: Operand
@@ -268,14 +268,14 @@ class Remui(Operation, Pure):
 
 
 @irdl_op_definition
-class Sitofp(Operation, Pure):
+class Sitofp(IRDLOperation, Pure):
     name = "arith.sitofp"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Shli(Operation, Pure):
+class Shli(IRDLOperation, Pure):
     name = "arith.shli"
     lhs: Operand
     rhs: Operand
@@ -283,7 +283,7 @@ class Shli(Operation, Pure):
 
 
 @irdl_op_definition
-class Shrsi(Operation, Pure):
+class Shrsi(IRDLOperation, Pure):
     name = "arith.shrsi"
     lhs: Operand
     rhs: Operand
@@ -291,7 +291,7 @@ class Shrsi(Operation, Pure):
 
 
 @irdl_op_definition
-class Shrui(Operation, Pure):
+class Shrui(IRDLOperation, Pure):
     name = "arith.shrui"
     lhs: Operand
     rhs: Operand
@@ -299,7 +299,7 @@ class Shrui(Operation, Pure):
 
 
 @irdl_op_definition
-class Subf(Operation, Pure):
+class Subf(IRDLOperation, Pure):
     name = "arith.subf"
     lhs: Operand
     rhs: Operand
@@ -307,7 +307,7 @@ class Subf(Operation, Pure):
 
 
 @irdl_op_definition
-class Subi(Operation, Pure):
+class Subi(IRDLOperation, Pure):
     name = "arith.subi"
     lhs: Operand
     rhs: Operand
@@ -315,28 +315,28 @@ class Subi(Operation, Pure):
 
 
 @irdl_op_definition
-class Truncf(Operation, Pure):
+class Truncf(IRDLOperation, Pure):
     name = "arith.truncf"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Trunci(Operation, Pure):
+class Trunci(IRDLOperation, Pure):
     name = "arith.trunci"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Uitofp(Operation, Pure):
+class Uitofp(IRDLOperation, Pure):
     name = "arith.uitofp"
     _in: Operand
     out: OpResult
 
 
 @irdl_op_definition
-class Xori(Operation, Pure):
+class Xori(IRDLOperation, Pure):
     name = "arith.xori"
     lhs: Operand
     rhs: Operand
@@ -344,7 +344,7 @@ class Xori(Operation, Pure):
 
 
 @irdl_op_definition
-class Select(Operation, Pure):
+class Select(IRDLOperation, Pure):
     name = "arith.select"
     condition: Operand
     true_value: Operand

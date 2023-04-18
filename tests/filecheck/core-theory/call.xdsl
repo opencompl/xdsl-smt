@@ -11,6 +11,6 @@ builtin.module() {
     smt.assert %res
 }
 
-// CHECK: (define-fun {{.*}} ((tmp Bool)) Bool
-// CHECK-NEXT: tmp)
+// CHECK: (define-fun {{.*}} ((x Bool)) Bool
+// CHECK-NEXT: x)
 // CHECK-NEXT: (assert ({{.*}} true))
