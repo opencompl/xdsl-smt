@@ -24,9 +24,14 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort):
     def print_sort_to_smtlib(self, stream: IO[str]):
         print(f"(_ BitVec {self.width.data})", file=stream, end='')
 
+    def __init__(self, value: int | IntAttr):
+        if isinstance(value, int):
+            value = IntAttr(value)
+        super().__init__([value])
+
     @staticmethod
     def from_int(value: int) -> BitVectorType:
-        return BitVectorType([IntAttr(value)])
+        return BitVectorType(value)
 
     @staticmethod
     def parse_parameters(parser: BaseParser) -> list[Attribute]:
