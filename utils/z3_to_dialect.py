@@ -8,7 +8,7 @@ from dialects.smt_dialect import BoolType
 
 name_counter: dict[str, int] = dict()
 values_to_z3: dict[SSAValue, Any] = dict()
-z3_to_values: dict[Any, SSAValue] = dict()
+z3_to_values: dict[int, SSAValue] = dict()
 
 Z3Expr: TypeAlias = Any
 
@@ -48,7 +48,7 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
 
     # Remember the association
     values_to_z3[val] = const
-    z3_to_values[const] = val
+    z3_to_values[const.get_id()] = val
     return const
 
 
@@ -62,6 +62,7 @@ def to_z3_consts(*vals: SSAValue) -> tuple[Z3Expr, ...]:
 
 def z3_to_dialect(expr: Any) -> tuple[list[Operation], SSAValue]:
     global z3_to_values
-    if expr in z3_to_values:
-        return [], z3_to_values[expr]
+
+    if expr.get_id() in z3_to_values:
+        return [], z3_to_values[expr.get_id()]
     raise NotImplementedError(f'Cannot convert {expr} to the SMT dialect')
