@@ -71,7 +71,7 @@ python xdsl-smt.py file.xdsl -p=dce,arith_to_smt -t smt
 
 The translation validator can be run with
 ```bash
-./xdsl-tv.py file_before.xdsl file_after.xdsl | ./xdsl-smt.py -t smt | z3
+./xdsl-tv.py file_before.xdsl file_after.xdsl | z3
 ```
 
 This command will check that the second program is a valid refinement of the first one.
