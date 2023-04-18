@@ -96,7 +96,7 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
         attr = parser.parse_attribute()
         if not isinstance(attr, BitVectorValue):
             raise ValueError("Expected a bitvector value")
-        return ConstantOp.create(result_types=[BitVectorType([attr.width])],
+        return ConstantOp.create(result_types=[BitVectorType(attr.width)],
                                  attributes={'value': attr})
 
     def print(self, printer: Printer) -> None:
