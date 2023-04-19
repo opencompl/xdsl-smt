@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, TypeVar, IO
+from typing import Annotated, Iterable, Sequence, TypeVar, IO
 
 from xdsl.irdl import (OpAttr, OptOpAttr, SingleBlockRegion, VarOperand,
                        irdl_attr_definition, irdl_op_definition, Operand,
@@ -51,6 +51,12 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
 
     res: Annotated[OpResult, BoolType]
     body: SingleBlockRegion
+
+    def from_variables(self, variables: Sequence[Attribute],
+                       body: Region | None) -> ForallOp:
+        if body is None:
+            body = Region([Block(arg_types=variables)])
+        return ForallOp.create(result_types=[BoolType()], regions=[body])
 
     def verify_(self) -> None:
         if (len(self.body.ops) == 0

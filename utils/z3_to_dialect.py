@@ -1,10 +1,11 @@
 from typing import Any, TypeAlias, overload
 from xdsl.dialects.builtin import IntegerType
-from xdsl.ir import Operation, SSAValue
-from z3 import BitVec, Bool
+from xdsl.ir import Attribute, Operation, SSAValue
+from z3 import BitVec, BitVecSortRef, Bool, BoolSortRef, QuantifierRef, Sort
 from dialects.smt_bitvector_dialect import BitVectorType
 
-from dialects.smt_dialect import BoolType
+from dialects.smt_dialect import BoolType, ForallOp
+from traits.smt_printer import SMTLibSort
 
 name_counter: dict[str, int] = dict()
 values_to_z3: dict[SSAValue, Any] = dict()
@@ -60,7 +61,17 @@ def to_z3_consts(*vals: SSAValue) -> tuple[Z3Expr, ...]:
     return tuple(to_z3_const(val) for val in vals)
 
 
-def z3_to_dialect(expr: Any) -> tuple[list[Operation], SSAValue]:
+def z3_sort_to_dialect(expr: Any) -> SMTLibSort:
+    if isinstance(expr, BoolSortRef):
+        return BoolType()
+    if isinstance(expr, BitVecSortRef):
+        return BitVectorType(expr.size())
+    raise ValueError(f'Cannot convert {expr} to an SMTLib sort')
+
+
+def z3_to_dialect(
+        expr: Any,
+        free_vars: list[Any] = []) -> tuple[list[Operation], SSAValue]:
     global z3_to_values
 
     if expr.get_id() in z3_to_values:

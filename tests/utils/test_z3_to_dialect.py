@@ -1,8 +1,9 @@
 from xdsl.dialects.builtin import UnregisteredOp
+from z3 import BitVecSort, BoolSort
 from dialects.smt_bitvector_dialect import BitVectorType
 from dialects.smt_dialect import BoolType
 
-from utils.z3_to_dialect import to_z3_consts, z3_to_dialect
+from utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
 
 
 def test_to_z3_consts():
@@ -20,6 +21,12 @@ def test_to_z3_consts():
     assert v2 is v2p
     assert v3 is not v4
     assert v4 is v4p
+
+
+def test_z3_sort_to_dialect():
+    assert z3_sort_to_dialect(BoolSort()) == BoolType()
+    assert z3_sort_to_dialect(BitVecSort(10)) == BitVectorType(10)
+    assert z3_sort_to_dialect(BitVecSort(42)) == BitVectorType(42)
 
 
 def test_z3_to_dialect_const():
