@@ -33,6 +33,9 @@ class YieldOp(IRDLOperation):
     name = "smt.yield"
     ret: Annotated[Operand, BoolType]
 
+    def __init__(self, ret: Operand | Operation):
+        super().__init__(operands=[ret])
+
     @classmethod
     def parse(cls: type[YieldOp], result_types: list[Attribute],
               parser: BaseParser) -> YieldOp:
@@ -93,6 +96,13 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
 
     res: Annotated[OpResult, BoolType]
     body: SingleBlockRegion
+
+    @staticmethod
+    def from_variables(variables: Sequence[Attribute],
+                       body: Region | None = None) -> ExistsOp:
+        if body is None:
+            body = Region([Block(arg_types=variables)])
+        return ExistsOp.create(result_types=[BoolType()], regions=[body])
 
     def verify_(self) -> None:
         if (len(self.body.ops) == 0
