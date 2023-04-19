@@ -1,8 +1,9 @@
-from xdsl.dialects.builtin import UnregisteredOp
-from z3 import BitVecSort, BoolSort
-from dialects.smt_bitvector_dialect import BitVectorType
-from dialects.smt_dialect import BoolType
+from z3 import BitVecSort, BoolSort, Bools, Exists, ForAll
 
+from xdsl.dialects.builtin import UnregisteredOp
+
+from dialects.smt_bitvector_dialect import BitVectorType
+from dialects.smt_dialect import BoolType, ExistsOp, ForallOp, YieldOp
 from utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
 
 
@@ -40,3 +41,31 @@ def test_z3_to_dialect_const():
 
     assert ops == []
     assert val_prime is val
+
+
+def test_z3_to_dialect_quant():
+    x, y = Bools('x y')
+    forall = ForAll([x, y], x)  # type: ignore
+    exists = Exists([x, y], x)  # type: ignore
+
+    ops, var = z3_to_dialect(forall)
+    assert len(ops) == 1
+    ops = ops[0]
+    assert isinstance(ops, ForallOp)
+    assert ops.res == var
+    assert ops.body.block.args[0].typ == BoolType()
+    assert ops.body.block.args[1].typ == BoolType()
+    assert len(ops.body.block.ops) == 1
+    assert isinstance(ops.body.block.ops[0], YieldOp)
+    assert ops.body.block.ops[0].ret == ops.body.block.args[0]
+
+    ops, var = z3_to_dialect(exists)
+    assert len(ops) == 1
+    ops = ops[0]
+    assert isinstance(ops, ExistsOp)
+    assert ops.res == var
+    assert ops.body.block.args[0].typ == BoolType()
+    assert ops.body.block.args[1].typ == BoolType()
+    assert len(ops.body.block.ops) == 1
+    assert isinstance(ops.body.block.ops[0], YieldOp)
+    assert ops.body.block.ops[0].ret == ops.body.block.args[0]
