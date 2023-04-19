@@ -52,7 +52,8 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
     res: Annotated[OpResult, BoolType]
     body: SingleBlockRegion
 
-    def from_variables(self, variables: Sequence[Attribute],
+    @staticmethod
+    def from_variables(variables: Sequence[Attribute],
                        body: Region | None) -> ForallOp:
         if body is None:
             body = Region([Block(arg_types=variables)])
