@@ -318,6 +318,9 @@ class AssertOp(IRDLOperation, SMTLibScriptOp):
     name = "smt.assert"
     op: Annotated[Operand, BoolType]
 
+    def __init__(self, operand: SSAValue):
+        super().__init__(operands=[operand])
+
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(assert ", file=stream, end='')
         ctx.print_expr_to_smtlib(self.op, stream)

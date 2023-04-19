@@ -8,17 +8,8 @@ builtin.module() {
   }
 }
 
-// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun tmp () Bool
-// CHECK-NEXT:   false)
+// CHECK:      (define-fun tmp () (_ BitVec 32)
+// CHECK-NEXT:   (_ bv3 32))
 // CHECK-NEXT: (define-fun tmp_0 () (_ BitVec 32)
 // CHECK-NEXT:   (_ bv3 32))
-// CHECK-NEXT: (define-fun tmp_1 () Bool
-// CHECK-NEXT:   false)
-// CHECK-NEXT: (define-fun tmp_2 () Bool
-// CHECK-NEXT:   false)
-// CHECK-NEXT: (define-fun tmp_3 () (_ BitVec 32)
-// CHECK-NEXT:   (_ bv3 32))
-// CHECK-NEXT: (define-fun tmp_4 () Bool
-// CHECK-NEXT:   false)
-// CHECK-NEXT: (assert (=> (tmp_2) (tmp)))
+// CHECK-NEXT: (assert (= (tmp) (tmp_0)))
