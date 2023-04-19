@@ -273,6 +273,9 @@ class ReturnOp(IRDLOperation):
     name = "smt.return"
     ret: Operand
 
+    def __init__(self, operand: SSAValue):
+        super().__init__(operands=[operand])
+
     @staticmethod
     def from_ret_value(ret_value: SSAValue):
         return ReturnOp.create(operands=[ret_value])
