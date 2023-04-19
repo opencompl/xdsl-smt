@@ -11,7 +11,6 @@ from dialects.smt_bitvector_dialect import BitVectorType
 from traits.smt_printer import SMTLibSort
 from dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
 from dialects.smt_dialect import BoolType, ConstantBoolOp, DefineFunOp, ReturnOp, OrOp
-from utils.z3_to_dialect import to_z3_consts, z3_to_dialect
 
 
 def get_constant_bv_ops(value: int, width: int) -> list[Operation]:
