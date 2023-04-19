@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated, TypeVar, IO
+from typing import Annotated, TypeVar, IO, overload
 
-from xdsl.dialects.builtin import IntAttr
+from xdsl.dialects.builtin import IntAttr, IntegerAttr, IntegerType
 
 from xdsl.ir import (Attribute, Dialect, OpResult, ParametrizedAttribute,
                      SSAValue)
@@ -51,9 +51,16 @@ class BitVectorValue(ParametrizedAttribute):
     value: ParameterDef[IntAttr]
     width: ParameterDef[IntAttr]
 
+    def __init__(self, value: int | IntAttr, width: int | IntAttr):
+        if isinstance(value, int):
+            value = IntAttr(value)
+        if isinstance(width, int):
+            width = IntAttr(width)
+        super().__init__([value, width])
+
     @staticmethod
     def from_int_value(value: int, width: int = 32) -> BitVectorValue:
-        return BitVectorValue([IntAttr(value), IntAttr(width)])
+        return BitVectorValue(value, width)
 
     def get_type(self) -> BitVectorType:
         return BitVectorType.from_int(self.width.data)
@@ -83,6 +90,26 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.bv.constant"
     value: OpAttr[BitVectorValue]
     res: Annotated[OpResult, BitVectorType]
+
+    @overload
+    def __init__(self, value: int | IntAttr, width: int | IntAttr):
+        ...
+
+    @overload
+    def __init__(self, value: IntegerAttr[IntegerType]):
+        ...
+
+    def __init__(self,
+                 value: int | IntAttr | IntegerAttr[IntegerType],
+                 width: int | IntAttr | None = None):
+        if isinstance(value, int | IntAttr):
+            if not isinstance(width, int | IntAttr):
+                raise ValueError("Expected width with an `int` value")
+            attr = BitVectorValue(value, width)
+        else:
+            attr = BitVectorValue(value.value, value.typ.width)
+        super().__init__(result_types=[attr.get_type()],
+                         attributes={"value": attr})
 
     @staticmethod
     def from_int_value(value: int, width: int) -> ConstantOp:
@@ -140,6 +167,14 @@ class BinaryBVOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BitVectorType]
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]
+
+    def __init__(self,
+                 lhs: Operand,
+                 rhs: Operand,
+                 res: Attribute | None = None):
+        if res is None:
+            res = lhs.typ
+        super().__init__(result_types=[lhs.typ], operands=[lhs, rhs])
 
     @classmethod
     def parse(cls: type[_BOpT], result_types: list[Attribute],
