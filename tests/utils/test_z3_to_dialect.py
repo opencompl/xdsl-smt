@@ -1,9 +1,14 @@
-from z3 import BitVecSort, BoolSort, Bools, Exists, ForAll
+from typing import Any
+import pytest
+
+from z3 import And, BitVecSort, BoolSort, Bools, Exists, ForAll, Or, Xor
 
 from xdsl.dialects.builtin import UnregisteredOp
 
 from dialects.smt_bitvector_dialect import BitVectorType
-from dialects.smt_dialect import BoolType, ExistsOp, ForallOp, YieldOp
+from dialects.smt_dialect import (AndOp, BinaryBoolOp, BinaryTOp, BoolType,
+                                  EqOp, ExistsOp, ForallOp, OrOp, XorOp,
+                                  YieldOp, DistinctOp)
 from utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
 
 
@@ -69,3 +74,24 @@ def test_z3_to_dialect_quant():
     assert len(ops.body.block.ops) == 1
     assert isinstance(ops.body.block.ops[0], YieldOp)
     assert ops.body.block.ops[0].ret == ops.body.block.args[0]
+
+
+@pytest.mark.parametrize('xdsl_op, z3_op', [(OrOp, Or), (AndOp, And),
+                                            (XorOp, Xor),
+                                            (EqOp, lambda x, y: x == y),
+                                            (DistinctOp, lambda x, y: x != y)])
+def test_z3_to_dialect_binary_core(xdsl_op: type[BinaryBoolOp | BinaryTOp],
+                                   z3_op: Any):
+    op = UnregisteredOp.with_name('test.test').create(result_types=[
+        BoolType(),
+        BoolType(),
+    ])
+    lhs, rhs = op.results
+    x, y = to_z3_consts(lhs, rhs)
+
+    ops, var = z3_to_dialect(z3_op(x, y))  # type: ignore
+    assert len(ops) == 1
+    assert isinstance(ops[0], xdsl_op)
+    assert ops[0].res == var
+    assert ops[0].lhs == lhs
+    assert ops[0].rhs == rhs

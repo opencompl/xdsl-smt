@@ -1,10 +1,12 @@
 from typing import Any, TypeAlias
 from xdsl.ir import Attribute, Operation, SSAValue
-from z3 import (BitVec, BitVecSortRef, Bool, BoolSortRef, QuantifierRef,
-                is_quantifier, is_var, get_var_index)
+from z3 import (Z3_OP_AND, Z3_OP_DISTINCT, Z3_OP_EQ, Z3_OP_OR, Z3_OP_XOR,
+                BitVec, BitVecSortRef, Bool, BoolSortRef, QuantifierRef,
+                is_app, is_quantifier, is_var, get_var_index)
 from dialects.smt_bitvector_dialect import BitVectorType
 
-from dialects.smt_dialect import BoolType, ExistsOp, ForallOp, YieldOp
+from dialects.smt_dialect import (AndOp, BoolType, EqOp, ExistsOp, ForallOp,
+                                  OrOp, XorOp, YieldOp, DistinctOp)
 
 name_counter: dict[str, int] = dict()
 values_to_z3: dict[SSAValue, Any] = dict()
@@ -35,7 +37,7 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
     # Use a numbering method to ensure distinct constants
     counter = name_counter.setdefault(base_name, 0)
     name = base_name + '@' + str(counter)
-    name_counter[base_name] += counter
+    name_counter[base_name] += 1
 
     # Create a z3 constant from an xDSL type
     const: Z3Expr
@@ -111,5 +113,27 @@ def z3_to_dialect(
     # Quantifier case (Forall, Exists, Lambda)
     if is_quantifier(expr):
         return _z3_quantifier_to_dialect(expr, bound_vars)
+
+    # Core applications
+    if is_app(expr):
+        if expr.decl().arity() == 2:
+            l_ops, l_val = z3_to_dialect(expr.arg(0))
+            r_ops, r_val = z3_to_dialect(expr.arg(1))
+
+            if expr.decl().kind() == Z3_OP_OR:
+                op = OrOp(l_val, r_val)
+            elif expr.decl().kind() == Z3_OP_AND:
+                op = AndOp(l_val, r_val)
+            elif expr.decl().kind() == Z3_OP_XOR:
+                op = XorOp(l_val, r_val)
+            elif expr.decl().kind() == Z3_OP_EQ:
+                op = EqOp(l_val, r_val)
+            elif expr.decl().kind() == Z3_OP_DISTINCT:
+                op = DistinctOp(l_val, r_val)
+            else:
+                raise NotImplementedError(
+                    f'Cannot convert {expr} to the SMT dialect')
+
+            return l_ops + r_ops + [op], op.res
 
     raise NotImplementedError(f'Cannot convert {expr} to the SMT dialect')

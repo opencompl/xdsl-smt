@@ -175,7 +175,7 @@ class FoldCorePattern(RewritePattern):
         # x != True -> not x
         # x != False -> x
         # x != x -> False
-        if isinstance(op, smt.DiscinctOp):
+        if isinstance(op, smt.DistinctOp):
             if (value := self.get_constant(op.lhs)) is not None:
                 if value:
                     rewriter.replace_matched_op(smt.NotOp.get(op.rhs))

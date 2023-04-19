@@ -362,6 +362,9 @@ class BinaryBoolOp(IRDLOperation, Pure):
     lhs: Annotated[Operand, BoolType]
     rhs: Annotated[Operand, BoolType]
 
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
+
     @classmethod
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
         return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
@@ -386,6 +389,9 @@ class BinaryTOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BoolType]
     lhs: Operand
     rhs: Operand
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
 
     @classmethod
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
@@ -545,7 +551,7 @@ class EqOp(BinaryTOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class DiscinctOp(BinaryTOp, SimpleSMTLibOp):
+class DistinctOp(BinaryTOp, SimpleSMTLibOp):
     """Distinctness."""
 
     name = "smt.distinct"
@@ -610,6 +616,6 @@ SMTDialect = Dialect([
     OrOp,
     XorOp,
     EqOp,
-    DiscinctOp,
+    DistinctOp,
     IteOp,
 ], [BoolType, BoolAttr])
