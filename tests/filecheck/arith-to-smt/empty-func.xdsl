@@ -10,6 +10,5 @@ builtin.module() {
 }
 
 
-// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun tmp ((tmp_0 (Pair (_ BitVec 32) Bool))) (Pair Bool (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:   (pair false tmp_0))
+// CHECK:      (define-fun tmp ((x (_ BitVec 32))) (_ BitVec 32)
+// CHECK-NEXT:   x)

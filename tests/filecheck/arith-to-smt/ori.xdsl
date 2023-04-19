@@ -9,6 +9,5 @@ builtin.module() {
   }
 }
 
-// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun tmp ((tmp_0 (Pair (_ BitVec 32) Bool)) (tmp_1 (Pair (_ BitVec 32) Bool))) (Pair Bool (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:   (pair false (pair (bvor (first tmp_0) (first tmp_1)) (or (second tmp_0) (second tmp_1)))))
+// CHECK:      (define-fun tmp ((x (_ BitVec 32)) (y (_ BitVec 32))) (_ BitVec 32)
+// CHECK-NEXT:   (bvor x y))
