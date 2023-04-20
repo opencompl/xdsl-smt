@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s | filecheck %s
+// RUN: xdsl-smt.py %s -p=pdl-to-smt -t smt | z3 -in | filecheck %s
 
 // or(x, or(x, y)) -> or(x, y)
 
@@ -15,7 +15,4 @@
 }) : () -> ()
 
 
-// CHECK:      (declare-const tmp (_ BitVec 32))
-// CHECK-NEXT: (declare-const tmp_0 (_ BitVec 32))
-// CHECK-NEXT: (assert (distinct (bvor tmp tmp_0) (bvor tmp (bvor tmp tmp_0))))
-// CHECK-NEXT: (check-sat)
+// CHECK-NOT: unsat
