@@ -5,8 +5,8 @@ This repository contains a work-in-progress implementation of an SMTLib dialect 
 It currently contains the implementation of the core theory of SMTLib and a partial implementation
 of the bitvector theory.
 
-It also contains a partial lowering from `arith` + `func` to `smt`, and a translation
-validation tool between `arith` + `func` programs. 
+It also contains a partial lowering from `pdl`, `arith`, and `func` to `smt`, a translation
+validation tool between `arith` + `func` programs.
 
 ## Installation
 
