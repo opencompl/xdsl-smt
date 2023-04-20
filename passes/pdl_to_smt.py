@@ -7,7 +7,7 @@ from xdsl.pattern_rewriter import (GreedyRewritePatternApplier,
                                    PatternRewriteWalker, PatternRewriter,
                                    RewritePattern, op_type_rewrite_pattern)
 from xdsl.passes import ModulePass
-from dialects.smt_dialect import AssertOp, CheckSatOp, DeclareConstOp, DistinctOp, EqOp
+from dialects.smt_dialect import AssertOp, CheckSatOp, DeclareConstOp, DistinctOp
 
 from passes.arith_to_smt import ArithToSMT, convert_type
 
@@ -102,19 +102,29 @@ class ReplaceRewrite(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
+        assert isinstance(op.opValue, ErasedSSAValue)
+        replaced_op = self.rewrite_context.pdl_op_to_op[op.opValue.old_value]
+        if len(replaced_op.results) != 1:
+            raise Exception("Cannot handle operations with multiple results")
+
+        replacing_value: SSAValue
+        # Replacing by values case
         if len(op.replValues) != 0:
-            if len(op.replValues) != 1:
+            assert len(op.replValues) == 1
+            replacing_value = op.replValues[0]
+        # Replacing by operations case
+        else:
+            assert isinstance(op.replOperation, ErasedSSAValue)
+            replacing_op = self.rewrite_context.pdl_op_to_op[
+                op.replOperation.old_value]
+            if len(replacing_op.results) != 1:
                 raise Exception(
                     "Cannot handle operations with multiple results")
-            assert isinstance(op.opValue, ErasedSSAValue)
-            replaced_op = self.rewrite_context.pdl_op_to_op[
-                op.opValue.old_value]
-            assert len(replaced_op.results) == 1
-            distinct_op = DistinctOp(op.replValues[0], replaced_op.results[0])
-            assert_op = AssertOp(distinct_op.res)
-            rewriter.replace_matched_op([distinct_op, assert_op])
-            return
-        raise Exception("Cannot handle replacement of operations")
+            replacing_value = replacing_op.results[0]
+
+        distinct_op = DistinctOp(replacing_value, replaced_op.results[0])
+        assert_op = AssertOp(distinct_op.res)
+        rewriter.replace_matched_op([distinct_op, assert_op])
 
 
 @dataclass

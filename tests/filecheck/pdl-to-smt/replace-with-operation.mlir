@@ -8,7 +8,7 @@
     %1 = "pdl.operand"(%0) : (!pdl.type) -> !pdl.value
     %2 = "pdl.operand"(%0) : (!pdl.type) -> !pdl.value
     %3 = "pdl.operation"(%1, %2, %0) {attributeValueNames = [], opName = "arith.ori", operand_segment_sizes = array<i32: 2, 0, 1>} : (!pdl.value, !pdl.value, !pdl.type) -> !pdl.operation
-    "pdl.rewrite"(%5) ({
+    "pdl.rewrite"(%3) ({
       %5 = "pdl.operation"(%2, %1, %0) {attributeValueNames = [], opName = "arith.ori", operand_segment_sizes = array<i32: 2, 0, 1>} : (!pdl.value, !pdl.value, !pdl.type) -> !pdl.operation
       "pdl.replace"(%3, %5) {operand_segment_sizes = array<i32: 1, 1, 0>} : (!pdl.operation, !pdl.value) -> ()
     }) {operand_segment_sizes = array<i32: 1, 0>} : (!pdl.operation) -> ()
@@ -16,6 +16,7 @@
 }) : () -> ()
 
 
-// CHECK: (declare-const tmp (_ BitVec 32))
-// CHECK: (declare-const tmp_0 (_ BitVec 32))
-// CHECK: (assert (distinct (bvor tmp tmp_0) (bvor tmp (bvor tmp tmp_0))))
+// CHECK:      (declare-const tmp (_ BitVec 32))
+// CHECK-NEXT: (declare-const tmp_0 (_ BitVec 32))
+// CHECK-NEXT: (assert (distinct (bvor tmp_0 tmp) (bvor tmp tmp_0)))
+// CHECK-NEXT: (check-sat)
