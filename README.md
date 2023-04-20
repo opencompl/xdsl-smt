@@ -66,6 +66,8 @@ python xdsl-smt.py file.xdsl -p=dce,arith_to_smt -t smt
 * `canonicalize_smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
 * `lower_pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
 * `arith_to_smt`: Convert `arith` operations and attributes to the `smt` dialect
+* `pdl_to_smt`: Convert `PDL` rewrites on `arith` operations to the `smt` dialect,
+   which can be directly ran with SMT-Lib to check for correctness of the rewrite.
 
 ## Running the translation validation tool
 
