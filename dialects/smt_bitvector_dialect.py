@@ -4,10 +4,15 @@ from typing import Annotated, TypeVar, IO, overload
 
 from xdsl.dialects.builtin import IntAttr, IntegerAttr, IntegerType
 
-from xdsl.ir import (Attribute, Dialect, OpResult, ParametrizedAttribute,
-                     SSAValue)
-from xdsl.irdl import (OpAttr, Operand, ParameterDef, irdl_op_definition,
-                       irdl_attr_definition, IRDLOperation)
+from xdsl.ir import Attribute, Dialect, OpResult, ParametrizedAttribute, SSAValue
+from xdsl.irdl import (
+    OpAttr,
+    Operand,
+    ParameterDef,
+    irdl_op_definition,
+    irdl_attr_definition,
+    IRDLOperation,
+)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 
@@ -22,7 +27,7 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort):
     width: ParameterDef[IntAttr]
 
     def print_sort_to_smtlib(self, stream: IO[str]):
-        print(f"(_ BitVec {self.width.data})", file=stream, end='')
+        print(f"(_ BitVec {self.width.data})", file=stream, end="")
 
     def __init__(self, value: int | IntAttr):
         if isinstance(value, int):
@@ -99,39 +104,40 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     def __init__(self, value: IntegerAttr[IntegerType]):
         ...
 
-    def __init__(self,
-                 value: int | IntAttr | IntegerAttr[IntegerType],
-                 width: int | IntAttr | None = None):
+    def __init__(
+        self,
+        value: int | IntAttr | IntegerAttr[IntegerType],
+        width: int | IntAttr | None = None,
+    ):
         if isinstance(value, int | IntAttr):
             if not isinstance(width, int | IntAttr):
                 raise ValueError("Expected width with an `int` value")
             attr = BitVectorValue(value, width)
         else:
             attr = BitVectorValue(value.value, value.typ.width)
-        super().__init__(result_types=[attr.get_type()],
-                         attributes={"value": attr})
+        super().__init__(result_types=[attr.get_type()], attributes={"value": attr})
 
     @staticmethod
     def from_int_value(value: int, width: int) -> ConstantOp:
         bv_value = BitVectorValue.from_int_value(value, width)
-        return ConstantOp.create(result_types=[bv_value.get_type()],
-                                 attributes={"value": bv_value})
+        return ConstantOp.create(
+            result_types=[bv_value.get_type()], attributes={"value": bv_value}
+        )
 
     @classmethod
-    def parse(cls, result_types: list[Attribute],
-              parser: BaseParser) -> ConstantOp:
+    def parse(cls, result_types: list[Attribute], parser: BaseParser) -> ConstantOp:
         attr = parser.parse_attribute()
         if not isinstance(attr, BitVectorValue):
             raise ValueError("Expected a bitvector value")
-        return ConstantOp.create(result_types=[BitVectorType(attr.width)],
-                                 attributes={'value': attr})
+        return ConstantOp.create(
+            result_types=[BitVectorType(attr.width)], attributes={"value": attr}
+        )
 
     def print(self, printer: Printer) -> None:
         printer.print(" ", self.value)
 
-    def print_expr_to_smtlib(self, stream: IO[str],
-                             ctx: SMTConversionCtx) -> None:
-        print(self.value.as_smtlib_str(), file=stream, end='')
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        print(self.value.as_smtlib_str(), file=stream, end="")
 
 
 _UOpT = TypeVar("_UOpT", bound="UnaryBVOp")
@@ -142,8 +148,9 @@ class UnaryBVOp(IRDLOperation, Pure):
     arg: Annotated[Operand, BitVectorType]
 
     @classmethod
-    def parse(cls: type[_UOpT], result_types: list[Attribute],
-              parser: BaseParser) -> _UOpT:
+    def parse(
+        cls: type[_UOpT], result_types: list[Attribute], parser: BaseParser
+    ) -> _UOpT:
         arg = parser.parse_operand()
         return cls.build(result_types=[arg.typ], operands=[arg])
 
@@ -168,17 +175,15 @@ class BinaryBVOp(IRDLOperation, Pure):
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]
 
-    def __init__(self,
-                 lhs: Operand,
-                 rhs: Operand,
-                 res: Attribute | None = None):
+    def __init__(self, lhs: Operand, rhs: Operand, res: Attribute | None = None):
         if res is None:
             res = lhs.typ
         super().__init__(result_types=[lhs.typ], operands=[lhs, rhs])
 
     @classmethod
-    def parse(cls: type[_BOpT], result_types: list[Attribute],
-              parser: BaseParser) -> _BOpT:
+    def parse(
+        cls: type[_BOpT], result_types: list[Attribute], parser: BaseParser
+    ) -> _BOpT:
         lhs = parser.parse_operand()
         parser.parse_char(",")
         rhs = parser.parse_operand()
@@ -366,8 +371,9 @@ class BinaryPredBVOp(IRDLOperation, Pure):
     rhs: Annotated[Operand, BitVectorType]
 
     @classmethod
-    def parse(cls: type[_BPOpT], result_types: list[Attribute],
-              parser: BaseParser) -> _BPOpT:
+    def parse(
+        cls: type[_BPOpT], result_types: list[Attribute], parser: BaseParser
+    ) -> _BPOpT:
         lhs = parser.parse_operand()
         parser.parse_char(",")
         rhs = parser.parse_operand()
@@ -485,4 +491,5 @@ SMTBitVectorDialect = Dialect(
         SgeOp,
         SgtOp,
     ],
-    [BitVectorType, BitVectorValue])
+    [BitVectorType, BitVectorValue],
+)

@@ -49,4 +49,3 @@ builtin.module() {
 // CHECK-NEXT: (assert (bvsgt x y))
 
 }
-

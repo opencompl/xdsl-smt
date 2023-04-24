@@ -9,7 +9,12 @@ for the SMT dialects
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import MLContext, OpResult, Operation, SSAValue
 from xdsl.passes import ModulePass
-from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern
+from xdsl.pattern_rewriter import (
+    GreedyRewritePatternApplier,
+    PatternRewriteWalker,
+    PatternRewriter,
+    RewritePattern,
+)
 import dialects.smt_dialect as smt
 import dialects.smt_utils_dialect as smt_utils
 
@@ -17,7 +22,6 @@ from passes.dead_code_elimination import DeadCodeElimination
 
 
 class FoldCorePattern(RewritePattern):
-
     @staticmethod
     def get_constant(value: SSAValue) -> bool | None:
         if not isinstance(value, OpResult):
@@ -44,8 +48,7 @@ class FoldCorePattern(RewritePattern):
         if isinstance(op, smt.NotOp):
             if (value := self.get_constant(op.arg)) is None:
                 return None
-            rewriter.replace_matched_op(
-                smt.ConstantBoolOp.from_bool(not value))
+            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(not value))
             return
 
         # True => x -> x
@@ -58,13 +61,11 @@ class FoldCorePattern(RewritePattern):
                 if value:
                     rewriter.replace_matched_op([], [op.rhs])
                 else:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(True))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
                 return
             if (value := self.get_constant(op.rhs)) is not None:
                 if value:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(True))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
                 else:
                     rewriter.replace_matched_op(smt.NotOp.get(op.lhs))
                 return
@@ -83,15 +84,13 @@ class FoldCorePattern(RewritePattern):
                 if value:
                     rewriter.replace_matched_op([], [op.rhs])
                 else:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(False))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
                 return
             if (value := self.get_constant(op.rhs)) is not None:
                 if value:
                     rewriter.replace_matched_op([], [op.lhs])
                 else:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(False))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
                 return
             if op.lhs == op.rhs:
                 rewriter.replace_matched_op([], [op.lhs])
@@ -106,15 +105,13 @@ class FoldCorePattern(RewritePattern):
         if isinstance(op, smt.OrOp):
             if (value := self.get_constant(op.lhs)) is not None:
                 if value:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(True))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
                 else:
                     rewriter.replace_matched_op([], [op.rhs])
                 return
             if (value := self.get_constant(op.rhs)) is not None:
                 if value:
-                    rewriter.replace_matched_op(
-                        smt.ConstantBoolOp.from_bool(True))
+                    rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
                 else:
                     rewriter.replace_matched_op([], [op.lhs])
                 return
@@ -142,8 +139,7 @@ class FoldCorePattern(RewritePattern):
                     rewriter.replace_matched_op([], [op.lhs])
                 return
             if op.lhs == op.rhs:
-                rewriter.replace_matched_op(
-                    smt.ConstantBoolOp.from_bool(False))
+                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
                 return
             return
 
@@ -189,8 +185,7 @@ class FoldCorePattern(RewritePattern):
                     rewriter.replace_matched_op([], [op.lhs])
                 return
             if op.lhs == op.rhs:
-                rewriter.replace_matched_op(
-                    smt.ConstantBoolOp.from_bool(False))
+                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
                 return
             return
 
@@ -200,7 +195,8 @@ class FoldCorePattern(RewritePattern):
         if isinstance(op, smt.IteOp):
             if (value := self.get_constant(op.cond)) is not None:
                 rewriter.replace_matched_op(
-                    [], [op.true_val if value else op.false_val])
+                    [], [op.true_val if value else op.false_val]
+                )
                 return
             if op.true_val == op.false_val:
                 rewriter.replace_matched_op([], [op.true_val])
@@ -209,9 +205,7 @@ class FoldCorePattern(RewritePattern):
 
 
 class FoldUtilsPattern(RewritePattern):
-
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-
         # first (pair x y) -> x
         if isinstance(op, smt_utils.FirstOp):
             if not isinstance(op.pair, OpResult):
@@ -232,13 +226,12 @@ class FoldUtilsPattern(RewritePattern):
 
 
 class CanonicalizeSMT(ModulePass):
-
-    name = 'canonicalize-smt'
+    name = "canonicalize-smt"
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(
-                [FoldCorePattern(), FoldUtilsPattern()]))
+            GreedyRewritePatternApplier([FoldCorePattern(), FoldUtilsPattern()])
+        )
         walker.rewrite_module(op)
 
         # Finish with dead code elimination

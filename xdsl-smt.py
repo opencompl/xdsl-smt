@@ -23,7 +23,6 @@ from traits.smt_printer import print_to_smtlib
 
 
 class OptMain(xDSLOptMain):
-
     def register_all_dialects(self):
         self.ctx.register_dialect(Arith)
         self.ctx.register_dialect(Builtin)
@@ -46,7 +45,7 @@ class OptMain(xDSLOptMain):
 
     def register_all_targets(self):
         super().register_all_targets()
-        self.available_targets['smt'] = print_to_smtlib
+        self.available_targets["smt"] = print_to_smtlib
 
 
 def __main__():

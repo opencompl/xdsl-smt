@@ -7,7 +7,13 @@ It also duplicate arguments that are pairs, into two arguments.
 from typing import cast
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute, MLContext
-from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern, op_type_rewrite_pattern
+from xdsl.pattern_rewriter import (
+    GreedyRewritePatternApplier,
+    PatternRewriteWalker,
+    PatternRewriter,
+    RewritePattern,
+    op_type_rewrite_pattern,
+)
 from xdsl.rewriter import Rewriter
 from xdsl.passes import ModulePass
 
@@ -18,7 +24,6 @@ from passes.dead_code_elimination import DeadCodeElimination
 
 
 class RemovePairArgsFunction(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: DefineFunOp, rewriter: PatternRewriter):
         block = op.body.blocks[0]
@@ -39,11 +44,11 @@ class RemovePairArgsFunction(RewritePattern):
         assert isinstance(old_typ, FunctionType)
         new_inputs = [arg.typ for arg in block.args]
         op.ret.typ = FunctionType.from_attrs(
-            ArrayAttr[Attribute].from_list(new_inputs), old_typ.outputs)
+            ArrayAttr[Attribute].from_list(new_inputs), old_typ.outputs
+        )
 
 
 class RemovePairArgsCall(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: CallOp, rewriter: PatternRewriter):
         args = op.args
@@ -55,9 +60,11 @@ class RemovePairArgsCall(RewritePattern):
                 snd = SecondOp.from_value(arg)
                 rewriter.insert_op_before_matched_op([fst, snd])
                 rewriter.replace_matched_op(
-                    CallOp.create(result_types=[res.typ for res in op.results],
-                                  operands=args[:i] + [fst.res, snd.res] +
-                                  args[i + 1:]))
+                    CallOp.create(
+                        result_types=[res.typ for res in op.results],
+                        operands=args[:i] + [fst.res, snd.res] + args[i + 1 :],
+                    )
+                )
                 return
             else:
                 i += 1
@@ -65,8 +72,7 @@ class RemovePairArgsCall(RewritePattern):
 
 def remove_pairs_from_function_return(module: ModuleOp):
     funcs = list[DefineFunOp]()
-    module.walk(lambda op: funcs.append(op)
-                if isinstance(op, DefineFunOp) else None)
+    module.walk(lambda op: funcs.append(op) if isinstance(op, DefineFunOp) else None)
 
     while len(funcs) != 0:
         func = funcs[-1]
@@ -79,9 +85,8 @@ def remove_pairs_from_function_return(module: ModuleOp):
             # by duplicating the current function.
             firstFunc = func.clone()
             parent_block = func.parent_block()
-            assert (parent_block is not None)
-            parent_block.insert_op(firstFunc,
-                                   parent_block.get_operation_index(func))
+            assert parent_block is not None
+            parent_block.insert_op(firstFunc, parent_block.get_operation_index(func))
 
             # Mutate the new function to return the first element of the pair.
             firstBlock = firstFunc.body.blocks[0]
@@ -91,10 +96,12 @@ def remove_pairs_from_function_return(module: ModuleOp):
             Rewriter.replace_op(firstBlock.ops[-1], firstRet)
             firstFunc.ret.typ = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
-                ArrayAttr[Attribute].from_list([output.first]))
+                ArrayAttr[Attribute].from_list([output.first]),
+            )
             if firstFunc.fun_name:
                 firstFunc.attributes["fun_name"] = StringAttr(
-                    firstFunc.fun_name.data + "_first")
+                    firstFunc.fun_name.data + "_first"
+                )
 
             # Mutate the current function to return the second element of the pair.
             secondFunc = func
@@ -105,10 +112,12 @@ def remove_pairs_from_function_return(module: ModuleOp):
             Rewriter.replace_op(secondBlock.ops[-1], secondRet)
             secondFunc.ret.typ = FunctionType.from_attrs(
                 secondFunc.func_type.inputs,
-                ArrayAttr[Attribute].from_list([output.second]))
+                ArrayAttr[Attribute].from_list([output.second]),
+            )
             if secondFunc.fun_name:
                 secondFunc.attributes["fun_name"] = StringAttr(
-                    secondFunc.fun_name.data + "_second")
+                    secondFunc.fun_name.data + "_second"
+                )
 
             funcs.append(firstFunc)
             funcs.append(secondFunc)
@@ -116,28 +125,32 @@ def remove_pairs_from_function_return(module: ModuleOp):
             # Replace all calls of this function by calls to the new functions.
             for use in set(func.ret.uses):
                 call = use.operation
-                assert (isinstance(call, CallOp))
+                assert isinstance(call, CallOp)
                 callFirst = CallOp.create(
                     result_types=[firstFunc.ret.typ.outputs.data[0]],
-                    operands=[firstFunc.ret] + list(call.args))
+                    operands=[firstFunc.ret] + list(call.args),
+                )
                 callSecond = CallOp.create(
                     result_types=[secondFunc.ret.typ.outputs.data[0]],
-                    operands=[secondFunc.ret] + list(call.args))
+                    operands=[secondFunc.ret] + list(call.args),
+                )
                 mergeCalls = PairOp.from_values(callFirst.res, callSecond.res)
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 
 class LowerPairs(ModulePass):
-
-    name = 'lower-pairs'
+    name = "lower-pairs"
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         # Remove pairs from function arguments.
         walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier([
-                RemovePairArgsFunction(),
-                RemovePairArgsCall(),
-            ]))
+            GreedyRewritePatternApplier(
+                [
+                    RemovePairArgsFunction(),
+                    RemovePairArgsCall(),
+                ]
+            )
+        )
         walker.rewrite_module(op)
 
         # Remove pairs from function return.

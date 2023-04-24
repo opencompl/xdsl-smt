@@ -38,4 +38,3 @@ builtin.module() {
 // CHECK-NEXT:   %8 : !smt.bool = smt.call(%6 : !fun<[!smt.bool], [!smt.bool]>, %true : !smt.bool)
 // CHECK-NEXT:   smt.assert %8
 // CHECK-NEXT: }
-

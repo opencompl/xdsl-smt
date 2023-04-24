@@ -1,12 +1,34 @@
 from typing import Any, TypeAlias
 from xdsl.ir import Attribute, Operation, SSAValue
-from z3 import (Z3_OP_AND, Z3_OP_DISTINCT, Z3_OP_EQ, Z3_OP_OR, Z3_OP_XOR,
-                BitVec, BitVecSortRef, Bool, BoolSortRef, QuantifierRef,
-                is_app, is_quantifier, is_var, get_var_index)
+from z3 import (
+    Z3_OP_AND,
+    Z3_OP_DISTINCT,
+    Z3_OP_EQ,
+    Z3_OP_OR,
+    Z3_OP_XOR,
+    BitVec,
+    BitVecSortRef,
+    Bool,
+    BoolSortRef,
+    QuantifierRef,
+    is_app,
+    is_quantifier,
+    is_var,
+    get_var_index,
+)
 from dialects.smt_bitvector_dialect import BitVectorType
 
-from dialects.smt_dialect import (AndOp, BoolType, EqOp, ExistsOp, ForallOp,
-                                  OrOp, XorOp, YieldOp, DistinctOp)
+from dialects.smt_dialect import (
+    AndOp,
+    BoolType,
+    EqOp,
+    ExistsOp,
+    ForallOp,
+    OrOp,
+    XorOp,
+    YieldOp,
+    DistinctOp,
+)
 
 name_counter: dict[str, int] = dict()
 values_to_z3: dict[SSAValue, Any] = dict()
@@ -16,10 +38,10 @@ Z3Expr: TypeAlias = Any
 
 
 def to_z3_const(val: SSAValue) -> Z3Expr:
-    '''
+    """
     Return the z3 constant associated to an SSAValue.
     If none exist, create one based on the SSAValue type.
-    '''
+    """
     global values_to_z3
     global z3_to_values
     global name_counter
@@ -32,11 +54,11 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
     # Get the ssa value name
     base_name = val.name
     if base_name is None:
-        base_name = 'tmp'
+        base_name = "tmp"
 
     # Use a numbering method to ensure distinct constants
     counter = name_counter.setdefault(base_name, 0)
-    name = base_name + '@' + str(counter)
+    name = base_name + "@" + str(counter)
     name_counter[base_name] += 1
 
     # Create a z3 constant from an xDSL type
@@ -46,7 +68,7 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
     elif isinstance(val.typ, BoolType):
         const = Bool(name)
     else:
-        raise ValueError(f'Cannot convert value of type {val.typ.name} to z3')
+        raise ValueError(f"Cannot convert value of type {val.typ.name} to z3")
 
     # Remember the association
     values_to_z3[val] = const
@@ -68,12 +90,12 @@ def z3_sort_to_dialect(expr: Any) -> Attribute:
         return BoolType()
     if isinstance(expr, BitVecSortRef):
         return BitVectorType(expr.size())
-    raise ValueError(f'Cannot convert {expr} to an SMTLib sort')
+    raise ValueError(f"Cannot convert {expr} to an SMTLib sort")
 
 
 def _z3_quantifier_to_dialect(
-        expr: QuantifierRef,
-        bound_vars: list[Any]) -> tuple[list[Operation], SSAValue]:
+    expr: QuantifierRef, bound_vars: list[Any]
+) -> tuple[list[Operation], SSAValue]:
     variable_types: list[Attribute] = []
 
     for var_idx in range(expr.num_vars()):
@@ -95,8 +117,8 @@ def _z3_quantifier_to_dialect(
 
 
 def z3_to_dialect(
-        expr: Any,
-        bound_vars: list[Any] = []) -> tuple[list[Operation], SSAValue]:
+    expr: Any, bound_vars: list[Any] = []
+) -> tuple[list[Operation], SSAValue]:
     global z3_to_values
 
     # SSAValue case
@@ -106,8 +128,7 @@ def z3_to_dialect(
     # Free variable case
     if is_var(expr):
         index = get_var_index(expr)
-        assert index < len(
-            bound_vars), 'Fatal error in z3 to dialect conversion'
+        assert index < len(bound_vars), "Fatal error in z3 to dialect conversion"
         return [], bound_vars[index]
 
     # Quantifier case (Forall, Exists, Lambda)
@@ -131,9 +152,8 @@ def z3_to_dialect(
             elif expr.decl().kind() == Z3_OP_DISTINCT:
                 op = DistinctOp(l_val, r_val)
             else:
-                raise NotImplementedError(
-                    f'Cannot convert {expr} to the SMT dialect')
+                raise NotImplementedError(f"Cannot convert {expr} to the SMT dialect")
 
             return l_ops + r_ops + [op], op.res
 
-    raise NotImplementedError(f'Cannot convert {expr} to the SMT dialect')
+    raise NotImplementedError(f"Cannot convert {expr} to the SMT dialect")

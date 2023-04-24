@@ -6,23 +6,29 @@ from z3 import And, BitVecSort, BoolSort, Bools, Exists, ForAll, Or, Xor
 from xdsl.dialects.builtin import UnregisteredOp
 
 from dialects.smt_bitvector_dialect import BitVectorType
-from dialects.smt_dialect import (AndOp, BinaryBoolOp, BinaryTOp, BoolType,
-                                  EqOp, ExistsOp, ForallOp, OrOp, XorOp,
-                                  YieldOp, DistinctOp)
+from dialects.smt_dialect import (
+    AndOp,
+    BinaryBoolOp,
+    BinaryTOp,
+    BoolType,
+    EqOp,
+    ExistsOp,
+    ForallOp,
+    OrOp,
+    XorOp,
+    YieldOp,
+    DistinctOp,
+)
 from utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
 
 
 def test_to_z3_consts():
-    op = UnregisteredOp.with_name('test.test').create(result_types=[
-        BoolType(),
-        BoolType(),
-        BitVectorType(15),
-        BitVectorType(7)
-    ])
+    op = UnregisteredOp.with_name("test.test").create(
+        result_types=[BoolType(), BoolType(), BitVectorType(15), BitVectorType(7)]
+    )
     val1, val2, val3, val4 = op.results
 
-    (v1, v2, v2p, v3, v4, v4p) = to_z3_consts(val1, val2, val2, val3, val4,
-                                              val4)
+    (v1, v2, v2p, v3, v4, v4p) = to_z3_consts(val1, val2, val2, val3, val4, val4)
     assert v1 is not v2
     assert v2 is v2p
     assert v3 is not v4
@@ -36,12 +42,14 @@ def test_z3_sort_to_dialect():
 
 
 def test_z3_to_dialect_const():
-    op = UnregisteredOp.with_name('test.test').create(result_types=[
-        BoolType(),
-    ])
+    op = UnregisteredOp.with_name("test.test").create(
+        result_types=[
+            BoolType(),
+        ]
+    )
     val = op.results[0]
 
-    v, = to_z3_consts(val)
+    (v,) = to_z3_consts(val)
     ops, val_prime = z3_to_dialect(v)
 
     assert ops == []
@@ -49,7 +57,7 @@ def test_z3_to_dialect_const():
 
 
 def test_z3_to_dialect_quant():
-    x, y = Bools('x y')
+    x, y = Bools("x y")
     forall = ForAll([x, y], x)  # type: ignore
     exists = Exists([x, y], x)  # type: ignore
 
@@ -76,16 +84,23 @@ def test_z3_to_dialect_quant():
     assert ops.body.block.ops[0].ret == ops.body.block.args[0]
 
 
-@pytest.mark.parametrize('xdsl_op, z3_op', [(OrOp, Or), (AndOp, And),
-                                            (XorOp, Xor),
-                                            (EqOp, lambda x, y: x == y),
-                                            (DistinctOp, lambda x, y: x != y)])
-def test_z3_to_dialect_binary_core(xdsl_op: type[BinaryBoolOp | BinaryTOp],
-                                   z3_op: Any):
-    op = UnregisteredOp.with_name('test.test').create(result_types=[
-        BoolType(),
-        BoolType(),
-    ])
+@pytest.mark.parametrize(
+    "xdsl_op, z3_op",
+    [
+        (OrOp, Or),
+        (AndOp, And),
+        (XorOp, Xor),
+        (EqOp, lambda x, y: x == y),
+        (DistinctOp, lambda x, y: x != y),
+    ],
+)
+def test_z3_to_dialect_binary_core(xdsl_op: type[BinaryBoolOp | BinaryTOp], z3_op: Any):
+    op = UnregisteredOp.with_name("test.test").create(
+        result_types=[
+            BoolType(),
+            BoolType(),
+        ]
+    )
     lhs, rhs = op.results
     x, y = to_z3_consts(lhs, rhs)
 

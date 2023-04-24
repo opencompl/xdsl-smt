@@ -3,7 +3,7 @@
 builtin.module() {
     %three: !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<3: 32>
     %eq: !smt.bool = smt.eq %three, %three
-    
+
     // UNUSED
     %four: !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<4: 32>
 

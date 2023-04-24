@@ -1,6 +1,12 @@
 from typing import cast
 from xdsl.ir import Attribute, MLContext, OpResult, Operation, SSAValue
-from xdsl.pattern_rewriter import GreedyRewritePatternApplier, PatternRewriteWalker, PatternRewriter, RewritePattern, op_type_rewrite_pattern
+from xdsl.pattern_rewriter import (
+    GreedyRewritePatternApplier,
+    PatternRewriteWalker,
+    PatternRewriter,
+    RewritePattern,
+    op_type_rewrite_pattern,
+)
 from xdsl.dialects.builtin import IntegerAttr, IntegerType, ModuleOp, FunctionType
 from xdsl.dialects.func import FuncOp, Return
 from xdsl.passes import ModulePass
@@ -22,18 +28,15 @@ def convert_type(type: Attribute) -> Attribute:
 
 
 class IntegerConstantRewritePattern(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Constant, rewriter: PatternRewriter):
         if not isa(op.value, IntegerAttr[IntegerType]):
-            raise Exception(
-                "Cannot convert constant of type that are not integer type")
+            raise Exception("Cannot convert constant of type that are not integer type")
         smt_op = bv_dialect.ConstantOp(op.value)
         rewriter.replace_matched_op(smt_op)
 
 
 class OriRewritePattern(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter):
         smt_op = bv_dialect.OrOp(op.lhs, op.rhs)
@@ -41,7 +44,6 @@ class OriRewritePattern(RewritePattern):
 
 
 class ReturnPattern(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: Return, rewriter: PatternRewriter):
         if len(op.arguments) != 1:
@@ -64,14 +66,13 @@ class FuncToSMTPattern(RewritePattern):
         if len(op.function_type.outputs.data) != 1:
             raise Exception("Cannot convert functions with multiple results")
 
-        operand_types = [
-            convert_type(input) for input in op.function_type.inputs.data
-        ]
+        operand_types = [convert_type(input) for input in op.function_type.inputs.data]
         result_type = convert_type(op.function_type.outputs.data[0])
 
         # The SMT function replacing the func.func function
         smt_func = DefineFunOp.from_function_type(
-            FunctionType.from_lists(operand_types, [result_type]), op.sym_name)
+            FunctionType.from_lists(operand_types, [result_type]), op.sym_name
+        )
 
         # Replace the old arguments to the new ones
         for i, arg in enumerate(smt_func.body.blocks[0].args):
@@ -92,10 +93,13 @@ class ArithToSMT(ModulePass):
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier([
-                IntegerConstantRewritePattern(),
-                OriRewritePattern(),
-                FuncToSMTPattern(),
-                ReturnPattern()
-            ]))
+            GreedyRewritePatternApplier(
+                [
+                    IntegerConstantRewritePattern(),
+                    OriRewritePattern(),
+                    FuncToSMTPattern(),
+                    ReturnPattern(),
+                ]
+            )
+        )
         walker.rewrite_module(op)

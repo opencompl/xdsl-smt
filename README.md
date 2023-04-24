@@ -26,7 +26,7 @@ pip install -e .
 
 ## Using `xdsl-smt` with xDSL or MLIR
 
-`xdsl-smt` can parse and print xDSL or MLIR programs with 
+`xdsl-smt` can parse and print xDSL or MLIR programs with
 ```bash
 # Parse and print an xDSL program
 python xdsl-smt.py file.xdsl
@@ -39,7 +39,7 @@ python xdsl-smt.py file.mlir -o new.xdsl
 
 ## Printing SMTLib
 
-When a program only contains `SMTLib` operations and attributes, it can be 
+When a program only contains `SMTLib` operations and attributes, it can be
 printed as a SMTLib script with
 
 ```bash
