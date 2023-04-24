@@ -1,5 +1,4 @@
-from typing import cast
-from xdsl.ir import Attribute, MLContext, OpResult, Operation, SSAValue
+from xdsl.ir import Attribute, MLContext
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     PatternRewriteWalker,
@@ -15,9 +14,7 @@ from xdsl.utils.hints import isa
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.arith_dialect as arith
 from dialects.smt_bitvector_dialect import BitVectorType
-from traits.smt_printer import SMTLibSort
-from dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
-from dialects.smt_dialect import BoolType, ConstantBoolOp, DefineFunOp, ReturnOp, OrOp
+from dialects.smt_dialect import DefineFunOp, ReturnOp
 
 
 def convert_type(type: Attribute) -> Attribute:
