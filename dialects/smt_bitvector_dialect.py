@@ -370,6 +370,9 @@ class BinaryPredBVOp(IRDLOperation, Pure):
     lhs: Annotated[Operand, BitVectorType]
     rhs: Annotated[Operand, BitVectorType]
 
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
+
     @classmethod
     def parse(
         cls: type[_BPOpT], result_types: list[Attribute], parser: BaseParser
