@@ -33,6 +33,13 @@ class IntegerConstantRewritePattern(RewritePattern):
         rewriter.replace_matched_op(smt_op)
 
 
+class AddiRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: arith.Addi, rewriter: PatternRewriter):
+        smt_op = bv_dialect.AddOp(op.lhs, op.rhs)
+        rewriter.replace_matched_op(smt_op)
+
+
 class OriRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter):
@@ -93,6 +100,7 @@ class ArithToSMT(ModulePass):
             GreedyRewritePatternApplier(
                 [
                     IntegerConstantRewritePattern(),
+                    AddiRewritePattern(),
                     OriRewritePattern(),
                     FuncToSMTPattern(),
                     ReturnPattern(),
