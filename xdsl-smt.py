@@ -6,6 +6,7 @@ from xdsl.xdsl_opt_main import xDSLOptMain
 from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
+from dialects.hoare_dialect import Hoare
 
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
@@ -30,6 +31,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTDialect)
         self.ctx.register_dialect(SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect)
+        self.ctx.register_dialect(Hoare)
         self.ctx.register_dialect(PDL)
 
     def register_all_passes(self):
