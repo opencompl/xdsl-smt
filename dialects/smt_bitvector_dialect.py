@@ -97,18 +97,18 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     res: Annotated[OpResult, BitVectorType]
 
     @overload
-    def __init__(self, value: int | IntAttr, width: int | IntAttr):
+    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
         ...
 
     @overload
-    def __init__(self, value: IntegerAttr[IntegerType]):
+    def __init__(self, value: IntegerAttr[IntegerType]) -> None:
         ...
 
     def __init__(
         self,
         value: int | IntAttr | IntegerAttr[IntegerType],
         width: int | IntAttr | None = None,
-    ):
+    ) -> None:
         if isinstance(value, int | IntAttr):
             if not isinstance(width, int | IntAttr):
                 raise ValueError("Expected width with an `int` value")
