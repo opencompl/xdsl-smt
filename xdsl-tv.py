@@ -115,7 +115,7 @@ if __name__ == "__main__":
     func_after = module_after.ops[0]
 
     # Combine both modules into a new one
-    new_module = ModuleOp.from_region_or_ops([])
+    new_module = ModuleOp([])
     block = new_module.body.blocks[0]
     func.detach()
     block.add_op(func)
