@@ -1,4 +1,5 @@
 from typing import Annotated
+from xdsl.dialects.builtin import i32
 from xdsl.ir import Dialect, OpResult
 from xdsl.irdl import IRDLOperation, Operand, VarOperand, irdl_op_definition
 from xdsl.dialects.pdl import AttributeType, OperationType, TypeType, ValueType
@@ -12,7 +13,8 @@ class OperandOp(IRDLOperation):
 
     type: Annotated[Operand, TypeType]
     value: Annotated[OpResult, ValueType]
-    attribute: Annotated[OpResult, AttributeType]
+    zeros: Annotated[OpResult, i32]
+    ones: Annotated[OpResult, i32]
 
 
 @irdl_op_definition
@@ -22,18 +24,8 @@ class Attach(IRDLOperation):
     name = "pdl.kb.attach"
 
     op: Annotated[Operand, OperationType]
-    attrs: Annotated[VarOperand, AttributeType]
+    zeros: Annotated[Operand, i32]
+    ones: Annotated[Operand, i32]
 
 
-@irdl_op_definition
-class AddOp(IRDLOperation):
-    """Add two known bit patterns."""
-
-    name = "pdl.kb.add"
-
-    lhs: Annotated[Operand, AttributeType]
-    rhs: Annotated[Operand, AttributeType]
-    res: Annotated[OpResult, AttributeType]
-
-
-PDLKnownBitsDialect = Dialect([OperandOp, Attach, AddOp])
+PDLKnownBitsDialect = Dialect([OperandOp, Attach])
