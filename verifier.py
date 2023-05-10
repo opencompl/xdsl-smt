@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
-import sys
 
 from xdsl.ir import MLContext, Operation
 from xdsl.parser import MLIRParser
 
-from dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
+from dialects.smt_dialect import SMTDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.arith_dialect import Arith
 from dialects.index_dialect import Index
@@ -22,7 +20,6 @@ from passes.calculate_smt import CalculateSMT,WIDTH
 import passes.calculate_smt
 from passes.canonicalize_smt import CanonicalizeSMT
 
-from traits.smt_printer import print_to_smtlib
 from z3 import *
 
 
@@ -167,7 +164,7 @@ def precisionCheck(concreteOp: FuncOp, absOp: FuncOp, ctx, getConstraint: FuncOp
 
 
 KEY_NEED_VERIFY = "builtin.NEED_VERIFY"
-MAXIMAL_VERIFIED_BITS=32
+MAXIMAL_VERIFIED_BITS=8
 
 if __name__ == "__main__":
     ctx = MLContext()
@@ -193,7 +190,6 @@ if __name__ == "__main__":
     getInstanceConstraint = None
 
     funcNameToFunc = {}
-    NEED_VERIFY = ("OR", "ORImpl")
     for func in module.ops:
         if isinstance(func, FuncOp):
             funcNameToFunc[func.sym_name.data] = func
@@ -210,8 +206,8 @@ if __name__ == "__main__":
         for p in pair:
             NEED_VERIFY[-1].append(p.data)
             assert p.data in funcNameToFunc and "Cannot find the specified function"
-        print("Currently verifying: ", NEED_VERIFY[-1][0])
         for i in range(1,MAXIMAL_VERIFIED_BITS+1):
+            print("Currently verifying: ", NEED_VERIFY[-1][0]," with bitwidth, ", i)
             passes.calculate_smt.WIDTH = i
             CalculateSMT().apply(ctx, funcNameToFunc[NEED_VERIFY[-1][0]])
             CalculateSMT().apply(ctx, funcNameToFunc[NEED_VERIFY[-1][1]])

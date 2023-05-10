@@ -194,7 +194,7 @@ class FuncToSMTPattern(RewritePattern):
                 elif isinstance(arg.typ, IntegerType):
                     tmpArgs = BitVec(arg.name, arg.typ.width.data)
                 elif isinstance(arg.typ, IndexType):
-                    tmpArgs = (BitVec(arg.name + str(j), WIDTH))
+                    tmpArgs = (BitVec(arg.name + str(i), WIDTH))
                 else:
                     print(arg.typ)
                     assert False and "not supported type"
