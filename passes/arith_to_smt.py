@@ -40,6 +40,13 @@ class AddiRewritePattern(RewritePattern):
         rewriter.replace_matched_op(smt_op)
 
 
+class AndiRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: arith.Andi, rewriter: PatternRewriter):
+        smt_op = bv_dialect.AndOp(op.lhs, op.rhs)
+        rewriter.replace_matched_op(smt_op)
+
+
 class OriRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter):
@@ -92,19 +99,21 @@ class FuncToSMTPattern(RewritePattern):
         rewriter.replace_matched_op(smt_func, new_results=[])
 
 
+arith_to_smt_patterns: list[RewritePattern] = [
+    IntegerConstantRewritePattern(),
+    AddiRewritePattern(),
+    AndiRewritePattern(),
+    OriRewritePattern(),
+    FuncToSMTPattern(),
+    ReturnPattern(),
+]
+
+
 class ArithToSMT(ModulePass):
     name = "arith-to-smt"
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(
-                [
-                    IntegerConstantRewritePattern(),
-                    AddiRewritePattern(),
-                    OriRewritePattern(),
-                    FuncToSMTPattern(),
-                    ReturnPattern(),
-                ]
-            )
+            GreedyRewritePatternApplier(arith_to_smt_patterns)
         )
         walker.rewrite_module(op)
