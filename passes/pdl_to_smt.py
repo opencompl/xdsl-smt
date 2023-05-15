@@ -31,7 +31,6 @@ from dialects.smt_dialect import (
     DeclareConstOp,
     DistinctOp,
     EqOp,
-    ImpliesOp,
     NotOp,
 )
 
@@ -144,8 +143,21 @@ class ReplaceRewrite(RewritePattern):
             replacing_value = replacing_op.results[0]
 
         distinct_op = DistinctOp(replacing_value, replaced_op.results[0])
-        assert_op = AssertOp(distinct_op.res)
-        rewriter.replace_matched_op([distinct_op, assert_op])
+
+        if len(self.rewrite_context.preconditions) == 0:
+            assert_op = AssertOp(distinct_op.res)
+            rewriter.insert_op_before_matched_op([distinct_op, assert_op])
+            return
+
+        and_preconditions = self.rewrite_context.preconditions[0]
+        for precondition in self.rewrite_context.preconditions[1:]:
+            and_preconditions_op = AndOp(and_preconditions, precondition)
+            rewriter.insert_op_before_matched_op(and_preconditions_op)
+            and_preconditions = and_preconditions_op.res
+
+        replace_correct = AndOp(distinct_op.res, and_preconditions)
+        assert_op = AssertOp(replace_correct.res)
+        rewriter.replace_matched_op([distinct_op, replace_correct, assert_op])
 
 
 @dataclass

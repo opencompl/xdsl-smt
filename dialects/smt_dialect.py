@@ -22,6 +22,7 @@ from xdsl.ir import (
     Attribute,
     SSAValue,
     Region,
+    TypeAttribute,
 )
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
@@ -40,7 +41,7 @@ from traits.smt_printer import (
 
 
 @irdl_attr_definition
-class BoolType(ParametrizedAttribute, SMTLibSort):
+class BoolType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     name = "smt.bool"
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
@@ -475,7 +476,7 @@ class BoolAttr(Data[bool]):
         raise ValueError("Expected 'true' or 'false'")
 
     def print_parameter(self, printer: Printer) -> None:
-        printer.print(str(self.data))
+        printer.print("true" if self.data else "false")
 
 
 @irdl_op_definition

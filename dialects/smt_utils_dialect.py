@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from typing import Annotated, Generic, TypeAlias, TypeVar, cast, IO
-from xdsl.ir import Attribute, Dialect, OpResult, ParametrizedAttribute, SSAValue
+from xdsl.ir import (
+    Attribute,
+    Dialect,
+    OpResult,
+    ParametrizedAttribute,
+    SSAValue,
+    TypeAttribute,
+)
 from xdsl.parser import BaseParser
 from xdsl.printer import Printer
 from xdsl.utils.exceptions import VerifyException
@@ -21,7 +28,7 @@ _S = TypeVar("_S", bound=Attribute, covariant=True)
 
 
 @irdl_attr_definition
-class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort):
+class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort, TypeAttribute):
     name = "smt.utils.pair"
 
     first: ParameterDef[_F]
