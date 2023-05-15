@@ -4,7 +4,14 @@ from typing import Annotated, TypeVar, IO, overload
 
 from xdsl.dialects.builtin import IntAttr, IntegerAttr, IntegerType
 
-from xdsl.ir import Attribute, Dialect, OpResult, ParametrizedAttribute, SSAValue
+from xdsl.ir import (
+    Attribute,
+    Dialect,
+    OpResult,
+    ParametrizedAttribute,
+    SSAValue,
+    TypeAttribute,
+)
 from xdsl.irdl import (
     OpAttr,
     Operand,
@@ -22,7 +29,7 @@ from dialects.smt_dialect import BoolType
 
 
 @irdl_attr_definition
-class BitVectorType(ParametrizedAttribute, SMTLibSort):
+class BitVectorType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     name = "smt.bv.bv"
     width: ParameterDef[IntAttr]
 
