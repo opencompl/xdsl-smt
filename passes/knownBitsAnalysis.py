@@ -1,33 +1,19 @@
-import xdsl.parser
-from xdsl.ir import *
-from xdsl.irdl import *
-from xdsl.printer import Printer
-from xdsl.parser import Parser
-from xdsl.dialects.builtin import *
 from xdsl.dialects.func import *
-from xdsl.dialects.scf import *
 from xdsl.pattern_rewriter import *
 from functools import singledispatch
-from abc import ABC
-from typing import TypeVar, cast
 from dataclasses import dataclass
 from xdsl.utils.knownBits import *
 from xdsl.passes import ModulePass
 
-
-from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import Signedness, IntegerType, i32, i64, IndexType
-from xdsl.dialects.memref import MemRefType
-from xdsl.ir import Operation, SSAValue, OpResult, Attribute, MLContext
+from xdsl.ir import Operation, MLContext
 import dialects.arith_dialect as arith
-import dialects.index_dialect as index
-from trans_interpreter import getResult
+from utils.trans_interpreter import getResult
 
 from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter,
                                    op_type_rewrite_pattern,
                                    PatternRewriteWalker,
                                    GreedyRewritePatternApplier)
-from xdsl.dialects import mpi, llvm, func, memref, builtin
+from xdsl.dialects import builtin
 
 
 ATTR_NAME = 'knownBits'

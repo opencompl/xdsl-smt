@@ -12,9 +12,9 @@ from dialects.index_dialect import Index
 from dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp
-from xdsl.dialects.transfer import Transfer, AbstractValueType
-
-from knownBitsAnalysis import KnownBitsAnalysisPass
+from xdsl.dialects.transfer import Transfer
+from xdsl.printer import Printer
+from passes.knownBitsAnalysis import KnownBitsAnalysisPass
 
 from z3 import *
 
@@ -68,11 +68,9 @@ if __name__ == "__main__":
     assert isinstance(module, ModuleOp)
     assert isinstance(analysis_file, ModuleOp)
 
-    funcNameToFunc = {}
     transferFuncMapping={}
     for func in module.ops:
         if isinstance(func, FuncOp):
-            funcNameToFunc[func.sym_name.data] = func
             if "applied_to" in func.attributes:
                 for funcName in func.attributes["applied_to"]:
                     transferFuncMapping[funcName.data]=func
@@ -82,4 +80,5 @@ if __name__ == "__main__":
     for func in analysis_file.ops:
         if isinstance(func,FuncOp):
             KnownBitsAnalysisPass(transferFuncMapping).apply(ctx,func)
-            print(func)
+    printer = Printer(target=Printer.Target.MLIR)
+    printer.print_op(analysis_file)
