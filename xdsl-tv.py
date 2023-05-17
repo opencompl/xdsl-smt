@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from xdsl.ir import MLContext, Operation
-from xdsl.parser import XDSLParser
+from xdsl.parser import MLIRParser
 
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
@@ -44,7 +44,7 @@ def parse_file(file: str | None) -> Operation:
     else:
         f = open(file)
 
-    parser = XDSLParser(ctx, f.read())
+    parser = MLIRParser(ctx, f.read())
     module = parser.parse_op()
     return module
 
