@@ -33,4 +33,3 @@
   "smt.assert"(%e) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert false)
 }) : () -> ()
-

@@ -3,3 +3,4 @@ xdsl==0.12.1
 lit<16.0.0
 pytest<8.0
 filecheck==0.0.23
+pre-commit==3.3.1

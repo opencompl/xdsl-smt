@@ -15,7 +15,7 @@
   // first (pair x y) -> x
   "smt.assert"(%first) : (!smt.bool) -> ()
   //CHECK-NEXT: (assert x)
-  
+
   // second (pair x y) -> y
   "smt.assert"(%second) : (!smt.bool) -> ()
   //CHECK-NEXT: (assert y)

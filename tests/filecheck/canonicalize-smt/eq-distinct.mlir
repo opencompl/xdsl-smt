@@ -3,10 +3,10 @@
 "builtin.module"() ({
   %true = "smt.constant_bool"() {"value" = !smt.bool_attr<true>} : () -> !smt.bool
   %false = "smt.constant_bool"() {"value" = !smt.bool_attr<false>} : () -> !smt.bool
-  
+
   %x = "smt.declare_const"() : () -> !smt.bool
   // CHECK:      (declare-const x Bool)
-  
+
   // (true = x) -> x
   %a = "smt.eq"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%a) : (!smt.bool) -> ()
@@ -36,7 +36,7 @@
   %f = "smt.distinct"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%f) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (not x))
-  
+
   // (false != x) -> x
   %g = "smt.distinct"(%false, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%g) : (!smt.bool) -> ()

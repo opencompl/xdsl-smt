@@ -39,4 +39,3 @@
   "smt.assert"(%sgt) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (bvsgt x y))
 }) : () -> ()
-

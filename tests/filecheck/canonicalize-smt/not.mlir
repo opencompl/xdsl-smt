@@ -15,7 +15,3 @@
   "smt.assert"(%b) : (!smt.bool) -> ()
   // CHECK: (assert true)
 }) : () -> ()
-
-
-
-

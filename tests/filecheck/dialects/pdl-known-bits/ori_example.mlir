@@ -37,4 +37,3 @@
 // CHECK-NEXT:     }) {"operand_segment_sizes" = array<i32: 1, 0>} : (!pdl.operation) -> ()
 // CHECK-NEXT:   }) {"benefit" = 1 : i16, "sym_name" = "addi_analysis"} : () -> ()
 // CHECK-NEXT: }) : () -> ()
-

@@ -10,4 +10,3 @@
 
 // CHECK:      (define-fun tmp ((x (_ BitVec 32)) (y (_ BitVec 32))) (_ BitVec 32)
 // CHECK-NEXT:   (bvadd x y))
-

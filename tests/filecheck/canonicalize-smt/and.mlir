@@ -25,7 +25,7 @@
   %d = "smt.and"(%x, %false) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%d) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert x)
-  
+
   // x /\ x -> x
   %e = "smt.and"(%x, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%e) : (!smt.bool) -> ()

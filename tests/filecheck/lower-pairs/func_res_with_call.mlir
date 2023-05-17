@@ -40,4 +40,3 @@
 // CHECK-NEXT:  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
 // CHECK-NEXT:  %8 = "smt.call"(%0, %true) : ((!smt.bool) -> !smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:  "smt.assert"(%8) : (!smt.bool) -> ()
-
