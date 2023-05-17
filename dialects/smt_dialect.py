@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Iterable, Sequence, TypeVar, IO
+from typing import Annotated, Sequence, TypeVar, IO
 
 from xdsl.irdl import (
     OpAttr,
@@ -24,7 +24,7 @@ from xdsl.ir import (
     Region,
     TypeAttribute,
 )
-from xdsl.parser import BaseParser
+from xdsl.parser import Parser
 from xdsl.printer import Printer
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.utils.exceptions import VerifyException
@@ -58,17 +58,6 @@ class YieldOp(IRDLOperation):
     def __init__(self, ret: Operand | Operation):
         super().__init__(operands=[ret])
 
-    @classmethod
-    def parse(
-        cls: type[YieldOp], result_types: list[Attribute], parser: BaseParser
-    ) -> YieldOp:
-        ret = parser.parse_operand()
-        return YieldOp.create(operands=[ret])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.ret)
-
 
 @irdl_op_definition
 class ForallOp(IRDLOperation, Pure, SMTLibOp):
@@ -88,19 +77,19 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
         return ForallOp.create(result_types=[BoolType()], regions=[body])
 
     def verify_(self) -> None:
-        if len(self.body.ops) == 0 or not isinstance(self.body.ops[-1], YieldOp):
+        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, YieldOp):
             raise VerifyException("Region does not end in yield")
 
     @property
     def return_val(self) -> SSAValue:
-        yield_op = self.body.ops[-1]
+        yield_op = self.body.block.last_op
         if not isinstance(yield_op, YieldOp):
             raise ValueError("Region does not end in yield")
         return yield_op.ret
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(forall (", file=stream, end="")
-        for idx, param in enumerate(self.body.blocks[0].args):
+        for idx, param in enumerate(self.body.block.args):
             assert isinstance(param.typ, SMTLibSort)
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
@@ -131,12 +120,12 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
         return ExistsOp.create(result_types=[BoolType()], regions=[body])
 
     def verify_(self) -> None:
-        if len(self.body.ops) == 0 or not isinstance(self.body.ops[-1], YieldOp):
+        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, YieldOp):
             raise VerifyException("Region does not end in yield")
 
     @property
     def return_val(self) -> SSAValue:
-        yield_op = self.body.ops[-1]
+        yield_op = self.body.block.last_op
         if not isinstance(yield_op, YieldOp):
             raise ValueError("Region does not end in yield")
         return yield_op.ret
@@ -212,7 +201,7 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
     body: SingleBlockRegion
 
     def verify_(self) -> None:
-        if len(self.body.ops) == 0 or not isinstance(self.body.ops[-1], ReturnOp):
+        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, ReturnOp):
             raise VerifyException("Region does not end in return")
         if len(self.body.blocks[0].args) != len(self.func_type.inputs.data):
             raise VerifyException("Incorrect number of arguments")
@@ -234,7 +223,7 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
     @property
     def return_val(self) -> SSAValue:
         """Get the return value of this operation."""
-        ret_op = self.body.ops[-1]
+        ret_op = self.body.block.last_op
         if not isinstance(ret_op, ReturnOp):
             raise ValueError("Region does not end in a return")
         return ret_op.ret
@@ -332,15 +321,6 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
         typ.print_sort_to_smtlib(stream)
         print(")", file=stream)
 
-    @classmethod
-    def parse(
-        cls: type[DeclareConstOp], result_types: list[Attribute], parser: BaseParser
-    ) -> DeclareConstOp:
-        return DeclareConstOp.create(result_types=result_types)
-
-    def print(self, printer: Printer):
-        pass
-
 
 @irdl_op_definition
 class AssertOp(IRDLOperation, SMTLibScriptOp):
@@ -361,16 +341,6 @@ class AssertOp(IRDLOperation, SMTLibScriptOp):
     def get(arg: Operation | SSAValue) -> AssertOp:
         return AssertOp.build(operands=[arg])
 
-    @classmethod
-    def parse(
-        cls: type[AssertOp], result_types: list[Attribute], parser: BaseParser
-    ) -> AssertOp:
-        operand = parser.parse_operand()
-        return AssertOp.create(operands=[operand])
-
-    def print(self, printer: Printer):
-        printer.print(" ", self.op)
-
 
 @irdl_op_definition
 class CheckSatOp(IRDLOperation, SMTLibScriptOp):
@@ -380,15 +350,6 @@ class CheckSatOp(IRDLOperation, SMTLibScriptOp):
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(check-sat)", file=stream)
-
-    @classmethod
-    def parse(
-        cls: type[CheckSatOp], result_types: list[Attribute], parser: BaseParser
-    ) -> CheckSatOp:
-        return CheckSatOp.create()
-
-    def print(self, printer: Printer):
-        pass
 
 
 # Core operations
@@ -410,21 +371,6 @@ class BinaryBoolOp(IRDLOperation, Pure):
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
         return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
 
-    @classmethod
-    def parse(
-        cls: type[_OpT], result_types: list[Attribute], parser: BaseParser
-    ) -> _OpT:
-        lhs = parser.parse_operand()
-        parser.parse_characters(",", "Expected `,`")
-        rhs = parser.parse_operand()
-        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.lhs)
-        printer.print(", ")
-        printer.print_ssa_value(self.rhs)
-
 
 class BinaryTOp(IRDLOperation, Pure):
     """Base class for binary operations with boolean results."""
@@ -440,21 +386,6 @@ class BinaryTOp(IRDLOperation, Pure):
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
         return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
 
-    @classmethod
-    def parse(
-        cls: type[_OpT], result_types: list[Attribute], parser: BaseParser
-    ) -> _OpT:
-        lhs = parser.parse_operand()
-        parser.parse_characters(",", "Expected `,`")
-        rhs = parser.parse_operand()
-        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.lhs)
-        printer.print(", ")
-        printer.print_ssa_value(self.rhs)
-
     def verify_(self) -> None:
         if self.lhs.typ != self.rhs.typ:
             raise ValueError("Operands must have the same type")
@@ -467,7 +398,7 @@ class BoolAttr(Data[bool]):
     name = "smt.bool_attr"
 
     @staticmethod
-    def parse_parameter(parser: BaseParser) -> bool:
+    def parse_parameter(parser: Parser) -> bool:
         val = parser.expect(parser.try_parse_bare_id, "Expected 'true' or 'false'")
         if val.text == "true":
             return True
@@ -500,21 +431,6 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
             result_types=[BoolType([])], attributes={"value": BoolAttr(value)}
         )
 
-    @classmethod
-    def parse(cls, result_types: list[Attribute], parser: BaseParser) -> ConstantBoolOp:
-        val = parser.expect(parser.try_parse_bare_id, "Expected 'true' or 'false'")
-        if val.text == "true":
-            return cls.from_bool(True)
-        if val.text == "false":
-            return cls.from_bool(False)
-        raise ValueError("Expected 'true' or 'false'")
-
-    def print(self, printer: Printer) -> None:
-        if self.value.data:
-            printer.print(" true")
-        else:
-            printer.print(" false")
-
 
 @irdl_op_definition
 class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
@@ -528,15 +444,6 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
     @staticmethod
     def get(operand: SSAValue) -> NotOp:
         return NotOp.create(result_types=[BoolType()], operands=[operand])
-
-    @classmethod
-    def parse(cls, result_types: list[Attribute], parser: BaseParser) -> NotOp:
-        val = parser.parse_operand()
-        return cls.build(result_types=[BoolType([])], operands=[val])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.arg)
 
     def op_name(self) -> str:
         return "not"
@@ -612,27 +519,6 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     cond: Annotated[Operand, BoolType]
     true_val: Operand
     false_val: Operand
-
-    @classmethod
-    def parse(
-        cls: type[IteOp], result_types: list[Attribute], parser: BaseParser
-    ) -> IteOp:
-        cond = parser.parse_operand()
-        parser.parse_characters(",", "Expected ','")
-        true_val = parser.parse_operand()
-        parser.parse_characters(",", "Expected ','")
-        false_val = parser.parse_operand()
-        return cls.create(
-            result_types=[true_val.typ], operands=[cond, true_val, false_val]
-        )
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.cond)
-        printer.print(", ")
-        printer.print_ssa_value(self.true_val)
-        printer.print(", ")
-        printer.print_ssa_value(self.false_val)
 
     def verify_(self) -> None:
         if not (self.res.typ == self.true_val.typ == self.false_val.typ):

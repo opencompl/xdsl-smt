@@ -90,7 +90,7 @@ class FuncToSMTPattern(RewritePattern):
             op.body.blocks[0].args[i].replace_by(arg)
 
         # Move the operations to the SMT function
-        ops = op.body.ops
+        ops = [op for op in op.body.ops]
         for body_op in ops:
             body_op.detach()
         smt_func.body.blocks[0].add_ops(ops)

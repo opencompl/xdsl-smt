@@ -12,16 +12,15 @@
 }) : () -> ()
 
 
-// CHECK:      %0 : !fun<[], [!smt.bool]> = smt.define_fun() ["fun_name" = "test_first"] {
-// CHECK-NEXT:   %1 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:   smt.return(%1 : !smt.bool)
-// CHECK-NEXT: }
-// CHECK-NEXT: %2 : !fun<[], [!smt.bv.bv<32>]> = smt.define_fun() ["fun_name" = "test_second_first"] {
-// CHECK-NEXT:   %3 : !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<3: 32>
-// CHECK-NEXT:   smt.return(%3 : !smt.bv.bv<32>)
-// CHECK-NEXT: }
-// CHECK-NEXT: %4 : !fun<[], [!smt.bool]> = smt.define_fun() ["fun_name" = "test_second_second"] {
-// CHECK-NEXT:   %5 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:   smt.return(%5 : !smt.bool)
-// CHECK-NEXT: }
-
+// CHECK:      %0 = "smt.define_fun"() ({
+// CHECK-NEXT:   %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:   "smt.return"(%1) : (!smt.bool) -> ()
+// CHECK-NEXT: }) {"fun_name" = "test_second_second"} : () -> (() -> !smt.bool)
+// CHECK-NEXT: %2 = "smt.define_fun"() ({
+// CHECK-NEXT:   %3 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<3: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:   "smt.return"(%3) : (!smt.bv.bv<32>) -> ()
+// CHECK-NEXT: }) {"fun_name" = "test_second_first"} : () -> (() -> !smt.bv.bv<32>)
+// CHECK-NEXT: %4 = "smt.define_fun"() ({
+// CHECK-NEXT:   %5 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:   "smt.return"(%5) : (!smt.bool) -> ()
+// CHECK-NEXT: }) {"fun_name" = "test_first"} : () -> (() -> !smt.bool)

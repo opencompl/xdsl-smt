@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=lower-pairs -t mlir | filecheck %s
+// RUN: xdsl-smt.py %s -p=lower-pairs | filecheck %s
 
 // Check that pair function arguments are split into multiple arguments.
 

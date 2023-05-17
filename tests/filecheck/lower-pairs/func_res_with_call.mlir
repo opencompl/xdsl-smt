@@ -22,22 +22,22 @@
 }) : () -> ()
 
 
-// CHECK:      %0 : !fun<[!smt.bool], [!smt.bool]> = smt.define_fun() ["fun_name" = "test_first"] {
-// CHECK-NEXT: ^0(%1 : !smt.bool):
-// CHECK-NEXT:   %2 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:   smt.return(%2 : !smt.bool)
-// CHECK-NEXT: }
-// CHECK-NEXT: %3 : !fun<[!smt.bool], [!smt.bv.bv<32>]> = smt.define_fun() ["fun_name" = "test_second_first"] {
-// CHECK-NEXT: ^1(%4 : !smt.bool):
-// CHECK-NEXT:   %5 : !smt.bv.bv<32> = smt.bv.constant !smt.bv.bv_val<3: 32>
-// CHECK-NEXT:   smt.return(%5 : !smt.bv.bv<32>)
-// CHECK-NEXT: }
-// CHECK-NEXT: %6 : !fun<[!smt.bool], [!smt.bool]> = smt.define_fun() ["fun_name" = "test_second_second"] {
-// CHECK-NEXT: ^2(%arg : !smt.bool):
-// CHECK-NEXT:   %7 : !smt.bool = smt.constant_bool false
-// CHECK-NEXT:   smt.return(%7 : !smt.bool)
-// CHECK-NEXT: }
-// CHECK-NEXT: %true : !smt.bool = smt.constant_bool true
-// CHECK-NEXT: %8 : !smt.bool = smt.call(%6 : !fun<[!smt.bool], [!smt.bool]>, %true : !smt.bool)
-// CHECK-NEXT: smt.assert %8
+// CHECK:       %0 = "smt.define_fun"() ({
+// CHECK-NEXT:  ^0(%arg : !smt.bool):
+// CHECK-NEXT:    %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:    "smt.return"(%1) : (!smt.bool) -> ()
+// CHECK-NEXT:  }) {"fun_name" = "test_second_second"} : () -> ((!smt.bool) -> !smt.bool)
+// CHECK-NEXT:  %2 = "smt.define_fun"() ({
+// CHECK-NEXT:  ^1(%3 : !smt.bool):
+// CHECK-NEXT:    %4 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<3: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    "smt.return"(%4) : (!smt.bv.bv<32>) -> ()
+// CHECK-NEXT:  }) {"fun_name" = "test_second_first"} : () -> ((!smt.bool) -> !smt.bv.bv<32>)
+// CHECK-NEXT:  %5 = "smt.define_fun"() ({
+// CHECK-NEXT:  ^2(%6 : !smt.bool):
+// CHECK-NEXT:    %7 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:    "smt.return"(%7) : (!smt.bool) -> ()
+// CHECK-NEXT:  }) {"fun_name" = "test_first"} : () -> ((!smt.bool) -> !smt.bool)
+// CHECK-NEXT:  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:  %8 = "smt.call"(%0, %true) : ((!smt.bool) -> !smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  "smt.assert"(%8) : (!smt.bool) -> ()
 

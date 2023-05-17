@@ -106,9 +106,10 @@ class OperationRewrite(RewritePattern):
 
         # Cursed hack: we create a new module with that operation, and
         # we rewrite it with the arith_to_smt pass.
-        rewrite_module = ModuleOp.from_region_or_ops([synthesized_op])
+        rewrite_module = ModuleOp([synthesized_op])
         ArithToSMT().apply(self.ctx, rewrite_module)
-        last_op = rewrite_module.body.blocks[0].ops[-1]
+        last_op = rewrite_module.body.block.last_op
+        assert last_op is not None
 
         # Set the operation carrying the results in the context
         # FIXME: this does not work if the last operation does not return all results

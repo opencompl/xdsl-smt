@@ -69,8 +69,8 @@ def test_z3_to_dialect_quant():
     assert ops.body.block.args[0].typ == BoolType()
     assert ops.body.block.args[1].typ == BoolType()
     assert len(ops.body.block.ops) == 1
-    assert isinstance(ops.body.block.ops[0], YieldOp)
-    assert ops.body.block.ops[0].ret == ops.body.block.args[0]
+    assert isinstance(ops.body.block.first_op, YieldOp)
+    assert ops.body.block.first_op.ret == ops.body.block.args[0]
 
     ops, var = z3_to_dialect(exists)
     assert len(ops) == 1
@@ -80,8 +80,8 @@ def test_z3_to_dialect_quant():
     assert ops.body.block.args[0].typ == BoolType()
     assert ops.body.block.args[1].typ == BoolType()
     assert len(ops.body.block.ops) == 1
-    assert isinstance(ops.body.block.ops[0], YieldOp)
-    assert ops.body.block.ops[0].ret == ops.body.block.args[0]
+    assert isinstance(ops.body.block.first_op, YieldOp)
+    assert ops.body.block.first_op.ret == ops.body.block.args[0]
 
 
 @pytest.mark.parametrize(

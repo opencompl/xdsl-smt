@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from xdsl.ir import MLContext, Operation
-from xdsl.parser import MLIRParser
+from xdsl.parser import Parser
 
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
@@ -44,7 +44,7 @@ def parse_file(file: str | None) -> Operation:
     else:
         f = open(file)
 
-    parser = MLIRParser(ctx, f.read())
+    parser = Parser(ctx, f.read())
     module = parser.parse_op()
     return module
 
@@ -105,17 +105,17 @@ if __name__ == "__main__":
     # Collect the function from both modules
     if (
         len(module.ops) != len(module_after.ops)
-        or not isinstance(module.ops[0], DefineFunOp)
-        or not isinstance(module_after.ops[0], DefineFunOp)
+        or not isinstance(module.ops.first, DefineFunOp)
+        or not isinstance(module_after.ops.first, DefineFunOp)
     ):
         print("Input is expected to have a single `func.func` operation.")
         exit(1)
 
-    func = module.ops[0]
-    func_after = module_after.ops[0]
+    func = module.ops.first
+    func_after = module_after.ops.first
 
     # Combine both modules into a new one
-    new_module = ModuleOp.from_region_or_ops([])
+    new_module = ModuleOp([])
     block = new_module.body.blocks[0]
     func.detach()
     block.add_op(func)

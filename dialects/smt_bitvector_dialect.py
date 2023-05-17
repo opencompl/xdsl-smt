@@ -20,7 +20,7 @@ from xdsl.irdl import (
     irdl_attr_definition,
     IRDLOperation,
 )
-from xdsl.parser import BaseParser
+from xdsl.parser import Parser
 from xdsl.printer import Printer
 
 from traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
@@ -46,7 +46,7 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
         return BitVectorType(value)
 
     @staticmethod
-    def parse_parameters(parser: BaseParser) -> list[Attribute]:
+    def parse_parameters(parser: Parser) -> list[Attribute]:
         parser.parse_char("<")
         width = parser.parse_int_literal()
         parser.parse_char(">")
@@ -85,7 +85,7 @@ class BitVectorValue(ParametrizedAttribute):
         return f"(_ bv{self.value.data} {self.width.data})"
 
     @staticmethod
-    def parse_parameters(parser: BaseParser) -> list[Attribute]:
+    def parse_parameters(parser: Parser) -> list[Attribute]:
         parser.parse_char("<")
         value = parser.parse_int_literal()
         parser.parse_char(":")
@@ -131,18 +131,6 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
             result_types=[bv_value.get_type()], attributes={"value": bv_value}
         )
 
-    @classmethod
-    def parse(cls, result_types: list[Attribute], parser: BaseParser) -> ConstantOp:
-        attr = parser.parse_attribute()
-        if not isinstance(attr, BitVectorValue):
-            raise ValueError("Expected a bitvector value")
-        return ConstantOp.create(
-            result_types=[BitVectorType(attr.width)], attributes={"value": attr}
-        )
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ", self.value)
-
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
         print(self.value.as_smtlib_str(), file=stream, end="")
 
@@ -153,17 +141,6 @@ _UOpT = TypeVar("_UOpT", bound="UnaryBVOp")
 class UnaryBVOp(IRDLOperation, Pure):
     res: Annotated[OpResult, BitVectorType]
     arg: Annotated[Operand, BitVectorType]
-
-    @classmethod
-    def parse(
-        cls: type[_UOpT], result_types: list[Attribute], parser: BaseParser
-    ) -> _UOpT:
-        arg = parser.parse_operand()
-        return cls.build(result_types=[arg.typ], operands=[arg])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.arg)
 
     @classmethod
     def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
@@ -186,21 +163,6 @@ class BinaryBVOp(IRDLOperation, Pure):
         if res is None:
             res = lhs.typ
         super().__init__(result_types=[lhs.typ], operands=[lhs, rhs])
-
-    @classmethod
-    def parse(
-        cls: type[_BOpT], result_types: list[Attribute], parser: BaseParser
-    ) -> _BOpT:
-        lhs = parser.parse_operand()
-        parser.parse_char(",")
-        rhs = parser.parse_operand()
-        return cls.build(result_types=[lhs.typ], operands=[lhs, rhs])
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.lhs)
-        printer.print(", ")
-        printer.print_ssa_value(self.rhs)
 
     @classmethod
     def get(cls: type[_BOpT], lhs: SSAValue, rhs: SSAValue) -> _BOpT:
@@ -379,21 +341,6 @@ class BinaryPredBVOp(IRDLOperation, Pure):
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
-
-    @classmethod
-    def parse(
-        cls: type[_BPOpT], result_types: list[Attribute], parser: BaseParser
-    ) -> _BPOpT:
-        lhs = parser.parse_operand()
-        parser.parse_char(",")
-        rhs = parser.parse_operand()
-        return cls.get(lhs, rhs)
-
-    def print(self, printer: Printer) -> None:
-        printer.print(" ")
-        printer.print_ssa_value(self.lhs)
-        printer.print(", ")
-        printer.print_ssa_value(self.rhs)
 
     @classmethod
     def get(cls: type[_BPOpT], lhs: SSAValue, rhs: SSAValue) -> _BPOpT:

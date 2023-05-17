@@ -35,7 +35,7 @@ class RemovePairArgsFunction(RewritePattern):
                 fst = rewriter.insert_block_argument(block, i + 1, typ.first)
                 snd = rewriter.insert_block_argument(block, i + 2, typ.second)
                 get_pair = PairOp.from_values(fst, snd)
-                rewriter.insert_op_at_pos(get_pair, block, 0)
+                rewriter.insert_op_at_start(get_pair, block)
                 arg.replace_by(get_pair.res)
                 rewriter.erase_block_argument(arg)
             else:
@@ -86,14 +86,16 @@ def remove_pairs_from_function_return(module: ModuleOp):
             firstFunc = func.clone()
             parent_block = func.parent_block()
             assert parent_block is not None
-            parent_block.insert_op(firstFunc, parent_block.get_operation_index(func))
+            parent_block.insert_op_after(firstFunc, func)
 
             # Mutate the new function to return the first element of the pair.
             firstBlock = firstFunc.body.blocks[0]
             firstOp = FirstOp.from_value(firstFunc.return_val)
-            firstBlock.insert_op(firstOp, len(firstBlock.ops) - 1)
+            firstBlockTerminator = firstBlock.last_op
+            assert firstBlockTerminator is not None
+            firstBlock.insert_op_before(firstOp, firstBlockTerminator)
             firstRet = ReturnOp.from_ret_value(firstOp.res)
-            Rewriter.replace_op(firstBlock.ops[-1], firstRet)
+            Rewriter.replace_op(firstBlockTerminator, firstRet)
             firstFunc.ret.typ = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
                 ArrayAttr[Attribute].from_list([output.first]),
@@ -106,10 +108,12 @@ def remove_pairs_from_function_return(module: ModuleOp):
             # Mutate the current function to return the second element of the pair.
             secondFunc = func
             secondBlock = secondFunc.body.blocks[0]
+            secondBlockTerminator = secondBlock.last_op
+            assert secondBlockTerminator is not None
             secondOp = SecondOp.from_value(secondFunc.return_val)
-            secondBlock.insert_op(secondOp, len(secondBlock.ops) - 1)
+            secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp.from_ret_value(secondOp.res)
-            Rewriter.replace_op(secondBlock.ops[-1], secondRet)
+            Rewriter.replace_op(secondBlockTerminator, secondRet)
             secondFunc.ret.typ = FunctionType.from_attrs(
                 secondFunc.func_type.inputs,
                 ArrayAttr[Attribute].from_list([output.second]),
