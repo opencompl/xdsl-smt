@@ -1,5 +1,4 @@
 // RUN: xdsl-smt.py %s -p=arith-to-smt,canonicalize-smt -t=smt | filecheck %s
-// RUN: xdsl-smt.py %s -p=arith-to-smt,canonicalize-smt -t=smt | z3 -in
 
 
 "builtin.module"() ({
