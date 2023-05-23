@@ -147,7 +147,7 @@ class ReplaceRewrite(RewritePattern):
 
         if len(self.rewrite_context.preconditions) == 0:
             assert_op = AssertOp(distinct_op.res)
-            rewriter.insert_op_before_matched_op([distinct_op, assert_op])
+            rewriter.replace_matched_op([distinct_op, assert_op])
             return
 
         and_preconditions = self.rewrite_context.preconditions[0]
