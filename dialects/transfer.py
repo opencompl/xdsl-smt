@@ -41,21 +41,6 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 
-
-@irdl_op_definition
-class SelectOp(IRDLOperation):
-    name: str = "transfer.select"
-
-    cond: Annotated[Operand, i1]
-    lhs: Annotated[Operand, IndexType]
-    rhs: Annotated[Operand, IndexType]
-    result: Annotated[OpResult, IndexType]
-
-    def verify_(self) -> None:
-        if not (self.operands[1].typ == self.operands[2].typ == self.results[0].typ):
-            raise VerifyException("expect all input and result types to be equal")
-
-
 @irdl_op_definition
 class GetOp(IRDLOperation):
     name: str = "transfer.get"
@@ -84,6 +69,6 @@ class MakeOp(IRDLOperation):
 
 
 Transfer = Dialect(
-    [SelectOp, GetOp, MakeOp],
+    [GetOp, MakeOp],
     [AbstractValueType]
 )
