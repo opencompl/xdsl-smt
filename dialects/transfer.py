@@ -38,12 +38,13 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
             shape = ArrayAttr(shape)
         super().__init__([shape])
 
+
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 
 
 @irdl_op_definition
-class IfOp(IRDLOperation):
-    name: str = "transfer.if"
+class SelectOp(IRDLOperation):
+    name: str = "transfer.select"
 
     cond: Annotated[Operand, i1]
     lhs: Annotated[Operand, IndexType]
@@ -53,13 +54,6 @@ class IfOp(IRDLOperation):
     def verify_(self) -> None:
         if not (self.operands[1].typ == self.operands[2].typ == self.results[0].typ):
             raise VerifyException("expect all input and result types to be equal")
-
-
-@irdl_op_definition
-class NegOp(IRDLOperation):
-    name: str = "transfer.neg"
-    val: Annotated[Operand, IndexType]
-    result: Annotated[Operand, IndexType]
 
 
 @irdl_op_definition
@@ -88,7 +82,8 @@ class MakeOp(IRDLOperation):
         if len(self.operands) != self.results[0].typ.get_num_fields():
             raise VerifyException("The number of given arguments doesn't match the abstract value")
 
+
 Transfer = Dialect(
-    [IfOp, GetOp, MakeOp, NegOp],
+    [SelectOp, GetOp, MakeOp],
     [AbstractValueType]
 )

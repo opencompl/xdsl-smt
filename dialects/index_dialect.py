@@ -6,6 +6,7 @@ from traits.effects import Pure
 from xdsl.dialects.builtin import IndexType
 from typing import Annotated
 
+
 @irdl_op_definition
 class Add(IRDLOperation, Pure):
     name = "index.add"
@@ -13,12 +14,14 @@ class Add(IRDLOperation, Pure):
     rhs: Annotated[Operand, IndexType]
     result: Annotated[OpResult, IndexType]
 
+
 @irdl_op_definition
 class And(IRDLOperation, Pure):
     name = "index.and"
     lhs: Annotated[Operand, IndexType]
     rhs: Annotated[Operand, IndexType]
     result: Annotated[OpResult, IndexType]
+
 
 @irdl_op_definition
 class Cmp(IRDLOperation, Pure):
@@ -35,12 +38,8 @@ class Constant(IRDLOperation, Pure):
     value: OpAttr[Attribute]
     result: Annotated[OpResult, IndexType]
 
+
 Index = Dialect(
-    [
-        Add,
-        And,
-        Cmp,
-        Constant,
-    ],
+    [Add, And, Cmp, Constant, ],
     [],
 )
