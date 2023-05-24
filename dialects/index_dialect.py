@@ -40,6 +40,11 @@ class Constant(IRDLOperation, Pure):
 
 
 Index = Dialect(
-    [Add, And, Cmp, Constant, ],
+    [
+        Add,
+        And,
+        Cmp,
+        Constant,
+    ],
     [],
 )
