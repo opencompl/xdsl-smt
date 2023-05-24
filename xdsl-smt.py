@@ -6,14 +6,16 @@ from xdsl.xdsl_opt_main import xDSLOptMain
 from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
+
 from dialects.hoare_dialect import Hoare
 from dialects.pdl_known_bits import PDLKnownBitsDialect
-
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.arith_dialect import Arith
 from dialects.smt_utils_dialect import SMTUtilsDialect
+from dialects.index_dialect import Index
+from dialects.transfer import Transfer
 
 from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
@@ -29,9 +31,11 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Arith)
         self.ctx.register_dialect(Builtin)
         self.ctx.register_dialect(Func)
+        self.ctx.register_dialect(Index)
         self.ctx.register_dialect(SMTDialect)
         self.ctx.register_dialect(SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect)
+        self.ctx.register_dialect(Transfer)
         self.ctx.register_dialect(Hoare)
         self.ctx.register_dialect(PDL)
         self.ctx.register_dialect(PDLKnownBitsDialect)
