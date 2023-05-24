@@ -1,20 +1,23 @@
 from __future__ import annotations
 
-from xdsl.dialects.builtin import ArrayAttr, IndexType, IntegerType, ContainerOf, TypeAttribute, i1
+from xdsl.dialects.builtin import (
+    ArrayAttr,
+    IndexType,
+    IntegerAttr,
+    IntegerType,
+    ContainerOf,
+)
 from typing import Annotated
 
-from xdsl.ir import (
-    ParametrizedAttribute,
-    Dialect,
-)
+from xdsl.ir import ParametrizedAttribute, Dialect, TypeAttribute, OpResult
 
 from xdsl.irdl import (
+    OpAttr,
+    Operand,
     VarOperand,
     irdl_attr_definition,
     irdl_op_definition,
     ParameterDef,
-    Operand,
-    OpResult,
     IRDLOperation,
     AnyOf,
 )
@@ -33,7 +36,7 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
     def get_fields(self) -> list[IndexType]:
         return [i for i in self.fields.data]
 
-    def __init__(self, shape: list[IntegerType] | ArrayAttr[IndexType]) -> None:
+    def __init__(self, shape: list[IndexType] | ArrayAttr[IndexType]) -> None:
         if isinstance(shape, list):
             shape = ArrayAttr(shape)
         super().__init__([shape])
@@ -41,17 +44,18 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 
+
 @irdl_op_definition
 class GetOp(IRDLOperation):
     name: str = "transfer.get"
 
-    absVal: Annotated[Operand, AbstractValueType]
-    index: Annotated[Operand, signlessIntegerLike]
+    abs_val: Annotated[Operand, AbstractValueType]
+    index: OpAttr[IntegerAttr[IndexType]]
     result: Annotated[OpResult, ContainerOf(IndexType)]
 
     def verify_(self) -> None:
-        index = self.operands[1].op.value.value.data
-        if index >= self.absVal.typ.get_num_fields():
+        assert isinstance(self.abs_val.typ, AbstractValueType)
+        if self.index.value.data >= self.abs_val.typ.get_num_fields():
             raise VerifyException("The required field is out of range")
 
 
@@ -65,10 +69,9 @@ class MakeOp(IRDLOperation):
     def verify_(self) -> None:
         assert isinstance(self.results[0].typ, AbstractValueType)
         if len(self.operands) != self.results[0].typ.get_num_fields():
-            raise VerifyException("The number of given arguments doesn't match the abstract value")
+            raise VerifyException(
+                "The number of given arguments doesn't match the abstract value"
+            )
 
 
-Transfer = Dialect(
-    [GetOp, MakeOp],
-    [AbstractValueType]
-)
+Transfer = Dialect([GetOp, MakeOp], [AbstractValueType])
