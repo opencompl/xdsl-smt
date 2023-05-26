@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -t mlir -p pdl-to-smt | filecheck %s
+// RUN: xdsl-smt.py %s -t mlir -p pdl-to-smt --print-op-generic | filecheck %s
 
 "builtin.module"() ({
   "pdl.pattern"() ({

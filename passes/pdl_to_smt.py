@@ -79,9 +79,9 @@ class TypeRewrite(RewritePattern):
 class OperandRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: OperandOp, rewriter: PatternRewriter):
-        if op.valueType is None:
+        if op.value_type is None:
             raise Exception("Cannot handle non-typed operands")
-        type = _get_type_of_erased_type_value(op.valueType)
+        type = _get_type_of_erased_type_value(op.value_type)
         smt_type = convert_type(type)
         rewriter.replace_matched_op(DeclareConstOp(smt_type))
 
@@ -99,9 +99,9 @@ class OperationRewrite(RewritePattern):
         op_def = self.ctx.get_op(op.opName.data)
 
         # Create the with the given operands and types
-        result_types = [_get_type_of_erased_type_value(type) for type in op.typeValues]
+        result_types = [_get_type_of_erased_type_value(type) for type in op.type_values]
         synthesized_op = op_def.create(
-            operands=op.operandValues, result_types=result_types
+            operands=op.operand_values, result_types=result_types
         )
 
         # Cursed hack: we create a new module with that operation, and
@@ -125,20 +125,22 @@ class ReplaceRewrite(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
-        assert isinstance(op.opValue, ErasedSSAValue)
-        replaced_op = self.rewrite_context.pdl_op_to_op[op.opValue.old_value]
+        assert isinstance(op.op_value, ErasedSSAValue)
+        replaced_op = self.rewrite_context.pdl_op_to_op[op.op_value.old_value]
         if len(replaced_op.results) != 1:
             raise Exception("Cannot handle operations with multiple results")
 
         replacing_value: SSAValue
         # Replacing by values case
-        if len(op.replValues) != 0:
-            assert len(op.replValues) == 1
-            replacing_value = op.replValues[0]
+        if len(op.repl_values) != 0:
+            assert len(op.repl_values) == 1
+            replacing_value = op.repl_values[0]
         # Replacing by operations case
         else:
-            assert isinstance(op.replOperation, ErasedSSAValue)
-            replacing_op = self.rewrite_context.pdl_op_to_op[op.replOperation.old_value]
+            assert isinstance(op.repl_operation, ErasedSSAValue)
+            replacing_op = self.rewrite_context.pdl_op_to_op[
+                op.repl_operation.old_value
+            ]
             if len(replacing_op.results) != 1:
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_op.results[0]
@@ -224,9 +226,9 @@ class KBOperandRewrite(RewritePattern):
             ],
             new_results=[operand, zeros, ones],
         )
-        name = op.value.name if op.value.name else "value"
-        zeros.name = name + "_zeros"
-        ones.name = name + "_ones"
+        name = op.value.name_hint if op.value.name_hint else "value"
+        zeros.name_hint = name + "_zeros"
+        ones.name_hint = name + "_ones"
 
 
 @dataclass
@@ -268,7 +270,7 @@ class KBAttachOpRewrite(RewritePattern):
 
 
 class PDLToSMT(ModulePass):
-    name: str = "pdl-to-smt"
+    name = "pdl-to-smt"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         rewrite_context = PDLToSMTRewriteContext({})

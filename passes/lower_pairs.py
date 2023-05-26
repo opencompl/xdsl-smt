@@ -72,7 +72,9 @@ class RemovePairArgsCall(RewritePattern):
 
 def remove_pairs_from_function_return(module: ModuleOp):
     funcs = list[DefineFunOp]()
-    module.walk(lambda op: funcs.append(op) if isinstance(op, DefineFunOp) else None)
+    for op in module.walk():
+        if isinstance(op, DefineFunOp):
+            funcs.append(op)
 
     while len(funcs) != 0:
         func = funcs[-1]

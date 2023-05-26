@@ -1,6 +1,6 @@
 pyright==1.1.309
 z3-solver==4.12.1.0
-xdsl==0.12.1
+xdsl==0.13.0
 lit<16.0.0
 pytest<8.0
 filecheck==0.0.23

@@ -48,7 +48,7 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     @staticmethod
     def parse_parameters(parser: Parser) -> list[Attribute]:
         parser.parse_char("<")
-        width = parser.parse_int_literal()
+        width = parser.parse_integer()
         parser.parse_char(">")
         return [IntAttr(width)]
 
@@ -87,9 +87,9 @@ class BitVectorValue(ParametrizedAttribute):
     @staticmethod
     def parse_parameters(parser: Parser) -> list[Attribute]:
         parser.parse_char("<")
-        value = parser.parse_int_literal()
+        value = parser.parse_integer()
         parser.parse_char(":")
-        width = parser.parse_int_literal()
+        width = parser.parse_integer()
         parser.parse_char(">")
         return [IntAttr(value), IntAttr(width)]
 
