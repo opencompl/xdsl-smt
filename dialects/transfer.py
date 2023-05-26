@@ -23,7 +23,7 @@ from xdsl.utils.exceptions import VerifyException
 
 @irdl_attr_definition
 class AbstractValueType(ParametrizedAttribute, TypeAttribute):
-    name: str = "abs_value"
+    name = "abs_value"
 
     fields: ParameterDef[ArrayAttr[IndexType]]
 
@@ -41,7 +41,7 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 
 @irdl_op_definition
 class GetOp(IRDLOperation):
-    name: str = "transfer.get"
+    name = "transfer.get"
 
     abs_val: Annotated[Operand, AbstractValueType]
     index: OpAttr[IntegerAttr[IndexType]]
@@ -55,7 +55,7 @@ class GetOp(IRDLOperation):
 
 @irdl_op_definition
 class MakeOp(IRDLOperation):
-    name: str = "transfer.make"
+    name = "transfer.make"
 
     arguments: Annotated[VarOperand, IndexType]
     result: Annotated[OpResult, AbstractValueType]
