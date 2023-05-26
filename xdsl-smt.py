@@ -16,6 +16,7 @@ from dialects.arith_dialect import Arith
 from dialects.smt_utils_dialect import SMTUtilsDialect
 from dialects.index_dialect import Index
 from dialects.transfer import Transfer
+from dialects.comb import Comb
 
 from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
@@ -39,6 +40,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Hoare)
         self.ctx.register_dialect(PDL)
         self.ctx.register_dialect(PDLKnownBitsDialect)
+        self.ctx.register_dialect(Comb)
 
     def register_all_passes(self):
         super().register_all_passes()
