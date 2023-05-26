@@ -4,8 +4,6 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     IndexType,
     IntegerAttr,
-    IntegerType,
-    ContainerOf,
 )
 from typing import Annotated
 
@@ -19,7 +17,6 @@ from xdsl.irdl import (
     irdl_op_definition,
     ParameterDef,
     IRDLOperation,
-    AnyOf,
 )
 from xdsl.utils.exceptions import VerifyException
 
@@ -42,16 +39,13 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
         super().__init__([shape])
 
 
-signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
-
-
 @irdl_op_definition
 class GetOp(IRDLOperation):
     name: str = "transfer.get"
 
     abs_val: Annotated[Operand, AbstractValueType]
     index: OpAttr[IntegerAttr[IndexType]]
-    result: Annotated[OpResult, ContainerOf(IndexType)]
+    result: Annotated[OpResult, IndexType]
 
     def verify_(self) -> None:
         assert isinstance(self.abs_val.typ, AbstractValueType)
@@ -63,8 +57,8 @@ class GetOp(IRDLOperation):
 class MakeOp(IRDLOperation):
     name: str = "transfer.make"
 
-    arguments: Annotated[VarOperand, signlessIntegerLike]
-    result: Annotated[OpResult, ContainerOf(AbstractValueType)]
+    arguments: Annotated[VarOperand, IndexType]
+    result: Annotated[OpResult, AbstractValueType]
 
     def verify_(self) -> None:
         assert isinstance(self.results[0].typ, AbstractValueType)
