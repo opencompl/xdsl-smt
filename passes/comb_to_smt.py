@@ -33,8 +33,28 @@ class AddRewritePattern(RewritePattern):
         rewriter.replace_matched_op([], [current_val])
 
 
+class MulRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.MulOp, rewriter: PatternRewriter):
+        assert isinstance(op.result.typ, IntegerType)
+        width = op.result.typ.width.data
+        if len(op.operands) == 0:
+            rewriter.replace_matched_op(bv_dialect.ConstantOp(0, width))
+            return
+
+        current_val = op.operands[0]
+
+        for operand in op.operands[1:]:
+            new_op = bv_dialect.MulOp(current_val, operand)
+            current_val = new_op.res
+            rewriter.insert_op_before_matched_op(new_op)
+
+        rewriter.replace_matched_op([], [current_val])
+
+
 comb_to_smt_patterns: list[RewritePattern] = [
     AddRewritePattern(),
+    MulRewritePattern(),
 ]
 
 
