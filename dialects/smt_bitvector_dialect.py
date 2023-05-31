@@ -423,6 +423,29 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
         return "bvsgt"
 
 
+################################################################################
+#                                  Predicate                                   #
+################################################################################
+
+
+@irdl_op_definition
+class ConcatOp(IRDLOperation, SimpleSMTLibOp):
+    name = "smt.bv.concat"
+
+    lhs: Annotated[Operand, BitVectorType]
+    rhs: Annotated[Operand, BitVectorType]
+    res: Annotated[OpResult, BitVectorType]
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        assert isinstance(lhs.typ, BitVectorType)
+        assert isinstance(rhs.typ, BitVectorType)
+        width = lhs.typ.width.data + rhs.typ.width.data
+        super().__init__(result_types=[BitVectorType(width)], operands=[lhs, rhs])
+
+    def op_name(self) -> str:
+        return "concat"
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -456,6 +479,8 @@ SMTBitVectorDialect = Dialect(
         SltOp,
         SgeOp,
         SgtOp,
+        # Others
+        ConcatOp,
     ],
     [BitVectorType, BitVectorValue],
 )
