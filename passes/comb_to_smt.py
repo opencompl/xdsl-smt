@@ -7,7 +7,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.passes import ModulePass
 from xdsl.ir import MLContext, Operation
-from xdsl.dialects.builtin import IntegerType, ModuleOp
+from xdsl.dialects.builtin import ModuleOp
 
 from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
 from dialects import comb
