@@ -59,6 +59,44 @@ def trivial_binop_pattern(
     return TrivialBinOpPattern()
 
 
+class ICmpPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.ICmpOp, rewriter: PatternRewriter) -> None:
+        raise NotImplementedError()
+
+
+class ParityPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.ParityOp, rewriter: PatternRewriter) -> None:
+        raise NotImplementedError()
+
+
+class ExtractPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.ExtractOp, rewriter: PatternRewriter) -> None:
+        raise NotImplementedError()
+
+
+class ConcatPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.ConcatOp, rewriter: PatternRewriter) -> None:
+        raise NotImplementedError()
+
+
+class ReplicatePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: comb.ReplicateOp, rewriter: PatternRewriter
+    ) -> None:
+        raise NotImplementedError()
+
+
+class MuxPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.MuxOp, rewriter: PatternRewriter) -> None:
+        raise NotImplementedError()
+
+
 comb_to_smt_patterns: list[RewritePattern] = [
     variadic_op_pattern(comb.AddOp, bv_dialect.AddOp, 0),
     variadic_op_pattern(comb.MulOp, bv_dialect.MulOp, 1),
@@ -73,6 +111,8 @@ comb_to_smt_patterns: list[RewritePattern] = [
     variadic_op_pattern(comb.OrOp, bv_dialect.OrOp, 0),
     variadic_op_pattern(comb.AndOp, bv_dialect.AndOp, 1),
     variadic_op_pattern(comb.XorOp, bv_dialect.XorOp, 0),
+    ICmpPattern(),
+    ParityOp(),
 ]
 
 
