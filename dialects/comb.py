@@ -136,6 +136,8 @@ class XorOp(VariadicCombOp):
 class ICmpOp(IRDLOperation):
     """Integer comparison"""
 
+    name = "comb.icmp"
+
     T = Annotated[IntegerType, ConstraintVar("T")]
 
     lhs: Annotated[Operand, T]
@@ -150,6 +152,8 @@ class ICmpOp(IRDLOperation):
 class ParityOp(IRDLOperation):
     """Parity"""
 
+    name = "comb.parity"
+
     input: Annotated[Operand, IntegerType]
     result: Annotated[OpResult, IntegerType(1)]
 
@@ -163,6 +167,8 @@ class ExtractOp(IRDLOperation):
     specifies the lowest bit included.
     """
 
+    name = "comb.extract"
+
     input: Annotated[Operand, IntegerType]
     low_bit: OpAttr[IntegerAttr[Annotated[IntegerType, i32]]]
     result: Annotated[OpResult, IntegerType]
@@ -174,6 +180,8 @@ class ConcatOp(IRDLOperation):
     Concatenate a variadic list of operands together.
     """
 
+    name = "comb.concat"
+
     inputs: Annotated[VarOperand, IntegerType]
     result: Annotated[OpResult, IntegerType]
 
@@ -184,6 +192,8 @@ class ReplicateOp(IRDLOperation):
     Concatenate the operand a constant number of times.
     """
 
+    name = "comb.replicate"
+
     input: Annotated[Operand, IntegerType]
     result: Annotated[OpResult, IntegerType]
 
@@ -193,6 +203,8 @@ class MuxOp(IRDLOperation):
     """
     Select between two values based on a condition.
     """
+
+    name = "comb.mux"
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
