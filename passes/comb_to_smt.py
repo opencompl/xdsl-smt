@@ -81,7 +81,16 @@ class ExtractPattern(RewritePattern):
 class ConcatPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ConcatOp, rewriter: PatternRewriter) -> None:
-        raise NotImplementedError()
+        assert len(op.operands) > 0
+
+        current_val = op.operands[0]
+
+        for operand in op.operands[1:]:
+            new_op = bv_dialect.ConcatOp(current_val, operand)
+            current_val = new_op.results[0]
+            rewriter.insert_op_before_matched_op(new_op)
+
+        rewriter.replace_matched_op([], [current_val])
 
 
 class ReplicatePattern(RewritePattern):
