@@ -12,6 +12,7 @@ from xdsl.dialects.builtin import IntegerType, ModuleOp
 from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
 from dialects import comb
 import dialects.smt_bitvector_dialect as bv_dialect
+import dialects.smt_dialect as core_dialect
 
 
 def variadic_op_pattern(
@@ -94,7 +95,9 @@ class ReplicatePattern(RewritePattern):
 class MuxPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.MuxOp, rewriter: PatternRewriter) -> None:
-        raise NotImplementedError()
+        rewriter.replace_matched_op(
+            [core_dialect.IteOp(op.cond, op.true_value, op.false_value)]
+        )
 
 
 comb_to_smt_patterns: list[RewritePattern] = [
@@ -112,7 +115,11 @@ comb_to_smt_patterns: list[RewritePattern] = [
     variadic_op_pattern(comb.AndOp, bv_dialect.AndOp, 1),
     variadic_op_pattern(comb.XorOp, bv_dialect.XorOp, 0),
     ICmpPattern(),
-    ParityOp(),
+    ParityPattern(),
+    ExtractPattern(),
+    ConcatPattern(),
+    ReplicatePattern(),
+    MuxPattern(),
 ]
 
 
