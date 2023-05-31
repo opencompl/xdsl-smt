@@ -101,7 +101,17 @@ class ReplicatePattern(RewritePattern):
     def match_and_rewrite(
         self, op: comb.ReplicateOp, rewriter: PatternRewriter
     ) -> None:
-        raise NotImplementedError()
+        assert isinstance(op.input.typ, IntegerType)
+        assert isinstance(op.result.typ, IntegerType)
+        num_repetition = op.result.typ.width.data // op.input.typ.width.data
+        current_val = op.operands[0]
+
+        for _ in range(num_repetition - 1):
+            new_op = bv_dialect.ConcatOp(current_val, op.operands[0])
+            current_val = new_op.results[0]
+            rewriter.insert_op_before_matched_op(new_op)
+
+        rewriter.replace_matched_op([], [current_val])
 
 
 class MuxPattern(RewritePattern):
