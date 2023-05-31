@@ -22,6 +22,7 @@ from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
 from passes.lower_pairs import LowerPairs
 from passes.arith_to_smt import ArithToSMT
+from passes.comb_to_smt import CombToSMT
 from passes.pdl_to_smt import PDLToSMT
 
 from traits.smt_printer import print_to_smtlib
@@ -45,6 +46,7 @@ class OptMain(xDSLOptMain):
     def register_all_passes(self):
         super().register_all_passes()
         self.register_pass(ArithToSMT)
+        self.register_pass(CombToSMT)
         self.register_pass(DeadCodeElimination)
         self.register_pass(CanonicalizeSMT)
         self.register_pass(LowerPairs)
