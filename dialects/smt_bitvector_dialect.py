@@ -304,6 +304,14 @@ class NotOp(UnaryBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
+class XorOp(BinaryBVOp, SimpleSMTLibOp):
+    name = "smt.bv.xor"
+
+    def op_name(self) -> str:
+        return "bvxor"
+
+
+@irdl_op_definition
 class NAndOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.nand"
 
@@ -434,6 +442,7 @@ SMTBitVectorDialect = Dialect(
         # Bitwise
         NotOp,
         OrOp,
+        XorOp,
         AndOp,
         NAndOp,
         NorOp,

@@ -25,6 +25,11 @@
   "smt.assert"(%eq_and) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= z (bvand x y)))
 
+  %xor = "smt.bv.xor"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+  %eq_xor = "smt.eq"(%z, %xor) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+  "smt.assert"(%eq_xor) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (= z (bvxor x y)))
+
   %nand = "smt.bv.nand"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
   %eq_nand = "smt.eq"(%z, %nand) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
   "smt.assert"(%eq_nand) : (!smt.bool) -> ()
