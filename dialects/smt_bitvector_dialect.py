@@ -446,6 +446,30 @@ class ConcatOp(IRDLOperation, SimpleSMTLibOp):
         return "concat"
 
 
+@irdl_op_definition
+class ExtractOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.extract"
+
+    operand: Annotated[Operand, BitVectorType]
+    res: Annotated[OpResult, BitVectorType]
+
+    start: OpAttr[IntAttr]
+    end: OpAttr[IntAttr]
+
+    def __init__(self, operand: SSAValue, end: int, start: int):
+        super().__init__(
+            result_types=[BitVectorType(end - start + 1)],
+            operands=[operand],
+            attributes={"start": IntAttr(start), "end": IntAttr(end)},
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        print(f"((_ extract {self.end.data} {self.start.data}) ", file=stream, end="")
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -481,6 +505,7 @@ SMTBitVectorDialect = Dialect(
         SgtOp,
         # Others
         ConcatOp,
+        ExtractOp,
     ],
     [BitVectorType, BitVectorValue],
 )

@@ -14,4 +14,9 @@ builtin.module {
   %eq_concat = "smt.eq"(%z, %concat) : (!smt.bv.bv<15>, !smt.bv.bv<15>) -> !smt.bool
   "smt.assert"(%eq_concat) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= z (concat x y)))
+
+  %extract = "smt.bv.extract"(%z) {"start" = #int<3>, "end" = #int<7>} : (!smt.bv.bv<15>) -> !smt.bv.bv<5>
+  %eq_extract = "smt.eq"(%x, %extract) : (!smt.bv.bv<5>, !smt.bv.bv<5>) -> !smt.bool
+  "smt.assert"(%eq_extract) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (= x ((_ extract 7 3) z))
 }
