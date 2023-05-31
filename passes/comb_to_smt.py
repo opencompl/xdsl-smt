@@ -7,7 +7,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.passes import ModulePass
 from xdsl.ir import MLContext, Operation
-from xdsl.dialects.builtin import ModuleOp
+from xdsl.dialects.builtin import ModuleOp, IntegerType
 
 from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
 from dialects import comb
@@ -75,7 +75,10 @@ class ParityPattern(RewritePattern):
 class ExtractPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ExtractOp, rewriter: PatternRewriter) -> None:
-        raise NotImplementedError()
+        start = op.low_bit.value.data
+        assert isinstance(op.result, IntegerType)
+        end = op.result.width.data + start - 1
+        rewriter.replace_matched_op(bv_dialect.ExtractOp(op.input, start, end))
 
 
 class ConcatPattern(RewritePattern):
