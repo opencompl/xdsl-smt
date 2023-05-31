@@ -520,6 +520,11 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     true_val: Operand
     false_val: Operand
 
+    def __init__(self, cond: SSAValue, true_val: SSAValue, false_val: SSAValue):
+        super().__init__(
+            result_types=[true_val.typ], operands=[cond, true_val, false_val]
+        )
+
     def verify_(self) -> None:
         if not (self.res.typ == self.true_val.typ == self.false_val.typ):
             raise ValueError("The result and both values must have the same type")
