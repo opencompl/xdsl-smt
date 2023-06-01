@@ -6,7 +6,7 @@ from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
 )
 from xdsl.passes import ModulePass
-from xdsl.ir import MLContext, Operation
+from xdsl.ir import MLContext, Operation, SSAValue
 from xdsl.dialects.builtin import ModuleOp, IntegerType
 
 from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
@@ -69,7 +69,22 @@ class ICmpPattern(RewritePattern):
 class ParityPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ParityOp, rewriter: PatternRewriter) -> None:
-        raise NotImplementedError()
+        assert isinstance(op.input.typ, bv_dialect.BitVectorType)
+        assert op.input.typ.width.data > 0
+        bits: list[SSAValue] = []
+
+        for i in range(op.input.typ.width.data):
+            extract = bv_dialect.ExtractOp(op.input, i, i)
+            bits.append(extract.results[0])
+            rewriter.insert_op_before_matched_op(extract)
+
+        res = bits[0]
+        for bit in bits[1:]:
+            xor_op = bv_dialect.XorOp(res, bit)
+            rewriter.insert_op_before_matched_op(xor_op)
+            res = xor_op.results[0]
+
+        rewriter.replace_matched_op([], [res])
 
 
 class ExtractPattern(RewritePattern):
