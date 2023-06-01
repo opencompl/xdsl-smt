@@ -35,6 +35,7 @@ from dialects.smt_dialect import (
 )
 
 from passes.arith_to_smt import ArithToSMT, convert_type, arith_to_smt_patterns
+from passes.comb_to_smt import CombToSMT, comb_to_smt_patterns
 
 
 @dataclass
@@ -105,9 +106,10 @@ class OperationRewrite(RewritePattern):
         )
 
         # Cursed hack: we create a new module with that operation, and
-        # we rewrite it with the arith_to_smt pass.
+        # we rewrite it with the arith_to_smt and comb_to_smt pass.
         rewrite_module = ModuleOp([synthesized_op])
         ArithToSMT().apply(self.ctx, rewrite_module)
+        CombToSMT().apply(self.ctx, rewrite_module)
         last_op = rewrite_module.body.block.last_op
         assert last_op is not None
 
@@ -287,6 +289,7 @@ class PDLToSMT(ModulePass):
                     KBOperandRewrite(rewrite_context),
                     KBAttachOpRewrite(rewrite_context),
                     *arith_to_smt_patterns,
+                    *comb_to_smt_patterns,
                 ]
             )
         )

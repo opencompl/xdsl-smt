@@ -298,9 +298,9 @@ class ReturnOp(IRDLOperation):
     def verify_(self):
         parent = self.parent_op()
         if not isinstance(parent, DefineFunOp):
-            raise ValueError("ReturnOp must be nested inside a DefineFunOp")
+            raise VerifyException("ReturnOp must be nested inside a DefineFunOp")
         if not self.ret.typ == parent.func_type.outputs.data[0]:
-            raise ValueError("ReturnOp type mismatch with DefineFunOp")
+            raise VerifyException("ReturnOp type mismatch with DefineFunOp")
 
 
 @irdl_op_definition

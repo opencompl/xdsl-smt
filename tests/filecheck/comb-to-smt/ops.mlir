@@ -53,7 +53,7 @@ builtin.module {
   }) {"sym_name" = "mul_none", "function_type" = () -> i32, "sym_visibility" = "private"} : () -> ()
 
   // CHECK:      (define-fun {{.*}} () (_ BitVec 32)
-  // CHECK-NEXT: (_ bv0 32))
+  // CHECK-NEXT: (_ bv1 32))
 
   "func.func"() ({
   ^0(%x: i32):

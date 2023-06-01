@@ -7,6 +7,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.passes import ModulePass
 from xdsl.ir import MLContext, Operation, SSAValue
+from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import ModuleOp, IntegerType
 
 from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
@@ -24,21 +25,25 @@ class ConstantPattern(RewritePattern):
 
 def variadic_op_pattern(
     comb_op_type: type[comb.VariadicCombOp],
-    smt_op_type: type[Operation],
+    smt_op_type: type[IRDLOperation],
     empty_value: int,
 ) -> RewritePattern:
     class VariadicOpPattern(RewritePattern):
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
             if not isinstance(op, comb_op_type):
                 return
+            res_type = convert_type(op.result.typ)
+            assert isinstance(res_type, bv_dialect.BitVectorType)
             if len(op.operands) == 0:
-                rewriter.replace_matched_op(bv_dialect.ConstantOp(empty_value, 1))
+                rewriter.replace_matched_op(
+                    bv_dialect.ConstantOp(empty_value, res_type.width)
+                )
                 return
 
             current_val = op.operands[0]
 
             for operand in op.operands[1:]:
-                new_op = smt_op_type(
+                new_op = smt_op_type.build(
                     operands=[current_val, operand],
                     result_types=[convert_type(op.result.typ)],
                 )
@@ -51,13 +56,13 @@ def variadic_op_pattern(
 
 
 def trivial_binop_pattern(
-    comb_op_type: type[comb.BinCombOp], smt_op_type: type[Operation]
+    comb_op_type: type[comb.BinCombOp], smt_op_type: type[IRDLOperation]
 ) -> RewritePattern:
     class TrivialBinOpPattern(RewritePattern):
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
             if not isinstance(op, comb_op_type):
                 return
-            new_op = smt_op_type(
+            new_op = smt_op_type.build(
                 operands=op.operands,
                 result_types=[convert_type(op.result.typ)],
             )
