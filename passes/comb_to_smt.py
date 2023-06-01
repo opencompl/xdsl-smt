@@ -76,10 +76,18 @@ class ICmpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ICmpOp, rewriter: PatternRewriter) -> None:
         if op.predicate.value.data == 0:
-            rewriter.replace_matched_op(core_dialect.EqOp(op.lhs, op.rhs))
+            eq = core_dialect.EqOp(op.lhs, op.rhs)
+            zero = bv_dialect.ConstantOp(0, 1)
+            one = bv_dialect.ConstantOp(1, 1)
+            ite = core_dialect.IteOp(eq.res, one.res, zero.res)
+            rewriter.replace_matched_op([eq, zero, one, ite])
             return
         if op.predicate.value.data == 1:
-            rewriter.replace_matched_op(core_dialect.DistinctOp(op.lhs, op.rhs))
+            eq = core_dialect.DistinctOp(op.lhs, op.rhs)
+            zero = bv_dialect.ConstantOp(0, 1)
+            one = bv_dialect.ConstantOp(1, 1)
+            ite = core_dialect.IteOp(eq.res, one.res, zero.res)
+            rewriter.replace_matched_op([eq, zero, one, ite])
             return
         if op.predicate.value.data == 2:
             rewriter.replace_matched_op(bv_dialect.SltOp(op.lhs, op.rhs))
