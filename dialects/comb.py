@@ -12,6 +12,7 @@ from xdsl.irdl import (
 )
 
 
+@irdl_op_definition
 class ConstantOp(IRDLOperation):
     """A constant integer value."""
 
