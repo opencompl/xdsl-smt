@@ -12,6 +12,17 @@ from xdsl.irdl import (
 )
 
 
+class ConstantOp(IRDLOperation):
+    """A constant integer value."""
+
+    name = "hw.constant"
+
+    T = Annotated[IntegerType, ConstraintVar("T")]
+
+    value: OpAttr[IntegerAttr[T]]
+    result: Annotated[OpResult, T]
+
+
 class BinCombOp(IRDLOperation):
     """
     A binary comb operation. It has two operands and one
@@ -216,6 +227,7 @@ class MuxOp(IRDLOperation):
 
 Comb = Dialect(
     [
+        ConstantOp,
         AddOp,
         MulOp,
         DivUOp,

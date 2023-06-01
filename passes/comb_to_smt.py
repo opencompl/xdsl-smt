@@ -15,6 +15,13 @@ import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.smt_dialect as core_dialect
 
 
+class ConstantPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: comb.ConstantOp, rewriter: PatternRewriter):
+        smt_op = bv_dialect.ConstantOp(op.value)
+        rewriter.replace_matched_op(smt_op)
+
+
 def variadic_op_pattern(
     comb_op_type: type[comb.VariadicCombOp],
     smt_op_type: type[Operation],
@@ -168,6 +175,7 @@ class MuxPattern(RewritePattern):
 
 
 comb_to_smt_patterns: list[RewritePattern] = [
+    ConstantPattern(),
     variadic_op_pattern(comb.AddOp, bv_dialect.AddOp, 0),
     variadic_op_pattern(comb.MulOp, bv_dialect.MulOp, 1),
     trivial_binop_pattern(comb.DivUOp, bv_dialect.UDivOp),
