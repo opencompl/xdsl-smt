@@ -63,6 +63,36 @@ def trivial_binop_pattern(
 class ICmpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ICmpOp, rewriter: PatternRewriter) -> None:
+        if op.predicate.value.data == 0:
+            rewriter.replace_matched_op(core_dialect.EqOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 1:
+            rewriter.replace_matched_op(core_dialect.DistinctOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 2:
+            rewriter.replace_matched_op(bv_dialect.SltOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 3:
+            rewriter.replace_matched_op(bv_dialect.SleOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 4:
+            rewriter.replace_matched_op(bv_dialect.SgtOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 5:
+            rewriter.replace_matched_op(bv_dialect.SgeOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 6:
+            rewriter.replace_matched_op(bv_dialect.UltOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 7:
+            rewriter.replace_matched_op(bv_dialect.UleOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 8:
+            rewriter.replace_matched_op(bv_dialect.UgtOp(op.lhs, op.rhs))
+            return
+        if op.predicate.value.data == 9:
+            rewriter.replace_matched_op(bv_dialect.UgeOp(op.lhs, op.rhs))
+            return
         raise NotImplementedError()
 
 
