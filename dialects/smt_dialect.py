@@ -388,7 +388,7 @@ class BinaryTOp(IRDLOperation, Pure):
 
     def verify_(self) -> None:
         if self.lhs.typ != self.rhs.typ:
-            raise ValueError("Operands must have the same type")
+            raise VerifyException("Operands must have the same type")
 
 
 @irdl_attr_definition
