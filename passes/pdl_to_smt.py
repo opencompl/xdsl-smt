@@ -8,6 +8,7 @@ from xdsl.dialects.pdl import (
     ResultOp,
     RewriteOp,
     TypeOp,
+    AttributeOp,
 )
 from xdsl.dialects.builtin import i32
 
@@ -55,6 +56,17 @@ def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
     return type
 
 
+def _get_attr_of_erased_attr_value(value: SSAValue) -> Attribute:
+    assert isinstance(value, ErasedSSAValue), "Error in rewriting logic"
+    assert isinstance(
+        (attr_op := value.old_value.owner), AttributeOp
+    ), "Error in rewriting logic"
+    attr = attr_op.value
+    if attr is None:
+        raise Exception("Cannot handle non-constant attributes")
+    return attr
+
+
 class PatternRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: PatternOp, rewriter: PatternRewriter):
@@ -74,6 +86,12 @@ class RewriteRewrite(RewritePattern):
 class TypeRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
+        rewriter.erase_matched_op(safe_erase=False)
+
+
+class AttributeRewrite(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
         rewriter.erase_matched_op(safe_erase=False)
 
 
@@ -101,8 +119,12 @@ class OperationRewrite(RewritePattern):
 
         # Create the with the given operands and types
         result_types = [_get_type_of_erased_type_value(type) for type in op.type_values]
+        attributes = {
+            name.data: _get_attr_of_erased_attr_value(attr)
+            for attr, name in zip(op.attribute_values, op.attributeValueNames)
+        }
         synthesized_op = op_def.create(
-            operands=op.operand_values, result_types=result_types
+            operands=op.operand_values, result_types=result_types, attributes=attributes
         )
 
         # Cursed hack: we create a new module with that operation, and
@@ -282,6 +304,7 @@ class PDLToSMT(ModulePass):
                     PatternRewrite(),
                     RewriteRewrite(),
                     TypeRewrite(),
+                    AttributeRewrite(),
                     OperandRewrite(),
                     OperationRewrite(ctx, rewrite_context),
                     ReplaceRewrite(rewrite_context),
