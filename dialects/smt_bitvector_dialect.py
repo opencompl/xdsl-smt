@@ -121,7 +121,13 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
                 raise ValueError("Expected width with an `int` value")
             attr = BitVectorValue(value, width)
         else:
-            attr = BitVectorValue(value.value, value.typ.width)
+            width = value.typ.width.data
+            value = (
+                value.value.data + 2**width
+                if value.value.data < 0
+                else value.value.data
+            )
+            attr = BitVectorValue(value, width)
         super().__init__(result_types=[attr.get_type()], attributes={"value": attr})
 
     @staticmethod
