@@ -20,11 +20,18 @@ from xdsl.irdl import (
 )
 from xdsl.utils.exceptions import VerifyException
 
+@irdl_attr_definition
+class TransIntegerType(ParametrizedAttribute,TypeAttribute):
+    name = "transfer.integer"
+
+@irdl_op_definition
+class AnyIntegerOp(IRDLOperation):
+    name: str = "transfer.any_integer"
+    result: Annotated[OpResult, TransIntegerType]
 
 @irdl_attr_definition
 class AbstractValueType(ParametrizedAttribute, TypeAttribute):
     name = "abs_value"
-
     fields: ParameterDef[ArrayAttr[IndexType]]
 
     def get_num_fields(self) -> int:
@@ -38,6 +45,11 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
             shape = ArrayAttr(shape)
         super().__init__([shape])
 
+
+@irdl_op_definition
+class NegOp(IRDLOperation):
+    name = "transfer.neg"
+    op: Annotated[Operand, IndexType]
 
 @irdl_op_definition
 class GetOp(IRDLOperation):
@@ -68,4 +80,4 @@ class MakeOp(IRDLOperation):
             )
 
 
-Transfer = Dialect([GetOp, MakeOp], [AbstractValueType])
+Transfer = Dialect([AnyIntegerOp,GetOp, MakeOp, NegOp], [TransIntegerType,AbstractValueType])
