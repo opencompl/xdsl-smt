@@ -18,7 +18,6 @@ from dialects.smt_utils_dialect import SMTUtilsDialect
 from dialects.index_dialect import Index
 from dialects.transfer import Transfer
 from dialects.comb import Comb
-from dialects.dependent_dialect import Dep
 
 from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
@@ -44,7 +43,6 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(PDL)
         self.ctx.register_dialect(PDLKnownBitsDialect)
         self.ctx.register_dialect(Comb)
-        self.ctx.register_dialect(Dep)
 
     def register_all_passes(self):
         super().register_all_passes()
