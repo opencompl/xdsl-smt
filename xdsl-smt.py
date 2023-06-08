@@ -7,6 +7,7 @@ from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 
+
 from dialects.hoare_dialect import Hoare
 from dialects.pdl_known_bits import PDLKnownBitsDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -17,6 +18,7 @@ from dialects.smt_utils_dialect import SMTUtilsDialect
 from dialects.index_dialect import Index
 from dialects.transfer import Transfer
 from dialects.comb import Comb
+from dialects.dependent_dialect import Dep
 
 from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
@@ -42,6 +44,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(PDL)
         self.ctx.register_dialect(PDLKnownBitsDialect)
         self.ctx.register_dialect(Comb)
+        self.ctx.register_dialect(Dep)
 
     def register_all_passes(self):
         super().register_all_passes()
