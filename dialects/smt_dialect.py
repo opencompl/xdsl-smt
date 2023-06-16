@@ -298,9 +298,9 @@ class ReturnOp(IRDLOperation):
     def verify_(self):
         parent = self.parent_op()
         if not isinstance(parent, DefineFunOp):
-            raise ValueError("ReturnOp must be nested inside a DefineFunOp")
+            raise VerifyException("ReturnOp must be nested inside a DefineFunOp")
         if not self.ret.typ == parent.func_type.outputs.data[0]:
-            raise ValueError("ReturnOp type mismatch with DefineFunOp")
+            raise VerifyException("ReturnOp type mismatch with DefineFunOp")
 
 
 @irdl_op_definition
@@ -388,7 +388,7 @@ class BinaryTOp(IRDLOperation, Pure):
 
     def verify_(self) -> None:
         if self.lhs.typ != self.rhs.typ:
-            raise ValueError("Operands must have the same type")
+            raise VerifyException("Operands must have the same type")
 
 
 @irdl_attr_definition
@@ -519,6 +519,11 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     cond: Annotated[Operand, BoolType]
     true_val: Operand
     false_val: Operand
+
+    def __init__(self, cond: SSAValue, true_val: SSAValue, false_val: SSAValue):
+        super().__init__(
+            result_types=[true_val.typ], operands=[cond, true_val, false_val]
+        )
 
     def verify_(self) -> None:
         if not (self.res.typ == self.true_val.typ == self.false_val.typ):

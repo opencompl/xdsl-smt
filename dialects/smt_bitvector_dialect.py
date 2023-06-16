@@ -121,7 +121,13 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
                 raise ValueError("Expected width with an `int` value")
             attr = BitVectorValue(value, width)
         else:
-            attr = BitVectorValue(value.value, value.typ.width)
+            width = value.typ.width.data
+            value = (
+                value.value.data + 2**width
+                if value.value.data < 0
+                else value.value.data
+            )
+            attr = BitVectorValue(value, width)
         super().__init__(result_types=[attr.get_type()], attributes={"value": attr})
 
     @staticmethod
@@ -304,6 +310,14 @@ class NotOp(UnaryBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
+class XorOp(BinaryBVOp, SimpleSMTLibOp):
+    name = "smt.bv.xor"
+
+    def op_name(self) -> str:
+        return "bvxor"
+
+
+@irdl_op_definition
 class NAndOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.nand"
 
@@ -415,6 +429,53 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
         return "bvsgt"
 
 
+################################################################################
+#                                  Predicate                                   #
+################################################################################
+
+
+@irdl_op_definition
+class ConcatOp(IRDLOperation, SimpleSMTLibOp):
+    name = "smt.bv.concat"
+
+    lhs: Annotated[Operand, BitVectorType]
+    rhs: Annotated[Operand, BitVectorType]
+    res: Annotated[OpResult, BitVectorType]
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        assert isinstance(lhs.typ, BitVectorType)
+        assert isinstance(rhs.typ, BitVectorType)
+        width = lhs.typ.width.data + rhs.typ.width.data
+        super().__init__(result_types=[BitVectorType(width)], operands=[lhs, rhs])
+
+    def op_name(self) -> str:
+        return "concat"
+
+
+@irdl_op_definition
+class ExtractOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.extract"
+
+    operand: Annotated[Operand, BitVectorType]
+    res: Annotated[OpResult, BitVectorType]
+
+    start: OpAttr[IntAttr]
+    end: OpAttr[IntAttr]
+
+    def __init__(self, operand: SSAValue, end: int, start: int):
+        super().__init__(
+            result_types=[BitVectorType(end - start + 1)],
+            operands=[operand],
+            attributes={"start": IntAttr(start), "end": IntAttr(end)},
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        print(f"((_ extract {self.end.data} {self.start.data}) ", file=stream, end="")
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -434,6 +495,7 @@ SMTBitVectorDialect = Dialect(
         # Bitwise
         NotOp,
         OrOp,
+        XorOp,
         AndOp,
         NAndOp,
         NorOp,
@@ -447,6 +509,9 @@ SMTBitVectorDialect = Dialect(
         SltOp,
         SgeOp,
         SgtOp,
+        # Others
+        ConcatOp,
+        ExtractOp,
     ],
     [BitVectorType, BitVectorValue],
 )

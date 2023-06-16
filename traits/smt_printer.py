@@ -76,8 +76,8 @@ class SMTConversionCtx:
         base_name: str
         if isinstance(value, str):
             base_name = value
-        elif isinstance(value, SSAValue) and value.name is not None:
-            base_name = value.name
+        elif isinstance(value, SSAValue) and value.name_hint is not None:
+            base_name = value.name_hint
         else:
             base_name = "tmp"
 
