@@ -6,4 +6,4 @@ reportImportCycles = false
 reportUnnecessaryIsInstance = false
 typeCheckingMode = "strict"
 include = ["dialects", "passes", "traits", "utils"]
-ignore = ["utils/z3_to_dialect.py", "tests"]
+ignore = ["utils/z3_to_dialect.py", "utils/integer_to_z3.py", "tests"]
