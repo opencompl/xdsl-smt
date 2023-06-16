@@ -16,8 +16,32 @@ class Add(IRDLOperation, Pure):
 
 
 @irdl_op_definition
+class Sub(IRDLOperation, Pure):
+    name = "index.sub"
+    lhs: Annotated[Operand, IndexType]
+    rhs: Annotated[Operand, IndexType]
+    result: Annotated[OpResult, IndexType]
+
+
+@irdl_op_definition
 class And(IRDLOperation, Pure):
     name = "index.and"
+    lhs: Annotated[Operand, IndexType]
+    rhs: Annotated[Operand, IndexType]
+    result: Annotated[OpResult, IndexType]
+
+
+@irdl_op_definition
+class Or(IRDLOperation, Pure):
+    name = "index.or"
+    lhs: Annotated[Operand, IndexType]
+    rhs: Annotated[Operand, IndexType]
+    result: Annotated[OpResult, IndexType]
+
+
+@irdl_op_definition
+class Xor(IRDLOperation, Pure):
+    name = "index.xor"
     lhs: Annotated[Operand, IndexType]
     rhs: Annotated[Operand, IndexType]
     result: Annotated[OpResult, IndexType]
@@ -42,7 +66,10 @@ class Constant(IRDLOperation, Pure):
 Index = Dialect(
     [
         Add,
+        Sub,
         And,
+        Or,
+        Xor,
         Cmp,
         Constant,
     ],
