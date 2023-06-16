@@ -4,10 +4,11 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     IndexType,
     IntegerAttr,
+    i1,
 )
 from typing import Annotated
 
-from xdsl.ir import ParametrizedAttribute, Dialect, TypeAttribute, OpResult
+from xdsl.ir import ParametrizedAttribute, Dialect, TypeAttribute, OpResult, Attribute
 
 from xdsl.irdl import (
     OpAttr,
@@ -20,36 +21,92 @@ from xdsl.irdl import (
 )
 from xdsl.utils.exceptions import VerifyException
 
+
 @irdl_attr_definition
-class TransIntegerType(ParametrizedAttribute,TypeAttribute):
+class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.integer"
 
+
 @irdl_op_definition
-class AnyIntegerOp(IRDLOperation):
-    name: str = "transfer.any_integer"
+class Constant(IRDLOperation):
+    name = "transfer.constant"
+    op: Annotated[Operand, TransIntegerType]
     result: Annotated[OpResult, TransIntegerType]
-
-@irdl_attr_definition
-class AbstractValueType(ParametrizedAttribute, TypeAttribute):
-    name = "abs_value"
-    fields: ParameterDef[ArrayAttr[IndexType]]
-
-    def get_num_fields(self) -> int:
-        return len(self.fields.data)
-
-    def get_fields(self) -> list[IndexType]:
-        return [i for i in self.fields.data]
-
-    def __init__(self, shape: list[IndexType] | ArrayAttr[IndexType]) -> None:
-        if isinstance(shape, list):
-            shape = ArrayAttr(shape)
-        super().__init__([shape])
+    value: OpAttr[IntegerAttr[IndexType]]
 
 
 @irdl_op_definition
 class NegOp(IRDLOperation):
     name = "transfer.neg"
-    op: Annotated[Operand, IndexType]
+    op: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class AddOp(IRDLOperation):
+    name = "transfer.add"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class SubOp(IRDLOperation):
+    name = "transfer.sub"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class AndOp(IRDLOperation):
+    name = "transfer.and"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class OrOp(IRDLOperation):
+    name = "transfer.or"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class XorOp(IRDLOperation):
+    name = "transfer.xor"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class CmpOp(IRDLOperation):
+    name = "transfer.cmp"
+    predicate: OpAttr[IntegerAttr[IndexType]]
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, i1]
+
+
+@irdl_attr_definition
+class AbstractValueType(ParametrizedAttribute, TypeAttribute):
+    name = "abs_value"
+    fields: ParameterDef[ArrayAttr[Attribute]]
+
+    def get_num_fields(self) -> int:
+        return len(self.fields.data)
+
+    def get_fields(self):
+        return [i for i in self.fields.data]
+
+    def __init__(self, shape: list[Attribute] | ArrayAttr[Attribute]) -> None:
+        if isinstance(shape, list):
+            shape = ArrayAttr(shape)
+        super().__init__([shape])
+
 
 @irdl_op_definition
 class GetOp(IRDLOperation):
@@ -80,4 +137,7 @@ class MakeOp(IRDLOperation):
             )
 
 
-Transfer = Dialect([AnyIntegerOp,GetOp, MakeOp, NegOp], [TransIntegerType,AbstractValueType])
+Transfer = Dialect(
+    [Constant, CmpOp, AndOp, OrOp, XorOp, AddOp, SubOp, GetOp, MakeOp, NegOp],
+    [TransIntegerType, AbstractValueType],
+)
