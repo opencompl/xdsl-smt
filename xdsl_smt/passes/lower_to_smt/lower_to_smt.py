@@ -15,7 +15,7 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
 )
 
-from dialects.smt_bitvector_dialect import BitVectorType
+from ...dialects.smt_bitvector_dialect import BitVectorType
 
 
 def integer_type_lowerer(type: Attribute) -> Attribute | None:

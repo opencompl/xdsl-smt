@@ -8,7 +8,7 @@ from xdsl.irdl import (
     IRDLOperation,
 )
 
-from traits.effects import Pure
+from ..traits.effects import Pure
 
 
 @irdl_op_definition

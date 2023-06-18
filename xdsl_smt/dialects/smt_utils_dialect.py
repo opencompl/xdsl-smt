@@ -21,7 +21,7 @@ from xdsl.irdl import (
 )
 
 from .smt_dialect import SMTLibSort, SimpleSMTLibOp
-from traits.effects import Pure
+from ..traits.effects import Pure
 
 _F = TypeVar("_F", bound=Attribute, covariant=True)
 _S = TypeVar("_S", bound=Attribute, covariant=True)

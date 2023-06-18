@@ -14,8 +14,8 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.dialects import builtin
 
-from utils.integer_to_z3 import *
-from utils.trans_interpreter_smt import *
+from ..utils.integer_to_z3 import *
+from ..utils.trans_interpreter_smt import *
 
 from z3 import ULT, UGE, ULE, UGT, And, Or, Xor
 

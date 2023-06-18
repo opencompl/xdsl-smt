@@ -1,4 +1,4 @@
-from dialects.transfer import (
+from ..dialects.transfer import (
     AbstractValueType,
     GetOp,
     MakeOp,

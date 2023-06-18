@@ -7,10 +7,10 @@ from xdsl.ir import Operation, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import IntegerType
 
-from dialects import comb
-import dialects.smt_bitvector_dialect as bv_dialect
-import dialects.smt_dialect as core_dialect
-from passes.lower_to_smt.lower_to_smt import LowerToSMT
+from ...dialects import comb
+from ...dialects import smt_bitvector_dialect as bv_dialect
+from ...dialects import smt_dialect as core_dialect
+from .lower_to_smt import LowerToSMT
 
 
 class ConstantPattern(RewritePattern):

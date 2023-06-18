@@ -2,7 +2,7 @@ from typing import Callable
 
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.ir import Operation
-import dialects.transfer as transfer
+from ..dialects import transfer
 
 """
 Interpret a function from transfer dialect in MLIR to a Python function.

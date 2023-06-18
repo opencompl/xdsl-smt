@@ -2,7 +2,7 @@ from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import MLContext, Operation
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
-from traits.effects import Pure
+from ..traits.effects import Pure
 
 
 class RemoveDeadPattern(RewritePattern):

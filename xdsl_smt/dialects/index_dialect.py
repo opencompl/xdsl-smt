@@ -9,7 +9,7 @@ from xdsl.irdl import (
     IRDLOperation,
 )
 
-from traits.effects import Pure
+from ..traits.effects import Pure
 from xdsl.dialects.builtin import IndexType
 
 

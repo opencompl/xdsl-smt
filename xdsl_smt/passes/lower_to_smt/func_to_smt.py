@@ -6,8 +6,8 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.builtin import FunctionType
 from xdsl.dialects.func import FuncOp, Return
 
-from dialects.smt_dialect import DefineFunOp, ReturnOp
-from passes.lower_to_smt.lower_to_smt import LowerToSMT
+from ...dialects.smt_dialect import DefineFunOp, ReturnOp
+from .lower_to_smt import LowerToSMT
 
 
 class ReturnPattern(RewritePattern):

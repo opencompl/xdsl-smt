@@ -33,9 +33,9 @@ from xdsl.printer import Printer
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.utils.exceptions import VerifyException
 
-from traits.effects import Pure
+from ..traits.effects import Pure
 
-from traits.smt_printer import (
+from ..traits.smt_printer import (
     SMTLibOp,
     SMTLibScriptOp,
     SimpleSMTLibOp,

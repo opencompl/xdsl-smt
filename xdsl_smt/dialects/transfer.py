@@ -34,7 +34,7 @@ from xdsl.irdl import (
 )
 from xdsl.utils.exceptions import VerifyException
 
-from traits.infer_type import InferResultTypeInterface
+from ..traits.infer_type import InferResultTypeInterface
 
 
 @irdl_attr_definition

@@ -15,10 +15,10 @@ from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
 )
-import dialects.smt_dialect as smt
-import dialects.smt_utils_dialect as smt_utils
+from ..dialects import smt_dialect as smt
+from ..dialects import smt_utils_dialect as smt_utils
 
-from passes.dead_code_elimination import DeadCodeElimination
+from .dead_code_elimination import DeadCodeElimination
 
 
 class FoldCorePattern(RewritePattern):

@@ -26,9 +26,9 @@ from xdsl.irdl import (
 from xdsl.parser import AttrParser
 from xdsl.printer import Printer
 
-from traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
-from traits.effects import Pure
-from dialects.smt_dialect import BoolType
+from ..traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
+from ..traits.effects import Pure
+from .smt_dialect import BoolType
 
 
 @irdl_attr_definition

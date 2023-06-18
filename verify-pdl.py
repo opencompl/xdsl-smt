@@ -16,26 +16,26 @@ from xdsl.dialects.pdl import PDL, TypeOp
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 
-from dialects.hoare_dialect import Hoare
-from dialects.pdl_dataflow import PDLDataflowDialect
-from dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from dialects.smt_dialect import SMTDialect
-from dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from dialects.arith_dialect import Arith
-from dialects.smt_utils_dialect import SMTUtilsDialect
-from dialects.index_dialect import Index
-from dialects.transfer import TransIntegerType, Transfer
-from dialects.comb import Comb
-from passes.lower_to_smt.lower_to_smt import LowerToSMT
-from passes.pdl_to_smt import PDLToSMT
-from passes.lower_to_smt import (
+from xdsl_smt.dialects.hoare_dialect import Hoare
+from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_dialect import SMTDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.arith_dialect import Arith
+from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from xdsl_smt.dialects.index_dialect import Index
+from xdsl_smt.dialects.transfer import TransIntegerType, Transfer
+from xdsl_smt.dialects.comb import Comb
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.pdl_to_smt import PDLToSMT
+from xdsl_smt.passes.lower_to_smt import (
     arith_to_smt_patterns,
     comb_to_smt_patterns,
     func_to_smt_patterns,
     transfer_to_smt_patterns,
     integer_type_lowerer,
 )
-from traits.smt_printer import print_to_smtlib
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 MAX_INT = 32
 

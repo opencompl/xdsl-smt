@@ -11,8 +11,8 @@ from xdsl.dialects.pdl import (
     AttributeOp,
 )
 
-from dialects import pdl_dataflow as pdl_dataflow
-from dialects import smt_bitvector_dialect as smt_bv
+from ..dialects import pdl_dataflow as pdl_dataflow
+from ..dialects import smt_bitvector_dialect as smt_bv
 
 from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
 
@@ -24,7 +24,7 @@ from xdsl.pattern_rewriter import (
     op_type_rewrite_pattern,
 )
 from xdsl.passes import ModulePass
-from dialects.smt_dialect import (
+from ..dialects.smt_dialect import (
     AndOp,
     AssertOp,
     CheckSatOp,
@@ -33,7 +33,7 @@ from dialects.smt_dialect import (
     EqOp,
     NotOp,
 )
-from passes.lower_to_smt.lower_to_smt import LowerToSMT
+from .lower_to_smt.lower_to_smt import LowerToSMT
 
 
 @dataclass

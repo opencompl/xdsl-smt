@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
 from xdsl.ir import Operation, MLContext
-from utils.lower_utils import lowerOperation, CPP_CLASS_KEY, lowerDispatcher
+from ..utils.lower_utils import lowerOperation, CPP_CLASS_KEY, lowerDispatcher
 
 from xdsl.pattern_rewriter import (
     RewritePattern,

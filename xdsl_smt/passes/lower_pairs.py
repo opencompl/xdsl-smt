@@ -17,10 +17,10 @@ from xdsl.pattern_rewriter import (
 from xdsl.rewriter import Rewriter
 from xdsl.passes import ModulePass
 
-from dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
-from dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
-from passes.canonicalize_smt import FoldUtilsPattern
-from passes.dead_code_elimination import DeadCodeElimination
+from ..dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
+from ..dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
+from .canonicalize_smt import FoldUtilsPattern
+from .dead_code_elimination import DeadCodeElimination
 
 
 class RemovePairArgsFunction(RewritePattern):

@@ -6,8 +6,8 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.utils.hints import isa
 
-import dialects.smt_bitvector_dialect as bv_dialect
-import dialects.arith_dialect as arith
+from ...dialects import smt_bitvector_dialect as bv_dialect
+from ...dialects import arith_dialect as arith
 
 
 class IntegerConstantRewritePattern(RewritePattern):

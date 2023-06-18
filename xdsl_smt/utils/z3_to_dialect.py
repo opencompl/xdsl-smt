@@ -16,9 +16,9 @@ from z3 import (
     is_var,
     get_var_index,
 )
-from dialects.smt_bitvector_dialect import BitVectorType
+from ..dialects.smt_bitvector_dialect import BitVectorType
 
-from dialects.smt_dialect import (
+from ..dialects.smt_dialect import (
     AndOp,
     BoolType,
     EqOp,

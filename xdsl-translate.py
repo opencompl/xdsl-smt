@@ -8,9 +8,9 @@ from xdsl.parser import Parser
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, Call
-from dialects.transfer import Transfer
+from xdsl_smt.dialects.transfer import Transfer
 from xdsl.printer import Printer
-from passes.transfer_lower import LowerToCpp, addDispatcher
+from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher
 
 from z3 import *
 

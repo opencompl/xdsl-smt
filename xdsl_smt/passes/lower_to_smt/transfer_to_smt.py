@@ -2,8 +2,8 @@ from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import RewritePattern, PatternRewriter
 from xdsl.ir import Operation
 
-from dialects import smt_bitvector_dialect as smt_bv
-from dialects import transfer
+from ...dialects import smt_bitvector_dialect as smt_bv
+from ...dialects import transfer
 
 
 def trivial_pattern(

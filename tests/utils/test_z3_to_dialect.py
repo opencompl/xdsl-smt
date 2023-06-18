@@ -5,8 +5,8 @@ from z3 import And, BitVecSort, BoolSort, Bools, Exists, ForAll, Or, Xor
 
 from xdsl.dialects.builtin import UnregisteredOp
 
-from dialects.smt_bitvector_dialect import BitVectorType
-from dialects.smt_dialect import (
+from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
+from xdsl_smt.dialects.smt_dialect import (
     AndOp,
     BinaryBoolOp,
     BinaryTOp,
@@ -19,7 +19,7 @@ from dialects.smt_dialect import (
     YieldOp,
     DistinctOp,
 )
-from utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
+from xdsl_smt.utils.z3_to_dialect import to_z3_consts, z3_sort_to_dialect, z3_to_dialect
 
 
 def test_to_z3_consts():
