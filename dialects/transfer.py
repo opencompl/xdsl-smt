@@ -83,6 +83,41 @@ class XorOp(IRDLOperation):
 
 
 @irdl_op_definition
+class GetBitWidthOp(IRDLOperation):
+    name = "transfer.get_bit_width"
+    val: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class CountLZeroOp(IRDLOperation):
+    name = "transfer.countl_zero"
+    val: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class CountRZeroOp(IRDLOperation):
+    name = "transfer.countr_zero"
+    val: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class CountLOneOp(IRDLOperation):
+    name = "transfer.countl_one"
+    val: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class CountROneOp(IRDLOperation):
+    name = "transfer.countr_one"
+    val: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
 class CmpOp(IRDLOperation):
     name = "transfer.cmp"
     predicate: OpAttr[IntegerAttr[IndexType]]
