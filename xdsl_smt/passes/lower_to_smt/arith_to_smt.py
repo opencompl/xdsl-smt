@@ -6,43 +6,45 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.utils.hints import isa
 
-from ...dialects import smt_bitvector_dialect as bv_dialect
+from ...utils.rewrite_tools import (PatternRegistrar, SimpleRewritePatternFactory)
+from ...dialects import smt_bitvector_dialect as bv
 from ...dialects import arith_dialect as arith
 
 
+rewrite_pattern: PatternRegistrar = PatternRegistrar()
+arith_to_smt_patterns: list[RewritePattern] = rewrite_pattern.registry
+
+_rewrite_factory = SimpleRewritePatternFactory(rewrite_pattern, globals())
+
+
+@rewrite_pattern
 class IntegerConstantRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Constant, rewriter: PatternRewriter):
         if not isa(op.value, IntegerAttr[IntegerType]):
             raise Exception("Cannot convert constant of type that are not integer type")
-        smt_op = bv_dialect.ConstantOp(op.value)
+        smt_op = bv.ConstantOp(op.value)
         rewriter.replace_matched_op(smt_op)
 
 
-class AddiRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Addi, rewriter: PatternRewriter):
-        smt_op = bv_dialect.AddOp(op.lhs, op.rhs)
-        rewriter.replace_matched_op(smt_op)
+for op in [
+        # Arithmetic
+        'Add', 'Sub', 'Mul',
+        # Bitwise
+        'And', 'Or', 'Xor', 'Shl'
+        ]:
+    srcOp = arith.__dict__[op + 'i']
+    tgtOp = bv.__dict__[op + 'Op']
+    _rewrite_factory.make_binop(srcOp, tgtOp)
 
-
-class AndiRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Andi, rewriter: PatternRewriter):
-        smt_op = bv_dialect.AndOp(op.lhs, op.rhs)
-        rewriter.replace_matched_op(smt_op)
-
-
-class OriRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter):
-        smt_op = bv_dialect.OrOp(op.lhs, op.rhs)
-        rewriter.replace_matched_op(smt_op)
-
-
-arith_to_smt_patterns: list[RewritePattern] = [
-    IntegerConstantRewritePattern(),
-    AddiRewritePattern(),
-    AndiRewritePattern(),
-    OriRewritePattern(),
-]
+for srcOp, tgtOp in [
+        # Arithmetic
+        (arith.Divsi, bv.SDivOp),
+        (arith.Divui, bv.UDivOp),
+        (arith.Remsi, bv.SRemOp),
+        (arith.Remui, bv.URemOp),
+        # Bitwise
+        (arith.Shrsi, bv.AShrOp),
+        (arith.Shrui, bv.LShrOp),
+        ]:
+    _rewrite_factory.make_binop(srcOp, tgtOp)
