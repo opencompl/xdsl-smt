@@ -10,6 +10,7 @@ from xdsl.utils.hints import isa
 
 from ...dialects import smt_dialect
 from ...dialects import smt_bitvector_dialect as bv_dialect
+from ...utils.rewrite_tools import (PatternRegistrar, SimpleRewritePatternFactory)
 from ...dialects import arith_dialect as arith
 from ...dialects import smt_utils_dialect as utils_dialect
 
@@ -23,6 +24,13 @@ def get_int_value_and_poison(
     return value.res, poison.res
 
 
+rewrite_pattern: PatternRegistrar = PatternRegistrar()
+arith_to_smt_patterns: list[RewritePattern] = rewrite_pattern.registry
+
+_rewrite_factory = SimpleRewritePatternFactory(rewrite_pattern, globals())
+
+
+@rewrite_pattern
 class IntegerConstantRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Constant, rewriter: PatternRewriter):
@@ -46,36 +54,24 @@ def reduce_poison_values(
     return [left_value, right_value], res_poison_op.res
 
 
-class AddiRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Addi, rewriter: PatternRewriter) -> None:
-        operands, poison = reduce_poison_values(op.operands, rewriter)
-        value_op = bv_dialect.AddOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+for op in [
+        # Arithmetic
+        'Add', 'Sub', 'Mul',
+        # Bitwise
+        'And', 'Or', 'Xor', 'Shl'
+        ]:
+    srcOp = arith.__dict__[op + 'i']
+    tgtOp = bv_dialect.__dict__[op + 'Op']
+    _rewrite_factory.make_binop(srcOp, tgtOp)
 
-
-class AndiRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Andi, rewriter: PatternRewriter) -> None:
-        operands, poison = reduce_poison_values(op.operands, rewriter)
-        value_op = bv_dialect.AndOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
-
-
-class OriRewritePattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter) -> None:
-        operands, poison = reduce_poison_values(op.operands, rewriter)
-        value_op = bv_dialect.OrOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
-
-
-arith_to_smt_patterns: list[RewritePattern] = [
-    IntegerConstantRewritePattern(),
-    AddiRewritePattern(),
-    AndiRewritePattern(),
-    OriRewritePattern(),
-]
+for srcOp, tgtOp in [
+        # Arithmetic
+        (arith.Divsi, bv_dialect.SDivOp),
+        (arith.Divui, bv_dialect.UDivOp),
+        (arith.Remsi, bv_dialect.SRemOp),
+        (arith.Remui, bv_dialect.URemOp),
+        # Bitwise
+        (arith.Shrsi, bv_dialect.AShrOp),
+        (arith.Shrui, bv_dialect.LShrOp),
+        ]:
+    _rewrite_factory.make_binop(srcOp, tgtOp)
