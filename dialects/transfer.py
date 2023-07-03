@@ -118,6 +118,54 @@ class CountROneOp(IRDLOperation):
 
 
 @irdl_op_definition
+class SMinOp(IRDLOperation):
+    name = "transfer.smin"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class SMaxOp(IRDLOperation):
+    name = "transfer.smax"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class UMinOp(IRDLOperation):
+    name = "transfer.umin"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class UMaxOp(IRDLOperation):
+    name = "transfer.umax"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class GetLowBitsOp(IRDLOperation):
+    name = "transfer.get_low_bits"
+    val: Annotated[Operand, TransIntegerType]
+    low_bits: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class SetHighBitsOp(IRDLOperation):
+    name = "transfer.set_high_bits"
+    val: Annotated[Operand, TransIntegerType]
+    high_bits: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
 class CmpOp(IRDLOperation):
     name = "transfer.cmp"
     predicate: OpAttr[IntegerAttr[IndexType]]
