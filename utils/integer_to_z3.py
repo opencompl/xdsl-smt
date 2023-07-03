@@ -1,4 +1,4 @@
-from z3 import BitVecVal, LShR, Extract, Concat, BitVec, Solver, BitVecRef
+from z3 import BitVecVal, LShR, Extract, Concat, BitVec, Solver, BitVecRef, If, ULE
 from functools import reduce
 
 
@@ -25,6 +25,14 @@ def get_low_bits_constant(low_bits: int, width: int):
 
 def get_high_bits_constant(high_bits: int, width: int):
     return get_bits_constant(width - high_bits, width, width)
+
+
+def get_low_bits(b: BitVecRef, low_bits: int):
+    return get_low_bits_constant(low_bits, b.size()) & b
+
+
+def set_high_bits(b: BitVecRef, high_bits: int):
+    return get_high_bits_constant(high_bits, b.size()) | b
 
 
 def count_ones(b: BitVecRef):
@@ -66,3 +74,19 @@ def count_lones(b: BitVecRef, solver: Solver, width: int):
 
 def count_rones(b: BitVecRef, solver: Solver, width: int):
     return count_rzeros(~b, solver, width)
+
+
+def smin(a: BitVecRef, b: BitVecRef, solver: Solver):
+    return If(a < b, a, b)
+
+
+def smax(a: BitVecRef, b: BitVecRef, solver: Solver):
+    return If(a < b, b, a)
+
+
+def umin(a: BitVecRef, b: BitVecRef, solver: Solver):
+    return If(ULE(a, b), a, b)
+
+
+def umax(a: BitVecRef, b: BitVecRef, solver: Solver):
+    return If(ULE(a, b), b, a)
