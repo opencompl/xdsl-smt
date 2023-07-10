@@ -59,6 +59,22 @@ class SubOp(IRDLOperation):
 
 
 @irdl_op_definition
+class MulOp(IRDLOperation):
+    name = "transfer.mul"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, TransIntegerType]
+
+
+@irdl_op_definition
+class UMulOverflowOp(IRDLOperation):
+    name = "transfer.umul_overflow"
+    lhs: Annotated[Operand, TransIntegerType]
+    rhs: Annotated[Operand, TransIntegerType]
+    result: Annotated[OpResult, i1]
+
+
+@irdl_op_definition
 class AndOp(IRDLOperation):
     name = "transfer.and"
     lhs: Annotated[Operand, TransIntegerType]
@@ -221,6 +237,30 @@ class MakeOp(IRDLOperation):
 
 
 Transfer = Dialect(
-    [Constant, CmpOp, AndOp, OrOp, XorOp, AddOp, SubOp, GetOp, MakeOp, NegOp],
+    [
+        Constant,
+        CmpOp,
+        AndOp,
+        OrOp,
+        XorOp,
+        AddOp,
+        SubOp,
+        GetOp,
+        MakeOp,
+        NegOp,
+        MulOp,
+        CountLOneOp,
+        CountLZeroOp,
+        CountROneOp,
+        CountRZeroOp,
+        SetHighBitsOp,
+        GetLowBitsOp,
+        GetBitWidthOp,
+        SMinOp,
+        SMaxOp,
+        UMaxOp,
+        UMinOp,
+        UMulOverflowOp,
+    ],
     [TransIntegerType, AbstractValueType],
 )
