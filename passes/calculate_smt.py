@@ -22,6 +22,19 @@ from z3 import ULT, UGE, ULE, UGT, And, Or, Xor
 opToSMTFunc = {
     "transfer.add": (lambda solver, a, b: BitVecRef.__add__(a, b)),
     "transfer.sub": (lambda solver, a, b: BitVecRef.__sub__(a, b)),
+    "transfer.mul": (lambda solver, a, b: BitVecRef.__mul__(a, b)),
+    "transfer.umul_overflow": (lambda solver, a, b: umul_overflow(a, b, solver)),
+    "transfer.get_bit_width": (lambda solver, a: BitVecVal(a.size(), a.size())),
+    "transfer.countl_zero": (lambda solver, a: count_lzeros(a, solver, a.size())),
+    "transfer.countl_one": (lambda solver, a: count_lones(a, solver, a.size())),
+    "transfer.countr_zero": (lambda solver, a: count_rzeros(a, solver, a.size())),
+    "transfer.countr_one": (lambda solver, a: count_rones(a, solver, a.size())),
+    "transfer.smin": (lambda solver, a, b: smin(a, b, solver)),
+    "transfer.umin": (lambda solver, a, b: umin(a, b, solver)),
+    "transfer.smax": (lambda solver, a, b: smax(a, b, solver)),
+    "transfer.umax": (lambda solver, a, b: umax(a, b, solver)),
+    "transfer.get_low_bits": (lambda solver, a, b: get_low_bits(a, b)),
+    "transfer.set_high_bits": (lambda solver, a, b: set_high_bits(a, b)),
     "transfer.neg": (lambda solver, a: BitVecRef.__invert__(a)),
     "transfer.and": (lambda solver, a, b: BitVecRef.__and__(a, b)),
     "transfer.or": (lambda solver, a, b: BitVecRef.__or__(a, b)),
@@ -46,6 +59,7 @@ opToSMTFunc = {
     "arith.andi": (lambda solver, a, b: And(a, b)),
     "arith.ori": (lambda solver, a, b: Or(a, b)),
     "arith.xori": (lambda solver, a, b: Xor(a, b)),
+    "arith.select": (lambda solver, cond, a, b: If(cond, a, b)),
 }
 
 funcCall = {}
@@ -122,7 +136,8 @@ def _(op: transfer.MakeOp, solver, func_name_to_func):
     if whole_name not in resultToSMTValue:
         operands = [get_smt_val(operand) for operand in op.operands]
         func = opToSMTFunc[op.name]
-        resultToSMTValue[whole_name] = func(solver, *operands)
+        result = func(solver, *operands)
+        resultToSMTValue[whole_name] = result
     return resultToSMTValue[whole_name]
 
 

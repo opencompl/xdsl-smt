@@ -1,4 +1,17 @@
-from z3 import BitVecVal, LShR, Extract, Concat, BitVec, Solver, BitVecRef, If, ULE
+import z3
+from z3 import (
+    BitVecVal,
+    LShR,
+    Extract,
+    Concat,
+    BitVec,
+    Solver,
+    BitVecRef,
+    If,
+    ULE,
+    Not,
+    BoolRef,
+)
 from functools import reduce
 
 
@@ -64,7 +77,13 @@ def count_lzeros(b: BitVecRef, solver: Solver, width: int):
 def count_rzeros(b: BitVecRef, solver: Solver, width: int):
     name = str(b)
     tmp_count_rzeros = BitVec("tmp_" + name + "_count_rzeros", width)
-    solver.add(b - (b & (b - 1)) == 1 << tmp_count_rzeros)
+    solver.add(
+        If(
+            b == 0,
+            tmp_count_rzeros == width,
+            b - (b & (b - 1)) == 1 << tmp_count_rzeros,
+        )
+    )
     return tmp_count_rzeros
 
 
@@ -90,3 +109,10 @@ def umin(a: BitVecRef, b: BitVecRef, solver: Solver):
 
 def umax(a: BitVecRef, b: BitVecRef, solver: Solver):
     return If(ULE(a, b), b, a)
+
+
+def umul_overflow(a: BitVecRef, b: BitVecRef, solver: Solver):
+    x, y = z3.z3._coerce_exprs(a, b)
+    return Not(
+        BoolRef(z3.Z3_mk_bvmul_no_overflow(x.ctx_ref(), x.as_ast(), y.as_ast(), False))
+    )
