@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Mapping, Sequence
 
-from xdsl.ir import Attribute, Region
+from xdsl.ir import Attribute
 
 
 class InferResultTypeInterface:
