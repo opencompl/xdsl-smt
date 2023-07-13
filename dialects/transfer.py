@@ -13,7 +13,6 @@ from typing import Annotated, Mapping, Sequence
 from xdsl.ir import (
     ParametrizedAttribute,
     Dialect,
-    Region,
     TypeAttribute,
     OpResult,
     Attribute,
