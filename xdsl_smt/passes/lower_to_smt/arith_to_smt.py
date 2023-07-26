@@ -1,5 +1,8 @@
+
 from typing import Sequence
-from xdsl.ir import SSAValue
+from typing import Callable
+
+from xdsl.ir import (Operation, SSAValue)
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -75,3 +78,18 @@ for srcOp, tgtOp in [
         (arith.Shrui, bv_dialect.LShrOp),
         ]:
     _rewrite_factory.make_binop(srcOp, tgtOp)
+
+for srcOp, cmpOp in [
+        (arith.Minsi, bv_dialect.SleOp),
+        (arith.Minui, bv_dialect.UleOp),
+        (arith.Maxsi, bv_dialect.SgeOp),
+        (arith.Maxui, bv_dialect.UgeOp),
+        ]:
+
+    # Python lambdas capture by reference. Make sure we copy `cmpOp` by value.
+    def mk_rewrite(cmpOp: type[Operation]) -> Callable[[Operation], smt_dialect.IteOp]:
+        def rewrite(src: srcOp) -> smt_dialect.IteOp: # type: ignore
+            return smt_dialect.IteOp(SSAValue.get(cmpOp(src.lhs, src.rhs)), src.lhs, src.rhs) # type: ignore
+        return rewrite # type: ignore
+
+    _rewrite_factory.make_simple(srcOp, mk_rewrite(cmpOp))
