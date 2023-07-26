@@ -9,7 +9,11 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.utils.hints import isa
 
-from ...utils.rewrite_tools import (PatternRegistrar, SimpleRewritePatternFactory)
+from ...utils.rewrite_tools import (
+    PatternRegistrar,
+    SimpleRewritePattern,
+    SimpleRewritePatternFactory
+)
 from ...dialects import smt_dialect as smt
 from ...dialects import smt_bitvector_dialect as bv
 from ...dialects import arith_dialect as arith
@@ -67,3 +71,17 @@ for srcOp, cmpOp in [
         return rewrite # type: ignore
 
     _rewrite_factory.make_simple(srcOp, mk_rewrite(cmpOp))
+
+
+@rewrite_pattern
+class CmpiRewritePattern(SimpleRewritePattern):
+    @staticmethod
+    def cmpOp(predicate: IntegerAttr[IntegerType]) -> type[smt.BinaryTOp | bv.BinaryPredBVOp]:
+        return [smt.EqOp, smt.DistinctOp,
+                bv.SltOp, bv.SleOp, bv.SgtOp, bv.SgeOp,
+                bv.UltOp, bv.UleOp, bv.UgtOp, bv.UgeOp][predicate.value.data]
+
+    @staticmethod
+    def rewrite(src: arith.Cmpi) -> Operation:
+        return smt.IteOp(SSAValue.get(__class__.cmpOp(src.predicate)(src.lhs, src.rhs)),
+                         SSAValue.get(bv.ConstantOp(1, 1)), SSAValue.get(bv.ConstantOp(0, 1)))
