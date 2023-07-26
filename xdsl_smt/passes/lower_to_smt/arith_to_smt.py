@@ -85,3 +85,11 @@ class CmpiRewritePattern(SimpleRewritePattern):
     def rewrite(src: arith.Cmpi) -> Operation:
         return smt.IteOp(SSAValue.get(__class__.cmpOp(src.predicate)(src.lhs, src.rhs)),
                          SSAValue.get(bv.ConstantOp(1, 1)), SSAValue.get(bv.ConstantOp(0, 1)))
+
+
+@rewrite_pattern
+class SelectRewritePattern(SimpleRewritePattern):
+    @staticmethod
+    def rewrite(src: arith.Select) -> Operation:
+        return smt.IteOp(SSAValue.get(smt.EqOp(src.condition, SSAValue.get(bv.ConstantOp(1, 1)))),
+                         src.true_value, src.false_value)
