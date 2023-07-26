@@ -1,3 +1,6 @@
+from typing import Self
+
+from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.ir import Attribute, Dialect, OpResult
 from xdsl.irdl import (
     operand_def,
@@ -7,6 +10,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
 )
+from xdsl.parser import Parser
 
 from ..traits.effects import Pure
 
@@ -78,9 +82,41 @@ class Cmpf(IRDLOperation, Pure):
 @irdl_op_definition
 class Cmpi(IRDLOperation, Pure):
     name = "arith.cmpi"
+    predicate: IntegerAttr[IntegerType] = attr_def(IntegerAttr[IntegerType])
     lhs: Operand = operand_def()
     rhs: Operand = operand_def()
     result: OpResult = result_def()
+
+    @classmethod
+    def cmpOps(cls: type[Self]) -> list[str]:
+        return ['eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge']
+
+    @classmethod
+    def parse(cls: type[Self], parser: Parser) -> Self:
+        predicate = None
+
+        for (i, op) in enumerate(cls.cmpOps()):
+            if parser.parse_optional_keyword(op):
+                predicate = i
+                break
+
+        if predicate is None:
+            expected = ", ".join(map(lambda s: f'"{s}"', cls.cmpOps()))
+            parser.raise_error(f"Expecting {expected}")
+
+        parser.parse_punctuation(',')
+        lhs = parser.parse_operand("Expected SSA operand")
+        parser.parse_punctuation(',')
+        rhs = parser.parse_operand("Expected SSA operand")
+        parser.parse_punctuation(':')
+        ty = parser.parse_type()
+
+        if lhs.type != ty or rhs.type != ty:
+            parser.raise_error("arith.cmpi arguments must have the same type")
+
+        return Cmpi.create(operands = [lhs, rhs],
+                           result_types = [IntegerType(1)],
+                           attributes = {"predicate": IntegerAttr(predicate, 64)})
 
 
 @irdl_op_definition
