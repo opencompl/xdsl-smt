@@ -1,3 +1,6 @@
+from typing import Callable
+
+from xdsl.ir import (Operation, SSAValue)
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -7,6 +10,7 @@ from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.utils.hints import isa
 
 from ...utils.rewrite_tools import (PatternRegistrar, SimpleRewritePatternFactory)
+from ...dialects import smt_dialect as smt
 from ...dialects import smt_bitvector_dialect as bv
 from ...dialects import arith_dialect as arith
 
@@ -48,3 +52,18 @@ for srcOp, tgtOp in [
         (arith.Shrui, bv.LShrOp),
         ]:
     _rewrite_factory.make_binop(srcOp, tgtOp)
+
+for srcOp, cmpOp in [
+        (arith.Minsi, bv.SleOp),
+        (arith.Minui, bv.UleOp),
+        (arith.Maxsi, bv.SgeOp),
+        (arith.Maxui, bv.UgeOp),
+        ]:
+
+    # Python lambdas capture by reference. Make sure we copy `cmpOp` by value.
+    def mk_rewrite(cmpOp: type[Operation]) -> Callable[[Operation], smt.IteOp]:
+        def rewrite(src: srcOp) -> smt.IteOp: # type: ignore
+            return smt.IteOp(SSAValue.get(cmpOp(src.lhs, src.rhs)), src.lhs, src.rhs) # type: ignore
+        return rewrite # type: ignore
+
+    _rewrite_factory.make_simple(srcOp, mk_rewrite(cmpOp))
