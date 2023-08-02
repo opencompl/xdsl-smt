@@ -191,3 +191,60 @@ class AdduiCarryRewritePattern(RewritePattern, _ExtTruncOps):
         overflow = __class__.extract_sign_bit(_g(full_sum))
         rewriter.replace_matched_op([zero, lhs, rhs, full_sum, result, overflow],
                                     [_g(result), _g(overflow)])
+
+
+# Ceil unsigned div: add (divisor - 1)
+# Ceil signed div: likewise, but only when sign bit unset
+# Floor signed div: subtract (divisor - 1) when sign bit set
+
+class _DivOps(_ExtTruncOps):
+    @staticmethod
+    def get_sub_1(val: SSAValue) -> Operation:
+        return bv.SubOp(val, SSAValue.get(bv.ConstantOp(1, __class__.width(val))))
+
+
+class CeilFloorDivRewriteBase(SimpleRewritePattern, _DivOps):
+    @staticmethod
+    def fudge(dividend: SSAValue, divisor: SSAValue) -> Operation:
+        ...
+
+
+@rewrite_pattern
+class CeildivuiRewritePattern(CeilFloorDivRewriteBase):
+    @staticmethod
+    def fudge(dividend: SSAValue, divisor: SSAValue) -> Operation:
+        return bv.AddOp(dividend, SSAValue.get(__class__.get_sub_1(divisor)))
+
+    @staticmethod
+    def rewrite(src: arith.Ceildivui) -> Operation:
+        return bv.UDivOp(SSAValue.get(__class__.fudge(src.lhs, src.rhs)), src.rhs)
+
+
+@rewrite_pattern
+class CeildivsiRewritePattern(SimpleRewritePattern, _DivOps):
+    @staticmethod
+    def fudge(dividend: SSAValue, divisor: SSAValue) -> Operation:
+        return bv.AddOp(dividend,
+                        SSAValue.get(smt.IteOp(SSAValue.get(smt.EqOp(SSAValue.get(__class__.extract_sign_bit(dividend)),
+                                                                     SSAValue.get(bv.ConstantOp(0, 1)))),
+                                               SSAValue.get(__class__.get_sub_1(divisor)),
+                                               SSAValue.get(bv.ConstantOp(0, __class__.width(dividend))))))
+
+    @staticmethod
+    def rewrite(src: arith.Ceildivsi) -> Operation:
+        return bv.SDivOp(SSAValue.get(__class__.fudge(src.lhs, src.rhs)), src.rhs)
+
+
+@rewrite_pattern
+class FloordivsiRewritePattern(SimpleRewritePattern, _DivOps):
+    @staticmethod
+    def fudge(dividend: SSAValue, divisor: SSAValue) -> Operation:
+        return bv.SubOp(dividend,
+                        SSAValue.get(smt.IteOp(SSAValue.get(smt.EqOp(SSAValue.get(__class__.extract_sign_bit(dividend)),
+                                                                     SSAValue.get(bv.ConstantOp(1, 1)))),
+                                               SSAValue.get(__class__.get_sub_1(divisor)),
+                                               SSAValue.get(bv.ConstantOp(0, __class__.width(dividend))))))
+
+    @staticmethod
+    def rewrite(src: arith.Floordivsi) -> Operation:
+        return bv.SDivOp(SSAValue.get(__class__.fudge(src.lhs, src.rhs)), src.rhs)
