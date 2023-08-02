@@ -18,6 +18,7 @@ from ...utils.rewrite_tools import (
 )
 from ...dialects import smt_dialect as smt
 from ...dialects import smt_bitvector_dialect as bv
+from ...dialects.smt_bitvector_dialect import BitVectorType
 from ...dialects import arith_dialect as arith
 from ...dialects import smt_utils_dialect as utils_dialect
 
@@ -119,3 +120,51 @@ class SelectRewritePattern(SimpleRewritePattern):
     def rewrite(src: arith.Select) -> Operation:
         return smt.IteOp(SSAValue.get(smt.EqOp(src.condition, SSAValue.get(bv.ConstantOp(1, 1)))),
                          src.true_value, src.false_value)
+
+
+class ExtTruncRewriteBase(SimpleRewritePattern):
+    @staticmethod
+    def width(val: SSAValue) -> int:
+        """Get the bit width of an integer-type value"""
+
+        ty = val.type
+        assert isinstance(ty, IntegerType) or isinstance(ty, BitVectorType)
+        bits = ty.width.data
+        return bits
+
+    @staticmethod
+    def extract_sign_bit(val: SSAValue) -> Operation:
+        """Create a SMT expression that extracts the sign bit from an integer-type value"""
+
+        bits = __class__.width(val)
+        return bv.ExtractOp(val, bits - 1, bits - 1)
+
+
+@rewrite_pattern
+class TrunciRewritePattern(ExtTruncRewriteBase):
+    @staticmethod
+    def rewrite(src: arith.Trunci) -> Operation:
+        bits = __class__.width(src.out)
+        return bv.ExtractOp(src.in_, bits - 1, 0)
+
+
+@rewrite_pattern
+class ExtuiRewritePattern(ExtTruncRewriteBase):
+    @staticmethod
+    def rewrite(src: arith.Extui) -> Operation:
+        bits = __class__.width(src.out) - __class__.width(src.in_)
+        extension = SSAValue.get(bv.ConstantOp(0, bits))
+        return bv.ConcatOp(extension, src.in_)
+
+
+@rewrite_pattern
+class ExtsiRewritePattern(ExtTruncRewriteBase):
+    @staticmethod
+    def rewrite(src: arith.Extsi) -> Operation:
+        bits = __class__.width(src.out) - __class__.width(src.in_)
+        sign_bit = SSAValue.get(__class__.extract_sign_bit(src.in_))
+        extension = SSAValue.get(smt.IteOp(
+            SSAValue.get(smt.EqOp(sign_bit, SSAValue.get(bv.ConstantOp(0, 1)))),
+            SSAValue.get(bv.ConstantOp(0, bits)),
+            SSAValue.get(bv.ConstantOp(2 ** bits - 1, bits))))
+        return bv.ConcatOp(extension, src.in_)
