@@ -96,7 +96,7 @@ class SelectRewritePattern(SimpleRewritePattern):
                          src.true_value, src.false_value)
 
 
-class ExtTruncRewriteBase(SimpleRewritePattern):
+class _ExtTruncOps:
     @staticmethod
     def width(val: SSAValue) -> int:
         """Get the bit width of an integer-type value"""
@@ -112,6 +112,10 @@ class ExtTruncRewriteBase(SimpleRewritePattern):
 
         bits = __class__.width(val)
         return bv.ExtractOp(val, bits - 1, bits - 1)
+
+
+class ExtTruncRewriteBase(SimpleRewritePattern, _ExtTruncOps):
+    pass
 
 
 @rewrite_pattern
@@ -142,3 +146,22 @@ class ExtsiRewritePattern(ExtTruncRewriteBase):
             SSAValue.get(bv.ConstantOp(0, bits)),
             SSAValue.get(bv.ConstantOp(2 ** bits - 1, bits))))
         return bv.ConcatOp(extension, src.in_)
+
+
+@rewrite_pattern
+class AdduiCarryRewritePattern(RewritePattern, _ExtTruncOps):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, src: arith.AdduiCarry, rewriter: PatternRewriter) -> None:
+        # Extended the bitvectors by 1 bit, do the addition, and extract the MSB as the carry bit
+
+        _g = SSAValue.get
+
+        bits = __class__.width(src.sum)
+        zero = bv.ConstantOp(0, 1)
+        lhs = bv.ConcatOp(_g(zero), _g(src.lhs))
+        rhs = bv.ConcatOp(_g(zero), _g(src.rhs))
+        full_sum = bv.AddOp(_g(lhs), _g(rhs))
+        result = bv.ExtractOp(_g(full_sum), bits - 1, 0)
+        overflow = __class__.extract_sign_bit(_g(full_sum))
+        rewriter.replace_matched_op([zero, lhs, rhs, full_sum, result, overflow],
+                                    [_g(result), _g(overflow)])
