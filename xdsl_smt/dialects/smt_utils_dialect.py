@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import reduce
 from typing import Generic, TypeAlias, TypeVar, cast, IO
 from xdsl.ir import (
     Attribute,
@@ -129,6 +130,17 @@ class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
             )
         pair_typ = cast(AnyPairType, pair.type)
         return SecondOp.create(result_types=[pair_typ.second], operands=[pair])
+
+
+def pair_from_list(*vals: SSAValue) -> SSAValue:
+    """Convert a list of values into a cons-list of SMT pairs"""
+
+    if len(vals) == 0:
+        raise ValueError("Must have at least one value")
+    elif len(vals) == 1:
+        return vals[0]
+    else:
+        return reduce(lambda r, l: SSAValue.get(PairOp.from_values(l, r)), reversed(vals))
 
 
 SMTUtilsDialect = Dialect([PairOp, FirstOp, SecondOp], [PairType])

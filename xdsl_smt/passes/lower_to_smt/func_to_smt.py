@@ -6,17 +6,17 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.builtin import FunctionType
 from xdsl.dialects.func import FuncOp, Return
 
+from ...utils.rewrite_tools import new_ops
 from ...dialects.smt_dialect import DefineFunOp, ReturnOp
+from ...dialects.smt_utils_dialect import pair_from_list as smt_pair_from_list
 from .lower_to_smt import LowerToSMT
 
 
 class ReturnPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: Return, rewriter: PatternRewriter):
-        if len(op.arguments) != 1:
-            raise Exception("Cannot convert functions with multiple results")
-        smt_op = ReturnOp(op.arguments[0])
-        rewriter.replace_matched_op(smt_op)
+        smt_op = ReturnOp(smt_pair_from_list(*op.arguments))
+        rewriter.replace_matched_op([*new_ops(smt_op)])
 
 
 class FuncToSMTPattern(RewritePattern):
@@ -30,13 +30,11 @@ class FuncToSMTPattern(RewritePattern):
         # We only handle single-block regions for now
         if len(op.body.blocks) != 1:
             raise Exception("Cannot convert multi-block functions")
-        if len(op.function_type.outputs.data) != 1:
-            raise Exception("Cannot convert functions with multiple results")
 
         operand_types = [
             LowerToSMT.lower_type(input) for input in op.function_type.inputs.data
         ]
-        result_type = LowerToSMT.lower_type(op.function_type.outputs.data[0])
+        result_type = LowerToSMT.lower_types(*op.function_type.outputs.data)
 
         # The SMT function replacing the func.func function
         smt_func = DefineFunOp.from_function_type(
