@@ -30,8 +30,8 @@ class RemovePairArgsFunction(RewritePattern):
         i = 0
         while i < len(block.args):
             arg = block.args[i]
-            if isinstance(arg.typ, PairType):
-                typ = cast(AnyPairType, arg.typ)
+            if isinstance(arg.type, PairType):
+                typ = cast(AnyPairType, arg.type)
                 fst = rewriter.insert_block_argument(block, i + 1, typ.first)
                 snd = rewriter.insert_block_argument(block, i + 2, typ.second)
                 get_pair = PairOp.from_values(fst, snd)
@@ -40,11 +40,11 @@ class RemovePairArgsFunction(RewritePattern):
                 rewriter.erase_block_argument(arg)
             else:
                 i += 1
-        old_typ = op.ret.typ
+        old_typ = op.ret.type
         assert isinstance(old_typ, FunctionType)
-        new_inputs = [arg.typ for arg in block.args]
-        op.ret.typ = FunctionType.from_attrs(
-            ArrayAttr[Attribute].from_list(new_inputs), old_typ.outputs
+        new_inputs = [arg.type for arg in block.args]
+        op.ret.type = FunctionType.from_attrs(
+            ArrayAttr[Attribute](new_inputs), old_typ.outputs
         )
 
 
@@ -55,13 +55,13 @@ class RemovePairArgsCall(RewritePattern):
         i = 0
         while i < len(args):
             arg = args[i]
-            if isinstance(arg.typ, PairType):
+            if isinstance(arg.type, PairType):
                 fst = FirstOp.from_value(arg)
                 snd = SecondOp.from_value(arg)
                 rewriter.insert_op_before_matched_op([fst, snd])
                 rewriter.replace_matched_op(
                     CallOp.create(
-                        result_types=[res.typ for res in op.results],
+                        result_types=[res.type for res in op.results],
                         operands=args[:i] + [fst.res, snd.res] + args[i + 1 :],
                     )
                 )
@@ -98,9 +98,9 @@ def remove_pairs_from_function_return(module: ModuleOp):
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
             firstRet = ReturnOp.from_ret_value(firstOp.res)
             Rewriter.replace_op(firstBlockTerminator, firstRet)
-            firstFunc.ret.typ = FunctionType.from_attrs(
+            firstFunc.ret.type = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
-                ArrayAttr[Attribute].from_list([output.first]),
+                ArrayAttr[Attribute]([output.first]),
             )
             if firstFunc.fun_name:
                 firstFunc.attributes["fun_name"] = StringAttr(
@@ -116,9 +116,9 @@ def remove_pairs_from_function_return(module: ModuleOp):
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp.from_ret_value(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
-            secondFunc.ret.typ = FunctionType.from_attrs(
+            secondFunc.ret.type = FunctionType.from_attrs(
                 secondFunc.func_type.inputs,
-                ArrayAttr[Attribute].from_list([output.second]),
+                ArrayAttr[Attribute]([output.second]),
             )
             if secondFunc.fun_name:
                 secondFunc.attributes["fun_name"] = StringAttr(
@@ -133,11 +133,11 @@ def remove_pairs_from_function_return(module: ModuleOp):
                 call = use.operation
                 assert isinstance(call, CallOp)
                 callFirst = CallOp.create(
-                    result_types=[firstFunc.ret.typ.outputs.data[0]],
+                    result_types=[firstFunc.ret.type.outputs.data[0]],
                     operands=[firstFunc.ret] + list(call.args),
                 )
                 callSecond = CallOp.create(
-                    result_types=[secondFunc.ret.typ.outputs.data[0]],
+                    result_types=[secondFunc.ret.type.outputs.data[0]],
                     operands=[secondFunc.ret] + list(call.args),
                 )
                 mergeCalls = PairOp.from_values(callFirst.res, callSecond.res)

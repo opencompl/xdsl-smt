@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from typing import Annotated, Sequence, TypeVar, IO
+from typing import Sequence, TypeVar, IO
 
+from xdsl.traits import IsTerminator
 from xdsl.irdl import (
-    OpAttr,
-    OptOpAttr,
-    SingleBlockRegion,
+    attr_def,
+    opt_attr_def,
+    operand_def,
+    result_def,
+    region_def,
+    var_operand_def,
     VarOperand,
     irdl_attr_definition,
     irdl_op_definition,
@@ -24,7 +28,7 @@ from xdsl.ir import (
     Region,
     TypeAttribute,
 )
-from xdsl.parser import Parser
+from xdsl.parser import AttrParser
 from xdsl.printer import Printer
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.utils.exceptions import VerifyException
@@ -53,7 +57,10 @@ class YieldOp(IRDLOperation):
     """`smt.yield` is used to return a result from a region."""
 
     name = "smt.yield"
-    ret: Annotated[Operand, BoolType]
+
+    traits = frozenset([IsTerminator()])
+
+    ret: Operand = operand_def(BoolType)
 
     def __init__(self, ret: Operand | Operation):
         super().__init__(operands=[ret])
@@ -65,8 +72,8 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
 
     name = "smt.forall"
 
-    res: Annotated[OpResult, BoolType]
-    body: SingleBlockRegion
+    res: OpResult = result_def(BoolType)
+    body: Region = region_def("single_block")
 
     @staticmethod
     def from_variables(
@@ -90,12 +97,12 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(forall (", file=stream, end="")
         for idx, param in enumerate(self.body.block.args):
-            assert isinstance(param.typ, SMTLibSort)
+            assert isinstance(param.type, SMTLibSort)
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
                 print(" ", file=stream, end="")
             print(f"({param_name} ", file=stream, end="")
-            param.typ.print_sort_to_smtlib(stream)
+            param.type.print_sort_to_smtlib(stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
         ctx.print_expr_to_smtlib(self.return_val, stream)
@@ -108,8 +115,8 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
 
     name = "smt.exists"
 
-    res: Annotated[OpResult, BoolType]
-    body: SingleBlockRegion
+    res: OpResult = result_def(BoolType)
+    body: Region = region_def("single_block")
 
     @staticmethod
     def from_variables(
@@ -133,12 +140,12 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(exists (", file=stream, end="")
         for idx, param in enumerate(self.body.blocks[0].args):
-            assert isinstance(param.typ, SMTLibSort)
+            assert isinstance(param.type, SMTLibSort)
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
                 print(" ", file=stream, end="")
             print(f"({param_name} ", file=stream, end="")
-            param.typ.print_sort_to_smtlib(stream)
+            param.type.print_sort_to_smtlib(stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
         ctx.print_expr_to_smtlib(self.return_val, stream)
@@ -151,29 +158,29 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
 
     name = "smt.call"
 
-    res: OpResult
-    func: Annotated[Operand, FunctionType]
-    args: VarOperand
+    res: OpResult = result_def()
+    func: Operand = operand_def(FunctionType)
+    args: VarOperand = var_operand_def()
 
     @staticmethod
     def get(func: Operand, args: list[Operand]) -> CallOp:
-        if not isinstance(func.typ, FunctionType):
-            raise Exception("Expected function type, got ", func.typ)
+        if not isinstance(func.type, FunctionType):
+            raise Exception("Expected function type, got ", func.type)
         return CallOp.build(
             operands=[func, args],
-            result_types=[func.typ.outputs.data[0]],
+            result_types=[func.type.outputs.data[0]],
         )
 
     def verify_(self) -> None:
-        assert isinstance(self.func.typ, FunctionType)
-        if len(self.args) != len(self.func.typ.inputs.data):
+        assert isinstance(self.func.type, FunctionType)
+        if len(self.args) != len(self.func.type.inputs.data):
             raise VerifyException("Incorrect number of arguments")
-        for arg, arg_type in zip(self.args, self.func.typ.inputs.data):
-            if arg.typ != arg_type:
+        for arg, arg_type in zip(self.args, self.func.type.inputs.data):
+            if arg.type != arg_type:
                 raise VerifyException("Incorrect argument type")
-        if len(self.func.typ.outputs.data) != 1:
+        if len(self.func.type.outputs.data) != 1:
             raise VerifyException("Incorrect number of return values")
-        if self.res.typ != self.func.typ.outputs.data[0]:
+        if self.res.type != self.func.type.outputs.data[0]:
             raise VerifyException("Incorrect return type")
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
@@ -196,9 +203,9 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
 
     name = "smt.define_fun"
 
-    fun_name: OptOpAttr[StringAttr]
-    ret: Annotated[OpResult, FunctionType]
-    body: SingleBlockRegion
+    fun_name: StringAttr | None = opt_attr_def(StringAttr)
+    ret: OpResult = result_def(FunctionType)
+    body: Region = region_def("single_block")
 
     def verify_(self) -> None:
         if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, ReturnOp):
@@ -206,19 +213,19 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
         if len(self.body.blocks[0].args) != len(self.func_type.inputs.data):
             raise VerifyException("Incorrect number of arguments")
         for arg, arg_type in zip(self.body.blocks[0].args, self.func_type.inputs.data):
-            if arg.typ != arg_type:
+            if arg.type != arg_type:
                 raise VerifyException("Incorrect argument type")
         if len(self.func_type.outputs.data) != 1:
             raise VerifyException("Incorrect number of return values")
-        if self.return_val.typ != self.func_type.outputs.data[0]:
+        if self.return_val.type != self.func_type.outputs.data[0]:
             raise VerifyException("Incorrect return type")
 
     @property
     def func_type(self) -> FunctionType:
         """Get the function type of this operation."""
-        if not isinstance(self.ret.typ, FunctionType):
+        if not isinstance(self.ret.type, FunctionType):
             raise VerifyException("Incorrect return type")
-        return self.ret.typ
+        return self.ret.type
 
     @property
     def return_val(self) -> SSAValue:
@@ -261,7 +268,7 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
             if idx != 0:
                 print(" ", file=stream, end="")
             arg_name = ctx.get_fresh_name(arg)
-            typ = arg.typ
+            typ = arg.type
             assert isinstance(typ, SMTLibSort)
             print(f"({arg_name} ", file=stream, end="")
             typ.print_sort_to_smtlib(stream)
@@ -286,7 +293,9 @@ class ReturnOp(IRDLOperation):
     """The return operation of a function."""
 
     name = "smt.return"
-    ret: Operand
+    ret: Operand = operand_def()
+
+    traits = frozenset([IsTerminator()])
 
     def __init__(self, operand: SSAValue):
         super().__init__(operands=[operand])
@@ -299,7 +308,7 @@ class ReturnOp(IRDLOperation):
         parent = self.parent_op()
         if not isinstance(parent, DefineFunOp):
             raise VerifyException("ReturnOp must be nested inside a DefineFunOp")
-        if not self.ret.typ == parent.func_type.outputs.data[0]:
+        if not self.ret.type == parent.func_type.outputs.data[0]:
             raise VerifyException("ReturnOp type mismatch with DefineFunOp")
 
 
@@ -308,14 +317,14 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     """Declare a constant value."""
 
     name = "smt.declare_const"
-    res: OpResult
+    res: OpResult = result_def()
 
     def __init__(self, type_name: Attribute):
         super().__init__(result_types=[type_name])
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         name = ctx.get_fresh_name(self.res)
-        typ = self.res.typ
+        typ = self.res.type
         assert isinstance(typ, SMTLibSort)
         print(f"(declare-const {name} ", file=stream, end="")
         typ.print_sort_to_smtlib(stream)
@@ -327,7 +336,7 @@ class AssertOp(IRDLOperation, SMTLibScriptOp):
     """Assert that a boolean expression is true."""
 
     name = "smt.assert"
-    op: Annotated[Operand, BoolType]
+    op: Operand = operand_def(BoolType)
 
     def __init__(self, operand: SSAValue):
         super().__init__(operands=[operand])
@@ -360,9 +369,9 @@ _OpT = TypeVar("_OpT", bound=Operation)
 class BinaryBoolOp(IRDLOperation, Pure):
     """Base class for binary boolean operations."""
 
-    res: Annotated[OpResult, BoolType]
-    lhs: Annotated[Operand, BoolType]
-    rhs: Annotated[Operand, BoolType]
+    res: OpResult = result_def(BoolType)
+    lhs: Operand = operand_def(BoolType)
+    rhs: Operand = operand_def(BoolType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
@@ -375,9 +384,9 @@ class BinaryBoolOp(IRDLOperation, Pure):
 class BinaryTOp(IRDLOperation, Pure):
     """Base class for binary operations with boolean results."""
 
-    res: Annotated[OpResult, BoolType]
-    lhs: Operand
-    rhs: Operand
+    res: OpResult = result_def(BoolType)
+    lhs: Operand = operand_def()
+    rhs: Operand = operand_def()
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
@@ -387,7 +396,7 @@ class BinaryTOp(IRDLOperation, Pure):
         return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
 
     def verify_(self) -> None:
-        if self.lhs.typ != self.rhs.typ:
+        if self.lhs.type != self.rhs.type:
             raise VerifyException("Operands must have the same type")
 
 
@@ -397,14 +406,13 @@ class BoolAttr(Data[bool]):
 
     name = "smt.bool_attr"
 
-    @staticmethod
-    def parse_parameter(parser: Parser) -> bool:
-        val = parser.expect(parser.try_parse_bare_id, "Expected 'true' or 'false'")
-        if val.text == "true":
+    @classmethod
+    def parse_parameter(cls, parser: AttrParser) -> bool:
+        if parser.parse_optional_keyword("true"):
             return True
-        if val.text == "false":
+        if parser.parse_optional_keyword("false"):
             return False
-        raise ValueError("Expected 'true' or 'false'")
+        parser.raise_error("'true' or 'false' expected")
 
     def print_parameter(self, printer: Printer) -> None:
         printer.print("true" if self.data else "false")
@@ -416,8 +424,8 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
 
     name = "smt.constant_bool"
 
-    res: Annotated[OpResult, BoolType]
-    value: OpAttr[BoolAttr]
+    res: OpResult = result_def(BoolType)
+    value: BoolAttr = attr_def(BoolAttr)
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         if self.value.data:
@@ -438,8 +446,8 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     name = "smt.not"
 
-    res: Annotated[OpResult, BoolType]
-    arg: Annotated[Operand, BoolType]
+    res: OpResult = result_def(BoolType)
+    arg: Operand = operand_def(BoolType)
 
     @staticmethod
     def get(operand: SSAValue) -> NotOp:
@@ -515,18 +523,18 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     name = "smt.ite"
 
-    res: OpResult
-    cond: Annotated[Operand, BoolType]
-    true_val: Operand
-    false_val: Operand
+    res: OpResult = result_def()
+    cond: Operand = operand_def(BoolType)
+    true_val: Operand = operand_def()
+    false_val: Operand = operand_def()
 
     def __init__(self, cond: SSAValue, true_val: SSAValue, false_val: SSAValue):
         super().__init__(
-            result_types=[true_val.typ], operands=[cond, true_val, false_val]
+            result_types=[true_val.type], operands=[cond, true_val, false_val]
         )
 
     def verify_(self) -> None:
-        if not (self.res.typ == self.true_val.typ == self.false_val.typ):
+        if not (self.res.type == self.true_val.type == self.false_val.type):
             raise ValueError("The result and both values must have the same type")
 
     def op_name(self) -> str:

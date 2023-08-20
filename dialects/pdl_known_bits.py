@@ -1,7 +1,12 @@
-from typing import Annotated
 from xdsl.dialects.builtin import i32
 from xdsl.ir import Dialect, OpResult
-from xdsl.irdl import IRDLOperation, Operand, irdl_op_definition
+from xdsl.irdl import (
+    operand_def,
+    result_def,
+    IRDLOperation,
+    Operand,
+    irdl_op_definition,
+)
 from xdsl.dialects.pdl import OperationType, TypeType, ValueType
 
 
@@ -11,10 +16,10 @@ class KBOperandOp(IRDLOperation):
 
     name = "pdl.kb.operand"
 
-    type: Annotated[Operand, TypeType]
-    value: Annotated[OpResult, ValueType]
-    zeros: Annotated[OpResult, i32]
-    ones: Annotated[OpResult, i32]
+    type: Operand = operand_def(TypeType)
+    value: OpResult = result_def(ValueType)
+    zeros: OpResult = result_def(i32)
+    ones: OpResult = result_def(i32)
 
 
 @irdl_op_definition
@@ -23,9 +28,9 @@ class KBAttachOp(IRDLOperation):
 
     name = "pdl.kb.attach"
 
-    op: Annotated[Operand, OperationType]
-    zeros: Annotated[Operand, i32]
-    ones: Annotated[Operand, i32]
+    op: Operand = operand_def(OperationType)
+    zeros: Operand = operand_def(i32)
+    ones: Operand = operand_def(i32)
 
 
 PDLKnownBitsDialect = Dialect([KBOperandOp, KBAttachOp])

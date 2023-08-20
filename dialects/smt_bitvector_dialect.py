@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, TypeVar, IO, overload
+from typing import TypeVar, IO, overload
 
 from xdsl.dialects.builtin import IntAttr, IntegerAttr, IntegerType
 
@@ -13,14 +13,16 @@ from xdsl.ir import (
     TypeAttribute,
 )
 from xdsl.irdl import (
-    OpAttr,
+    attr_def,
+    operand_def,
+    result_def,
     Operand,
     ParameterDef,
     irdl_op_definition,
     irdl_attr_definition,
     IRDLOperation,
 )
-from xdsl.parser import Parser
+from xdsl.parser import AttrParser
 from xdsl.printer import Printer
 
 from traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
@@ -45,11 +47,11 @@ class BitVectorType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     def from_int(value: int) -> BitVectorType:
         return BitVectorType(value)
 
-    @staticmethod
-    def parse_parameters(parser: Parser) -> list[Attribute]:
-        parser.parse_char("<")
+    @classmethod
+    def parse_parameters(cls, parser: AttrParser) -> list[Attribute]:
+        parser.parse_punctuation("<")
         width = parser.parse_integer()
-        parser.parse_char(">")
+        parser.parse_punctuation(">")
         return [IntAttr(width)]
 
     def print_parameters(self, printer: Printer) -> None:
@@ -84,13 +86,13 @@ class BitVectorValue(ParametrizedAttribute):
     def as_smtlib_str(self) -> str:
         return f"(_ bv{self.value.data} {self.width.data})"
 
-    @staticmethod
-    def parse_parameters(parser: Parser) -> list[Attribute]:
-        parser.parse_char("<")
+    @classmethod
+    def parse_parameters(cls, parser: AttrParser) -> list[Attribute]:
+        parser.parse_punctuation("<")
         value = parser.parse_integer()
-        parser.parse_char(":")
+        parser.parse_punctuation(":")
         width = parser.parse_integer()
-        parser.parse_char(">")
+        parser.parse_punctuation(">")
         return [IntAttr(value), IntAttr(width)]
 
     def print_parameters(self, printer: Printer) -> None:
@@ -100,8 +102,8 @@ class BitVectorValue(ParametrizedAttribute):
 @irdl_op_definition
 class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.bv.constant"
-    value: OpAttr[BitVectorValue]
-    res: Annotated[OpResult, BitVectorType]
+    value: BitVectorValue = attr_def(BitVectorValue)
+    res: OpResult = result_def(BitVectorType)
 
     @overload
     def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
@@ -121,7 +123,7 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
                 raise ValueError("Expected width with an `int` value")
             attr = BitVectorValue(value, width)
         else:
-            width = value.typ.width.data
+            width = value.type.width.data
             value = (
                 value.value.data + 2**width
                 if value.value.data < 0
@@ -145,15 +147,15 @@ _UOpT = TypeVar("_UOpT", bound="UnaryBVOp")
 
 
 class UnaryBVOp(IRDLOperation, Pure):
-    res: Annotated[OpResult, BitVectorType]
-    arg: Annotated[Operand, BitVectorType]
+    res: OpResult = result_def(BitVectorType)
+    arg: Operand = operand_def(BitVectorType)
 
     @classmethod
     def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
-        return cls.create(result_types=[arg.typ], operands=[arg])
+        return cls.create(result_types=[arg.type], operands=[arg])
 
     def verify_(self):
-        if not (self.res.typ == self.arg.typ):
+        if not (self.res.type == self.arg.type):
             raise ValueError("Operand and result must have the same type")
 
 
@@ -161,21 +163,21 @@ _BOpT = TypeVar("_BOpT", bound="BinaryBVOp")
 
 
 class BinaryBVOp(IRDLOperation, Pure):
-    res: Annotated[OpResult, BitVectorType]
-    lhs: Annotated[Operand, BitVectorType]
-    rhs: Annotated[Operand, BitVectorType]
+    res: OpResult = result_def(BitVectorType)
+    lhs: Operand = operand_def(BitVectorType)
+    rhs: Operand = operand_def(BitVectorType)
 
     def __init__(self, lhs: Operand, rhs: Operand, res: Attribute | None = None):
         if res is None:
-            res = lhs.typ
-        super().__init__(result_types=[lhs.typ], operands=[lhs, rhs])
+            res = lhs.type
+        super().__init__(result_types=[lhs.type], operands=[lhs, rhs])
 
     @classmethod
     def get(cls: type[_BOpT], lhs: SSAValue, rhs: SSAValue) -> _BOpT:
-        return cls.create(result_types=[lhs.typ], operands=[lhs, rhs])
+        return cls.create(result_types=[lhs.type], operands=[lhs, rhs])
 
     def verify_(self):
-        if not (self.res.typ == self.lhs.typ == self.rhs.typ):
+        if not (self.res.type == self.lhs.type == self.rhs.type):
             raise ValueError("Operands must have same type")
 
 
@@ -349,9 +351,9 @@ _BPOpT = TypeVar("_BPOpT", bound="BinaryPredBVOp")
 
 
 class BinaryPredBVOp(IRDLOperation, Pure):
-    res: Annotated[OpResult, BoolType]
-    lhs: Annotated[Operand, BitVectorType]
-    rhs: Annotated[Operand, BitVectorType]
+    res: OpResult = result_def(BoolType)
+    lhs: Operand = operand_def(BitVectorType)
+    rhs: Operand = operand_def(BitVectorType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
@@ -361,7 +363,7 @@ class BinaryPredBVOp(IRDLOperation, Pure):
         return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
 
     def verify_(self):
-        if not (self.lhs.typ == self.rhs.typ):
+        if not (self.lhs.type == self.rhs.type):
             raise ValueError("Operands must have the same type")
 
 
@@ -438,14 +440,14 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
 class ConcatOp(IRDLOperation, SimpleSMTLibOp):
     name = "smt.bv.concat"
 
-    lhs: Annotated[Operand, BitVectorType]
-    rhs: Annotated[Operand, BitVectorType]
-    res: Annotated[OpResult, BitVectorType]
+    lhs: Operand = operand_def(BitVectorType)
+    rhs: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        assert isinstance(lhs.typ, BitVectorType)
-        assert isinstance(rhs.typ, BitVectorType)
-        width = lhs.typ.width.data + rhs.typ.width.data
+        assert isinstance(lhs.type, BitVectorType)
+        assert isinstance(rhs.type, BitVectorType)
+        width = lhs.type.width.data + rhs.type.width.data
         super().__init__(result_types=[BitVectorType(width)], operands=[lhs, rhs])
 
     def op_name(self) -> str:
@@ -456,11 +458,11 @@ class ConcatOp(IRDLOperation, SimpleSMTLibOp):
 class ExtractOp(IRDLOperation, SMTLibOp):
     name = "smt.bv.extract"
 
-    operand: Annotated[Operand, BitVectorType]
-    res: Annotated[OpResult, BitVectorType]
+    operand: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
 
-    start: OpAttr[IntAttr]
-    end: OpAttr[IntAttr]
+    start: IntAttr = attr_def(IntAttr)
+    end: IntAttr = attr_def(IntAttr)
 
     def __init__(self, operand: SSAValue, end: int, start: int):
         super().__init__(

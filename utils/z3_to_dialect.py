@@ -63,12 +63,12 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
 
     # Create a z3 constant from an xDSL type
     const: Z3Expr
-    if isinstance(val.typ, BitVectorType):
-        const = BitVec(name, val.typ.width.data)
-    elif isinstance(val.typ, BoolType):
+    if isinstance(val.type, BitVectorType):
+        const = BitVec(name, val.type.width.data)
+    elif isinstance(val.type, BoolType):
         const = Bool(name)
     else:
-        raise ValueError(f"Cannot convert value of type {val.typ.name} to z3")
+        raise ValueError(f"Cannot convert value of type {val.type.name} to z3")
 
     # Remember the association
     values_to_z3[val] = const

@@ -267,7 +267,7 @@ class KBAttachOpRewrite(RewritePattern):
             raise Exception("Cannot handle operations with multiple results")
 
         replaced_op_result = replaced_op.results[0]
-        if replaced_op_result.typ != smt_bv.BitVectorType(32):
+        if replaced_op_result.type != smt_bv.BitVectorType(32):
             raise Exception("Cannot handle non-i32 results")
 
         analysis_correct, analysis_correct_ops = kb_analysis_correct(

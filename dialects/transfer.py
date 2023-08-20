@@ -21,7 +21,10 @@ from xdsl.utils.hints import isa
 
 from xdsl.irdl import (
     ConstraintVar,
-    OpAttr,
+    attr_def,
+    operand_def,
+    var_operand_def,
+    result_def,
     Operand,
     VarOperand,
     irdl_attr_definition,
@@ -45,9 +48,9 @@ class Constant(IRDLOperation, InferResultTypeInterface):
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    op: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
-    value: OpAttr[IntegerAttr[IndexType]]
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+    value: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
 
     @staticmethod
     def infer_result_type(
@@ -66,8 +69,8 @@ class NegOp(IRDLOperation):
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    op: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
     @staticmethod
     def infer_result_type(
@@ -83,8 +86,8 @@ class NegOp(IRDLOperation):
 class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    op: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
     @staticmethod
     def infer_result_type(
@@ -100,9 +103,9 @@ class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
 class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    lhs: Annotated[Operand, T]
-    rhs: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    lhs: Operand = operand_def(T)
+    rhs: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
     @staticmethod
     def infer_result_type(
@@ -118,9 +121,9 @@ class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
 class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    lhs: Annotated[Operand, T]
-    rhs: Annotated[Operand, T]
-    result: Annotated[OpResult, i1]
+    lhs: Operand = operand_def(T)
+    rhs: Operand = operand_def(T)
+    result: OpResult = result_def(i1)
 
     @staticmethod
     def infer_result_type(
@@ -219,9 +222,9 @@ class GetLowBitsOp(IRDLOperation):
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    val: Annotated[Operand, T]
-    low_bits: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    val: Operand = operand_def(T)
+    low_bits: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
 
 @irdl_op_definition
@@ -230,16 +233,16 @@ class SetHighBitsOp(IRDLOperation):
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    val: Annotated[Operand, T]
-    high_bits: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    val: Operand = operand_def(T)
+    high_bits: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
 
 @irdl_op_definition
 class CmpOp(PredicateOp):
     name = "transfer.cmp"
 
-    predicate: OpAttr[IntegerAttr[IndexType]]
+    predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
 
 
 @irdl_attr_definition
@@ -263,9 +266,9 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 class GetOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.get"
 
-    abs_val: Annotated[Operand, AbstractValueType]
-    index: OpAttr[IntegerAttr[IndexType]]
-    result: Annotated[OpResult, Attribute]
+    abs_val: Operand = operand_def(AbstractValueType)
+    index: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
+    result: OpResult = result_def(Attribute)
 
     @staticmethod
     def infer_result_type(
@@ -285,8 +288,8 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
 
     def verify_(self) -> None:
         if self.infer_result_type(
-            [operand.typ for operand in self.operands], self.attributes
-        ) != [self.result.typ]:
+            [operand.type for operand in self.operands], self.attributes
+        ) != [self.result.type]:
             raise VerifyException("The result type doesn't match the inferred type")
 
 
@@ -294,8 +297,8 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
 class MakeOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.make"
 
-    arguments: Annotated[VarOperand, Attribute]
-    result: Annotated[OpResult, AbstractValueType]
+    arguments: VarOperand = var_operand_def(Attribute)
+    result: OpResult = result_def(AbstractValueType)
 
     @staticmethod
     def infer_result_type(
@@ -304,12 +307,12 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
         return [AbstractValueType(list(operand_types))]
 
     def verify_(self) -> None:
-        assert isinstance(self.result.typ, AbstractValueType)
-        if len(self.operands) != self.result.typ.get_num_fields():
+        assert isinstance(self.result.type, AbstractValueType)
+        if len(self.operands) != self.result.type.get_num_fields():
             raise VerifyException(
                 "The number of given arguments doesn't match the abstract value"
             )
-        if self.result.typ.get_fields() != [arg.typ for arg in self.arguments]:
+        if self.result.type.get_fields() != [arg.type for arg in self.arguments]:
             raise VerifyException("The required field doesn't match the result type")
 
 
