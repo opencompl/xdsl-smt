@@ -211,8 +211,9 @@ class ResultRewrite(RewritePattern):
 def kb_analysis_correct(
     value: SSAValue, zeros: SSAValue, ones: SSAValue
 ) -> tuple[SSAValue, list[Operation]]:
+    assert isinstance(value.type, smt_bv.BitVectorType)
     and_op_zeros = smt_bv.AndOp(value, zeros)
-    zero = smt_bv.ConstantOp(0, 32)
+    zero = smt_bv.ConstantOp(0, value.type.width.data)
     zeros_correct = EqOp(and_op_zeros.res, zero.res)
     and_op_ones = smt_bv.AndOp(value, ones)
     ones_correct = EqOp(and_op_ones.res, ones)
@@ -233,8 +234,10 @@ class GetOpRewrite(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: pdl_dataflow.GetOp, rewriter: PatternRewriter):
-        zeros_op = DeclareConstOp(smt_bv.BitVectorType(32))
-        ones_op = DeclareConstOp(smt_bv.BitVectorType(32))
+        assert isinstance(op.value.type, smt_bv.BitVectorType)
+        bv_type = op.value.type
+        zeros_op = DeclareConstOp(bv_type)
+        ones_op = DeclareConstOp(bv_type)
 
         value = op.value
         zeros = zeros_op.res

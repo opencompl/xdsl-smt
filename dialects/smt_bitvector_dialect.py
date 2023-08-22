@@ -11,6 +11,7 @@ from xdsl.ir import (
     ParametrizedAttribute,
     SSAValue,
     TypeAttribute,
+    VerifyException,
 )
 from xdsl.irdl import (
     attr_def,
@@ -81,7 +82,7 @@ class BitVectorValue(ParametrizedAttribute):
 
     def verify(self) -> None:
         if not (0 <= self.value.data < 2**self.width.data):
-            raise ValueError("BitVector value out of range")
+            raise VerifyException("BitVector value out of range")
 
     def as_smtlib_str(self) -> str:
         return f"(_ bv{self.value.data} {self.width.data})"
@@ -156,7 +157,7 @@ class UnaryBVOp(IRDLOperation, Pure):
 
     def verify_(self):
         if not (self.res.type == self.arg.type):
-            raise ValueError("Operand and result must have the same type")
+            raise VerifyException("Operand and result must have the same type")
 
 
 _BOpT = TypeVar("_BOpT", bound="BinaryBVOp")
@@ -178,7 +179,7 @@ class BinaryBVOp(IRDLOperation, Pure):
 
     def verify_(self):
         if not (self.res.type == self.lhs.type == self.rhs.type):
-            raise ValueError("Operands must have same type")
+            raise VerifyException("Operands must have same type")
 
 
 ################################################################################
@@ -364,7 +365,7 @@ class BinaryPredBVOp(IRDLOperation, Pure):
 
     def verify_(self):
         if not (self.lhs.type == self.rhs.type):
-            raise ValueError("Operands must have the same type")
+            raise VerifyException("Operands must have the same type")
 
 
 @irdl_op_definition
