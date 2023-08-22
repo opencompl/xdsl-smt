@@ -21,7 +21,7 @@ def convert_type(type: Attribute) -> Attribute:
     """Convert a type to an SMT sort"""
     if isinstance(type, IntegerType):
         return BitVectorType(type.width)
-    raise Exception("Cannot convert {type} attribute")
+    raise Exception(f"Cannot convert {type} attribute")
 
 
 class IntegerConstantRewritePattern(RewritePattern):

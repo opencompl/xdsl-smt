@@ -9,7 +9,7 @@ from xdsl.dialects.pdl import PDL
 
 
 from dialects.hoare_dialect import Hoare
-from dialects.pdl_known_bits import PDLKnownBitsDialect
+from dialects.pdl_dataflow import PDLDataflowDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -41,7 +41,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Transfer)
         self.ctx.register_dialect(Hoare)
         self.ctx.register_dialect(PDL)
-        self.ctx.register_dialect(PDLKnownBitsDialect)
+        self.ctx.register_dialect(PDLDataflowDialect)
         self.ctx.register_dialect(Comb)
 
     def register_all_passes(self):

@@ -10,10 +10,11 @@ from xdsl.dialects.pdl import (
     TypeOp,
     AttributeOp,
 )
-from xdsl.dialects.builtin import i32
+from xdsl.irdl import IRDLOperation
 
-from dialects import pdl_known_bits as smt_kb
+from dialects import pdl_dataflow as pdl_dataflow
 from dialects import smt_bitvector_dialect as smt_bv
+from dialects import transfer
 
 from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
 
@@ -80,6 +81,13 @@ class RewriteRewrite(RewritePattern):
     def match_and_rewrite(self, op: RewriteOp, rewriter: PatternRewriter):
         if op.body is not None:
             rewriter.inline_block_before_matched_op(op.body.blocks[0])
+        rewriter.erase_matched_op()
+
+
+class DataflowRewriteRewrite(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: pdl_dataflow.RewriteOp, rewriter: PatternRewriter):
+        rewriter.inline_block_before_matched_op(op.body.blocks[0])
         rewriter.erase_matched_op()
 
 
@@ -220,35 +228,28 @@ def kb_analysis_correct(
 
 
 @dataclass
-class KBOperandRewrite(RewritePattern):
+class GetOpRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: smt_kb.KBOperandOp, rewriter: PatternRewriter):
-        type = _get_type_of_erased_type_value(op.type)
-        assert type == i32
-        smt_type = convert_type(type)
-        declare_op = DeclareConstOp(smt_type)
+    def match_and_rewrite(self, op: pdl_dataflow.GetOp, rewriter: PatternRewriter):
         zeros_op = DeclareConstOp(smt_bv.BitVectorType(32))
         ones_op = DeclareConstOp(smt_bv.BitVectorType(32))
 
-        # TODO: Get the names from the operation
-
-        operand = declare_op.res
+        value = op.value
         zeros = zeros_op.res
         ones = ones_op.res
 
-        all_correct, correct_ops = kb_analysis_correct(operand, zeros, ones)
+        all_correct, correct_ops = kb_analysis_correct(value, zeros, ones)
         self.rewrite_context.preconditions.append(all_correct)
 
         rewriter.replace_matched_op(
             [
-                declare_op,
                 zeros_op,
                 ones_op,
                 *correct_ops,
             ],
-            new_results=[operand, zeros, ones],
+            new_results=[zeros, ones],
         )
         name = op.value.name_hint if op.value.name_hint else "value"
         zeros.name_hint = name + "_zeros"
@@ -256,22 +257,16 @@ class KBOperandRewrite(RewritePattern):
 
 
 @dataclass
-class KBAttachOpRewrite(RewritePattern):
+class AttachOpRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: smt_kb.KBAttachOp, rewriter: PatternRewriter):
-        assert isinstance(op.op, ErasedSSAValue)
-        replaced_op = self.rewrite_context.pdl_op_to_op[op.op.old_value]
-        if len(replaced_op.results) != 1:
-            raise Exception("Cannot handle operations with multiple results")
-
-        replaced_op_result = replaced_op.results[0]
-        if replaced_op_result.type != smt_bv.BitVectorType(32):
-            raise Exception("Cannot handle non-i32 results")
+    def match_and_rewrite(self, op: pdl_dataflow.AttachOp, rewriter: PatternRewriter):
+        assert len(op.domains) == 2
+        zeros, ones = op.domains
 
         analysis_correct, analysis_correct_ops = kb_analysis_correct(
-            replaced_op_result, op.zeros, op.ones
+            op.value, zeros, ones
         )
         rewriter.insert_op_before_matched_op(analysis_correct_ops)
         analysis_incorrect_op = NotOp.get(analysis_correct)
@@ -293,6 +288,23 @@ class KBAttachOpRewrite(RewritePattern):
         rewriter.replace_matched_op(AssertOp(implies.res))
 
 
+def trivial_pattern(
+    match_type: type[IRDLOperation], rewrite_type: type[IRDLOperation]
+) -> RewritePattern:
+    class TrivialBinOpPattern(RewritePattern):
+        def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+            if not isinstance(op, match_type):
+                return
+            # TODO: How to handle multiple results, or results with different types?
+            new_op = rewrite_type.create(
+                operands=op.operands,
+                result_types=[op.operands[0].type],
+            )
+            rewriter.replace_matched_op([new_op])
+
+    return TrivialBinOpPattern()
+
+
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
@@ -303,14 +315,17 @@ class PDLToSMT(ModulePass):
                 [
                     PatternRewrite(),
                     RewriteRewrite(),
+                    DataflowRewriteRewrite(),
                     TypeRewrite(),
                     AttributeRewrite(),
                     OperandRewrite(),
+                    GetOpRewrite(rewrite_context),
                     OperationRewrite(ctx, rewrite_context),
                     ReplaceRewrite(rewrite_context),
                     ResultRewrite(rewrite_context),
-                    KBOperandRewrite(rewrite_context),
-                    KBAttachOpRewrite(rewrite_context),
+                    AttachOpRewrite(rewrite_context),
+                    trivial_pattern(transfer.AndOp, smt_bv.AndOp),
+                    trivial_pattern(transfer.OrOp, smt_bv.OrOp),
                     *arith_to_smt_patterns,
                     *comb_to_smt_patterns,
                 ]
