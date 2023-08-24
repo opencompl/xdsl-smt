@@ -7,10 +7,10 @@ from xdsl.ir import Operation, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import IntegerType
 
-from .arith_to_smt import convert_type
 from dialects import comb
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.smt_dialect as core_dialect
+from passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
 class ConstantPattern(RewritePattern):
@@ -29,7 +29,7 @@ def variadic_op_pattern(
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
             if not isinstance(op, comb_op_type):
                 return
-            res_type = convert_type(op.result.type)
+            res_type = LowerToSMT.lower_type(op.result.type)
             assert isinstance(res_type, bv_dialect.BitVectorType)
             if len(op.operands) == 0:
                 rewriter.replace_matched_op(
@@ -42,7 +42,7 @@ def variadic_op_pattern(
             for operand in op.operands[1:]:
                 new_op = smt_op_type.build(
                     operands=[current_val, operand],
-                    result_types=[convert_type(op.result.type)],
+                    result_types=[LowerToSMT.lower_type(op.result.type)],
                 )
                 current_val = new_op.results[0]
                 rewriter.insert_op_before_matched_op(new_op)
@@ -61,7 +61,7 @@ def trivial_binop_pattern(
                 return
             new_op = smt_op_type.build(
                 operands=op.operands,
-                result_types=[convert_type(op.result.type)],
+                result_types=[LowerToSMT.lower_type(op.result.type)],
             )
             rewriter.replace_matched_op([new_op])
             return super().match_and_rewrite(op, rewriter)

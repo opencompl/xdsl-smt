@@ -1,4 +1,3 @@
-from xdsl.ir import Attribute
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -11,13 +10,7 @@ from xdsl.utils.hints import isa
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.arith_dialect as arith
 from dialects.smt_dialect import DefineFunOp, ReturnOp
-
-
-def convert_type(type: Attribute) -> Attribute:
-    """Convert a type to an SMT sort"""
-    if isinstance(type, IntegerType):
-        return bv_dialect.BitVectorType(type.width)
-    raise Exception(f"Cannot convert {type} attribute")
+from passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
 class IntegerConstantRewritePattern(RewritePattern):
@@ -73,8 +66,10 @@ class FuncToSMTPattern(RewritePattern):
         if len(op.function_type.outputs.data) != 1:
             raise Exception("Cannot convert functions with multiple results")
 
-        operand_types = [convert_type(input) for input in op.function_type.inputs.data]
-        result_type = convert_type(op.function_type.outputs.data[0])
+        operand_types = [
+            LowerToSMT.lower_type(input) for input in op.function_type.inputs.data
+        ]
+        result_type = LowerToSMT.lower_type(op.function_type.outputs.data[0])
 
         # The SMT function replacing the func.func function
         smt_func = DefineFunOp.from_function_type(

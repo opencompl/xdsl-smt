@@ -33,7 +33,7 @@ from dialects.smt_dialect import (
     EqOp,
     NotOp,
 )
-from passes.lower_to_smt.lower_to_smt import LowerToSMT, convert_type
+from passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
 @dataclass
@@ -105,7 +105,7 @@ class OperandRewrite(RewritePattern):
         if op.value_type is None:
             raise Exception("Cannot handle non-typed operands")
         type = _get_type_of_erased_type_value(op.value_type)
-        smt_type = convert_type(type)
+        smt_type = LowerToSMT.lower_type(type)
         rewriter.replace_matched_op(DeclareConstOp(smt_type))
 
 

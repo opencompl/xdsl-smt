@@ -27,6 +27,7 @@ from passes.lower_to_smt import (
     arith_to_smt_patterns,
     comb_to_smt_patterns,
     transfer_to_smt_patterns,
+    integer_type_lowerer,
 )
 from passes.pdl_to_smt import PDLToSMT
 
@@ -70,6 +71,7 @@ def __main__():
         *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
     ]
+    LowerToSMT.type_lowerers = [integer_type_lowerer]
 
     xdsl_main = OptMain()
     xdsl_main.run()

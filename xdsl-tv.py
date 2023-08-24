@@ -21,6 +21,7 @@ from passes.lower_to_smt import (
     arith_to_smt_patterns,
     comb_to_smt_patterns,
     transfer_to_smt_patterns,
+    integer_type_lowerer,
 )
 
 from traits.smt_printer import print_to_smtlib
@@ -108,6 +109,7 @@ if __name__ == "__main__":
         *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
     ]
+    LowerToSMT.type_lowerers = [integer_type_lowerer]
 
     # Convert both module to SMTLib
     LowerToSMT().apply(ctx, module)
