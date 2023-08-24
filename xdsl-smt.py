@@ -28,6 +28,7 @@ from passes.lower_to_smt import (
     comb_to_smt_patterns,
     transfer_to_smt_patterns,
     integer_type_lowerer,
+    func_to_smt_patterns,
 )
 from passes.pdl_to_smt import PDLToSMT
 
@@ -70,6 +71,7 @@ def __main__():
         *arith_to_smt_patterns,
         *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
+        *func_to_smt_patterns,
     ]
     LowerToSMT.type_lowerers = [integer_type_lowerer]
 

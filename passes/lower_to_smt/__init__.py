@@ -7,3 +7,4 @@ from .comb_to_smt import comb_to_smt_patterns  # pyright: ignore[reportUnusedImp
 from .transfer_to_smt import (
     transfer_to_smt_patterns,  # pyright: ignore[reportUnusedImport]
 )
+from .func_to_smt import func_to_smt_patterns  # pyright: ignore[reportUnusedImport]
