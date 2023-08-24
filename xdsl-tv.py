@@ -16,7 +16,12 @@ from xdsl.dialects.func import Func
 
 from passes.lower_pairs import LowerPairs
 from passes.canonicalize_smt import CanonicalizeSMT
-from passes.lower_to_smt import LowerToSMT
+from passes.lower_to_smt import (
+    LowerToSMT,
+    arith_to_smt_patterns,
+    comb_to_smt_patterns,
+    transfer_to_smt_patterns,
+)
 
 from traits.smt_printer import print_to_smtlib
 
@@ -97,6 +102,12 @@ if __name__ == "__main__":
 
     assert isinstance(module, ModuleOp)
     assert isinstance(module_after, ModuleOp)
+
+    LowerToSMT.rewrite_patterns = [
+        *arith_to_smt_patterns,
+        *comb_to_smt_patterns,
+        *transfer_to_smt_patterns,
+    ]
 
     # Convert both module to SMTLib
     LowerToSMT().apply(ctx, module)
