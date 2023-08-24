@@ -1,26 +1,22 @@
-from xdsl.ir import Attribute, MLContext
+from xdsl.ir import Attribute
 from xdsl.pattern_rewriter import (
-    GreedyRewritePatternApplier,
-    PatternRewriteWalker,
     PatternRewriter,
     RewritePattern,
     op_type_rewrite_pattern,
 )
-from xdsl.dialects.builtin import IntegerAttr, IntegerType, ModuleOp, FunctionType
+from xdsl.dialects.builtin import IntegerAttr, IntegerType, FunctionType
 from xdsl.dialects.func import FuncOp, Return
-from xdsl.passes import ModulePass
 from xdsl.utils.hints import isa
 
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.arith_dialect as arith
-from dialects.smt_bitvector_dialect import BitVectorType
 from dialects.smt_dialect import DefineFunOp, ReturnOp
 
 
 def convert_type(type: Attribute) -> Attribute:
     """Convert a type to an SMT sort"""
     if isinstance(type, IntegerType):
-        return BitVectorType(type.width)
+        return bv_dialect.BitVectorType(type.width)
     raise Exception(f"Cannot convert {type} attribute")
 
 
@@ -107,13 +103,3 @@ arith_to_smt_patterns: list[RewritePattern] = [
     FuncToSMTPattern(),
     ReturnPattern(),
 ]
-
-
-class ArithToSMT(ModulePass):
-    name = "arith-to-smt"
-
-    def apply(self, ctx: MLContext, op: ModuleOp):
-        walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(arith_to_smt_patterns)
-        )
-        walker.rewrite_module(op)

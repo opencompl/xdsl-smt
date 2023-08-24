@@ -33,32 +33,32 @@ builtin.module {
 
 
 // CHECK:      builtin.module {
-// CHECK-NEXT:   %lhs = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_zeros = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_ones = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_zeros_1 = "smt.bv.and"(%lhs, %lhs_zeros) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_zeros_2 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_zeros_3 = "smt.eq"(%lhs_zeros_1, %lhs_zeros_2) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
-// CHECK-NEXT:   %lhs_zeros_4 = "smt.bv.and"(%lhs, %lhs_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %lhs_zeros_5 = "smt.eq"(%lhs_zeros_4, %lhs_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:   %lhs = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_zeros = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_ones = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_zeros_1 = "smt.bv.and"(%lhs, %lhs_zeros) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_zeros_2 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 16>} : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_zeros_3 = "smt.eq"(%lhs_zeros_1, %lhs_zeros_2) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
+// CHECK-NEXT:   %lhs_zeros_4 = "smt.bv.and"(%lhs, %lhs_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %lhs_zeros_5 = "smt.eq"(%lhs_zeros_4, %lhs_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
 // CHECK-NEXT:   %lhs_zeros_6 = "smt.and"(%lhs_zeros_3, %lhs_zeros_5) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:   %rhs_zeros = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs_ones = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs_zeros_1 = "smt.bv.and"(%rhs, %rhs_zeros) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs_zeros_2 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs_zeros_3 = "smt.eq"(%rhs_zeros_1, %rhs_zeros_2) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
-// CHECK-NEXT:   %rhs_zeros_4 = "smt.bv.and"(%rhs, %rhs_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %rhs_zeros_5 = "smt.eq"(%rhs_zeros_4, %rhs_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:   %rhs_zeros = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs_ones = "smt.declare_const"() : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs_zeros_1 = "smt.bv.and"(%rhs, %rhs_zeros) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs_zeros_2 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 16>} : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs_zeros_3 = "smt.eq"(%rhs_zeros_1, %rhs_zeros_2) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
+// CHECK-NEXT:   %rhs_zeros_4 = "smt.bv.and"(%rhs, %rhs_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %rhs_zeros_5 = "smt.eq"(%rhs_zeros_4, %rhs_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
 // CHECK-NEXT:   %rhs_zeros_6 = "smt.and"(%rhs_zeros_3, %rhs_zeros_5) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:   %res = "smt.bv.or"(%lhs, %rhs) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %res_zeros = "smt.bv.and"(%lhs_zeros, %rhs_zeros) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %res_ones = "smt.bv.or"(%lhs_ones, %rhs_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %0 = "smt.bv.and"(%res, %res_zeros) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %1 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:   %2 = "smt.eq"(%0, %1) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
-// CHECK-NEXT:   %3 = "smt.bv.and"(%res, %res_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:   %4 = "smt.eq"(%3, %res_ones) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:   %res = "smt.bv.or"(%lhs, %rhs) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %res_zeros = "smt.bv.and"(%lhs_zeros, %rhs_zeros) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %res_ones = "smt.bv.or"(%lhs_ones, %rhs_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %0 = "smt.bv.and"(%res, %res_zeros) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %1 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 16>} : () -> !smt.bv.bv<16>
+// CHECK-NEXT:   %2 = "smt.eq"(%0, %1) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
+// CHECK-NEXT:   %3 = "smt.bv.and"(%res, %res_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bv.bv<16>
+// CHECK-NEXT:   %4 = "smt.eq"(%3, %res_ones) : (!smt.bv.bv<16>, !smt.bv.bv<16>) -> !smt.bool
 // CHECK-NEXT:   %5 = "smt.and"(%2, %4) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:   %6 = "smt.not"(%5) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:   %7 = "smt.and"(%lhs_zeros_6, %rhs_zeros_6) : (!smt.bool, !smt.bool) -> !smt.bool

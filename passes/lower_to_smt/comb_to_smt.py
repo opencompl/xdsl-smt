@@ -2,15 +2,12 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
     PatternRewriter,
-    PatternRewriteWalker,
-    GreedyRewritePatternApplier,
 )
-from xdsl.passes import ModulePass
-from xdsl.ir import MLContext, Operation, SSAValue
+from xdsl.ir import Operation, SSAValue
 from xdsl.irdl import IRDLOperation
-from xdsl.dialects.builtin import ModuleOp, IntegerType
+from xdsl.dialects.builtin import IntegerType
 
-from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
+from .arith_to_smt import convert_type
 from dialects import comb
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.smt_dialect as core_dialect
@@ -209,15 +206,3 @@ comb_to_smt_patterns: list[RewritePattern] = [
     ReplicatePattern(),
     MuxPattern(),
 ]
-
-
-class CombToSMT(ModulePass):
-    name = "comb-to-smt"
-
-    def apply(self, ctx: MLContext, op: ModuleOp):
-        walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(
-                [*comb_to_smt_patterns, FuncToSMTPattern(), ReturnPattern()]
-            )
-        )
-        walker.rewrite_module(op)

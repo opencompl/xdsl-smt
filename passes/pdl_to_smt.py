@@ -10,11 +10,9 @@ from xdsl.dialects.pdl import (
     TypeOp,
     AttributeOp,
 )
-from xdsl.irdl import IRDLOperation
 
 from dialects import pdl_dataflow as pdl_dataflow
 from dialects import smt_bitvector_dialect as smt_bv
-from dialects import transfer
 
 from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
 
@@ -35,9 +33,7 @@ from dialects.smt_dialect import (
     EqOp,
     NotOp,
 )
-
-from passes.arith_to_smt import ArithToSMT, convert_type, arith_to_smt_patterns
-from passes.comb_to_smt import CombToSMT, comb_to_smt_patterns
+from passes.lower_to_smt.lower_to_smt import LowerToSMT, convert_type
 
 
 @dataclass
@@ -138,8 +134,7 @@ class OperationRewrite(RewritePattern):
         # Cursed hack: we create a new module with that operation, and
         # we rewrite it with the arith_to_smt and comb_to_smt pass.
         rewrite_module = ModuleOp([synthesized_op])
-        ArithToSMT().apply(self.ctx, rewrite_module)
-        CombToSMT().apply(self.ctx, rewrite_module)
+        LowerToSMT().apply(self.ctx, rewrite_module)
         last_op = rewrite_module.body.block.last_op
         assert last_op is not None
 
@@ -291,23 +286,6 @@ class AttachOpRewrite(RewritePattern):
         rewriter.replace_matched_op(AssertOp(implies.res))
 
 
-def trivial_pattern(
-    match_type: type[IRDLOperation], rewrite_type: type[IRDLOperation]
-) -> RewritePattern:
-    class TrivialBinOpPattern(RewritePattern):
-        def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-            if not isinstance(op, match_type):
-                return
-            # TODO: How to handle multiple results, or results with different types?
-            new_op = rewrite_type.create(
-                operands=op.operands,
-                result_types=[op.operands[0].type],
-            )
-            rewriter.replace_matched_op([new_op])
-
-    return TrivialBinOpPattern()
-
-
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
@@ -327,11 +305,8 @@ class PDLToSMT(ModulePass):
                     ReplaceRewrite(rewrite_context),
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
-                    trivial_pattern(transfer.AndOp, smt_bv.AndOp),
-                    trivial_pattern(transfer.OrOp, smt_bv.OrOp),
-                    *arith_to_smt_patterns,
-                    *comb_to_smt_patterns,
                 ]
             )
         )
         walker.rewrite_module(op)
+        LowerToSMT().apply(ctx, op)

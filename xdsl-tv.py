@@ -15,8 +15,8 @@ from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 
 from passes.lower_pairs import LowerPairs
-from passes.arith_to_smt import ArithToSMT
 from passes.canonicalize_smt import CanonicalizeSMT
+from passes.lower_to_smt import LowerToSMT
 
 from traits.smt_printer import print_to_smtlib
 
@@ -99,8 +99,8 @@ if __name__ == "__main__":
     assert isinstance(module_after, ModuleOp)
 
     # Convert both module to SMTLib
-    ArithToSMT().apply(ctx, module)
-    ArithToSMT().apply(ctx, module_after)
+    LowerToSMT().apply(ctx, module)
+    LowerToSMT().apply(ctx, module_after)
 
     # Collect the function from both modules
     if (
