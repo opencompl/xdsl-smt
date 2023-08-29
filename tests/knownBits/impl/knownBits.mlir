@@ -4,7 +4,7 @@
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %arg0_1 = "transfer.get"(%arg0) {index=1:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %andi = "transfer.and"(%arg0_0, %arg0_1) : (!transfer.integer,!transfer.integer) -> !transfer.integer
-    %const0 = "transfer.constant"(%arg0_0){value=0:index} : () -> !transfer.integer
+    %const0 = "transfer.constant"(%arg0_0){value=0:index} : (!transfer.integer) -> !transfer.integer
     %result = "transfer.cmp"(%andi, %const0){predicate=0:i64}:(!transfer.integer,!transfer.integer)->i1
     "func.return"(%result) : (i1) -> ()
   }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>) -> i1, sym_name = "getConstraint"} : () -> ()
@@ -89,7 +89,7 @@
     %lhs1 ="transfer.get"(%lhs){index=1:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %rhs0 ="transfer.get"(%rhs){index=0:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %rhs1 ="transfer.get"(%rhs){index=1:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
-    %one="transfer.constant"(%lhs0){value=1:index}:()->!transfer.integer
+    %one="transfer.constant"(%lhs0){value=1:index}:(!transfer.integer)->!transfer.integer
     %negCarryZero="transfer.sub"(%one,%carryZero):(!transfer.integer,!transfer.integer)->!transfer.integer
     %lhsMax = "func.call"(%lhs) {callee = @getMaxValue} : (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %lhsMin = "func.call"(%lhs) {callee = @getMinValue} : (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -123,8 +123,8 @@
   "func.func"() ({
   ^bb0(%arg0: !abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !abs_value<[!transfer.integer,!transfer.integer]>):
     %arg1_0 = "transfer.get"(%arg1) {index=0:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
-    %one="transfer.constant"(%arg1_0){value=1:index}:()->!transfer.integer
-    %zero="transfer.constant"(%arg1_0){value=0:index}:()->!transfer.integer
+    %one="transfer.constant"(%arg1_0){value=1:index}:(!transfer.integer)->!transfer.integer
+    %zero="transfer.constant"(%arg1_0){value=0:index}:(!transfer.integer)->!transfer.integer
     %result = "func.call"(%arg0,%arg1,%one,%zero){callee=@computeForAddCarry}:(!abs_value<[!transfer.integer,!transfer.integer]>, !abs_value<[!transfer.integer,!transfer.integer]>, !transfer.integer, !transfer.integer) -> !abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>,!abs_value<[!transfer.integer,!transfer.integer]>) -> !abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "ADDImpl", applied_to=["arith.addi"]} : () -> ()
@@ -138,9 +138,9 @@
     %arg1_0 = "transfer.get"(%arg1) {index=0:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %arg1_1 = "transfer.get"(%arg1) {index=1:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %newRhs="transfer.make"(%arg1_1,%arg1_0):(!transfer.integer,!transfer.integer)->!abs_value<[!transfer.integer,!transfer.integer]>
-    %one="transfer.constant"(%arg1_0){value=1:index}:()->!transfer.integer
-    %zero="transfer.constant"(%arg1_1){value=0:index}:()->!transfer.integer
-    %result = "func.call"(%arg0,%newRhs,%zero,%one){callee=@computeForAddCarry}:(!abs_value<[!transfer.integer,!transfer.integer]>, !abs_value<[!transfer.integer,!transfer.integer]>, index, index) -> !abs_value<[!transfer.integer,!transfer.integer]>
+    %one="transfer.constant"(%arg1_0){value=1:index}:(!transfer.integer)->!transfer.integer
+    %zero="transfer.constant"(%arg1_1){value=0:index}:(!transfer.integer)->!transfer.integer
+    %result = "func.call"(%arg0,%newRhs,%zero,%one){callee=@computeForAddCarry}:(!abs_value<[!transfer.integer,!transfer.integer]>, !abs_value<[!transfer.integer,!transfer.integer]>, !transfer.integer, !transfer.integer) -> !abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>,!abs_value<[!transfer.integer,!transfer.integer]>) -> !abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "SUBImpl", applied_to=["arith.subi"]} : () -> ()
 }) {"builtin.NEED_VERIFY"=[["OR","ORImpl"],["AND","ANDImpl"],["XOR","XORImpl"],["ADD","ADDImpl"],["SUB","SUBImpl"]]}: () -> ()

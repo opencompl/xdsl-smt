@@ -44,7 +44,7 @@ class Oracle:
     def get_abs_constraint(func, get_constraint, solver):
         arg_constraint = []
         for i, arg in enumerate(func.body.blocks[0].args):
-            if isinstance(arg.typ, AbstractValueType):
+            if isinstance(arg.type, AbstractValueType):
                 smt_val = cs.get_smt_val(arg)
                 constraint = get_constraint(solver, smt_val)
                 assert constraint is not None
@@ -56,7 +56,7 @@ class Oracle:
         inst_list = []
         inst_constraints = []
         for i, arg in enumerate(func.body.blocks[0].args):
-            if isinstance(arg.typ, AbstractValueType):
+            if isinstance(arg.type, AbstractValueType):
                 inst = BitVec(arg.name_hint + "inst", width)
                 smt_val = cs.get_smt_val(arg)
                 constraint = get_instance_constraint(solver, smt_val, inst)
