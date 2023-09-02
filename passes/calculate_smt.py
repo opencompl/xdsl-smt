@@ -197,20 +197,20 @@ class AssignAttributes(RewritePattern):
                 whole_name = op.sym_name.data + "." + arg.name_hint
                 if whole_name not in resultToSMTValue:
                     tmp_args = None
-                    if isinstance(arg.typ, transfer.AbstractValueType):
+                    if isinstance(arg.type, transfer.AbstractValueType):
                         tmp_args = []
-                        for j in range(arg.typ.get_num_fields()):
+                        for j in range(arg.type.get_num_fields()):
                             tmp_args.append(
                                 BitVec(arg.name_hint + "field" + str(j), self.width)
                             )
-                    elif isinstance(arg.typ, builtin.IntegerType):
-                        tmp_args = BitVec(arg.name_hint, arg.typ.width.data)
-                    elif isinstance(arg.typ, builtin.IndexType):
+                    elif isinstance(arg.type, builtin.IntegerType):
+                        tmp_args = BitVec(arg.name_hint, arg.type.width.data)
+                    elif isinstance(arg.type, builtin.IndexType):
                         tmp_args = BitVec(arg.name_hint, self.width)
-                    elif isinstance(arg.typ, transfer.TransIntegerType):
+                    elif isinstance(arg.type, transfer.TransIntegerType):
                         tmp_args = BitVec(arg.name_hint, self.width)
                     else:
-                        print(arg.typ)
+                        print(arg.type)
                         assert False and "not supported type"
                     resultToSMTValue[whole_name] = tmp_args
         else:
