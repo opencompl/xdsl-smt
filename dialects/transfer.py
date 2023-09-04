@@ -63,26 +63,6 @@ class Constant(IRDLOperation, InferResultTypeInterface):
                 raise VerifyException("Constant operation expects exactly one operand")
 
 
-@irdl_op_definition
-class NegOp(IRDLOperation):
-    name = "transfer.neg"
-
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
-    @staticmethod
-    def infer_result_type(
-        operand_types: Sequence[Attribute], attributes: Mapping[str, Attribute] = {}
-    ) -> Sequence[Attribute]:
-        match operand_types:
-            case [op]:
-                return [op]
-            case _:
-                raise VerifyException("Neg operation expects exactly one operand")
-
-
 class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
@@ -98,6 +78,11 @@ class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
                 return [op]
             case _:
                 raise VerifyException("Unary operation expects exactly one operand")
+
+
+@irdl_op_definition
+class NegOp(UnaryOp):
+    name = "transfer.neg"
 
 
 class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
