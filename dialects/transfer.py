@@ -11,9 +11,10 @@ from typing import Annotated
 from xdsl.ir import ParametrizedAttribute, Dialect, TypeAttribute, OpResult, Attribute
 
 from xdsl.irdl import (
-    OpAttr,
-    Operand,
-    VarOperand,
+    operand_def,
+    result_def,
+    attr_def,
+    var_operand_def,
     irdl_attr_definition,
     irdl_op_definition,
     ParameterDef,
@@ -30,164 +31,164 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 @irdl_op_definition
 class Constant(IRDLOperation):
     name = "transfer.constant"
-    op: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
-    value: OpAttr[IntegerAttr[IndexType]]
+    op= operand_def(TransIntegerType)
+    value= attr_def(IntegerAttr[IndexType])
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class NegOp(IRDLOperation):
     name = "transfer.neg"
-    op: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    op= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class AddOp(IRDLOperation):
     name = "transfer.add"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class SubOp(IRDLOperation):
     name = "transfer.sub"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class MulOp(IRDLOperation):
     name = "transfer.mul"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class UMulOverflowOp(IRDLOperation):
     name = "transfer.umul_overflow"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, i1]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(i1)
 
 
 @irdl_op_definition
 class AndOp(IRDLOperation):
     name = "transfer.and"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class OrOp(IRDLOperation):
     name = "transfer.or"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class XorOp(IRDLOperation):
     name = "transfer.xor"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class GetBitWidthOp(IRDLOperation):
     name = "transfer.get_bit_width"
-    val: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class CountLZeroOp(IRDLOperation):
     name = "transfer.countl_zero"
-    val: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class CountRZeroOp(IRDLOperation):
     name = "transfer.countr_zero"
-    val: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class CountLOneOp(IRDLOperation):
     name = "transfer.countl_one"
-    val: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class CountROneOp(IRDLOperation):
     name = "transfer.countr_one"
-    val: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class SMinOp(IRDLOperation):
     name = "transfer.smin"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class SMaxOp(IRDLOperation):
     name = "transfer.smax"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class UMinOp(IRDLOperation):
     name = "transfer.umin"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class UMaxOp(IRDLOperation):
     name = "transfer.umax"
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class GetLowBitsOp(IRDLOperation):
     name = "transfer.get_low_bits"
-    val: Annotated[Operand, TransIntegerType]
-    low_bits: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    low_bits= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class SetHighBitsOp(IRDLOperation):
     name = "transfer.set_high_bits"
-    val: Annotated[Operand, TransIntegerType]
-    high_bits: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, TransIntegerType]
+    val= operand_def(TransIntegerType)
+    high_bits= operand_def(TransIntegerType)
+    result= result_def(TransIntegerType)
 
 
 @irdl_op_definition
 class CmpOp(IRDLOperation):
     name = "transfer.cmp"
-    predicate: OpAttr[IntegerAttr[IndexType]]
-    lhs: Annotated[Operand, TransIntegerType]
-    rhs: Annotated[Operand, TransIntegerType]
-    result: Annotated[OpResult, i1]
+    predicate= attr_def(IntegerAttr[IndexType])
+    lhs= operand_def(TransIntegerType)
+    rhs= operand_def(TransIntegerType)
+    result= result_def(i1)
 
 
 @irdl_attr_definition
@@ -211,9 +212,9 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 class GetOp(IRDLOperation):
     name = "transfer.get"
 
-    abs_val: Annotated[Operand, AbstractValueType]
-    index: OpAttr[IntegerAttr[IndexType]]
-    result: Annotated[OpResult, IndexType]
+    abs_val= operand_def(AbstractValueType)
+    index= attr_def(IntegerAttr[IndexType])
+    result= result_def(TransIntegerType)
 
     def verify_(self) -> None:
         assert isinstance(self.abs_val.typ, AbstractValueType)
@@ -225,8 +226,8 @@ class GetOp(IRDLOperation):
 class MakeOp(IRDLOperation):
     name = "transfer.make"
 
-    arguments: Annotated[VarOperand, IndexType]
-    result: Annotated[OpResult, AbstractValueType]
+    arguments= var_operand_def(IndexType)
+    result= result_def(AbstractValueType)
 
     def verify_(self) -> None:
         assert isinstance(self.results[0].typ, AbstractValueType)
