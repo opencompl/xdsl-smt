@@ -13,15 +13,16 @@ from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter,
                                    GreedyRewritePatternApplier)
 from xdsl.dialects import builtin
 
-autogen=0
+autogen = 0
+
 
 @singledispatch
 def transferFunction(op, fout):
     pass
 
 
-funcStr=""
-indent="\t"
+funcStr = ""
+indent = "\t"
 needDispatch: list[FuncOp] = []
 
 
@@ -30,29 +31,29 @@ def _(op: Operation, fout):
     global needDispatch
     if isinstance(op, ModuleOp):
         return
-        #print(lowerDispatcher(needDispatch))
-        #fout.write(lowerDispatcher(needDispatch))
-    if len(op.results)>0 and op.results[0].name_hint is None:
+        # print(lowerDispatcher(needDispatch))
+        # fout.write(lowerDispatcher(needDispatch))
+    if len(op.results) > 0 and op.results[0].name_hint is None:
         global autogen
-        op.results[0].name_hint = "autogen"+str(autogen)
-        autogen+=1
+        op.results[0].name_hint = "autogen" + str(autogen)
+        autogen += 1
     global funcStr
     if isinstance(op, FuncOp):
-        funcDecl=lowerOperation(op)
-        funcDecl=funcDecl.format(funcStr)
-        funcStr=""
-        #print(funcDecl)
+        funcDecl = lowerOperation(op)
+        funcDecl = funcDecl.format(funcStr)
+        funcStr = ""
+        # print(funcDecl)
         fout.write(funcDecl)
         if CPP_CLASS_KEY in op.attributes:
             needDispatch.append(op)
     else:
-        funcStr+=(indent+lowerOperation(op))
+        funcStr += (indent + lowerOperation(op))
 
 
 @dataclass
 class LowerOperation(RewritePattern):
     def __init__(self, fout):
-        self.fout=fout
+        self.fout = fout
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
@@ -64,12 +65,13 @@ def addDispatcher(fout):
     print(lowerDispatcher(needDispatch))
     fout.write(lowerDispatcher(needDispatch))
 
+
 @dataclass
 class LowerToCpp(ModulePass):
     name = "trans_lower"
 
     def __init__(self, fout):
-        self.fout=fout
+        self.fout = fout
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
         walker = PatternRewriteWalker(GreedyRewritePatternApplier([
