@@ -235,7 +235,7 @@ def _(op: GetOp):
     equals = "="
     index = op.attributes["index"].value.data
     return returnedType + " " + returnedValue + equals + operNameToCpp[op.name].format(index) + "(" + op.operands[
-        0].name + ")" + ends
+        0].name_hint + ")" + ends
 
 
 @lowerOperation.register
@@ -258,7 +258,8 @@ def _(op: NegOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     equals = "="
-    return returnedType + " " + returnedValue + equals + operNameToCpp[op.name] + op.operands[0].name + ends
+    return (returnedType + " " + returnedValue + equals + operNameToCpp[op.name] +
+            op.operands[0].name_hint + ends)
 
 
 @lowerOperation.register
@@ -273,7 +274,7 @@ def _(op:Constant):
     value=op.value.value.data
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
-    return returnedType+" "+returnedValue+"("+op.operands[0].name+".getBitWidth(),"+str(value)+")"+ends
+    return returnedType+" "+returnedValue+"("+op.operands[0].name_hint+".getBitWidth(),"+str(value)+")"+ends
 
 
 @lowerOperation.register
@@ -294,7 +295,7 @@ def _(op:Call):
 @lowerOperation.register
 def _(op:FuncOp):
     def lowerArgs(arg):
-        return lowerType(arg.type)+" "+arg.name
+        return lowerType(arg.type)+" "+arg.name_hint
     returnedType=lowerType(op.function_type.outputs.data[0])
     funcName=op.sym_name.data
     expr="("

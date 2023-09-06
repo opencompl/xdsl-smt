@@ -10,7 +10,6 @@ from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, Call
 from dialects.transfer import Transfer
 from xdsl.printer import Printer
-from passes.knownbits_opt import KnownBitsConstantReplacement
 from passes.transfer_lower import LowerToCpp, addDispatcher
 
 from z3 import *

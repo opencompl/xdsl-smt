@@ -2,7 +2,6 @@ from xdsl.dialects.func import *
 from xdsl.pattern_rewriter import *
 from functools import singledispatch
 from dataclasses import dataclass
-from xdsl.utils.knownBits import *
 from xdsl.passes import ModulePass
 
 from xdsl.ir import Operation, MLContext
