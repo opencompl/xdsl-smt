@@ -7,10 +7,13 @@ from xdsl.passes import ModulePass
 from xdsl.ir import Operation, MLContext
 from utils.lower_utils import lowerOperation, CPP_CLASS_KEY, lowerDispatcher
 
-from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter,
-                                   op_type_rewrite_pattern,
-                                   PatternRewriteWalker,
-                                   GreedyRewritePatternApplier)
+from xdsl.pattern_rewriter import (
+    RewritePattern,
+    PatternRewriter,
+    op_type_rewrite_pattern,
+    PatternRewriteWalker,
+    GreedyRewritePatternApplier,
+)
 from xdsl.dialects import builtin
 
 autogen = 0
@@ -47,7 +50,7 @@ def _(op: Operation, fout):
         if CPP_CLASS_KEY in op.attributes:
             needDispatch.append(op)
     else:
-        funcStr += (indent + lowerOperation(op))
+        funcStr += indent + lowerOperation(op)
 
 
 @dataclass
@@ -74,10 +77,10 @@ class LowerToCpp(ModulePass):
         self.fout = fout
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
-        walker = PatternRewriteWalker(GreedyRewritePatternApplier([
-            LowerOperation(self.fout)
-        ]),
+        walker = PatternRewriteWalker(
+            GreedyRewritePatternApplier([LowerOperation(self.fout)]),
             walk_regions_first=True,
             apply_recursively=True,
-            walk_reverse=False)
+            walk_reverse=False,
+        )
         walker.rewrite_module(op)

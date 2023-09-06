@@ -226,7 +226,7 @@ class SetHighBitsOp(IRDLOperation):
 @irdl_op_definition
 class CmpOp(PredicateOp):
     name = "transfer.cmp"
-    
+
     predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
 
 
