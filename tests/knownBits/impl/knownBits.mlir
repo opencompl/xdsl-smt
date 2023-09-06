@@ -94,7 +94,7 @@
     %arg0_1 = "transfer.get"(%arg0) {index=1:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %result = "transfer.countr_one" (%arg0_1) : (!transfer.integer) -> !transfer.integer
     "func.return"(%result) : (!transfer.integer) -> ()
-  }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer, sym_name = "countMinTrailingOnes"} : () -> ()    
+  }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer, sym_name = "countMinTrailingOnes"} : () -> ()
   "func.func"() ({
   ^bb0(%lhs: !abs_value<[!transfer.integer,!transfer.integer]>, %rhs: !abs_value<[!transfer.integer,!transfer.integer]>, %carryZero:!transfer.integer, %carryOne:!transfer.integer):
     %lhs0 ="transfer.get"(%lhs){index=0:index}: (!abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -196,5 +196,5 @@
     %resOne="transfer.get_low_bits"(%bottomKnown, %resultBitsKnown): (!transfer.integer,!transfer.integer)->!transfer.integer
     %result = "transfer.make"(%resZero, %resOne) : (!transfer.integer, !transfer.integer) -> !abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!abs_value<[!transfer.integer,!transfer.integer]>) -> ()
-  }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>,!abs_value<[!transfer.integer,!transfer.integer]>) -> !abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "MULImpl", applied_to=["arith.muli"], CPPCLASS=["mlir::arith::MulIOp"]} : () -> ()  
+  }) {function_type = (!abs_value<[!transfer.integer,!transfer.integer]>,!abs_value<[!transfer.integer,!transfer.integer]>) -> !abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "MULImpl", applied_to=["arith.muli"], CPPCLASS=["mlir::arith::MulIOp"]} : () -> ()
 }) {"builtin.NEED_VERIFY"=[["MUL","MULImpl"],["OR","ORImpl"],["AND","ANDImpl"],["XOR","XORImpl"],["ADD","ADDImpl"],["SUB","SUBImpl"]]}: () -> ()

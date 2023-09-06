@@ -204,6 +204,7 @@ class UMaxOp(BinOp):
 @irdl_op_definition
 class GetLowBitsOp(IRDLOperation):
     name = "transfer.get_low_bits"
+
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
     val: Operand = operand_def(T)
@@ -214,6 +215,7 @@ class GetLowBitsOp(IRDLOperation):
 @irdl_op_definition
 class SetHighBitsOp(IRDLOperation):
     name = "transfer.set_high_bits"
+
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
     val: Operand = operand_def(T)
@@ -224,6 +226,7 @@ class SetHighBitsOp(IRDLOperation):
 @irdl_op_definition
 class CmpOp(PredicateOp):
     name = "transfer.cmp"
+
     predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
 
 
@@ -247,6 +250,7 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
 @irdl_op_definition
 class GetOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.get"
+
     abs_val: Operand = operand_def(AbstractValueType)
     index: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
     result: OpResult = result_def(Attribute)
@@ -277,6 +281,7 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
 @irdl_op_definition
 class MakeOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.make"
+
     arguments: VarOperand = var_operand_def(Attribute)
     result: OpResult = result_def(AbstractValueType)
 
