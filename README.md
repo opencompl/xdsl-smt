@@ -1,16 +1,16 @@
 # xdsl-smt
 
-This repository contains a work-in-progress implementation of an SMTLib dialect for xDSL.
+This repository contains a work-in-progress implementation of an SMTLib dialect for [xDSL](https://github.com/xdslproject/xdsl).
 
 It currently contains the implementation of the core theory of SMTLib and a partial implementation
 of the bitvector theory.
 
-It also contains a partial lowering from `pdl`, `arith`, and `func` to `smt`, a translation
-validation tool between `arith` + `func` programs.
+It also contains a partial lowering from `pdl`, `arith`, `comb`, and `func` to `smt`, a translation
+validation tool between `arith` + `comb` + `func` programs.
 
 ## Installation
 
-To install the project for developers, follow the following commands:
+To install the project, use the following commands:
 
 ```bash
 # Create a python environment and activate it
@@ -24,32 +24,19 @@ pip install -r requirements.txt -U
 pip install -e .
 ```
 
-## Using `xdsl-smt` with xDSL or MLIR
-
-`xdsl-smt` can parse and print xDSL or MLIR programs with
-```bash
-# Parse and print an xDSL program
-python xdsl-smt.py file.xdsl
-# Parse an MLIR program and prints it as MLIR
-python xdsl-smt.py file.mlir -t mlir
-
-# Parse an MLIR propram and saves it to an xDSL file
-python xdsl-smt.py file.mlir -o new.xdsl
-```
-
 ## Printing SMTLib
 
 When a program only contains `SMTLib` operations and attributes, it can be
-printed as a SMTLib script with
+printed as an SMTLib script with
 
 ```bash
-python xdsl-smt.py file.xdsl -t smt
+python xdsl-smt.py file.mlir -t smt
 ```
 
 You can also directly run the SMTLib script with
 
 ```bash
-python xdsl-smt.py file.xdsl -t smt | z3
+python xdsl-smt.py file.mlir -t smt | z3
 ```
 or any other SMTLib solver.
 
@@ -58,16 +45,17 @@ or any other SMTLib solver.
 `xdsl-smt` uses the `-p` command to run passes on a program.
 ```bash
 # Run dce, then convert arith to smt, and output the result in SMTLib form
-python xdsl-smt.py file.xdsl -p=dce,arith-to-smt -t smt
+python xdsl-smt.py file.xdsl -p=dce,lower-to-smt,canonicalize-smt -t smt
 ```
 
 `xdsl-smt` defines the following passes:
 * `dce`: Eliminate dead code.
-* `canonicalize_smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
+* `canonicalize-smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
 * `lower-pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
-* `arith-to-smt`: Convert `arith` operations and attributes to the `smt` dialect
-* `pdl-to-smt`: Convert `PDL` rewrites on `arith` operations to the `smt` dialect,
-   which can be directly ran with SMT-Lib to check for correctness of the rewrite.
+* `lower-to-smt`: Lowers `arith`, `comb`, `func` to the `smt` dialect. Can also be extended with additional rewrite
+  patterns for new dialects.
+* `pdl-to-smt`: Lowers `PDL` rewrites to the `smt` dialect, using the `lower-to-smt` pass. The resulting SMT program
+  will check that the rewrite is correct.
 
 ## Running the translation validation tool
 

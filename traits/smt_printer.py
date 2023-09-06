@@ -116,7 +116,8 @@ def print_to_smtlib(module: ModuleOp, stream: IO[str]) -> None:
     # We use this hack for now
     # TODO: check for usage of pairs in the program to not always print this.
     print(
-        "(declare-datatypes ((Pair 2)) " "((par (X Y) ((pair (first X) (second Y))))))"
+        "(declare-datatypes ((Pair 2)) " "((par (X Y) ((pair (first X) (second Y))))))",
+        file=stream,
     )
     for op in module.ops:
         if isinstance(op, SMTLibScriptOp):

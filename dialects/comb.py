@@ -4,9 +4,12 @@ from xdsl.ir import Dialect, OpResult
 from xdsl.irdl import (
     ConstraintVar,
     IRDLOperation,
-    OpAttr,
+    attr_def,
+    opt_attr_def,
+    result_def,
+    var_operand_def,
+    operand_def,
     Operand,
-    OptOpAttr,
     VarOperand,
     irdl_op_definition,
 )
@@ -20,8 +23,8 @@ class ConstantOp(IRDLOperation):
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
-    value: OpAttr[IntegerAttr[T]]
-    result: Annotated[OpResult, T]
+    value: IntegerAttr[T] = attr_def(IntegerAttr[T])
+    result: OpResult = result_def(T)
 
 
 class BinCombOp(IRDLOperation):
@@ -32,11 +35,11 @@ class BinCombOp(IRDLOperation):
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
-    lhs: Annotated[Operand, T]
-    rhs: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    lhs: Operand = operand_def(T)
+    rhs: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
-    two_state: OptOpAttr[UnitAttr]
+    two_state: UnitAttr | None = opt_attr_def(UnitAttr)
 
 
 class VariadicCombOp(IRDLOperation):
@@ -47,10 +50,10 @@ class VariadicCombOp(IRDLOperation):
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
-    inputs: Annotated[VarOperand, T]
-    result: Annotated[OpResult, T]
+    inputs: VarOperand = var_operand_def(T)
+    result: OpResult = result_def(T)
 
-    two_state: OptOpAttr[UnitAttr]
+    two_state: UnitAttr | None = opt_attr_def(UnitAttr)
 
 
 @irdl_op_definition
@@ -152,12 +155,12 @@ class ICmpOp(IRDLOperation):
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
-    lhs: Annotated[Operand, T]
-    rhs: Annotated[Operand, T]
-    result: Annotated[OpResult, IntegerType(1)]
+    lhs: Operand = operand_def(T)
+    rhs: Operand = operand_def(T)
+    result: OpResult = result_def(IntegerType(1))
 
-    predicate: OpAttr[IntegerAttr[IndexType]]  # TODO: enum
-    two_state: OpAttr[UnitAttr]
+    predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
+    two_state: UnitAttr = attr_def(UnitAttr)
 
 
 @irdl_op_definition
@@ -166,10 +169,10 @@ class ParityOp(IRDLOperation):
 
     name = "comb.parity"
 
-    input: Annotated[Operand, IntegerType]
-    result: Annotated[OpResult, IntegerType(1)]
+    input: Operand = operand_def(IntegerType)
+    result: OpResult = result_def(IntegerType(1))
 
-    two_state: OptOpAttr[UnitAttr]
+    two_state: UnitAttr | None = opt_attr_def(UnitAttr)
 
 
 @irdl_op_definition
@@ -181,9 +184,11 @@ class ExtractOp(IRDLOperation):
 
     name = "comb.extract"
 
-    input: Annotated[Operand, IntegerType]
-    low_bit: OpAttr[IntegerAttr[Annotated[IntegerType, i32]]]
-    result: Annotated[OpResult, IntegerType]
+    input: Operand = operand_def(IntegerType)
+    low_bit: IntegerAttr[Annotated[IntegerType, i32]] = attr_def(
+        IntegerAttr[Annotated[IntegerType, i32]]
+    )
+    result: OpResult = result_def(IntegerType)
 
 
 @irdl_op_definition
@@ -194,8 +199,8 @@ class ConcatOp(IRDLOperation):
 
     name = "comb.concat"
 
-    inputs: Annotated[VarOperand, IntegerType]
-    result: Annotated[OpResult, IntegerType]
+    inputs: VarOperand = var_operand_def(IntegerType)
+    result: OpResult = result_def(IntegerType)
 
 
 @irdl_op_definition
@@ -206,8 +211,8 @@ class ReplicateOp(IRDLOperation):
 
     name = "comb.replicate"
 
-    input: Annotated[Operand, IntegerType]
-    result: Annotated[OpResult, IntegerType]
+    input: Operand = operand_def(IntegerType)
+    result: OpResult = result_def(IntegerType)
 
 
 @irdl_op_definition
@@ -220,10 +225,10 @@ class MuxOp(IRDLOperation):
 
     T = Annotated[IntegerType, ConstraintVar("T")]
 
-    cond: Annotated[Operand, IntegerType(1)]
-    true_value: Annotated[Operand, T]
-    false_value: Annotated[Operand, T]
-    result: Annotated[OpResult, T]
+    cond: Operand = operand_def(IntegerType(1))
+    true_value: Operand = operand_def(T)
+    false_value: Operand = operand_def(T)
+    result: OpResult = result_def(T)
 
 
 Comb = Dialect(

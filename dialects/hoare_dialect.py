@@ -1,7 +1,14 @@
 from xdsl.ir import Dialect, Operation, Region
-from xdsl.irdl import SingleBlockRegion, irdl_op_definition, IRDLOperation, Operand
+from xdsl.irdl import (
+    operand_def,
+    region_def,
+    irdl_op_definition,
+    IRDLOperation,
+    Operand,
+)
 from xdsl.utils.exceptions import VerifyException
 
+from xdsl.traits import IsTerminator
 from xdsl.dialects.func import FuncOp
 
 from .smt_dialect import BoolType
@@ -11,17 +18,19 @@ from .smt_dialect import BoolType
 class YieldOp(IRDLOperation):
     name = "hoare.yield"
 
+    traits = frozenset([IsTerminator()])
+
     def __init__(self, ret: Operand):
         super().__init__(operands=[ret])
 
-    ret: Operand
+    ret: Operand = operand_def()
 
 
 @irdl_op_definition
 class RequiresOp(IRDLOperation):
     name = "hoare.requires"
 
-    reg: SingleBlockRegion
+    reg: Region = region_def("single_block")
 
     @property
     def yield_op(self) -> YieldOp:
@@ -32,7 +41,7 @@ class RequiresOp(IRDLOperation):
     def verify_(self):
         if not isinstance((yield_op := self.reg.block.last_op), YieldOp):
             raise ValueError("Requires region must end with a yield operation")
-        if not isinstance(yield_op.ret.typ, BoolType):
+        if not isinstance(yield_op.ret.type, BoolType):
             raise VerifyException(f"{self.name} must yield a boolean")
         if not isinstance((parent := self.parent_op()), FuncOp):
             raise VerifyException(f"{self.name} must be nested in a function")
@@ -50,7 +59,7 @@ class RequiresOp(IRDLOperation):
 class EnsuresOp(IRDLOperation):
     name = "hoare.ensures"
 
-    reg: SingleBlockRegion
+    reg: Region = region_def("single_block")
 
     @property
     def yield_op(self) -> Operation:
@@ -61,7 +70,7 @@ class EnsuresOp(IRDLOperation):
     def verify_(self):
         if not isinstance((yield_op := self.reg.block.last_op), YieldOp):
             raise VerifyException("Ensures region must end with a yield operation")
-        if not isinstance(yield_op.ret.typ, BoolType):
+        if not isinstance(yield_op.ret.type, BoolType):
             raise VerifyException(f"{self.name} must yield a boolean")
         if not isinstance((parent := self.parent_op()), FuncOp):
             raise VerifyException(f"{self.name} must be nested in a function")

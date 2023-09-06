@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Generic, TypeAlias, TypeVar, cast, IO
+from typing import Generic, TypeAlias, TypeVar, cast, IO
 from xdsl.ir import (
     Attribute,
     Dialect,
@@ -11,6 +11,8 @@ from xdsl.ir import (
 )
 from xdsl.utils.exceptions import VerifyException
 from xdsl.irdl import (
+    operand_def,
+    result_def,
     Operand,
     ParameterDef,
     irdl_attr_definition,
@@ -52,19 +54,19 @@ AnyPairType: TypeAlias = PairType[Attribute, Attribute]
 class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.pair"
 
-    res: Annotated[OpResult, AnyPairType]
-    first: Operand
-    second: Operand
+    res: OpResult = result_def(AnyPairType)
+    first: Operand = operand_def()
+    second: Operand = operand_def()
 
     @staticmethod
     def from_values(first: SSAValue, second: SSAValue) -> PairOp:
-        result_type = PairType(first.typ, second.typ)
+        result_type = PairType(first.type, second.type)
         return PairOp.create(result_types=[result_type], operands=[first, second])
 
     def verify_(self):
-        assert isinstance(self.res.typ, PairType)
-        res_typ = cast(AnyPairType, self.res.typ)
-        if res_typ.first != self.first.typ or res_typ.second != self.second.typ:
+        assert isinstance(self.res.type, PairType)
+        res_typ = cast(AnyPairType, self.res.type)
+        if res_typ.first != self.first.type or res_typ.second != self.second.type:
             raise VerifyException(
                 "{self.name} result type is incompatible with operand types."
             )
@@ -77,22 +79,22 @@ class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
 class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.first"
 
-    res: OpResult
-    pair: Annotated[Operand, AnyPairType]
+    res: OpResult = result_def()
+    pair: Operand = operand_def(AnyPairType)
 
     @staticmethod
     def from_value(pair: SSAValue) -> FirstOp:
-        if not isinstance(pair.typ, PairType):
+        if not isinstance(pair.type, PairType):
             raise VerifyException(
                 "{self.name} operand is expected to be a {PairType.name} type"
             )
-        pair_typ = cast(AnyPairType, pair.typ)
+        pair_typ = cast(AnyPairType, pair.type)
         return FirstOp.create(result_types=[pair_typ.first], operands=[pair])
 
     def verify_(self):
-        assert isinstance(self.pair.typ, PairType)
-        pair_typ = cast(AnyPairType, self.pair.typ)
-        if self.res.typ != pair_typ.first:
+        assert isinstance(self.pair.type, PairType)
+        pair_typ = cast(AnyPairType, self.pair.type)
+        if self.res.type != pair_typ.first:
             raise VerifyException(
                 "{self.name} result type is incompatible with operand types."
             )
@@ -105,27 +107,27 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
 class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.second"
 
-    res: OpResult
-    pair: Annotated[Operand, AnyPairType]
+    res: OpResult = result_def()
+    pair: Operand = operand_def(AnyPairType)
 
     def op_name(self) -> str:
         return "second"
 
     def verify_(self):
-        assert isinstance(self.pair.typ, PairType)
-        pair_typ = cast(PairType[Attribute, Attribute], self.pair.typ)
-        if self.res.typ != pair_typ.second:
+        assert isinstance(self.pair.type, PairType)
+        pair_typ = cast(PairType[Attribute, Attribute], self.pair.type)
+        if self.res.type != pair_typ.second:
             raise VerifyException(
                 "{self.name} result type is incompatible with operand types."
             )
 
     @staticmethod
     def from_value(pair: SSAValue) -> SecondOp:
-        if not isinstance(pair.typ, PairType):
+        if not isinstance(pair.type, PairType):
             raise VerifyException(
                 "{self.name} operand is expected to be a {PairType.name} type"
             )
-        pair_typ = cast(AnyPairType, pair.typ)
+        pair_typ = cast(AnyPairType, pair.type)
         return SecondOp.create(result_types=[pair_typ.second], operands=[pair])
 
 

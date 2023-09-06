@@ -2,18 +2,15 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
     PatternRewriter,
-    PatternRewriteWalker,
-    GreedyRewritePatternApplier,
 )
-from xdsl.passes import ModulePass
-from xdsl.ir import MLContext, Operation, SSAValue
+from xdsl.ir import Operation, SSAValue
 from xdsl.irdl import IRDLOperation
-from xdsl.dialects.builtin import ModuleOp, IntegerType
+from xdsl.dialects.builtin import IntegerType
 
-from .arith_to_smt import FuncToSMTPattern, ReturnPattern, convert_type
 from dialects import comb
 import dialects.smt_bitvector_dialect as bv_dialect
 import dialects.smt_dialect as core_dialect
+from passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
 class ConstantPattern(RewritePattern):
@@ -32,7 +29,7 @@ def variadic_op_pattern(
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
             if not isinstance(op, comb_op_type):
                 return
-            res_type = convert_type(op.result.typ)
+            res_type = LowerToSMT.lower_type(op.result.type)
             assert isinstance(res_type, bv_dialect.BitVectorType)
             if len(op.operands) == 0:
                 rewriter.replace_matched_op(
@@ -45,7 +42,7 @@ def variadic_op_pattern(
             for operand in op.operands[1:]:
                 new_op = smt_op_type.build(
                     operands=[current_val, operand],
-                    result_types=[convert_type(op.result.typ)],
+                    result_types=[LowerToSMT.lower_type(op.result.type)],
                 )
                 current_val = new_op.results[0]
                 rewriter.insert_op_before_matched_op(new_op)
@@ -64,7 +61,7 @@ def trivial_binop_pattern(
                 return
             new_op = smt_op_type.build(
                 operands=op.operands,
-                result_types=[convert_type(op.result.typ)],
+                result_types=[LowerToSMT.lower_type(op.result.type)],
             )
             rewriter.replace_matched_op([new_op])
             return super().match_and_rewrite(op, rewriter)
@@ -119,11 +116,11 @@ class ICmpPattern(RewritePattern):
 class ParityPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: comb.ParityOp, rewriter: PatternRewriter) -> None:
-        assert isinstance(op.input.typ, bv_dialect.BitVectorType)
-        assert op.input.typ.width.data > 0
+        assert isinstance(op.input.type, bv_dialect.BitVectorType)
+        assert op.input.type.width.data > 0
         bits: list[SSAValue] = []
 
-        for i in range(op.input.typ.width.data):
+        for i in range(op.input.type.width.data):
             extract = bv_dialect.ExtractOp(op.input, i, i)
             bits.append(extract.results[0])
             rewriter.insert_op_before_matched_op(extract)
@@ -166,9 +163,9 @@ class ReplicatePattern(RewritePattern):
     def match_and_rewrite(
         self, op: comb.ReplicateOp, rewriter: PatternRewriter
     ) -> None:
-        assert isinstance(op.input.typ, IntegerType)
-        assert isinstance(op.result.typ, IntegerType)
-        num_repetition = op.result.typ.width.data // op.input.typ.width.data
+        assert isinstance(op.input.type, IntegerType)
+        assert isinstance(op.result.type, IntegerType)
+        num_repetition = op.result.type.width.data // op.input.type.width.data
         current_val = op.operands[0]
 
         for _ in range(num_repetition - 1):
@@ -209,15 +206,3 @@ comb_to_smt_patterns: list[RewritePattern] = [
     ReplicatePattern(),
     MuxPattern(),
 ]
-
-
-class CombToSMT(ModulePass):
-    name = "comb-to-smt"
-
-    def apply(self, ctx: MLContext, op: ModuleOp):
-        walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(
-                [*comb_to_smt_patterns, FuncToSMTPattern(), ReturnPattern()]
-            )
-        )
-        walker.rewrite_module(op)

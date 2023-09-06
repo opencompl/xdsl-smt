@@ -15,8 +15,15 @@ from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 
 from passes.lower_pairs import LowerPairs
-from passes.arith_to_smt import ArithToSMT
 from passes.canonicalize_smt import CanonicalizeSMT
+from passes.lower_to_smt import (
+    LowerToSMT,
+    arith_to_smt_patterns,
+    comb_to_smt_patterns,
+    transfer_to_smt_patterns,
+    integer_type_lowerer,
+    func_to_smt_patterns,
+)
 
 from traits.smt_printer import print_to_smtlib
 
@@ -98,9 +105,17 @@ if __name__ == "__main__":
     assert isinstance(module, ModuleOp)
     assert isinstance(module_after, ModuleOp)
 
+    LowerToSMT.rewrite_patterns = [
+        *arith_to_smt_patterns,
+        *comb_to_smt_patterns,
+        *transfer_to_smt_patterns,
+        *func_to_smt_patterns,
+    ]
+    LowerToSMT.type_lowerers = [integer_type_lowerer]
+
     # Convert both module to SMTLib
-    ArithToSMT().apply(ctx, module)
-    ArithToSMT().apply(ctx, module_after)
+    LowerToSMT().apply(ctx, module)
+    LowerToSMT().apply(ctx, module_after)
 
     # Collect the function from both modules
     if (

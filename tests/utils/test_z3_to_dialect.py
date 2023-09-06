@@ -66,8 +66,8 @@ def test_z3_to_dialect_quant():
     ops = ops[0]
     assert isinstance(ops, ForallOp)
     assert ops.res == var
-    assert ops.body.block.args[0].typ == BoolType()
-    assert ops.body.block.args[1].typ == BoolType()
+    assert ops.body.block.args[0].type == BoolType()
+    assert ops.body.block.args[1].type == BoolType()
     assert len(ops.body.block.ops) == 1
     assert isinstance(ops.body.block.first_op, YieldOp)
     assert ops.body.block.first_op.ret == ops.body.block.args[0]
@@ -77,8 +77,8 @@ def test_z3_to_dialect_quant():
     ops = ops[0]
     assert isinstance(ops, ExistsOp)
     assert ops.res == var
-    assert ops.body.block.args[0].typ == BoolType()
-    assert ops.body.block.args[1].typ == BoolType()
+    assert ops.body.block.args[0].type == BoolType()
+    assert ops.body.block.args[1].type == BoolType()
     assert len(ops.body.block.ops) == 1
     assert isinstance(ops.body.block.first_op, YieldOp)
     assert ops.body.block.first_op.ret == ops.body.block.args[0]

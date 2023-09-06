@@ -61,7 +61,7 @@
     "smt.yield"(%t) : (!smt.bool) -> ()
   }) : () -> !smt.bool
   "smt.assert"(%exists) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert (exists ((tmp Bool)) tmp))
+  // CHECK-NEXT: (assert (exists (({{.*}} Bool)) {{.*}}))
 
   %fun = "smt.define_fun"() ({
   ^0(%t : !smt.bool):
@@ -69,8 +69,8 @@
   }) : () -> ((!smt.bool) -> !smt.bool)
   %res = "smt.call"(%fun, %true) : ((!smt.bool) -> !smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%res) : (!smt.bool) -> ()
-  // CHECK: (define-fun {{.*}} ((tmp_0 Bool)) Bool
-  // CHECK-NEXT: tmp_0)
+  // CHECK: (define-fun {{.*}} (({{.*}} Bool)) Bool
+  // CHECK-NEXT: {{.*}})
   // CHECK-NEXT: (assert ({{.*}} true))
 
 }) : () -> ()

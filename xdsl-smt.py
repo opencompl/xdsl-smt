@@ -9,7 +9,7 @@ from xdsl.dialects.pdl import PDL
 
 
 from dialects.hoare_dialect import Hoare
-from dialects.pdl_known_bits import PDLKnownBitsDialect
+from dialects.pdl_dataflow import PDLDataflowDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from dialects.smt_dialect import SMTDialect
 from dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -22,8 +22,14 @@ from dialects.comb import Comb
 from passes.canonicalize_smt import CanonicalizeSMT
 from passes.dead_code_elimination import DeadCodeElimination
 from passes.lower_pairs import LowerPairs
-from passes.arith_to_smt import ArithToSMT
-from passes.comb_to_smt import CombToSMT
+from passes.lower_to_smt import (
+    LowerToSMT,
+    arith_to_smt_patterns,
+    comb_to_smt_patterns,
+    transfer_to_smt_patterns,
+    integer_type_lowerer,
+    func_to_smt_patterns,
+)
 from passes.pdl_to_smt import PDLToSMT
 
 from traits.smt_printer import print_to_smtlib
@@ -41,13 +47,12 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Transfer)
         self.ctx.register_dialect(Hoare)
         self.ctx.register_dialect(PDL)
-        self.ctx.register_dialect(PDLKnownBitsDialect)
+        self.ctx.register_dialect(PDLDataflowDialect)
         self.ctx.register_dialect(Comb)
 
     def register_all_passes(self):
         super().register_all_passes()
-        self.register_pass(ArithToSMT)
-        self.register_pass(CombToSMT)
+        self.register_pass(LowerToSMT)
         self.register_pass(DeadCodeElimination)
         self.register_pass(CanonicalizeSMT)
         self.register_pass(LowerPairs)
@@ -62,6 +67,14 @@ class OptMain(xDSLOptMain):
 
 
 def __main__():
+    LowerToSMT.rewrite_patterns = [
+        *arith_to_smt_patterns,
+        *comb_to_smt_patterns,
+        *transfer_to_smt_patterns,
+        *func_to_smt_patterns,
+    ]
+    LowerToSMT.type_lowerers = [integer_type_lowerer]
+
     xdsl_main = OptMain()
     xdsl_main.run()
 

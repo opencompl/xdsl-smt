@@ -10,9 +10,8 @@ from xdsl.dialects.pdl import (
     TypeOp,
     AttributeOp,
 )
-from xdsl.dialects.builtin import i32
 
-from dialects import pdl_known_bits as smt_kb
+from dialects import pdl_dataflow as pdl_dataflow
 from dialects import smt_bitvector_dialect as smt_bv
 
 from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
@@ -34,9 +33,7 @@ from dialects.smt_dialect import (
     EqOp,
     NotOp,
 )
-
-from passes.arith_to_smt import ArithToSMT, convert_type, arith_to_smt_patterns
-from passes.comb_to_smt import CombToSMT, comb_to_smt_patterns
+from passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
 @dataclass
@@ -83,6 +80,13 @@ class RewriteRewrite(RewritePattern):
         rewriter.erase_matched_op()
 
 
+class DataflowRewriteRewrite(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: pdl_dataflow.RewriteOp, rewriter: PatternRewriter):
+        rewriter.inline_block_before_matched_op(op.body.blocks[0])
+        rewriter.erase_matched_op()
+
+
 class TypeRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
@@ -101,7 +105,7 @@ class OperandRewrite(RewritePattern):
         if op.value_type is None:
             raise Exception("Cannot handle non-typed operands")
         type = _get_type_of_erased_type_value(op.value_type)
-        smt_type = convert_type(type)
+        smt_type = LowerToSMT.lower_type(type)
         rewriter.replace_matched_op(DeclareConstOp(smt_type))
 
 
@@ -130,8 +134,7 @@ class OperationRewrite(RewritePattern):
         # Cursed hack: we create a new module with that operation, and
         # we rewrite it with the arith_to_smt and comb_to_smt pass.
         rewrite_module = ModuleOp([synthesized_op])
-        ArithToSMT().apply(self.ctx, rewrite_module)
-        CombToSMT().apply(self.ctx, rewrite_module)
+        LowerToSMT().apply(self.ctx, rewrite_module)
         last_op = rewrite_module.body.block.last_op
         assert last_op is not None
 
@@ -203,8 +206,9 @@ class ResultRewrite(RewritePattern):
 def kb_analysis_correct(
     value: SSAValue, zeros: SSAValue, ones: SSAValue
 ) -> tuple[SSAValue, list[Operation]]:
+    assert isinstance(value.type, smt_bv.BitVectorType)
     and_op_zeros = smt_bv.AndOp(value, zeros)
-    zero = smt_bv.ConstantOp(0, 32)
+    zero = smt_bv.ConstantOp(0, value.type.width.data)
     zeros_correct = EqOp(and_op_zeros.res, zero.res)
     and_op_ones = smt_bv.AndOp(value, ones)
     ones_correct = EqOp(and_op_ones.res, ones)
@@ -220,35 +224,30 @@ def kb_analysis_correct(
 
 
 @dataclass
-class KBOperandRewrite(RewritePattern):
+class GetOpRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: smt_kb.KBOperandOp, rewriter: PatternRewriter):
-        type = _get_type_of_erased_type_value(op.type)
-        assert type == i32
-        smt_type = convert_type(type)
-        declare_op = DeclareConstOp(smt_type)
-        zeros_op = DeclareConstOp(smt_bv.BitVectorType(32))
-        ones_op = DeclareConstOp(smt_bv.BitVectorType(32))
+    def match_and_rewrite(self, op: pdl_dataflow.GetOp, rewriter: PatternRewriter):
+        assert isinstance(op.value.type, smt_bv.BitVectorType)
+        bv_type = op.value.type
+        zeros_op = DeclareConstOp(bv_type)
+        ones_op = DeclareConstOp(bv_type)
 
-        # TODO: Get the names from the operation
-
-        operand = declare_op.res
+        value = op.value
         zeros = zeros_op.res
         ones = ones_op.res
 
-        all_correct, correct_ops = kb_analysis_correct(operand, zeros, ones)
+        all_correct, correct_ops = kb_analysis_correct(value, zeros, ones)
         self.rewrite_context.preconditions.append(all_correct)
 
         rewriter.replace_matched_op(
             [
-                declare_op,
                 zeros_op,
                 ones_op,
                 *correct_ops,
             ],
-            new_results=[operand, zeros, ones],
+            new_results=[zeros, ones],
         )
         name = op.value.name_hint if op.value.name_hint else "value"
         zeros.name_hint = name + "_zeros"
@@ -256,22 +255,16 @@ class KBOperandRewrite(RewritePattern):
 
 
 @dataclass
-class KBAttachOpRewrite(RewritePattern):
+class AttachOpRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: smt_kb.KBAttachOp, rewriter: PatternRewriter):
-        assert isinstance(op.op, ErasedSSAValue)
-        replaced_op = self.rewrite_context.pdl_op_to_op[op.op.old_value]
-        if len(replaced_op.results) != 1:
-            raise Exception("Cannot handle operations with multiple results")
-
-        replaced_op_result = replaced_op.results[0]
-        if replaced_op_result.typ != smt_bv.BitVectorType(32):
-            raise Exception("Cannot handle non-i32 results")
+    def match_and_rewrite(self, op: pdl_dataflow.AttachOp, rewriter: PatternRewriter):
+        assert len(op.domains) == 2
+        zeros, ones = op.domains
 
         analysis_correct, analysis_correct_ops = kb_analysis_correct(
-            replaced_op_result, op.zeros, op.ones
+            op.value, zeros, ones
         )
         rewriter.insert_op_before_matched_op(analysis_correct_ops)
         analysis_incorrect_op = NotOp.get(analysis_correct)
@@ -303,17 +296,17 @@ class PDLToSMT(ModulePass):
                 [
                     PatternRewrite(),
                     RewriteRewrite(),
+                    DataflowRewriteRewrite(),
                     TypeRewrite(),
                     AttributeRewrite(),
                     OperandRewrite(),
+                    GetOpRewrite(rewrite_context),
                     OperationRewrite(ctx, rewrite_context),
                     ReplaceRewrite(rewrite_context),
                     ResultRewrite(rewrite_context),
-                    KBOperandRewrite(rewrite_context),
-                    KBAttachOpRewrite(rewrite_context),
-                    *arith_to_smt_patterns,
-                    *comb_to_smt_patterns,
+                    AttachOpRewrite(rewrite_context),
                 ]
             )
         )
         walker.rewrite_module(op)
+        LowerToSMT().apply(ctx, op)
