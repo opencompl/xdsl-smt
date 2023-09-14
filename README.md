@@ -13,15 +13,17 @@ validation tool between `arith` + `comb` + `func` programs.
 To install the project, use the following commands:
 
 ```bash
-# Create a python environment and activate it
-python -m venv venv
-source ./venv/bin/activate
+# Install the project
+pipenv install .
+```
 
-# Install the requirements
-pip install -r requirements.txt -U
+### Development installation
 
-# Install the project in editable mode
-pip install -e .
+To setup an environment for hacking on xdsl-smt, use the following commands:
+
+```bash
+# Install the project in editable mode with dev dependencies
+pipenv install -e '.[dev]'
 ```
 
 ## Printing SMTLib
