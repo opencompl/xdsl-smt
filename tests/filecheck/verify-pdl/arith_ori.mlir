@@ -1,4 +1,4 @@
-// RUN: verify-pdl.py %s | filecheck %s
+// RUN: verify-pdl "%s" | filecheck "%s"
 
 builtin.module {
   pdl.pattern @addi_analysis : benefit(0) {

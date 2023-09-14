@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p pdl-to-smt -t smt | z3 -in | filecheck %s
+// RUN: xdsl-smt "%s" -p pdl-to-smt -t smt | z3 -in | filecheck "%s"
 
 builtin.module {
   pdl.pattern @addi_analysis : benefit(0) {

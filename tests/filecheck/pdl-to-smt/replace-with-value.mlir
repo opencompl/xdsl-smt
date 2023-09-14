@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=pdl-to-smt -t smt | filecheck %s
+// RUN: xdsl-smt "%s" -p=pdl-to-smt -t smt | filecheck "%s"
 
 // or(x, or(x, y)) -> or(x, y)
 

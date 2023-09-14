@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=lower-pairs | filecheck %s
+// RUN: xdsl-smt "%s" -p=lower-pairs | filecheck "%s"
 
 "builtin.module"() ({
   %0 = "smt.define_fun"() ({

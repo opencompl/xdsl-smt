@@ -15,6 +15,13 @@ dev = [
   "pre-commit==3.3.1",
 ]
 
+[project.scripts]
+xdsl-smt = "xdsl_smt.cli.xdsl_smt:main"
+xdsl-tv = "xdsl_smt.cli.xdsl_tv:main"
+xdsl-translate = "xdsl_smt.cli.xdsl_translate:main"
+verifier = "xdsl_smt.cli.verifier:main"
+verify-pdl = "xdsl_smt.cli.verify_pdl:main"
+
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -24,4 +31,4 @@ reportImportCycles = false
 reportUnnecessaryIsInstance = false
 typeCheckingMode = "strict"
 include = ["xdsl_smt"]
-ignore = ["xdsl_smt/utils/z3_to_dialect.py", "xdsl_smt/utils/integer_to_z3.py", "xdsl_smt/passes/calculate_smt.py", "verifier.py", "tests"]
+ignore = ["xdsl_smt/utils/z3_to_dialect.py", "xdsl_smt/utils/integer_to_z3.py", "xdsl_smt/passes/calculate_smt.py", "xdsl_smt/cli/verifier.py", "tests"]

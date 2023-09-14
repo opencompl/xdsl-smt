@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p dce -o %t -t mlir && xdsl-tv.py %s %t | filecheck %s
+// RUN: xdsl-smt "%s" -p dce -o "%t" -t mlir && xdsl-tv "%s" "%t" | filecheck "%s"
 
 "builtin.module"() ({
   "func.func"() ({

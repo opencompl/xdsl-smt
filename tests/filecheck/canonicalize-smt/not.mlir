@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=canonicalize-smt -t=smt | filecheck %s
+// RUN: xdsl-smt "%s" -p=canonicalize-smt -t=smt | filecheck "%s"
 
 "builtin.module"() ({
 

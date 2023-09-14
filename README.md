@@ -30,13 +30,13 @@ When a program only contains `SMTLib` operations and attributes, it can be
 printed as an SMTLib script with
 
 ```bash
-python xdsl-smt.py file.mlir -t smt
+xdsl-smt file.mlir -t smt
 ```
 
 You can also directly run the SMTLib script with
 
 ```bash
-python xdsl-smt.py file.mlir -t smt | z3
+xdsl-smt file.mlir -t smt | z3
 ```
 or any other SMTLib solver.
 
@@ -45,7 +45,7 @@ or any other SMTLib solver.
 `xdsl-smt` uses the `-p` command to run passes on a program.
 ```bash
 # Run dce, then convert arith to smt, and output the result in SMTLib form
-python xdsl-smt.py file.xdsl -p=dce,lower-to-smt,canonicalize-smt -t smt
+xdsl-smt file.xdsl -p=dce,lower-to-smt,canonicalize-smt -t smt
 ```
 
 `xdsl-smt` defines the following passes:
@@ -61,10 +61,10 @@ python xdsl-smt.py file.xdsl -p=dce,lower-to-smt,canonicalize-smt -t smt
 
 The translation validator can be run with
 ```bash
-./xdsl-tv.py file_before.xdsl file_after.xdsl | z3
+xdsl-tv file_before.xdsl file_after.xdsl | z3
 ```
 
 This command will check that the second program is a valid refinement of the first one.
 
 In order to simplify debugging the refinement script, you can pass the `-opt` option
-to `xdsl-tv.py` to simplify obvious expressions and remove the use of the `pair` datatype.
+to `xdsl-tv` to simplify obvious expressions and remove the use of the `pair` datatype.

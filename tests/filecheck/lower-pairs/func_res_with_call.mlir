@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=lower-pairs | filecheck %s
+// RUN: xdsl-smt "%s" -p=lower-pairs | filecheck "%s"
 
 // Check that we split functions returning pairs into multiple functions.
 

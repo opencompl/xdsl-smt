@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s | xdsl-smt.py -t mlir --print-op-generic | filecheck %s
+// RUN: xdsl-smt "%s" | xdsl-smt -t mlir --print-op-generic | filecheck "%s"
 
 "builtin.module"() ({
 

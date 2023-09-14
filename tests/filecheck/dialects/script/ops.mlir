@@ -1,5 +1,5 @@
-// RUN: xdsl-smt.py %s | xdsl-smt.py -t=smt | filecheck %s
-// RUN: xdsl-smt.py %s -t=smt | z3 -in
+// RUN: xdsl-smt "%s" | xdsl-smt -t=smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -t=smt | z3 -in
 
 "builtin.module"() ({
   %cst = "smt.declare_const"() : () -> !smt.bool

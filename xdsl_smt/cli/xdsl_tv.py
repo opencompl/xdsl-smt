@@ -6,17 +6,17 @@ import sys
 from xdsl.ir import MLContext, Operation
 from xdsl.parser import Parser
 
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.arith_dialect import Arith
-from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from ..dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
+from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from ..dialects.arith_dialect import Arith
+from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 
-from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
-from xdsl_smt.passes.lower_to_smt import (
+from ..passes.lower_pairs import LowerPairs
+from ..passes.canonicalize_smt import CanonicalizeSMT
+from ..passes.lower_to_smt import (
     LowerToSMT,
     arith_to_smt_patterns,
     comb_to_smt_patterns,
@@ -25,7 +25,7 @@ from xdsl_smt.passes.lower_to_smt import (
     func_to_smt_patterns,
 )
 
-from xdsl_smt.traits.smt_printer import print_to_smtlib
+from ..traits.smt_printer import print_to_smtlib
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -43,17 +43,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "pairs and applying constant folding.",
         action="store_true",
     )
-
-
-def parse_file(file: str | None) -> Operation:
-    if file is None:
-        f = sys.stdin
-    else:
-        f = open(file)
-
-    parser = Parser(ctx, f.read())
-    module = parser.parse_op()
-    return module
 
 
 def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Operation]:
@@ -84,7 +73,7 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     return ops
 
 
-if __name__ == "__main__":
+def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
@@ -99,6 +88,16 @@ if __name__ == "__main__":
     ctx.register_dialect(SMTUtilsDialect)
 
     # Parse the files
+    def parse_file(file: str | None) -> Operation:
+        if file is None:
+            f = sys.stdin
+        else:
+            f = open(file)
+
+        parser = Parser(ctx, f.read())
+        module = parser.parse_op()
+        return module
+
     module = parse_file(args.before_file)
     module_after = parse_file(args.after_file)
 
@@ -144,3 +143,7 @@ if __name__ == "__main__":
         LowerPairs().apply(ctx, new_module)
         CanonicalizeSMT().apply(ctx, new_module)
     print_to_smtlib(new_module, sys.stdout)
+
+
+if __name__ == "__main__":
+    main()

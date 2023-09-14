@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s | filecheck %s
+// RUN: xdsl-smt "%s" | filecheck "%s"
 
 builtin.module {
   pdl.pattern @addi_analysis : benefit(0) {

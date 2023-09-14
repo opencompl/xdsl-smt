@@ -8,9 +8,9 @@ from xdsl.parser import Parser
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, Call
-from xdsl_smt.dialects.transfer import Transfer
+from ..dialects.transfer import Transfer
 from xdsl.printer import Printer
-from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher
+from ..passes.transfer_lower import LowerToCpp, addDispatcher
 
 from z3 import *
 
@@ -32,7 +32,7 @@ def parse_file(file: str | None) -> Operation:
     return module
 
 
-if __name__ == "__main__":
+def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
@@ -61,3 +61,7 @@ if __name__ == "__main__":
 
     # printer = Printer(target=Printer.Target.MLIR)
     # printer.print_op(module)
+
+
+if __name__ == "__main__":
+    main()

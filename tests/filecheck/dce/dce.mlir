@@ -1,4 +1,4 @@
-// RUN: xdsl-smt.py %s -p=dce | filecheck %s
+// RUN: xdsl-smt "%s" -p=dce | filecheck "%s"
 
 "builtin.module"() ({
 

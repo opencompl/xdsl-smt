@@ -5,18 +5,18 @@ import argparse
 from xdsl.ir import MLContext, Operation
 from xdsl.parser import Parser
 
-from xdsl_smt.dialects.smt_dialect import SMTDialect
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.arith_dialect import Arith
-from xdsl_smt.dialects.index_dialect import Index
-from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from ..dialects.smt_dialect import SMTDialect
+from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from ..dialects.arith_dialect import Arith
+from ..dialects.index_dialect import Index
+from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp
-from xdsl_smt.dialects.transfer import Transfer, AbstractValueType
+from ..dialects.transfer import Transfer, AbstractValueType
 
-import xdsl_smt.passes.calculate_smt as cs
-from xdsl_smt.utils.trans_interpreter_smt import *
-from xdsl_smt.passes.rename_values import RenameValuesPass
+from ..passes import calculate_smt as cs
+from ..utils.trans_interpreter_smt import *
+from ..passes.rename_values import RenameValuesPass
 
 from z3 import BitVec, Solver, And, Not, simplify, ForAll, Implies
 import sys as sys
@@ -192,7 +192,8 @@ def precision_check(
 KEY_NEED_VERIFY = "builtin.NEED_VERIFY"
 MAXIMAL_VERIFIED_BITS = 8
 
-if __name__ == "__main__":
+
+def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
@@ -270,3 +271,7 @@ if __name__ == "__main__":
                 func_name_to_func,
                 width,
             )
+
+
+if __name__ == "__main__":
+     main()
