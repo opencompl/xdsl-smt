@@ -29,13 +29,9 @@ jobs:
       - name: Upgrade pip
         run: |
           pip install --upgrade pip
-      - name: Install pipenv
-        run: |
-          pip install pipenv
       - name: Install the package
-        run: pipenv install .
-      - name: Enter the virtual environment
-        run: pipenv shell
+        run: |
+          pip install .[dev]
       - name: Pyright
         uses: jakebailey/pyright-action@v1
         with:
