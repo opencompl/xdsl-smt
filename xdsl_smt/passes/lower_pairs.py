@@ -18,7 +18,13 @@ from xdsl.rewriter import Rewriter
 from xdsl.passes import ModulePass
 
 from ..dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
-from ..dialects.smt_utils_dialect import AnyPairType, FirstOp, PairOp, PairType, SecondOp
+from ..dialects.smt_utils_dialect import (
+    AnyPairType,
+    FirstOp,
+    PairOp,
+    PairType,
+    SecondOp,
+)
 from .canonicalize_smt import FoldUtilsPattern
 from .dead_code_elimination import DeadCodeElimination
 

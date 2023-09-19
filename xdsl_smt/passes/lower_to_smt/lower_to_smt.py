@@ -53,7 +53,9 @@ class LowerToSMT(ModulePass):
         elif len(types) == 1:
             return __class__.lower_type(types[0])
         else:
-            return reduce(lambda r, l: PairType(l, r), map(__class__.lower_type, reversed(types)))
+            return reduce(
+                lambda r, l: PairType(l, r), map(__class__.lower_type, reversed(types))
+            )
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         walker = PatternRewriteWalker(

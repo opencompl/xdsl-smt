@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from xdsl.ir import (Operation, OpResult)
+from xdsl.ir import Operation, OpResult
 
 
 def new_ops(op: Operation) -> Iterable[Operation]:
