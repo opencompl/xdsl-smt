@@ -29,8 +29,11 @@ jobs:
       - name: Upgrade pip
         run: |
           pip install --upgrade pip
-      - name: Install the requirements
-        run: pip install -r requirements.txt
+      - name: Install pipenv
+        run: |
+          pip install pipenv
+      - name: Install the package
+        run: pipenv install .
       - name: Pyright
         uses: jakebailey/pyright-action@v1
         with:
