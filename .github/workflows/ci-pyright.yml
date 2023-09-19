@@ -34,6 +34,8 @@ jobs:
           pip install pipenv
       - name: Install the package
         run: pipenv install .
+      - name: Enter the virtual environment
+        run: pipenv shell
       - name: Pyright
         uses: jakebailey/pyright-action@v1
         with:
