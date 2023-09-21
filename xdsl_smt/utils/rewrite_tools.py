@@ -1,5 +1,6 @@
 from abc import ABCMeta
 from typing import (Any, Callable, Iterable, Self, TypeVar)
+import inspect
 
 from xdsl.ir import (Operation, OpResult)
 from xdsl.pattern_rewriter import (
@@ -59,14 +60,19 @@ class PatternRegistrar:
 class SimpleRewriteMeta(ABCMeta):
     """Metaclass for more concisely defining rewrites
 
-    Classes with this metaclass are expected to define a `source` attribute
-    specifying the source operation and a `rewrite` attribute that takes an
-    instance of the source operation and returns the rewritten operation."""
+    Classes with this metaclass are expected to define a `rewrite` attribute that takes an
+    instance of the source operation and returns the rewritten operation.
+
+    `rewrite` must have a type annotation on its parameter."""
 
     def __new__(cls: type[Self], name: str, bases: tuple[type, ...], attrs: dict[str, Any]):
         try:
-            srcOp: type[Operation] = attrs['source']
             rewrite: Callable[[Operation], Operation] = attrs['rewrite']
+            s = inspect.signature(rewrite)
+            srcOp: type[Operation] = [*s.parameters.values()][0].annotation
+            if srcOp is inspect.Parameter.empty:
+                raise ValueError(f"{rewrite.__name__}'s parameter doesn't have a declared type")
+            _debugp(f"found rewrite from {srcOp} to {s.return_annotation}")
         except KeyError as e:
             _debugp(f"{name} has no {e}")
 
@@ -138,7 +144,7 @@ class SimpleRewritePatternFactory:
 
         self._make(srcOp.__name__ + 'RewritePattern',
                    SimpleRewritePattern,
-                   {'source': srcOp, 'rewrite': rewrite})
+                   {'rewrite': rewrite})
 
 
     def make_binop(self: Self, srcOp: type[Operation], tgtOp: type[Operation]) -> None:
