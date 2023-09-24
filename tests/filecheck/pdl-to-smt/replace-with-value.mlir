@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,canonicalize-smt -t smt | filecheck "%s"
 
 // or(x, or(x, y)) -> or(x, y)
 
@@ -16,8 +16,9 @@
   }) {benefit = 1 : i16} : () -> ()
 }) : () -> ()
 
+// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (assert (distinct (pair (bvor (first tmp) (first tmp_0)) (or (second tmp) (second tmp_0))) (pair (bvor (first tmp) (bvor (first tmp) (first tmp_0))) (or (second tmp) (or (second tmp) (second tmp_0))))))
+// CHECK-NEXT:  (check-sat)
 
-// CHECK:      (declare-const tmp (_ BitVec 32))
-// CHECK-NEXT: (declare-const tmp_0 (_ BitVec 32))
-// CHECK-NEXT: (assert (distinct (bvor tmp tmp_0) (bvor tmp (bvor tmp tmp_0))))
-// CHECK-NEXT: (check-sat)

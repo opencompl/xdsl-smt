@@ -10,9 +10,11 @@ from xdsl.dialects.pdl import (
     TypeOp,
     AttributeOp,
 )
+from xdsl.utils.hints import isa
 
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
+from ..dialects import smt_utils_dialect as smt_utils
 
 from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
 
@@ -27,11 +29,14 @@ from xdsl.passes import ModulePass
 from ..dialects.smt_dialect import (
     AndOp,
     AssertOp,
+    BoolType,
     CheckSatOp,
+    ConstantBoolOp,
     DeclareConstOp,
     DistinctOp,
     EqOp,
     NotOp,
+    OrOp,
 )
 from .lower_to_smt.lower_to_smt import LowerToSMT
 
@@ -204,22 +209,39 @@ class ResultRewrite(RewritePattern):
 
 
 def kb_analysis_correct(
-    value: SSAValue, zeros: SSAValue, ones: SSAValue
+    poisoned_value: SSAValue, zeros: SSAValue, ones: SSAValue
 ) -> tuple[SSAValue, list[Operation]]:
+    assert isa(poisoned_value.type, smt_utils.PairType[smt_bv.BitVectorType, BoolType])
+
+    value_op = smt_utils.FirstOp(poisoned_value)
+    value = value_op.res
     assert isinstance(value.type, smt_bv.BitVectorType)
+
+    poison_op = smt_utils.SecondOp(poisoned_value)
+    poison = poison_op.res
+    true_op = ConstantBoolOp.from_bool(True)
+    poison_correct = EqOp(poison, true_op.res)
+
     and_op_zeros = smt_bv.AndOp(value, zeros)
     zero = smt_bv.ConstantOp(0, value.type.width.data)
     zeros_correct = EqOp(and_op_zeros.res, zero.res)
     and_op_ones = smt_bv.AndOp(value, ones)
     ones_correct = EqOp(and_op_ones.res, ones)
-    all_correct = AndOp(zeros_correct.res, ones_correct.res)
-    return all_correct.res, [
+    value_correct = AndOp(zeros_correct.res, ones_correct.res)
+    correct = OrOp(poison_correct.res, value_correct.res)
+
+    return value_correct.res, [
+        value_op,
+        poison_op,
+        true_op,
+        poison_correct,
         and_op_zeros,
         zero,
         zeros_correct,
         and_op_ones,
         ones_correct,
-        all_correct,
+        value_correct,
+        correct,
     ]
 
 
@@ -229,8 +251,8 @@ class GetOpRewrite(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: pdl_dataflow.GetOp, rewriter: PatternRewriter):
-        assert isinstance(op.value.type, smt_bv.BitVectorType)
-        bv_type = op.value.type
+        assert isa(op.value.type, smt_utils.PairType[smt_bv.BitVectorType, BoolType])
+        bv_type = op.value.type.first
         zeros_op = DeclareConstOp(bv_type)
         ones_op = DeclareConstOp(bv_type)
 

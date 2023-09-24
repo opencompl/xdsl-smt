@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt -t smt | z3 -in | filecheck "%s"
+// RUN: xdsl-smt "%s" --circt -p=pdl-to-smt -t smt | z3 -in | filecheck "%s"
 
 // or(x, y) -> or(y, x)
 

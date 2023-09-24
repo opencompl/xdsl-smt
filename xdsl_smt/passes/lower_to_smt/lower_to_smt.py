@@ -17,12 +17,21 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
 )
 
+from xdsl_smt.dialects.smt_dialect import BoolType
+
 from ...dialects.smt_bitvector_dialect import BitVectorType
 from ...dialects.smt_utils_dialect import PairType
 
 
+def integer_poison_type_lowerer(type: Attribute) -> Attribute | None:
+    """Convert an integer type to a bitvector integer with a poison flag."""
+    if isinstance(type, IntegerType):
+        return PairType(BitVectorType(type.width), BoolType())
+    return None
+
+
 def integer_type_lowerer(type: Attribute) -> Attribute | None:
-    """Convert a type to an SMT sort"""
+    """Convert an integer type to a bitvector integer."""
     if isinstance(type, IntegerType):
         return BitVectorType(type.width)
     return None

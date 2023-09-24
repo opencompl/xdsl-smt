@@ -8,5 +8,6 @@
   }) {"sym_name" = "test", "function_type" = (i32, i32) -> i32, "sym_visibility" = "private"} : () -> ()
 }) : () -> ()
 
-// CHECK:      (define-fun tmp ((x (_ BitVec 32)) (y (_ BitVec 32))) (_ BitVec 32)
-// CHECK-NEXT:   (bvadd x y))
+// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (define-fun tmp ((x (Pair (_ BitVec 32) Bool)) (y (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
+// CHECK-NEXT:    (pair (bvadd (first x) (first y)) (or (second x) (second y))))

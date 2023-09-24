@@ -16,7 +16,9 @@
 }) : () -> ()
 
 
-// CHECK:      (declare-const tmp (_ BitVec 32))
-// CHECK-NEXT: (declare-const tmp_0 (_ BitVec 32))
-// CHECK-NEXT: (assert (distinct (bvor tmp_0 tmp) (bvor tmp tmp_0)))
-// CHECK-NEXT: (check-sat)
+// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (assert (distinct (pair (bvor (first tmp_0) (first tmp)) (or (second tmp_0) (second tmp))) (pair (bvor (first tmp) (first tmp_0)) (or (second tmp) (second tmp_0)))))
+// CHECK-NEXT:  (check-sat)
+

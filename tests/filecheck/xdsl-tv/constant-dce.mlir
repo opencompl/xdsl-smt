@@ -8,8 +8,8 @@
   }) {"sym_name" = "test", "function_type" = () -> i32, "sym_visibility" = "private"} : () -> ()
 }) : () -> ()
 
-// CHECK:      (define-fun tmp () (_ BitVec 32)
-// CHECK-NEXT:   (_ bv3 32))
-// CHECK-NEXT: (define-fun tmp_0 () (_ BitVec 32)
-// CHECK-NEXT:   (_ bv3 32))
-// CHECK-NEXT: (assert (= (tmp) (tmp_0)))
+// CHECK:       (define-fun tmp () (_ BitVec 32)
+// CHECK-NEXT:    (pair (_ bv3 32) false))
+// CHECK-NEXT:  (define-fun tmp_0 () (_ BitVec 32)
+// CHECK-NEXT:    (pair (_ bv3 32) false))
+// CHECK-NEXT:  (assert (= (tmp) (tmp_0)))

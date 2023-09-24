@@ -7,6 +7,8 @@ from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import integer_poison_type_lowerer
+
 
 from ..dialects.hoare_dialect import Hoare
 from ..dialects.pdl_dataflow import PDLDataflowDialect
@@ -59,6 +61,12 @@ class OptMain(xDSLOptMain):
         self.register_pass(PDLToSMT)
 
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
+        arg_parser.add_argument(
+            "--circt",
+            default=False,
+            action="store_true",
+            help="Handle only func and comb dialects",
+        )
         super().register_all_arguments(arg_parser)
 
     def register_all_targets(self):
@@ -67,15 +75,21 @@ class OptMain(xDSLOptMain):
 
 
 def main():
-    LowerToSMT.rewrite_patterns = [
-        *arith_to_smt_patterns,
-        *comb_to_smt_patterns,
-        *transfer_to_smt_patterns,
-        *func_to_smt_patterns,
-    ]
-    LowerToSMT.type_lowerers = [integer_type_lowerer]
-
     xdsl_main = OptMain()
+    if xdsl_main.args.circt:
+        LowerToSMT.rewrite_patterns = [
+            *comb_to_smt_patterns,
+            *func_to_smt_patterns,
+        ]
+        LowerToSMT.type_lowerers = [integer_type_lowerer]
+    else:
+        LowerToSMT.rewrite_patterns = [
+            *arith_to_smt_patterns,
+            *transfer_to_smt_patterns,
+            *func_to_smt_patterns,
+        ]
+        LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
+
     xdsl_main.run()
 
 

@@ -26,14 +26,13 @@ from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import TransIntegerType, Transfer
 from ..dialects.comb import Comb
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT
+from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.pdl_to_smt import PDLToSMT
 from ..passes.lower_to_smt import (
     arith_to_smt_patterns,
     comb_to_smt_patterns,
     func_to_smt_patterns,
     transfer_to_smt_patterns,
-    integer_type_lowerer,
 )
 from ..traits.smt_printer import print_to_smtlib
 
@@ -110,11 +109,10 @@ class OptMain(xDSLOptMain):
 def main() -> None:
     LowerToSMT.rewrite_patterns = [
         *arith_to_smt_patterns,
-        *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
     ]
-    LowerToSMT.type_lowerers = [integer_type_lowerer]
+    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
 
     OptMain().run()
 

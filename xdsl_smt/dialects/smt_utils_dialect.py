@@ -137,9 +137,7 @@ def pair_from_list(*vals: SSAValue) -> SSAValue:
     elif len(vals) == 1:
         return vals[0]
     else:
-        return reduce(
-            lambda r, l: SSAValue.get(PairOp.from_values(l, r)), reversed(vals)
-        )
+        return reduce(lambda r, l: SSAValue.get(PairOp(l, r)), reversed(vals))
 
 
 SMTUtilsDialect = Dialect([PairOp, FirstOp, SecondOp], [PairType])

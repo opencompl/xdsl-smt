@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=lower-to-smt,canonicalize-smt -t=smt --split-input-file | filecheck "%s"
+// RUN: xdsl-smt "%s" --circt -p=lower-to-smt,canonicalize-smt -t=smt --split-input-file | filecheck "%s"
 
 // comb.add
 

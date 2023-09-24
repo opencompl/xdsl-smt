@@ -40,7 +40,7 @@ class RemovePairArgsFunction(RewritePattern):
                 typ = cast(AnyPairType, arg.type)
                 fst = rewriter.insert_block_argument(block, i + 1, typ.first)
                 snd = rewriter.insert_block_argument(block, i + 2, typ.second)
-                get_pair = PairOp.from_values(fst, snd)
+                get_pair = PairOp(fst, snd)
                 rewriter.insert_op_at_start(get_pair, block)
                 arg.replace_by(get_pair.res)
                 rewriter.erase_block_argument(arg)
@@ -62,8 +62,8 @@ class RemovePairArgsCall(RewritePattern):
         while i < len(args):
             arg = args[i]
             if isinstance(arg.type, PairType):
-                fst = FirstOp.from_value(arg)
-                snd = SecondOp.from_value(arg)
+                fst = FirstOp(arg)
+                snd = SecondOp(arg)
                 rewriter.insert_op_before_matched_op([fst, snd])
                 rewriter.replace_matched_op(
                     CallOp.create(
@@ -98,7 +98,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
 
             # Mutate the new function to return the first element of the pair.
             firstBlock = firstFunc.body.blocks[0]
-            firstOp = FirstOp.from_value(firstFunc.return_val)
+            firstOp = FirstOp(firstFunc.return_val)
             firstBlockTerminator = firstBlock.last_op
             assert firstBlockTerminator is not None
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
@@ -118,7 +118,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
             secondBlock = secondFunc.body.blocks[0]
             secondBlockTerminator = secondBlock.last_op
             assert secondBlockTerminator is not None
-            secondOp = SecondOp.from_value(secondFunc.return_val)
+            secondOp = SecondOp(secondFunc.return_val)
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp.from_ret_value(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
@@ -146,7 +146,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
                     result_types=[secondFunc.ret.type.outputs.data[0]],
                     operands=[secondFunc.ret] + list(call.args),
                 )
-                mergeCalls = PairOp.from_values(callFirst.res, callSecond.res)
+                mergeCalls = PairOp(callFirst.res, callSecond.res)
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 
