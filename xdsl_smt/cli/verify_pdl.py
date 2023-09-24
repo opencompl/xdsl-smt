@@ -30,7 +30,6 @@ from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_l
 from ..passes.pdl_to_smt import PDLToSMT
 from ..passes.lower_to_smt import (
     arith_to_smt_patterns,
-    comb_to_smt_patterns,
     func_to_smt_patterns,
     transfer_to_smt_patterns,
 )

@@ -21,4 +21,3 @@
 // CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (assert (distinct (pair (bvor (first tmp_0) (first tmp)) (or (second tmp_0) (second tmp))) (pair (bvor (first tmp) (first tmp_0)) (or (second tmp) (second tmp_0)))))
 // CHECK-NEXT:  (check-sat)
-
