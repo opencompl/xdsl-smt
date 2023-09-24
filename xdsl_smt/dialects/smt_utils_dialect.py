@@ -59,10 +59,9 @@ class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
     first: Operand = operand_def()
     second: Operand = operand_def()
 
-    @staticmethod
-    def from_values(first: SSAValue, second: SSAValue) -> PairOp:
+    def __init__(self, first: SSAValue, second: SSAValue) -> None:
         result_type = PairType(first.type, second.type)
-        return PairOp.create(result_types=[result_type], operands=[first, second])
+        return super().__init__(result_types=[result_type], operands=[first, second])
 
     def verify_(self):
         assert isinstance(self.res.type, PairType)
@@ -83,14 +82,13 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
     res: OpResult = result_def()
     pair: Operand = operand_def(AnyPairType)
 
-    @staticmethod
-    def from_value(pair: SSAValue) -> FirstOp:
+    def __init__(self, pair: SSAValue) -> None:
         if not isinstance(pair.type, PairType):
             raise VerifyException(
                 "{self.name} operand is expected to be a {PairType.name} type"
             )
         pair_typ = cast(AnyPairType, pair.type)
-        return FirstOp.create(result_types=[pair_typ.first], operands=[pair])
+        super().__init__(result_types=[pair_typ.first], operands=[pair])
 
     def verify_(self):
         assert isinstance(self.pair.type, PairType)
@@ -122,14 +120,13 @@ class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
                 "{self.name} result type is incompatible with operand types."
             )
 
-    @staticmethod
-    def from_value(pair: SSAValue) -> SecondOp:
+    def __init__(self, pair: SSAValue) -> None:
         if not isinstance(pair.type, PairType):
             raise VerifyException(
                 "{self.name} operand is expected to be a {PairType.name} type"
             )
         pair_typ = cast(AnyPairType, pair.type)
-        return SecondOp.create(result_types=[pair_typ.second], operands=[pair])
+        return super().__init__(result_types=[pair_typ.second], operands=[pair])
 
 
 def pair_from_list(*vals: SSAValue) -> SSAValue:
