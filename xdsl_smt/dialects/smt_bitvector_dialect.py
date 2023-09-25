@@ -432,6 +432,30 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
         return "bvsgt"
 
 
+@irdl_op_definition
+class Umul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.umul_noovfl"
+
+    def op_name(self) -> str:
+        return "bvumul_noovfl"
+
+
+@irdl_op_definition
+class Smul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.smul_noovfl"
+
+    def op_name(self) -> str:
+        return "bvsmul_noovfl"
+
+
+@irdl_op_definition
+class Umul_noudflOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.umul_noudfl"
+
+    def op_name(self) -> str:
+        return "bvumul_noudfl"
+
+
 ################################################################################
 #                                  Predicate                                   #
 ################################################################################
