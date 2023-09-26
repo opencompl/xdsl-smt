@@ -433,7 +433,7 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class Umul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
+class UmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.umul_noovfl"
 
     def op_name(self) -> str:
@@ -441,7 +441,7 @@ class Umul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class Smul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
+class SmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.smul_noovfl"
 
     def op_name(self) -> str:
@@ -449,11 +449,11 @@ class Smul_noovflOp(BinaryPredBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
-class Umul_noudflOp(BinaryPredBVOp, SimpleSMTLibOp):
-    name = "smt.bv.umul_noudfl"
+class SmulNoUnderflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.smul_noudfl"
 
     def op_name(self) -> str:
-        return "bvumul_noudfl"
+        return "bvsmul_noudfl"
 
 
 ################################################################################
@@ -536,6 +536,9 @@ SMTBitVectorDialect = Dialect(
         SltOp,
         SgeOp,
         SgtOp,
+        UmulNoOverflowOp,
+        SmulNoOverflowOp,
+        SmulNoUnderflowOp,
         # Others
         ConcatOp,
         ExtractOp,

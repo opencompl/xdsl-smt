@@ -38,4 +38,16 @@
   %sgt = "smt.bv.sgt"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
   "smt.assert"(%sgt) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (bvsgt x y))
+
+  %umul_noovfl = "smt.bv.umul_noovfl"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+  "smt.assert"(%umul_noovfl) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (bvumul_noovfl x y))
+
+  %smul_noovfl = "smt.bv.smul_noovfl"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+  "smt.assert"(%smul_noovfl) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (bvsmul_noovfl x y))
+
+  %smul_noudfl = "smt.bv.smul_noudfl"(%x, %y) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+  "smt.assert"(%smul_noudfl) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (bvsmul_noudfl x y))
 }) : () -> ()
