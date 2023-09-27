@@ -19,6 +19,7 @@ from ..utils.trans_interpreter_smt import *
 from ..passes.rename_values import RenameValuesPass
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.pdl_to_smt import PDLToSMT
+from ..passes.lower_to_smt.transfer_to_smt import abstract_value_type_lowerer, transfer_integer_type_lowerer
 from ..passes.lower_to_smt import (
     arith_to_smt_patterns,
     func_to_smt_patterns,
@@ -48,6 +49,9 @@ def parse_file(ctx, file: str | None) -> Operation:
 KEY_NEED_VERIFY = "builtin.NEED_VERIFY"
 MAXIMAL_VERIFIED_BITS = 8
 
+
+def solveVectorWidth():
+    return 8
 
 def main() -> None:
     ctx = MLContext()
@@ -87,9 +91,12 @@ def main() -> None:
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
     ]
-    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
+    LowerToSMT.type_lowerers = [integer_poison_type_lowerer,
+                                abstract_value_type_lowerer,
+                                lambda type: transfer_integer_type_lowerer(type, solveVectorWidth())]
     cloned_op = module.clone()
     PDLToSMT().apply(ctx, cloned_op)
+    print(cloned_op)
 
 if __name__ == "__main__":
     main()
