@@ -25,6 +25,7 @@ from ..passes.lower_to_smt import (
     func_to_smt_patterns,
     transfer_to_smt_patterns,
 )
+from ..traits.smt_printer import print_to_smtlib
 
 from z3 import BitVec, Solver, And, Not, simplify, ForAll, Implies
 import sys as sys
@@ -97,6 +98,7 @@ def main() -> None:
     cloned_op = module.clone()
     PDLToSMT().apply(ctx, cloned_op)
     print(cloned_op)
+    print_to_smtlib(cloned_op, sys.stdout)
 
 if __name__ == "__main__":
     main()
