@@ -247,7 +247,9 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
             return DefineFunOp.create(result_types=[func_type], regions=[region])
         else:
             return DefineFunOp.build(
-                result_types=[func_type], attributes={"name": name}, regions=[region]
+                result_types=[func_type],
+                attributes={"fun_name": name},
+                regions=[region],
             )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
