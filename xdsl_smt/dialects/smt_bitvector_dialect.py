@@ -81,7 +81,7 @@ class BitVectorValue(ParametrizedAttribute):
         return BitVectorType.from_int(self.width.data)
 
     def verify(self) -> None:
-        if not (0 <= self.value.data < 2**self.width.data):
+        if not (0 <= self.value.data < 2 ** self.width.data):
             raise VerifyException("BitVector value out of range")
 
     def as_smtlib_str(self) -> str:
@@ -115,9 +115,9 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
         ...
 
     def __init__(
-        self,
-        value: int | IntAttr | IntegerAttr[IntegerType],
-        width: int | IntAttr | None = None,
+            self,
+            value: int | IntAttr | IntegerAttr[IntegerType],
+            width: int | IntAttr | None = None,
     ) -> None:
         if isinstance(value, int | IntAttr):
             if not isinstance(width, int | IntAttr):
@@ -126,7 +126,7 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
         else:
             width = value.type.width.data
             value = (
-                value.value.data + 2**width
+                value.value.data + 2 ** width
                 if value.value.data < 0
                 else value.value.data
             )
@@ -503,6 +503,31 @@ class ExtractOp(IRDLOperation, SMTLibOp):
         print(")", file=stream, end="")
 
 
+@irdl_op_definition
+class RepeatOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.repeat"
+
+    operand: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
+
+    count: IntAttr = attr_def(IntAttr)
+
+    def __init__(self, operand: SSAValue, count: int):
+        assert isinstance(operand.type, BitVectorType)
+        assert count >= 1
+        super().__init__(
+            result_types=[BitVectorType(operand.type.width.data * count)],
+            operands=[operand],
+            attributes={"count": IntAttr(count)},
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        print(f"((_ repeat {self.count.data}) ", file=stream, end="")
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -542,6 +567,7 @@ SMTBitVectorDialect = Dialect(
         # Others
         ConcatOp,
         ExtractOp,
+        RepeatOp,
     ],
     [BitVectorType, BitVectorValue],
 )
