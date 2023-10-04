@@ -10,5 +10,5 @@
 
 
 // CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun tmp () (Pair (_ BitVec 32) Bool)
+// CHECK-NEXT: (define-fun test () (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:   (pair (_ bv3 32) false))
