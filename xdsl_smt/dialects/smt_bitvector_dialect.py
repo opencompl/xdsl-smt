@@ -81,7 +81,7 @@ class BitVectorValue(ParametrizedAttribute):
         return BitVectorType.from_int(self.width.data)
 
     def verify(self) -> None:
-        if not (0 <= self.value.data < 2 ** self.width.data):
+        if not (0 <= self.value.data < 2**self.width.data):
             raise VerifyException("BitVector value out of range")
 
     def as_smtlib_str(self) -> str:
@@ -115,9 +115,9 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
         ...
 
     def __init__(
-            self,
-            value: int | IntAttr | IntegerAttr[IntegerType],
-            width: int | IntAttr | None = None,
+        self,
+        value: int | IntAttr | IntegerAttr[IntegerType],
+        width: int | IntAttr | None = None,
     ) -> None:
         if isinstance(value, int | IntAttr):
             if not isinstance(width, int | IntAttr):
@@ -126,7 +126,7 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
         else:
             width = value.type.width.data
             value = (
-                value.value.data + 2 ** width
+                value.value.data + 2**width
                 if value.value.data < 0
                 else value.value.data
             )
