@@ -177,30 +177,30 @@ class MaxuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Maxui, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
-        sgt_op = bv_dialect.UgtOp(operands[0], operands[1])
-        ite_op = smt_dialect.IteOp(SSAValue.get(sgt_op), operands[0], operands[1])
+        ugt_op = bv_dialect.UgtOp(operands[0], operands[1])
+        ite_op = smt_dialect.IteOp(SSAValue.get(ugt_op), operands[0], operands[1])
         res_op = utils_dialect.PairOp(ite_op.res, poison)
-        rewriter.replace_matched_op([sgt_op, ite_op, res_op])
+        rewriter.replace_matched_op([ugt_op, ite_op, res_op])
 
 
 class MinsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Minsi, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
-        sgt_op = bv_dialect.SleOp(operands[0], operands[1])
-        ite_op = smt_dialect.IteOp(SSAValue.get(sgt_op), operands[0], operands[1])
+        sle_op = bv_dialect.SleOp(operands[0], operands[1])
+        ite_op = smt_dialect.IteOp(SSAValue.get(sle_op), operands[0], operands[1])
         res_op = utils_dialect.PairOp(ite_op.res, poison)
-        rewriter.replace_matched_op([sgt_op, ite_op, res_op])
+        rewriter.replace_matched_op([sle_op, ite_op, res_op])
 
 
 class MinuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Minui, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
-        sgt_op = bv_dialect.UleOp(operands[0], operands[1])
-        ite_op = smt_dialect.IteOp(SSAValue.get(sgt_op), operands[0], operands[1])
+        ule_op = bv_dialect.UleOp(operands[0], operands[1])
+        ite_op = smt_dialect.IteOp(SSAValue.get(ule_op), operands[0], operands[1])
         res_op = utils_dialect.PairOp(ite_op.res, poison)
-        rewriter.replace_matched_op([sgt_op, ite_op, res_op])
+        rewriter.replace_matched_op([ule_op, ite_op, res_op])
 
 
 class CmpiRewritePattern(RewritePattern):
