@@ -503,6 +503,31 @@ class ExtractOp(IRDLOperation, SMTLibOp):
         print(")", file=stream, end="")
 
 
+@irdl_op_definition
+class RepeatOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.repeat"
+
+    operand: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
+
+    count: IntAttr = attr_def(IntAttr)
+
+    def __init__(self, operand: SSAValue, count: int):
+        assert isinstance(operand.type, BitVectorType)
+        assert count >= 1
+        super().__init__(
+            result_types=[BitVectorType(operand.type.width.data * count)],
+            operands=[operand],
+            attributes={"count": IntAttr(count)},
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        print(f"((_ repeat {self.count.data}) ", file=stream, end="")
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
 SMTBitVectorDialect = Dialect(
     [
         ConstantOp,
@@ -542,6 +567,7 @@ SMTBitVectorDialect = Dialect(
         # Others
         ConcatOp,
         ExtractOp,
+        RepeatOp,
     ],
     [BitVectorType, BitVectorValue],
 )
