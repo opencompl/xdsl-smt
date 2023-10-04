@@ -220,7 +220,7 @@ class CmpiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Cmpi, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
-        predicate = op.attributes["predicate"].value.data
+        predicate = op.attributes["predicate"].value.data  # type: int
         sgt_op = self.predicates[predicate](operands[0], operands[1])
         bv_0 = bv_dialect.ConstantOp(0, 1)
         bv_1 = bv_dialect.ConstantOp(1, 1)
@@ -259,7 +259,7 @@ class TrunciRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.Trunci, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op._in, rewriter)
         assert isinstance(op.out.type, bv_dialect.BitVectorType)
-        new_width = op.out.type.width
+        new_width = op.out.type.width  # type: int
         res = bv_dialect.ExtractOp(val, new_width - 1, 0)
         res_op = utils_dialect.PairOp(res.res, poison)
         rewriter.replace_matched_op([res, res_op])
@@ -270,8 +270,9 @@ class ExtuiRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.Extui, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op._in, rewriter)
         assert isinstance(op.out.type, bv_dialect.BitVectorType)
-        new_width = op.out.type.width.data
-        prefix = bv_dialect.ConstantOp(0, new_width - val.type.width.data)
+        new_width = op.out.type.width.data  # type: int
+        old_width = val.type.width.data  # type: int
+        prefix = bv_dialect.ConstantOp(0, new_width - old_width)
         res = bv_dialect.ConcatOp(prefix.res, val)
         res_op = utils_dialect.PairOp(res.res, poison)
         rewriter.replace_matched_op([prefix, res, res_op])
@@ -282,8 +283,8 @@ class ExtsiRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.Extsi, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op._in, rewriter)
         assert isinstance(op.out.type, bv_dialect.BitVectorType)
-        old_width = val.type.width.data
-        new_width = op.out.type.width.data
+        old_width = val.type.width.data  # type: int
+        new_width = op.out.type.width.data  # type: int
         sign = bv_dialect.ExtractOp(val, old_width - 1, old_width - 1)
         prefix = bv_dialect.RepeatOp(sign.res, new_width - old_width)
         res = bv_dialect.ConcatOp(prefix.res, val)
@@ -313,7 +314,7 @@ class CeildivsiRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.Ceildivsi, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
-        width = operands[1].type.width.data
+        width = operands[1].type.width.data  # type: int
         bv_1 = bv_dialect.ConstantOp(1, width)
         divisor_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
         dividend_add = bv_dialect.AddOp(operands[0], divisor_sub_1.res)
@@ -346,7 +347,7 @@ class FloordivsiRewritePattern(RewritePattern):
     ) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
-        width = operands[1].type.width.data
+        width = operands[1].type.width.data  # type: int
         bv_1 = bv_dialect.ConstantOp(1, width)
         divisor_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
         dividend_sub = bv_dialect.SubOp(operands[0], divisor_sub_1.res)
