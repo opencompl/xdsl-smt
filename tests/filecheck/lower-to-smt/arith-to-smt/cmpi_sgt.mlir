@@ -1,4 +1,5 @@
 // RUN: xdsl-smt "%s" -p=lower-to-smt,canonicalize-smt -t=smt | filecheck "%s"
+// RUN: xdsl-smt %s -p=lower-to-smt,canonicalize-smt -t=smt | z3 -in
 
 "builtin.module"() ({
   "func.func"() ({
