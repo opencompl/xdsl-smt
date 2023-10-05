@@ -12,4 +12,4 @@
 // CHECK-NEXT:    (pair (_ bv3 32) false))
 // CHECK-NEXT:  (define-fun test_0 () (_ BitVec 32)
 // CHECK-NEXT:    (pair (_ bv3 32) false))
-// CHECK-NEXT:  (assert (= (tmp) (tmp_0)))
+// CHECK-NEXT:  (assert (= (test) (test_0)))

@@ -20,7 +20,7 @@ builtin.module {
   "smt.assert"(%eq_extract) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= x ((_ extract 7 3) z))
 
-  %repeat = "smt.bv.extract"(%x) {"count" = #int<3>} : (!smt.bv.bv<5>) -> !smt.bv.bv<15>
+  %repeat = "smt.bv.repeat"(%x) {"count" = #int<3>} : (!smt.bv.bv<5>) -> !smt.bv.bv<15>
   %eq_repeat = "smt.eq"(%z, %repeat) : (!smt.bv.bv<15>, !smt.bv.bv<15>) -> !smt.bool
   "smt.assert"(%eq_repeat) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= z ((_ repeat 3) x))
