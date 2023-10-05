@@ -259,7 +259,7 @@ class TrunciRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.Trunci, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op._in, rewriter)
         assert isinstance(op.out.type, bv_dialect.BitVectorType)
-        new_width = op.out.type.width  # type: int
+        new_width = op.out.type.width.data  # type: int
         res = bv_dialect.ExtractOp(val, new_width - 1, 0)
         res_op = utils_dialect.PairOp(res.res, poison)
         rewriter.replace_matched_op([res, res_op])
