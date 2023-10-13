@@ -7,6 +7,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
 )
+from xdsl.parser import AnyIntegerAttr
 
 from ..traits.effects import Pure
 
@@ -47,7 +48,7 @@ class Andi(IRDLOperation, Pure):
 @irdl_op_definition
 class Bitcast(IRDLOperation, Pure):
     name = "arith.bitcast"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
@@ -81,6 +82,8 @@ class Cmpi(IRDLOperation, Pure):
     lhs: Operand = operand_def()
     rhs: Operand = operand_def()
     result: OpResult = result_def()
+
+    predicate: AnyIntegerAttr = attr_def(AnyIntegerAttr)
 
 
 @irdl_op_definition
@@ -117,35 +120,35 @@ class Divui(IRDLOperation, Pure):
 @irdl_op_definition
 class Extf(IRDLOperation, Pure):
     name = "arith.extf"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Extsi(IRDLOperation, Pure):
     name = "arith.extsi"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Extui(IRDLOperation, Pure):
     name = "arith.extui"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Fptosi(IRDLOperation, Pure):
     name = "arith.fptosi"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Fptoui(IRDLOperation, Pure):
     name = "arith.fptoui"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
@@ -160,14 +163,14 @@ class Floordivsi(IRDLOperation, Pure):
 @irdl_op_definition
 class IndexCast(IRDLOperation, Pure):
     name = "arith.index_cast"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class IndexCastui(IRDLOperation, Pure):
     name = "arith.index_castui"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
@@ -277,7 +280,7 @@ class Remui(IRDLOperation, Pure):
 @irdl_op_definition
 class Sitofp(IRDLOperation, Pure):
     name = "arith.sitofp"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
@@ -324,21 +327,21 @@ class Subi(IRDLOperation, Pure):
 @irdl_op_definition
 class Truncf(IRDLOperation, Pure):
     name = "arith.truncf"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Trunci(IRDLOperation, Pure):
     name = "arith.trunci"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
 @irdl_op_definition
 class Uitofp(IRDLOperation, Pure):
     name = "arith.uitofp"
-    _in: Operand = operand_def()
+    in_: Operand = operand_def()
     out: OpResult = result_def()
 
 
