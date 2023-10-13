@@ -10,9 +10,11 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
+from ..dialects.hw_dialect import HW
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
+from xdsl.dialects.comb import Comb
 
 from ..passes.lower_pairs import LowerPairs
 from ..passes.canonicalize_smt import CanonicalizeSMT
@@ -86,6 +88,8 @@ def main() -> None:
     ctx.register_dialect(SMTDialect)
     ctx.register_dialect(SMTBitVectorDialect)
     ctx.register_dialect(SMTUtilsDialect)
+    ctx.register_dialect(Comb)
+    ctx.register_dialect(HW)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:

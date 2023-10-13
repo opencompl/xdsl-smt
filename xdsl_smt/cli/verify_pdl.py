@@ -14,6 +14,7 @@ from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, TypeOp
 from xdsl.dialects.arith import Arith
+from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 
@@ -25,7 +26,7 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import TransIntegerType, Transfer
-from ..dialects.comb import Comb
+from ..dialects.hw_dialect import HW
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.pdl_to_smt import PDLToSMT
 from ..passes.lower_to_smt import (
@@ -85,6 +86,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(PDL)
         self.ctx.register_dialect(PDLDataflowDialect)
         self.ctx.register_dialect(Comb)
+        self.ctx.register_dialect(HW)
 
     def run(self):
         """Executes the different steps."""

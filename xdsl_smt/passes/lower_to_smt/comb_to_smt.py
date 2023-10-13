@@ -6,8 +6,9 @@ from xdsl.pattern_rewriter import (
 from xdsl.ir import Operation, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import IntegerType
+import xdsl.dialects.comb as comb
 
-from ...dialects import comb
+from ...dialects import hw_dialect as hw
 from ...dialects import smt_bitvector_dialect as bv_dialect
 from ...dialects import smt_dialect as core_dialect
 from .lower_to_smt import LowerToSMT
@@ -15,13 +16,13 @@ from .lower_to_smt import LowerToSMT
 
 class ConstantPattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: comb.ConstantOp, rewriter: PatternRewriter):
+    def match_and_rewrite(self, op: hw.ConstantOp, rewriter: PatternRewriter):
         smt_op = bv_dialect.ConstantOp(op.value)
         rewriter.replace_matched_op(smt_op)
 
 
 def variadic_op_pattern(
-    comb_op_type: type[comb.VariadicCombOp],
+    comb_op_type: type[IRDLOperation],
     smt_op_type: type[IRDLOperation],
     empty_value: int,
 ) -> RewritePattern:
@@ -29,7 +30,7 @@ def variadic_op_pattern(
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
             if not isinstance(op, comb_op_type):
                 return
-            res_type = LowerToSMT.lower_type(op.result.type)
+            res_type = LowerToSMT.lower_type(op.results[0].type)
             assert isinstance(res_type, bv_dialect.BitVectorType)
             if len(op.operands) == 0:
                 rewriter.replace_matched_op(
@@ -42,7 +43,7 @@ def variadic_op_pattern(
             for operand in op.operands[1:]:
                 new_op = smt_op_type.build(
                     operands=[current_val, operand],
-                    result_types=[LowerToSMT.lower_type(op.result.type)],
+                    result_types=[LowerToSMT.lower_type(op.results[0].type)],
                 )
                 current_val = new_op.results[0]
                 rewriter.insert_op_before_matched_op(new_op)
@@ -53,7 +54,7 @@ def variadic_op_pattern(
 
 
 def trivial_binop_pattern(
-    comb_op_type: type[comb.BinCombOp], smt_op_type: type[IRDLOperation]
+    comb_op_type: type[IRDLOperation], smt_op_type: type[IRDLOperation]
 ) -> RewritePattern:
     class TrivialBinOpPattern(RewritePattern):
         def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
@@ -61,7 +62,7 @@ def trivial_binop_pattern(
                 return
             new_op = smt_op_type.build(
                 operands=op.operands,
-                result_types=[LowerToSMT.lower_type(op.result.type)],
+                result_types=[LowerToSMT.lower_type(op.results[0].type)],
             )
             rewriter.replace_matched_op([new_op])
             return super().match_and_rewrite(op, rewriter)
