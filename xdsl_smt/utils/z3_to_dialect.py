@@ -52,7 +52,7 @@ def to_z3_const(val: SSAValue) -> Z3Expr:
         return values_to_z3[val]
 
     # Get the ssa value name
-    base_name = val.name
+    base_name = val.name_hint
     if base_name is None:
         base_name = "tmp"
 

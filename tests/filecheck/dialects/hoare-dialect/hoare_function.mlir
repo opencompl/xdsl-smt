@@ -29,7 +29,7 @@
 
 
 // CHECK:      "builtin.module"() ({
-// CHECK-NEXT:   "func.func"() ({
+// CHECK-NEXT:   "func.func"() <{"sym_name" = "test", "function_type" = (i32, i32) -> i32, "sym_visibility" = "private"}> ({
 // CHECK-NEXT:   ^0(%x : i32, %y : i32):
 // CHECK-NEXT:     "hoare.requires"() ({
 // CHECK-NEXT:     ^1(%x2 : !smt.bv.bv<32>, %y2 : !smt.bv.bv<32>):
@@ -45,5 +45,5 @@
 // CHECK-NEXT:     }) : () -> ()
 // CHECK-NEXT:     %r = "arith.addi"(%x, %y) : (i32, i32) -> i32
 // CHECK-NEXT:     "func.return"(%r) : (i32) -> ()
-// CHECK-NEXT:   }) {"sym_name" = "test", "function_type" = (i32, i32) -> i32, "sym_visibility" = "private"} : () -> ()
+// CHECK-NEXT:   })
 // CHECK-NEXT: }) : () -> ()
