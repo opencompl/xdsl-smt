@@ -6,11 +6,11 @@ from xdsl.pattern_rewriter import (
     op_type_rewrite_pattern,
 )
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
+import xdsl.dialects.arith as arith
 from xdsl.utils.hints import isa
 
 from ...dialects import smt_dialect
 from ...dialects import smt_bitvector_dialect as bv_dialect
-from ...dialects import arith_dialect as arith
 from ...dialects import smt_utils_dialect as utils_dialect
 
 
@@ -75,7 +75,7 @@ class MuliRewritePattern(RewritePattern):
 
 class AndiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Andi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.AndI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.AndOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -84,7 +84,7 @@ class AndiRewritePattern(RewritePattern):
 
 class OriRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Ori, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.OrI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.OrOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -93,7 +93,7 @@ class OriRewritePattern(RewritePattern):
 
 class XoriRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Xori, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.XOrI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.XorOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -102,7 +102,7 @@ class XoriRewritePattern(RewritePattern):
 
 class ShliRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Shli, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.ShLI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.ShlOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -111,7 +111,7 @@ class ShliRewritePattern(RewritePattern):
 
 class DivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Divsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.DivSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.SDivOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -120,7 +120,7 @@ class DivsiRewritePattern(RewritePattern):
 
 class DivuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Divui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.DivUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.UDivOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -129,7 +129,7 @@ class DivuiRewritePattern(RewritePattern):
 
 class RemsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Remsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.RemSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.SRemOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -138,7 +138,7 @@ class RemsiRewritePattern(RewritePattern):
 
 class RemuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Remui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.RemUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.URemOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -147,7 +147,7 @@ class RemuiRewritePattern(RewritePattern):
 
 class ShrsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Shrsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.ShRSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.AShrOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -156,7 +156,7 @@ class ShrsiRewritePattern(RewritePattern):
 
 class ShruiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Shrui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.ShRUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.LShrOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, poison)
@@ -165,7 +165,7 @@ class ShruiRewritePattern(RewritePattern):
 
 class MaxsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Maxsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.MaxSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         sgt_op = bv_dialect.SgtOp(operands[0], operands[1])
         ite_op = smt_dialect.IteOp(SSAValue.get(sgt_op), operands[0], operands[1])
@@ -175,7 +175,7 @@ class MaxsiRewritePattern(RewritePattern):
 
 class MaxuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Maxui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.MaxUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         ugt_op = bv_dialect.UgtOp(operands[0], operands[1])
         ite_op = smt_dialect.IteOp(SSAValue.get(ugt_op), operands[0], operands[1])
@@ -185,7 +185,7 @@ class MaxuiRewritePattern(RewritePattern):
 
 class MinsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Minsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.MinSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         sle_op = bv_dialect.SleOp(operands[0], operands[1])
         ite_op = smt_dialect.IteOp(SSAValue.get(sle_op), operands[0], operands[1])
@@ -195,7 +195,7 @@ class MinsiRewritePattern(RewritePattern):
 
 class MinuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Minui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.MinUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         ule_op = bv_dialect.UleOp(operands[0], operands[1])
         ite_op = smt_dialect.IteOp(SSAValue.get(ule_op), operands[0], operands[1])
@@ -237,9 +237,9 @@ class SelectRewritePattern(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.Select, rewriter: PatternRewriter) -> None:
-        cond_val, cond_poi = get_int_value_and_poison(op.condition, rewriter)
-        tr_val, tr_poi = get_int_value_and_poison(op.true_value, rewriter)
-        fls_val, fls_poi = get_int_value_and_poison(op.false_value, rewriter)
+        cond_val, cond_poi = get_int_value_and_poison(op.cond, rewriter)
+        tr_val, tr_poi = get_int_value_and_poison(op.lhs, rewriter)
+        fls_val, fls_poi = get_int_value_and_poison(op.rhs, rewriter)
         bv_0 = bv_dialect.ConstantOp(
             1,
             1,
@@ -256,10 +256,10 @@ class SelectRewritePattern(RewritePattern):
 
 class TrunciRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Trunci, rewriter: PatternRewriter) -> None:
-        val, poison = get_int_value_and_poison(op.in_, rewriter)
-        assert isinstance(op.out.type, bv_dialect.BitVectorType)
-        new_width = op.out.type.width.data
+    def match_and_rewrite(self, op: arith.TruncIOp, rewriter: PatternRewriter) -> None:
+        val, poison = get_int_value_and_poison(op.input, rewriter)
+        assert isinstance(op.result.type, bv_dialect.BitVectorType)
+        new_width = op.result.type.width.data
         res = bv_dialect.ExtractOp(val, new_width - 1, 0)
         res_op = utils_dialect.PairOp(res.res, poison)
         rewriter.replace_matched_op([res, res_op])
@@ -267,11 +267,11 @@ class TrunciRewritePattern(RewritePattern):
 
 class ExtuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Extui, rewriter: PatternRewriter) -> None:
-        val, poison = get_int_value_and_poison(op.in_, rewriter)
-        assert isinstance(op.out.type, bv_dialect.BitVectorType)
+    def match_and_rewrite(self, op: arith.ExtUIOp, rewriter: PatternRewriter) -> None:
+        val, poison = get_int_value_and_poison(op.input, rewriter)
+        assert isinstance(op.result.type, bv_dialect.BitVectorType)
         assert isinstance(val.type, bv_dialect.BitVectorType)
-        new_width = op.out.type.width.data
+        new_width = op.result.type.width.data
         old_width = val.type.width.data
         prefix = bv_dialect.ConstantOp(0, new_width - old_width)
         res = bv_dialect.ConcatOp(prefix.res, val)
@@ -281,12 +281,12 @@ class ExtuiRewritePattern(RewritePattern):
 
 class ExtsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Extsi, rewriter: PatternRewriter) -> None:
-        val, poison = get_int_value_and_poison(op.in_, rewriter)
-        assert isinstance(op.out.type, bv_dialect.BitVectorType)
+    def match_and_rewrite(self, op: arith.ExtSIOp, rewriter: PatternRewriter) -> None:
+        val, poison = get_int_value_and_poison(op.input, rewriter)
+        assert isinstance(op.result.type, bv_dialect.BitVectorType)
         assert isinstance(val.type, bv_dialect.BitVectorType)
         old_width = val.type.width.data
-        new_width = op.out.type.width.data
+        new_width = op.result.type.width.data
         sign = bv_dialect.ExtractOp(val, old_width - 1, old_width - 1)
         prefix = bv_dialect.RepeatOp(sign.res, new_width - old_width)
         res = bv_dialect.ConcatOp(prefix.res, val)
@@ -297,7 +297,7 @@ class ExtsiRewritePattern(RewritePattern):
 # Ceil unsigned div: add (divisor - 1)
 class CeildivuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Ceildivui, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.CeilDivUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         bv_1 = bv_dialect.ConstantOp(1, operands[1].type.width)
@@ -313,7 +313,7 @@ class CeildivuiRewritePattern(RewritePattern):
 # Ceil signed div: likewise, but only when sign bit unset
 class CeildivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: arith.Ceildivsi, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, op: arith.CeilDivSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         width = operands[1].type.width.data
@@ -345,7 +345,7 @@ class CeildivsiRewritePattern(RewritePattern):
 class FloordivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
-        self, op: arith.Floordivsi, rewriter: PatternRewriter
+        self, op: arith.FloorDivSI, rewriter: PatternRewriter
     ) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)

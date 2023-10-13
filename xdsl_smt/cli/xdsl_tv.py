@@ -9,10 +9,10 @@ from xdsl.parser import Parser
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.arith_dialect import Arith
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
+from xdsl.dialects.arith import Arith
 
 from ..passes.lower_pairs import LowerPairs
 from ..passes.canonicalize_smt import CanonicalizeSMT

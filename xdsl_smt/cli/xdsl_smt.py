@@ -6,6 +6,7 @@ from xdsl.xdsl_opt_main import xDSLOptMain
 from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
+from xdsl.dialects.arith import Arith
 
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import integer_poison_type_lowerer
 
@@ -15,7 +16,6 @@ from ..dialects.pdl_dataflow import PDLDataflowDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import SMTDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.arith_dialect import Arith
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import Transfer

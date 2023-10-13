@@ -13,6 +13,7 @@ from xdsl.ir import MLContext
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, TypeOp
+from xdsl.dialects.arith import Arith
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 
@@ -21,7 +22,6 @@ from ..dialects.pdl_dataflow import PDLDataflowDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import SMTDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.arith_dialect import Arith
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import TransIntegerType, Transfer
