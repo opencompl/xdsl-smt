@@ -40,5 +40,6 @@ ignore = [
   "xdsl_smt/passes/transfer_lower.py",
   "xdsl_smt/cli/xdsl_translate.py",
   "xdsl_smt/cli/verifier.py",
+  "xdsl_smt/cli/transfer_smt_verifier.py",
   "tests"
 ]

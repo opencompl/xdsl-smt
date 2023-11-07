@@ -28,7 +28,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(file: str | None) -> Operation:
+def parse_file(ctx, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
     else:
@@ -146,6 +146,7 @@ def precision_check(
     width,
 ):
     s = Solver()
+    cs.init()
     cs.ToSMTAnalysisPass(func_name_to_func, s, width).apply(ctx, abs_op)
 
     concrete_func = parse_function_to_python(
@@ -210,7 +211,7 @@ def main() -> None:
     ctx.register_dialect(Index)
 
     # Parse the files
-    module = parse_file(args.transfer_functions)
+    module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
     get_constraint = None
