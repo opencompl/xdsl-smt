@@ -3,11 +3,19 @@
 import argparse
 import sys
 
-from xdsl.ir import MLContext, Operation
+from xdsl.ir import MLContext, Operation, SSAValue
 from xdsl.parser import Parser
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_dialect import CallOp, DefineFunOp, EqOp, AssertOp, SMTDialect
+from ..dialects.smt_dialect import (
+    CallOp,
+    DefineFunOp,
+    EqOp,
+    AssertOp,
+    ForallOp,
+    SMTDialect,
+    YieldOp,
+)
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.hw_dialect import HW
@@ -52,15 +60,19 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     Create operations to check that one function refines another.
     An assert check is added to the end of the list of operations.
     """
-    if len(func.body.blocks[0].args) != 0 or len(func_after.body.blocks[0].args) != 0:
-        print("Function with arguments are not yet supported")
-        exit(1)
+    toplevel_forall: ForallOp | None = None
+    args: list[SSAValue] = []
+
+    if func.body.blocks[0].args:
+        arg_types = [arg.type for arg in func.body.blocks[0].args]
+        toplevel_forall = ForallOp.from_variables(arg_types)
+        args = list(toplevel_forall.body.block.args)
 
     ops = list[Operation]()
 
     # Call both operations
-    func_call = CallOp.get(func.results[0], [])
-    func_call_after = CallOp.get(func_after.results[0], [])
+    func_call = CallOp.get(func.results[0], args)
+    func_call_after = CallOp.get(func_after.results[0], args)
     ops += [func_call, func_call_after]
 
     # Get the function return value
@@ -70,9 +82,13 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     refinement_op = EqOp(ret_val, ret_val_after)
     ops.append(refinement_op)
 
-    ops.append(AssertOp(refinement_op.res))
+    if toplevel_forall is None:
+        ops.append(AssertOp(refinement_op.res))
+        return ops
 
-    return ops
+    toplevel_forall.body.block.add_ops(ops)
+    toplevel_forall.body.block.add_op(YieldOp(ops[-1].results[0]))
+    return [toplevel_forall, AssertOp(toplevel_forall.res)]
 
 
 def main() -> None:
