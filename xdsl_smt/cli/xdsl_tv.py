@@ -31,7 +31,7 @@ from ..passes.lower_to_smt import (
     arith_to_smt_patterns,
     comb_to_smt_patterns,
     transfer_to_smt_patterns,
-    integer_type_lowerer,
+    integer_poison_type_lowerer,
     func_to_smt_patterns,
 )
 
@@ -130,7 +130,7 @@ def main() -> None:
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
     ]
-    LowerToSMT.type_lowerers = [integer_type_lowerer]
+    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
 
     # Convert both module to SMTLib
     LowerToSMT().apply(ctx, module)
