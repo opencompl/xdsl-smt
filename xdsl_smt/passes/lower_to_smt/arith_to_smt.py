@@ -258,7 +258,7 @@ class TrunciRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.TruncIOp, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op.input, rewriter)
-        assert isinstance(op.result.type, bv_dialect.BitVectorType)
+        assert isinstance(op.result.type, IntegerType)
         new_width = op.result.type.width.data
         res = bv_dialect.ExtractOp(val, new_width - 1, 0)
         res_op = utils_dialect.PairOp(res.res, poison)
@@ -269,7 +269,7 @@ class ExtuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.ExtUIOp, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op.input, rewriter)
-        assert isinstance(op.result.type, bv_dialect.BitVectorType)
+        assert isinstance(op.result.type, IntegerType)
         assert isinstance(val.type, bv_dialect.BitVectorType)
         new_width = op.result.type.width.data
         old_width = val.type.width.data
@@ -283,7 +283,7 @@ class ExtsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.ExtSIOp, rewriter: PatternRewriter) -> None:
         val, poison = get_int_value_and_poison(op.input, rewriter)
-        assert isinstance(op.result.type, bv_dialect.BitVectorType)
+        assert isinstance(op.result.type, IntegerType)
         assert isinstance(val.type, bv_dialect.BitVectorType)
         old_width = val.type.width.data
         new_width = op.result.type.width.data
