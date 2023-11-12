@@ -68,7 +68,7 @@ class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
         res_typ = cast(AnyPairType, self.res.type)
         if res_typ.first != self.first.type or res_typ.second != self.second.type:
             raise VerifyException(
-                "{self.name} result type is incompatible with operand types."
+                f"{self.name} result type is incompatible with operand types."
             )
 
     def op_name(self) -> str:
@@ -85,7 +85,7 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
     def __init__(self, pair: SSAValue) -> None:
         if not isinstance(pair.type, PairType):
             raise VerifyException(
-                "{self.name} operand is expected to be a {PairType.name} type"
+                f"{self.name} operand is expected to be a {PairType.name} type"
             )
         pair_typ = cast(AnyPairType, pair.type)
         super().__init__(result_types=[pair_typ.first], operands=[pair])
@@ -95,7 +95,7 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
         pair_typ = cast(AnyPairType, self.pair.type)
         if self.res.type != pair_typ.first:
             raise VerifyException(
-                "{self.name} result type is incompatible with operand types."
+                f"{self.name} result type is incompatible with operand types."
             )
 
     def op_name(self) -> str:
@@ -117,13 +117,13 @@ class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
         pair_typ = cast(PairType[Attribute, Attribute], self.pair.type)
         if self.res.type != pair_typ.second:
             raise VerifyException(
-                "{self.name} result type is incompatible with operand types."
+                f"{self.name} result type is incompatible with operand types."
             )
 
     def __init__(self, pair: SSAValue) -> None:
         if not isinstance(pair.type, PairType):
             raise VerifyException(
-                "{self.name} operand is expected to be a {PairType.name} type"
+                f"{self.name} operand is expected to be a {PairType.name} type"
             )
         pair_typ = cast(AnyPairType, pair.type)
         return super().__init__(result_types=[pair_typ.second], operands=[pair])
