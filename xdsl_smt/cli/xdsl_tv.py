@@ -9,6 +9,7 @@ from xdsl.parser import Parser
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
     CallOp,
+    CheckSatOp,
     DefineFunOp,
     EqOp,
     AssertOp,
@@ -158,6 +159,7 @@ def main() -> None:
 
     # Add refinement operations
     block.add_ops(function_refinement(func, func_after))
+    block.add_op(CheckSatOp())
 
     if args.opt:
         LowerPairs().apply(ctx, new_module)
