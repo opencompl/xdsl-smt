@@ -294,19 +294,22 @@ class ExtsiRewritePattern(RewritePattern):
         rewriter.replace_matched_op([sign, prefix, res, res_op])
 
 
-# Ceil unsigned div: add (divisor - 1)
 class CeildivuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.CeilDivUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
-        bv_1 = bv_dialect.ConstantOp(1, operands[1].type.width)
-        divisor_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
-        dividend_add = bv_dialect.AddOp(operands[0], divisor_sub_1.res)
-        value_op = bv_dialect.UDivOp(dividend_add.res, operands[1])
+        width = operands[1].type.width.data
+        div_op = bv_dialect.UDivOp(operands[0], operands[1])
+        remainder_op = bv_dialect.URemOp(operands[0], operands[1])
+        zero = bv_dialect.ConstantOp(0, width)
+        one = bv_dialect.ConstantOp(1, width)
+        is_zero = smt_dialect.EqOp(zero.res, remainder_op.res)
+        one_if_zero = smt_dialect.IteOp(is_zero.res, one.res, zero.res)
+        value_op = bv_dialect.AddOp(div_op.res, one_if_zero.res)
         res_op = utils_dialect.PairOp(value_op.res, poison)
         rewriter.replace_matched_op(
-            [bv_1, divisor_sub_1, dividend_add, value_op, res_op]
+            [div_op, remainder_op, zero, one, is_zero, one_if_zero, value_op, res_op]
         )
 
 
