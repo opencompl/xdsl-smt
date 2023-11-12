@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import abstractmethod
+from collections import deque
 
 from dataclasses import dataclass, field
 from typing import IO
@@ -95,17 +96,87 @@ class SMTConversionCtx:
         self.names.add(name)
         return name
 
-    def print_expr_to_smtlib(self, val: SSAValue, stream: IO[str]) -> None:
+    def _expr_operands_topo_sort(self, op: Operation) -> list[SSAValue]:
+        """
+        Get the order in which the let bindings should be introduced for the
+        transitive uses of the value parent.
+        """
+        # The stack of values to add. The leftmost value is the value we are
+        # currently considering to add
+        stack: deque[SSAValue] = deque(op.operands)
+
+        # The values we need to add in order, and the set of values that we have
+        # already processed and that do not need to be added anymore
+        let_values = list[SSAValue]()
+        processed = set[SSAValue]()
+
+        while stack:
+            val = stack[0]
+
+            # If the value is a variable, we don't need to add it as a let binding.
+            if val in self.value_to_name.keys():
+                stack.popleft()
+                processed.add(val)
+                continue
+
+            # If the value is processed, we can continue.
+            if val in processed:
+                stack.popleft()
+                continue
+
+            # We get the operands of the value owner.
+            assert isinstance(val.owner, Operation)
+            operands_to_add = [
+                operand for operand in val.owner.operands if operand not in processed
+            ]
+
+            # If there are still unprocessed operands, we should process them first.
+            if operands_to_add:
+                for operand in operands_to_add:
+                    stack.appendleft(operand)
+                continue
+
+            # Process the value
+            stack.popleft()
+
+            # Otherwise, we add it to the let binding if they have more than one use
+            if len(val.uses) > 1:
+                let_values.append(val)
+            processed.add(val)
+
+        return let_values
+
+    def print_expr_to_smtlib(
+        self, val: SSAValue, stream: IO[str], identation: str = ""
+    ) -> None:
         """
         Print the SSA value expression in the SMTLib format.
         """
         if val in self.value_to_name.keys():
             print(self.value_to_name[val], file=stream, end="")
             return
+
+        # First, get all the values we are going to put in let bindings
         assert isinstance(val, OpResult)
-        op = val.op
-        assert isinstance(op, SMTLibOp)
-        op.print_expr_to_smtlib(stream, self)
+        let_values = self._expr_operands_topo_sort(val.op)
+
+        for idx, let_value in enumerate(let_values):
+            assert isinstance(let_value.owner, SMTLibOp)
+            name = self.get_fresh_name(let_value)
+            if idx != 0:
+                print(identation, file=stream, end="")
+            print(f"(let (({name} ", file=stream, end="")
+            let_value.owner.print_expr_to_smtlib(stream, self)
+            print(")) ", file=stream)
+
+        assert isinstance(val.op, SMTLibOp)
+        if let_values:
+            print(identation, file=stream, end="")
+        val.op.print_expr_to_smtlib(stream, self)
+        print(")" * len(let_values), file=stream, end="")
+        for let_value in let_values:
+            self.names.remove(self.value_to_name[let_value])
+            del self.value_to_name[let_value]
 
 
 def print_to_smtlib(module: ModuleOp, stream: IO[str]) -> None:

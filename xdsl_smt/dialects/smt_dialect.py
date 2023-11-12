@@ -286,7 +286,7 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
 
         # Print the function body
         print("  ", file=stream, end="")
-        ctx.print_expr_to_smtlib(self.return_val, stream)
+        ctx.print_expr_to_smtlib(self.return_val, stream, identation="  ")
         print(")", file=stream)
 
 
@@ -345,7 +345,7 @@ class AssertOp(IRDLOperation, SMTLibScriptOp):
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(assert ", file=stream, end="")
-        ctx.print_expr_to_smtlib(self.op, stream)
+        ctx.print_expr_to_smtlib(self.op, stream, identation="  ")
         print(")", file=stream)
 
     @staticmethod

@@ -16,5 +16,7 @@
     %pair = "smt.utils.pair"(%first, %second) : (!smt.bool, !smt.bool) -> !smt.utils.pair<!smt.bool, !smt.bool>
     %eq = "smt.eq"(%pair, %x) : (!smt.utils.pair<!smt.bool, !smt.bool>, !smt.utils.pair<!smt.bool, !smt.bool>) -> !smt.bool
     "smt.assert"(%eq) : (!smt.bool) -> ()
-    // CHECK-NEXT: (assert (= (pair (first x) (second x)) x))
+    // CHECK-NEXT:  (assert (let ((second (second x)))
+    // CHECK-NEXT:    (let ((first (first x)))
+    // CHECK-NEXT:    (= (pair first second) x))))
 }): () -> ()
