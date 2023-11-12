@@ -14,6 +14,7 @@ from ..dialects.smt_dialect import (
     EqOp,
     AssertOp,
     ForallOp,
+    NotOp,
     SMTDialect,
     YieldOp,
 )
@@ -89,7 +90,8 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
 
     toplevel_forall.body.block.add_ops(ops)
     toplevel_forall.body.block.add_op(YieldOp(ops[-1].results[0]))
-    return [toplevel_forall, AssertOp(toplevel_forall.res)]
+    not_forall = NotOp.get(toplevel_forall.res)
+    return [toplevel_forall, not_forall, AssertOp(not_forall.res)]
 
 
 def main() -> None:
