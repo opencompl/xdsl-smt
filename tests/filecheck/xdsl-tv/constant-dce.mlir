@@ -13,4 +13,5 @@
 // CHECK-NEXT:    (pair (_ bv3 32) false))
 // CHECK-NEXT:  (define-fun test_0 () (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:    (pair (_ bv3 32) false))
-// CHECK-NEXT:  (assert (= (test) (test_0)))
+// CHECK-NEXT:  (assert (not (= (test) (test_0))))
+// CHECK-NEXT:  (check-sat)

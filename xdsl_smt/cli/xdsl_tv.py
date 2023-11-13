@@ -10,13 +10,12 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
     CallOp,
     CheckSatOp,
+    DeclareConstOp,
     DefineFunOp,
     EqOp,
     AssertOp,
-    ForallOp,
     NotOp,
     SMTDialect,
-    YieldOp,
 )
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
@@ -62,15 +61,13 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     Create operations to check that one function refines another.
     An assert check is added to the end of the list of operations.
     """
-    toplevel_forall: ForallOp | None = None
     args: list[SSAValue] = []
-
-    if func.body.blocks[0].args:
-        arg_types = [arg.type for arg in func.body.blocks[0].args]
-        toplevel_forall = ForallOp.from_variables(arg_types)
-        args = list(toplevel_forall.body.block.args)
-
     ops = list[Operation]()
+
+    for arg in func.body.blocks[0].args:
+        const_op = DeclareConstOp(arg.type)
+        ops.append(const_op)
+        args.append(const_op.res)
 
     # Call both operations
     func_call = CallOp.get(func.results[0], args)
@@ -84,14 +81,13 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     refinement_op = EqOp(ret_val, ret_val_after)
     ops.append(refinement_op)
 
-    if toplevel_forall is None:
-        ops.append(AssertOp(refinement_op.res))
-        return ops
+    not_op = NotOp.get(refinement_op.res)
+    ops.append(not_op)
 
-    toplevel_forall.body.block.add_ops(ops)
-    toplevel_forall.body.block.add_op(YieldOp(ops[-1].results[0]))
-    not_forall = NotOp.get(toplevel_forall.res)
-    return [toplevel_forall, not_forall, AssertOp(not_forall.res)]
+    assert_op = AssertOp(not_op.res)
+    ops.append(assert_op)
+
+    return ops
 
 
 def main() -> None:
