@@ -8,6 +8,7 @@ from xdsl.parser import Parser
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
+    AndOp,
     CallOp,
     CheckSatOp,
     DeclareConstOp,
@@ -15,10 +16,11 @@ from ..dialects.smt_dialect import (
     EqOp,
     AssertOp,
     NotOp,
+    OrOp,
     SMTDialect,
 )
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
+from ..dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
 from ..dialects.hw_dialect import HW
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
@@ -74,17 +76,25 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     func_call_after = CallOp.get(func_after.results[0], args)
     ops += [func_call, func_call_after]
 
-    # Get the function return value
-    ret_val = func_call.res
-    ret_val_after = func_call_after.res
+    # Get the function return values and poison
+    ret_value = FirstOp(func_call.res)
+    ret_poison = SecondOp(func_call.res)
+    ops.extend((ret_value, ret_poison))
 
-    refinement_op = EqOp(ret_val, ret_val_after)
-    ops.append(refinement_op)
+    ret_value_after = FirstOp(func_call.res)
+    ret_poison_after = SecondOp(func_call.res)
+    ops.extend((ret_value_after, ret_poison_after))
 
-    not_op = NotOp.get(refinement_op.res)
-    ops.append(not_op)
+    not_after_poison = NotOp.get(ret_poison_after.res)
+    value_eq = EqOp.get(ret_value.res, ret_value_after.res)
+    value_refinement = AndOp.get(not_after_poison.res, value_eq.res)
+    refinement = OrOp.get(value_refinement.res, ret_poison.res)
+    ops.extend([not_after_poison, value_eq, value_refinement, refinement])
 
-    assert_op = AssertOp(not_op.res)
+    not_refinement = NotOp.get(refinement.res)
+    ops.append(not_refinement)
+
+    assert_op = AssertOp(not_refinement.res)
     ops.append(assert_op)
 
     return ops

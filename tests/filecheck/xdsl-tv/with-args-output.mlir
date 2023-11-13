@@ -20,5 +20,6 @@ builtin.module {
 // CHECK-NEXT:    (let ((x (pair (_ bv7 32) false)))
 // CHECK-NEXT:    (pair (bvadd (first arg0_0) (first x)) (or (second arg0_0) (second x)))))
 // CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:  (assert (not (= (test tmp) (test_0 tmp))))
+// CHECK-NEXT:  (assert (let ((tmp_0 (test tmp)))
+// CHECK-NEXT:    (not (or (and (not (second tmp_0)) (= (first tmp_0) (first tmp_0))) (second tmp_0)))))
 // CHECK-NEXT:  (check-sat)
