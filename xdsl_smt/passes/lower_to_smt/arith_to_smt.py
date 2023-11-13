@@ -313,33 +313,50 @@ class CeildivuiRewritePattern(RewritePattern):
         )
 
 
-# Ceil signed div: likewise, but only when sign bit unset
 class CeildivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.CeilDivSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         width = operands[1].type.width.data
+
+        # We use the `1 + ((lhs - 1) / rhs)`` formula if lhs - 1 does not underflow.
+        # If it does, we use `(lhs + (rhs - 1)) / rhs`
+
+        # Check for underflow
+        min_val = bv_dialect.ConstantOp(2 ** (width - 1), width)
+        lhs_is_min_val = smt_dialect.EqOp(operands[0], min_val.res)
+
+        # 1 + ((lhs - 1) / rhs)
         bv_1 = bv_dialect.ConstantOp(1, width)
-        divisor_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
-        dividend_add = bv_dialect.AddOp(operands[0], divisor_sub_1.res)
-        sign = bv_dialect.ExtractOp(operands[0], width - 1, width - 1)
-        bv_0_1 = bv_dialect.ConstantOp(0, 1)
-        is_0 = smt_dialect.EqOp(sign.res, bv_0_1.res)
-        ite_op = smt_dialect.IteOp(is_0.res, dividend_add.res, operands[0])
-        value_op = bv_dialect.SDivOp(ite_op.res, operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
+        lhs_sub_1 = bv_dialect.SubOp(operands[0], bv_1.res)
+        sub_1_div = bv_dialect.SDivOp(lhs_sub_1.res, operands[1])
+        no_underflow_res = bv_dialect.AddOp(bv_1.res, sub_1_div.res)
+
+        # (lhs + (rhs - 1)) / rhs
+        rhs_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
+        top_val = bv_dialect.AddOp(operands[0], rhs_sub_1.res)
+        underflow_res = bv_dialect.SDivOp(top_val.res, operands[1])
+
+        res_val = smt_dialect.IteOp(
+            lhs_is_min_val.res, underflow_res.res, no_underflow_res.res
+        )
+
+        res = utils_dialect.PairOp(res_val.res, poison)
+
         rewriter.replace_matched_op(
             [
+                min_val,
+                lhs_is_min_val,
                 bv_1,
-                divisor_sub_1,
-                dividend_add,
-                sign,
-                bv_0_1,
-                is_0,
-                ite_op,
-                value_op,
-                res_op,
+                lhs_sub_1,
+                sub_1_div,
+                no_underflow_res,
+                rhs_sub_1,
+                top_val,
+                underflow_res,
+                res_val,
+                res,
             ]
         )
 
