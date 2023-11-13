@@ -321,8 +321,8 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     name = "smt.declare_const"
     res: OpResult = result_def()
 
-    def __init__(self, type_name: Attribute):
-        super().__init__(result_types=[type_name])
+    def __init__(self, type: Attribute):
+        super().__init__(result_types=[type])
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         name = ctx.get_fresh_name(self.res)
