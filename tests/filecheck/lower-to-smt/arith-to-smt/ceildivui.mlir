@@ -14,4 +14,4 @@
 // CHECK-NEXT:   (let ((r (_ bv0 32)))
 // CHECK-NEXT:   (let ((tmp (first y)))
 // CHECK-NEXT:   (let ((tmp_0 (first x)))
-// CHECK-NEXT:   (pair (bvadd (bvudiv tmp_0 tmp) (ite (= r (bvurem tmp_0 tmp)) (_ bv1 32) r)) (or (second x) (second y)))))))
+// CHECK-NEXT:   (pair (bvadd (bvudiv tmp_0 tmp) (ite (= r (bvurem tmp_0 tmp)) r (_ bv1 32))) (or (second x) (second y)))))))

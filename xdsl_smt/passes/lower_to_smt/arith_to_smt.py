@@ -305,7 +305,7 @@ class CeildivuiRewritePattern(RewritePattern):
         zero = bv_dialect.ConstantOp(0, width)
         one = bv_dialect.ConstantOp(1, width)
         is_zero = smt_dialect.EqOp(zero.res, remainder_op.res)
-        one_if_zero = smt_dialect.IteOp(is_zero.res, one.res, zero.res)
+        one_if_zero = smt_dialect.IteOp(is_zero.res, zero.res, one.res)
         value_op = bv_dialect.AddOp(div_op.res, one_if_zero.res)
         res_op = utils_dialect.PairOp(value_op.res, poison)
         rewriter.replace_matched_op(
