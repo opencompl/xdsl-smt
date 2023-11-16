@@ -15,4 +15,4 @@
 // CHECK-NEXT:    (let ((tmp_0 (first x)))
 // CHECK-NEXT:    (let ((r (bvsdiv tmp_0 tmp)))
 // CHECK-NEXT:    (let ((r_0 (_ bv0 32)))
-// CHECK-NEXT:    (pair (ite (and (bvsgt r r_0) (distinct (bvsrem tmp_0 tmp) r_0)) (bvadd r (_ bv1 32)) r) (or (or (and (= tmp_0 (_ bv2147483648 32)) (= tmp (_ bv4294967295 32))) (= r_0 tmp)) (or (second x) (second y)))))))))
+// CHECK-NEXT:    (pair (ite (and (not (xor (bvsge tmp_0 r_0) (bvsge tmp r_0))) (distinct (bvsrem tmp_0 tmp) r_0)) (bvadd r (_ bv1 32)) r) (or (or (and (= tmp_0 (_ bv2147483648 32)) (= tmp (_ bv4294967295 32))) (= r_0 tmp)) (or (second x) (second y)))))))))

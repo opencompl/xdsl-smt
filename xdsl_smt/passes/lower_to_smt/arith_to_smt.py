@@ -339,12 +339,18 @@ class CeildivsiRewritePattern(RewritePattern):
         # Compute a division rounded by zero
         value_op = bv_dialect.SDivOp(operands[0], operands[1])
 
-        # If the result is positive, add 1 if the remainder is not 0
-        is_positive = bv_dialect.SgtOp(value_op.res, zero.res)
+        # If the result is non negative, add 1 if the remainder is not 0
+        is_lhs_positive = bv_dialect.SgeOp(operands[0], zero.res)
+        is_rhs_positive = bv_dialect.SgeOp(operands[1], zero.res)
+        is_negative = smt_dialect.XorOp(is_lhs_positive.res, is_rhs_positive.res)
+        is_nonnegative = smt_dialect.NotOp.get(is_negative.res)
+
         remainder = bv_dialect.SRemOp(operands[0], operands[1])
         is_remainder_not_zero = smt_dialect.DistinctOp(remainder.res, zero.res)
         add_one = bv_dialect.AddOp(value_op.res, one.res)
-        should_add_one = smt_dialect.AndOp(is_positive.res, is_remainder_not_zero.res)
+        should_add_one = smt_dialect.AndOp(
+            is_nonnegative.res, is_remainder_not_zero.res
+        )
         res_value_op = smt_dialect.IteOp(should_add_one.res, add_one.res, value_op.res)
         res_op = utils_dialect.PairOp(res_value_op.res, new_poison.res)
 
@@ -361,7 +367,10 @@ class CeildivsiRewritePattern(RewritePattern):
                 introduce_poison,
                 new_poison,
                 value_op,
-                is_positive,
+                is_lhs_positive,
+                is_rhs_positive,
+                is_negative,
+                is_nonnegative,
                 remainder,
                 is_remainder_not_zero,
                 add_one,
