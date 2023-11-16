@@ -370,25 +370,56 @@ class FloordivsiRewritePattern(RewritePattern):
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         width = operands[1].type.width.data
-        bv_1 = bv_dialect.ConstantOp(1, width)
-        divisor_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
-        dividend_sub = bv_dialect.SubOp(operands[0], divisor_sub_1.res)
-        sign = bv_dialect.ExtractOp(operands[0], width - 1, width - 1)
-        bv_1_1 = bv_dialect.ConstantOp(1, 1)
-        is_1 = smt_dialect.EqOp(sign.res, bv_1_1.res)
-        ite_op = smt_dialect.IteOp(is_1.res, dividend_sub.res, operands[0])
-        value_op = bv_dialect.SDivOp(ite_op.res, operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
+
+        # Check for underflow
+        minimum_value = bv_dialect.ConstantOp(2 ** (width - 1), width)
+        minus_one = bv_dialect.ConstantOp(2**width - 1, width)
+        lhs_is_min_val = smt_dialect.EqOp(operands[0], minimum_value.res)
+        rhs_is_minus_one = smt_dialect.EqOp(operands[1], minus_one.res)
+        is_underflow = smt_dialect.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+
+        # Check for division by zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_div_by_zero = smt_dialect.EqOp(zero.res, operands[1])
+
+        # Poison if underflow or division by zero or previous poison
+        introduce_poison = smt_dialect.OrOp(is_underflow.res, is_div_by_zero.res)
+        new_poison = smt_dialect.OrOp(introduce_poison.res, poison)
+
+        # Compute a division rounded by zero
+        value_op = bv_dialect.SDivOp(operands[0], operands[1])
+
+        # If the result is negative, subtract 1 if the remainder is not 0
+        is_negative = bv_dialect.SltOp(value_op.res, zero.res)
+        remainder = bv_dialect.SRemOp(operands[0], operands[1])
+        is_remainder_not_zero = smt_dialect.DistinctOp(remainder.res, zero.res)
+        subtract_one = bv_dialect.AddOp(value_op.res, minus_one.res)
+        should_subtract_one = smt_dialect.AndOp(
+            is_negative.res, is_remainder_not_zero.res
+        )
+        res_value_op = smt_dialect.IteOp(
+            should_subtract_one.res, subtract_one.res, value_op.res
+        )
+        res_op = utils_dialect.PairOp(res_value_op.res, new_poison.res)
+
         rewriter.replace_matched_op(
             [
-                bv_1,
-                divisor_sub_1,
-                dividend_sub,
-                sign,
-                bv_1_1,
-                is_1,
-                ite_op,
+                minimum_value,
+                minus_one,
+                lhs_is_min_val,
+                rhs_is_minus_one,
+                is_underflow,
+                zero,
+                is_div_by_zero,
+                introduce_poison,
+                new_poison,
                 value_op,
+                is_negative,
+                remainder,
+                is_remainder_not_zero,
+                subtract_one,
+                should_subtract_one,
+                res_value_op,
                 res_op,
             ]
         )
