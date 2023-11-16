@@ -68,7 +68,9 @@ class RemovePairArgsCall(RewritePattern):
                 rewriter.replace_matched_op(
                     CallOp.create(
                         result_types=[res.type for res in op.results],
-                        operands=args[:i] + [fst.res, snd.res] + args[i + 1 :],
+                        operands=list(args[:i])
+                        + [fst.res, snd.res]
+                        + list(args[i + 1 :]),
                     )
                 )
                 return
