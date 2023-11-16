@@ -456,6 +456,9 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
     res: OpResult = result_def(BoolType)
     arg: Operand = operand_def(BoolType)
 
+    def __init__(self, arg: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[arg])
+
     @staticmethod
     def get(operand: SSAValue) -> NotOp:
         return NotOp.create(result_types=[BoolType()], operands=[operand])
