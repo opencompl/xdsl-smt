@@ -300,16 +300,39 @@ class CeildivuiRewritePattern(RewritePattern):
         operands, poison = reduce_poison_values(op.operands, rewriter)
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         width = operands[1].type.width.data
-        div_op = bv_dialect.UDivOp(operands[0], operands[1])
-        remainder_op = bv_dialect.URemOp(operands[0], operands[1])
+
         zero = bv_dialect.ConstantOp(0, width)
         one = bv_dialect.ConstantOp(1, width)
-        is_zero = smt_dialect.EqOp(zero.res, remainder_op.res)
-        one_if_zero = smt_dialect.IteOp(is_zero.res, zero.res, one.res)
-        value_op = bv_dialect.AddOp(div_op.res, one_if_zero.res)
-        res_op = utils_dialect.PairOp(value_op.res, poison)
+
+        # Check for division by zero
+        is_rhs_zero = smt_dialect.EqOp(zero.res, operands[1])
+        new_poison = smt_dialect.OrOp(is_rhs_zero.res, poison)
+
+        # We need to check if the lhs is zero, so we don't underflow later on
+        is_lhs_zero = smt_dialect.EqOp(zero.res, operands[0])
+
+        # Compute floor((lhs - 1) / rhs) + 1
+        lhs_minus_one = bv_dialect.SubOp(operands[0], one.res)
+        floor_div = bv_dialect.UDivOp(lhs_minus_one.res, operands[1])
+        nonzero_res = bv_dialect.AddOp(floor_div.res, one.res)
+
+        # If the lhs is zero, the result is zero
+        value_res = smt_dialect.IteOp(is_lhs_zero.res, zero.res, nonzero_res.res)
+
+        res_op = utils_dialect.PairOp(value_res.res, new_poison.res)
         rewriter.replace_matched_op(
-            [div_op, remainder_op, zero, one, is_zero, one_if_zero, value_op, res_op]
+            [
+                zero,
+                one,
+                is_rhs_zero,
+                new_poison,
+                is_lhs_zero,
+                lhs_minus_one,
+                floor_div,
+                nonzero_res,
+                value_res,
+                res_op,
+            ]
         )
 
 
