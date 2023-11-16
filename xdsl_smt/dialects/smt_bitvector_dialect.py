@@ -151,6 +151,9 @@ class UnaryBVOp(IRDLOperation, Pure):
     res: OpResult = result_def(BitVectorType)
     arg: Operand = operand_def(BitVectorType)
 
+    def __init__(self, arg: SSAValue):
+        super().__init__(result_types=[arg.type], operands=[arg])
+
     @classmethod
     def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
         return cls.create(result_types=[arg.type], operands=[arg])
