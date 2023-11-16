@@ -320,48 +320,58 @@ class CeildivsiRewritePattern(RewritePattern):
         assert isinstance(operands[1].type, bv_dialect.BitVectorType)
         width = operands[1].type.width.data
 
-        # We use the `1 + ((lhs - 1) / rhs)`` formula if lhs - 1 does not underflow.
-        # If it does, we use `(lhs + (rhs - 1)) / rhs`
-
         # Check for underflow
-        min_val = bv_dialect.ConstantOp(2 ** (width - 1), width)
-        lhs_is_min_val = smt_dialect.EqOp(operands[0], min_val.res)
+        minimum_value = bv_dialect.ConstantOp(2 ** (width - 1), width)
+        minus_one = bv_dialect.ConstantOp(2**width - 1, width)
+        one = bv_dialect.ConstantOp(1, width)
+        lhs_is_min_val = smt_dialect.EqOp(operands[0], minimum_value.res)
+        rhs_is_minus_one = smt_dialect.EqOp(operands[1], minus_one.res)
+        is_underflow = smt_dialect.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
 
-        # 1 + ((lhs - 1) / rhs)
-        bv_1 = bv_dialect.ConstantOp(1, width)
-        lhs_sub_1 = bv_dialect.SubOp(operands[0], bv_1.res)
-        sub_1_div = bv_dialect.SDivOp(lhs_sub_1.res, operands[1])
-        no_underflow_res = bv_dialect.AddOp(bv_1.res, sub_1_div.res)
+        # Check for division by zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_div_by_zero = smt_dialect.EqOp(zero.res, operands[1])
 
-        # (lhs + (rhs - 1)) / rhs
-        rhs_sub_1 = bv_dialect.SubOp(operands[1], bv_1.res)
-        top_val = bv_dialect.AddOp(operands[0], rhs_sub_1.res)
-        underflow_res = bv_dialect.SDivOp(top_val.res, operands[1])
+        # Poison if underflow or division by zero or previous poison
+        introduce_poison = smt_dialect.OrOp(is_underflow.res, is_div_by_zero.res)
+        new_poison = smt_dialect.OrOp(introduce_poison.res, poison)
 
-        res_val = smt_dialect.IteOp(
-            lhs_is_min_val.res, underflow_res.res, no_underflow_res.res
-        )
+        # Compute a division rounded by zero
+        value_op = bv_dialect.SDivOp(operands[0], operands[1])
 
-        res = utils_dialect.PairOp(res_val.res, poison)
+        # If the result is positive, add 1 if the remainder is not 0
+        is_positive = bv_dialect.SgtOp(value_op.res, zero.res)
+        remainder = bv_dialect.SRemOp(operands[0], operands[1])
+        is_remainder_not_zero = smt_dialect.DistinctOp(remainder.res, zero.res)
+        add_one = bv_dialect.AddOp(value_op.res, one.res)
+        should_add_one = smt_dialect.AndOp(is_positive.res, is_remainder_not_zero.res)
+        res_value_op = smt_dialect.IteOp(should_add_one.res, add_one.res, value_op.res)
+        res_op = utils_dialect.PairOp(res_value_op.res, new_poison.res)
 
         rewriter.replace_matched_op(
             [
-                min_val,
+                minimum_value,
+                minus_one,
+                one,
                 lhs_is_min_val,
-                bv_1,
-                lhs_sub_1,
-                sub_1_div,
-                no_underflow_res,
-                rhs_sub_1,
-                top_val,
-                underflow_res,
-                res_val,
-                res,
+                rhs_is_minus_one,
+                is_underflow,
+                zero,
+                is_div_by_zero,
+                introduce_poison,
+                new_poison,
+                value_op,
+                is_positive,
+                remainder,
+                is_remainder_not_zero,
+                add_one,
+                should_add_one,
+                res_value_op,
+                res_op,
             ]
         )
 
 
-# Floor signed div: subtract (divisor - 1) when sign bit set
 class FloordivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
