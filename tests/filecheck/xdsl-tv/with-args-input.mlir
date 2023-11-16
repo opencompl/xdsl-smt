@@ -1,4 +1,5 @@
 // RUN: xdsl-tv %S/with-args-input.mlir %S/with-args-output.mlir | filecheck "%s"
+// RUN: xdsl-tv %S/with-args-input.mlir %S/with-args-output.mlir | z3 -in
 
 // This file uses `with-args-output.mlir`
 
@@ -23,5 +24,6 @@ builtin.module {
 // CHECK-NEXT:    (pair (bvadd (first arg0_0) (first x)) (or (second arg0_0) (second x)))))
 // CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (assert (let ((tmp_0 (test tmp)))
-// CHECK-NEXT:    (not (or (and (not (second tmp_0)) (= (first tmp_0) (first tmp_0))) (second tmp_0)))))
+// CHECK-NEXT:    (let ((tmp_1 (test_0 tmp)))
+// CHECK-NEXT:    (not (or (and (not (second tmp_1)) (= (first tmp_0) (first tmp_1))) (second tmp_0))))))
 // CHECK-NEXT:  (check-sat)

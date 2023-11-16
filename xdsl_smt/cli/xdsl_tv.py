@@ -81,8 +81,8 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     ret_poison = SecondOp(func_call.res)
     ops.extend((ret_value, ret_poison))
 
-    ret_value_after = FirstOp(func_call.res)
-    ret_poison_after = SecondOp(func_call.res)
+    ret_value_after = FirstOp(func_call_after.res)
+    ret_poison_after = SecondOp(func_call_after.res)
     ops.extend((ret_value_after, ret_poison_after))
 
     not_after_poison = NotOp.get(ret_poison_after.res)

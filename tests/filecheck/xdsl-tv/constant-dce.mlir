@@ -1,4 +1,5 @@
 // RUN: xdsl-smt "%s" -p dce -o "%t" -t mlir && xdsl-tv "%s" "%t" | filecheck "%s"
+// RUN: xdsl-smt "%s" -p dce -o "%t" -t mlir && xdsl-tv "%s" "%t" | z3 -in
 
 "builtin.module"() ({
   "func.func"() ({
@@ -13,6 +14,7 @@
 // CHECK-NEXT:    (pair (_ bv3 32) false))
 // CHECK-NEXT:  (define-fun test_0 () (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:    (pair (_ bv3 32) false))
-// CHECK-NEXT:  (assert (let ((tmp (test)))
-// CHECK-NEXT:    (not (or (and (not (second tmp)) (= (first tmp) (first tmp))) (second tmp)))))
+// CHECK-NEXT:  (assert (let ((tmp test))
+// CHECK-NEXT:    (let ((tmp_0 test_0))
+// CHECK-NEXT:    (not (or (and (not (second tmp_0)) (= (first tmp) (first tmp_0))) (second tmp))))))
 // CHECK-NEXT:  (check-sat)
