@@ -184,6 +184,11 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
             raise VerifyException("Incorrect return type")
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        # In the case there are no arguments, we do not print the outer parentheses
+        if not self.args:
+            ctx.print_expr_to_smtlib(self.func, stream)
+            return
+
         print("(", file=stream, end="")
         for idx, operand in enumerate(self.operands):
             if idx != 0:
