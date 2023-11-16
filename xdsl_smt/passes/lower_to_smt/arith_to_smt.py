@@ -400,7 +400,9 @@ class FloordivsiRewritePattern(RewritePattern):
         value_op = bv_dialect.SDivOp(operands[0], operands[1])
 
         # If the result is negative, subtract 1 if the remainder is not 0
-        is_negative = bv_dialect.SltOp(value_op.res, zero.res)
+        is_lhs_negative = bv_dialect.SltOp(operands[0], zero.res)
+        is_rhs_negative = bv_dialect.SltOp(operands[1], zero.res)
+        is_negative = smt_dialect.XorOp(is_lhs_negative.res, is_rhs_negative.res)
         remainder = bv_dialect.SRemOp(operands[0], operands[1])
         is_remainder_not_zero = smt_dialect.DistinctOp(remainder.res, zero.res)
         subtract_one = bv_dialect.AddOp(value_op.res, minus_one.res)
@@ -424,6 +426,8 @@ class FloordivsiRewritePattern(RewritePattern):
                 introduce_poison,
                 new_poison,
                 value_op,
+                is_lhs_negative,
+                is_rhs_negative,
                 is_negative,
                 remainder,
                 is_remainder_not_zero,
