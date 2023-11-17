@@ -113,9 +113,20 @@ class DivsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.DivSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
+
+        assert isinstance(op.result.type, IntegerType)
+        width = op.result.type.width.data
+
+        # Check for division by zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_div_by_zero = smt_dialect.EqOp(zero.res, operands[1])
+        new_poison = smt_dialect.OrOp(is_div_by_zero.res, poison)
+
         value_op = bv_dialect.SDivOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [zero, is_div_by_zero, new_poison, value_op, res_op]
+        )
 
 
 class DivuiRewritePattern(RewritePattern):
@@ -359,23 +370,40 @@ class CeildivsiRewritePattern(RewritePattern):
         introduce_poison = smt_dialect.OrOp(is_underflow.res, is_div_by_zero.res)
         new_poison = smt_dialect.OrOp(introduce_poison.res, poison)
 
-        # Compute a division rounded by zero
-        value_op = bv_dialect.SDivOp(operands[0], operands[1])
+        # Division when the result is positive
+        # we do ((lhs - 1) / rhs) + 1 for lhs and rhs positive
+        # and ((lhs + 1)) / lhs) + 1 for lhs and rhs negative
+        is_lhs_positive = bv_dialect.SltOp(operands[0], zero.res)
+        opposite_one = smt_dialect.IteOp(is_lhs_positive.res, minus_one.res, one.res)
+        lhs_minus_one = bv_dialect.SubOp(operands[0], opposite_one.res)
+        floor_div = bv_dialect.SDivOp(lhs_minus_one.res, operands[1])
+        positive_res = bv_dialect.AddOp(floor_div.res, one.res)
 
-        # If the result is non negative, add 1 if the remainder is not 0
-        is_lhs_positive = bv_dialect.SgeOp(operands[0], zero.res)
-        is_rhs_positive = bv_dialect.SgeOp(operands[1], zero.res)
-        is_negative = smt_dialect.XorOp(is_lhs_positive.res, is_rhs_positive.res)
-        is_nonnegative = smt_dialect.NotOp.get(is_negative.res)
+        # If the result is non positive
+        # We do - ((- lhs) / rhs)
+        minus_lhs = bv_dialect.SubOp(zero.res, operands[0])
+        neg_floor_div = bv_dialect.SDivOp(minus_lhs.res, operands[1])
+        nonpositive_res = bv_dialect.SubOp(zero.res, neg_floor_div.res)
 
-        remainder = bv_dialect.SRemOp(operands[0], operands[1])
-        is_remainder_not_zero = smt_dialect.DistinctOp(remainder.res, zero.res)
-        add_one = bv_dialect.AddOp(value_op.res, one.res)
-        should_add_one = smt_dialect.AndOp(
-            is_nonnegative.res, is_remainder_not_zero.res
+        # Check if the result is positive
+        is_rhs_positive = bv_dialect.SltOp(operands[1], zero.res)
+        is_lhs_negative = bv_dialect.SltOp(zero.res, operands[0])
+        is_rhs_negative = bv_dialect.SltOp(zero.res, operands[1])
+        are_both_positive = smt_dialect.AndOp(
+            is_lhs_positive.res,
+            is_rhs_positive.res,
         )
-        res_value_op = smt_dialect.IteOp(should_add_one.res, add_one.res, value_op.res)
-        res_op = utils_dialect.PairOp(res_value_op.res, new_poison.res)
+        are_both_negative = smt_dialect.AndOp(
+            is_lhs_negative.res,
+            is_rhs_negative.res,
+        )
+        is_positive = smt_dialect.OrOp(are_both_positive.res, are_both_negative.res)
+
+        value_res = smt_dialect.IteOp(
+            is_positive.res, positive_res.res, nonpositive_res.res
+        )
+
+        res_op = utils_dialect.PairOp(value_res.res, new_poison.res)
 
         rewriter.replace_matched_op(
             [
@@ -389,16 +417,21 @@ class CeildivsiRewritePattern(RewritePattern):
                 is_div_by_zero,
                 introduce_poison,
                 new_poison,
-                value_op,
                 is_lhs_positive,
+                opposite_one,
+                lhs_minus_one,
+                floor_div,
+                positive_res,
+                minus_lhs,
+                neg_floor_div,
+                nonpositive_res,
                 is_rhs_positive,
-                is_negative,
-                is_nonnegative,
-                remainder,
-                is_remainder_not_zero,
-                add_one,
-                should_add_one,
-                res_value_op,
+                is_lhs_negative,
+                is_rhs_negative,
+                are_both_positive,
+                are_both_negative,
+                is_positive,
+                value_res,
                 res_op,
             ]
         )
