@@ -16,8 +16,9 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.rewriter import Rewriter
 from xdsl.passes import ModulePass
+from xdsl.utils.hints import isa
 
-from ..dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
+from ..dialects.smt_dialect import CallOp, DeclareConstOp, DefineFunOp, ReturnOp
 from ..dialects.smt_utils_dialect import (
     AnyPairType,
     FirstOp,
@@ -150,6 +151,21 @@ def remove_pairs_from_function_return(module: ModuleOp):
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 
+class LowerDeclareConstPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: DeclareConstOp, rewriter: PatternRewriter):
+        if not isa((pair_type := op.res.type), AnyPairType):
+            return
+
+        name_hint = op.res.name_hint or "const"
+        first = DeclareConstOp(pair_type.first)
+        first.res.name_hint = name_hint + "_first"
+        second = DeclareConstOp(pair_type.second)
+        second.res.name_hint = name_hint + "_second"
+        pair = PairOp(first.res, second.res)
+        rewriter.replace_op(op, [first, second, pair])
+
+
 class LowerPairs(ModulePass):
     name = "lower-pairs"
 
@@ -160,6 +176,7 @@ class LowerPairs(ModulePass):
                 [
                     RemovePairArgsFunction(),
                     RemovePairArgsCall(),
+                    LowerDeclareConstPattern(),
                 ]
             )
         )
