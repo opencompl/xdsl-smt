@@ -66,11 +66,9 @@ class RemovePairArgsCall(RewritePattern):
                 snd = SecondOp(arg)
                 rewriter.insert_op_before_matched_op([fst, snd])
                 rewriter.replace_matched_op(
-                    CallOp.create(
-                        result_types=[res.type for res in op.results],
-                        operands=list(args[:i])
-                        + [fst.res, snd.res]
-                        + list(args[i + 1 :]),
+                    CallOp.get(
+                        op.func,
+                        list(args[:i]) + [fst.res, snd.res] + list(args[i + 1 :]),
                     )
                 )
                 return
