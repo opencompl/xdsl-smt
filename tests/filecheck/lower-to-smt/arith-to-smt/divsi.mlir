@@ -12,4 +12,5 @@
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
 // CHECK-NEXT:  (define-fun test ((x (Pair (_ BitVec 32) Bool)) (y (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:    (let ((tmp (first y)))
-// CHECK-NEXT:    (pair (bvsdiv (first x) tmp) (or (= (_ bv0 32) tmp) (or (second x) (second y))))))
+// CHECK-NEXT:    (let ((tmp_0 (first x)))
+// CHECK-NEXT:    (pair (bvsdiv tmp_0 tmp) (or (or (= (_ bv0 32) tmp) (and (= tmp_0 (_ bv2147483648 32)) (= tmp (_ bv4294967295 32)))) (or (second x) (second y)))))))

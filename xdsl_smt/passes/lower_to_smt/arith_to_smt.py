@@ -105,8 +105,18 @@ class ShliRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.ShLI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.ShlOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, bv_dialect.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = bv_dialect.ConstantOp(width, width)
+        shift_amount_too_big = bv_dialect.UgtOp(operands[1], width_op.res)
+        new_poison = smt_dialect.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
 
 
 class DivsiRewritePattern(RewritePattern):
@@ -120,12 +130,34 @@ class DivsiRewritePattern(RewritePattern):
         # Check for division by zero
         zero = bv_dialect.ConstantOp(0, width)
         is_div_by_zero = smt_dialect.EqOp(zero.res, operands[1])
-        new_poison = smt_dialect.OrOp(is_div_by_zero.res, poison)
+
+        # Check for underflow
+        minimum_value = bv_dialect.ConstantOp(2 ** (width - 1), width)
+        minus_one = bv_dialect.ConstantOp(2**width - 1, width)
+        lhs_is_min_val = smt_dialect.EqOp(operands[0], minimum_value.res)
+        rhs_is_minus_one = smt_dialect.EqOp(operands[1], minus_one.res)
+        is_underflow = smt_dialect.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+
+        # New poison cases
+        introduce_poison = smt_dialect.OrOp(is_div_by_zero.res, is_underflow.res)
+        new_poison = smt_dialect.OrOp(introduce_poison.res, poison)
 
         value_op = bv_dialect.SDivOp(operands[0], operands[1])
         res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
         rewriter.replace_matched_op(
-            [zero, is_div_by_zero, new_poison, value_op, res_op]
+            [
+                zero,
+                is_div_by_zero,
+                minimum_value,
+                minus_one,
+                lhs_is_min_val,
+                rhs_is_minus_one,
+                is_underflow,
+                introduce_poison,
+                new_poison,
+                value_op,
+                res_op,
+            ]
         )
 
 
@@ -133,27 +165,54 @@ class DivuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.DivUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.result.type, IntegerType)
+        width = op.result.type.width.data
+
         value_op = bv_dialect.UDivOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # Check for division by zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_rhs_zero = smt_dialect.EqOp(operands[1], zero.res)
+        new_poison = smt_dialect.OrOp(is_rhs_zero.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
 class RemsiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.RemSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.result.type, IntegerType)
+        width = op.result.type.width.data
+
         value_op = bv_dialect.SRemOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # Poison if the rhs is zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_rhs_zero = smt_dialect.EqOp(operands[1], zero.res)
+        new_poison = smt_dialect.OrOp(is_rhs_zero.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
 class RemuiRewritePattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: arith.RemUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.result.type, IntegerType)
+        width = op.result.type.width.data
+
         value_op = bv_dialect.URemOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # Poison if the rhs is zero
+        zero = bv_dialect.ConstantOp(0, width)
+        is_rhs_zero = smt_dialect.EqOp(operands[1], zero.res)
+        new_poison = smt_dialect.OrOp(is_rhs_zero.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
 class ShrsiRewritePattern(RewritePattern):
@@ -161,8 +220,18 @@ class ShrsiRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.ShRSI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.AShrOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, bv_dialect.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = bv_dialect.ConstantOp(width, width)
+        shift_amount_too_big = bv_dialect.UgtOp(operands[1], width_op.res)
+        new_poison = smt_dialect.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
 
 
 class ShruiRewritePattern(RewritePattern):
@@ -170,8 +239,18 @@ class ShruiRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: arith.ShRUI, rewriter: PatternRewriter) -> None:
         operands, poison = reduce_poison_values(op.operands, rewriter)
         value_op = bv_dialect.LShrOp(operands[0], operands[1])
-        res_op = utils_dialect.PairOp(value_op.res, poison)
-        rewriter.replace_matched_op([value_op, res_op])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, bv_dialect.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = bv_dialect.ConstantOp(width, width)
+        shift_amount_too_big = bv_dialect.UgtOp(operands[1], width_op.res)
+        new_poison = smt_dialect.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = utils_dialect.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
 
 
 class MaxsiRewritePattern(RewritePattern):
