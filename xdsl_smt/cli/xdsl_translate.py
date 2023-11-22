@@ -9,6 +9,7 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, Call
 from ..dialects.transfer import Transfer
+from ..dialects.llvm_dialect import LLVM
 from xdsl.printer import Printer
 from ..passes.transfer_lower import LowerToCpp, addDispatcher
 
@@ -43,6 +44,7 @@ def main() -> None:
     ctx.register_dialect(Builtin)
     ctx.register_dialect(Func)
     ctx.register_dialect(Transfer)
+    ctx.register_dialect(LLVM)
 
     # Parse the files
     module = parse_file(args.transfer_functions)

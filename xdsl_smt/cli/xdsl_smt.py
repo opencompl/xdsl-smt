@@ -21,6 +21,7 @@ from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import Transfer
 from ..dialects.hw_dialect import HW
+from ..dialects.llvm_dialect import LLVM
 
 from ..passes.canonicalize_smt import CanonicalizeSMT
 from ..passes.dead_code_elimination import DeadCodeElimination
@@ -32,6 +33,7 @@ from ..passes.lower_to_smt import (
     transfer_to_smt_patterns,
     integer_type_lowerer,
     func_to_smt_patterns,
+    llvm_to_smt_patterns,
 )
 from ..passes.pdl_to_smt import PDLToSMT
 
@@ -53,6 +55,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(PDLDataflowDialect)
         self.ctx.register_dialect(Comb)
         self.ctx.register_dialect(HW)
+        self.ctx.register_dialect(LLVM)
 
     def register_all_passes(self):
         super().register_all_passes()
@@ -82,6 +85,7 @@ def main():
         LowerToSMT.rewrite_patterns = [
             *comb_to_smt_patterns,
             *func_to_smt_patterns,
+            *llvm_to_smt_patterns,
         ]
         LowerToSMT.type_lowerers = [integer_type_lowerer]
     else:
@@ -89,6 +93,7 @@ def main():
             *arith_to_smt_patterns,
             *transfer_to_smt_patterns,
             *func_to_smt_patterns,
+            *llvm_to_smt_patterns,
         ]
         LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
 

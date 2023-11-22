@@ -22,6 +22,7 @@ from ..dialects.smt_dialect import (
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
 from ..dialects.hw_dialect import HW
+from ..dialects.llvm_dialect import LLVM
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
@@ -36,6 +37,7 @@ from ..passes.lower_to_smt import (
     transfer_to_smt_patterns,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
+    llvm_to_smt_patterns,
 )
 
 from ..traits.smt_printer import print_to_smtlib
@@ -115,6 +117,7 @@ def main() -> None:
     ctx.register_dialect(SMTUtilsDialect)
     ctx.register_dialect(Comb)
     ctx.register_dialect(HW)
+    ctx.register_dialect(LLVM)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:
@@ -138,6 +141,7 @@ def main() -> None:
         *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
+        *llvm_to_smt_patterns,
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
 
