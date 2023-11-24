@@ -7,14 +7,15 @@ Check for both correctness and precision.
 import subprocess
 
 from io import StringIO
-from typing import Iterable
+from typing import Callable, Iterable
 from xdsl.ir import MLContext
 
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
-from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
+from xdsl.dialects.pdl import PDL, ApplyNativeRewriteOp, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 
@@ -37,13 +38,22 @@ from ..passes.lower_to_smt import (
     llvm_to_smt_patterns,
 )
 from ..traits.smt_printer import print_to_smtlib
+from xdsl_smt.pdl_constraints.integer_arith_constraints import (
+    integer_arith_native_rewrites,
+)
 
 MAX_INT = 32
 
 
+def get_native_rewrite() -> (
+    dict[str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]]
+):
+    return integer_arith_native_rewrites
+
+
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     cloned_op = op.clone()
-    PDLToSMT().apply(ctx, cloned_op)
+    PDLToSMT(get_native_rewrite()).apply(ctx, cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
 

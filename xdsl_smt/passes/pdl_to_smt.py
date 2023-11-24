@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
+from typing import Callable
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.pdl import (
+    ApplyNativeRewriteOp,
     OperandOp,
     OperationOp,
     PatternOp,
@@ -308,8 +310,27 @@ class AttachOpRewrite(RewritePattern):
         rewriter.replace_matched_op(AssertOp(implies.res))
 
 
+@dataclass
+class ApplyNativeRewriteRewrite(RewritePattern):
+    native_rewrites: dict[
+        str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]
+    ] = field(default_factory=dict)
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: ApplyNativeRewriteOp, rewriter: PatternRewriter, /):
+        if op.name not in self.native_rewrites:
+            raise Exception(f"No semantics for native rewrite {op.name}")
+        rewrite = self.native_rewrites[op.name]
+        rewrite(op, rewriter)
+
+
+@dataclass
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
+
+    native_rewrites: dict[
+        str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]
+    ] = field(default_factory=dict)
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         rewrite_context = PDLToSMTRewriteContext({})
@@ -327,6 +348,7 @@ class PDLToSMT(ModulePass):
                     ReplaceRewrite(rewrite_context),
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
+                    ApplyNativeRewriteRewrite(self.native_rewrites),
                 ]
             )
         )
