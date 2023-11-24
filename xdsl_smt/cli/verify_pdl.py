@@ -12,7 +12,7 @@ from xdsl.ir import MLContext
 
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
-from xdsl.dialects.pdl import PDL, TypeOp
+from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
@@ -60,8 +60,9 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
 
 
 def iterate_on_all_integers(
-    op: ModuleOp, types: tuple[int, ...] = ()
-) -> Iterable[tuple[ModuleOp, tuple[int, ...]]]:
+    op: PatternOp, types: tuple[int, ...] = ()
+) -> Iterable[tuple[PatternOp, tuple[int, ...]]]:
+    op = op.clone()
     for sub_op in op.walk():
         if isinstance(sub_op, TypeOp) and isinstance(
             sub_op.constantType, TransIntegerType
@@ -103,11 +104,19 @@ class OptMain(xDSLOptMain):
         finally:
             chunk.close()
 
-        for specialized_pattern, types in iterate_on_all_integers(module):
-            if verify_pattern(self.ctx, specialized_pattern):
-                print(f"with types {types}: SOUND")
-            else:
-                print(f"with types {types}: UNSOUND")
+        is_one_unsound = False
+
+        for pattern in module.walk():
+            if isinstance(pattern, PatternOp):
+                print(f"Verifying pattern {pattern.name}")
+                for specialized_pattern, types in iterate_on_all_integers(pattern):
+                    if verify_pattern(self.ctx, ModuleOp([specialized_pattern])):
+                        print(f"with types {types}: SOUND")
+                    else:
+                        print(f"with types {types}: UNSOUND")
+                        is_one_unsound = True
+
+        exit(1 if is_one_unsound else 0)
 
 
 def main() -> None:
