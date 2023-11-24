@@ -87,6 +87,7 @@ class EnsuresOp(IRDLOperation):
 
 
 Hoare = Dialect(
+    "hoare",
     [
         YieldOp,
         RequiresOp,

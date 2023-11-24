@@ -200,14 +200,14 @@ def main() -> None:
     args = arg_parser.parse_args()
 
     # Register all dialects
-    ctx.register_dialect(Arith)
-    ctx.register_dialect(Builtin)
-    ctx.register_dialect(Func)
-    ctx.register_dialect(SMTDialect)
-    ctx.register_dialect(SMTBitVectorDialect)
-    ctx.register_dialect(SMTUtilsDialect)
-    ctx.register_dialect(Transfer)
-    ctx.register_dialect(Index)
+    ctx.load_dialect(Arith)
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(Transfer)
+    ctx.load_dialect(Index)
 
     # Parse the files
     module = parse_file(args.transfer_functions)

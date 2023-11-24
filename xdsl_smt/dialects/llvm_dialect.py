@@ -30,5 +30,6 @@ from xdsl.dialects.llvm import (
 )
 from xdsl.dialects import llvm
 from xdsl.ir import Dialect
+from xdsl.irdl import IRDLOperation, irdl_op_definition
 
 LLVM: Dialect = llvm.LLVM

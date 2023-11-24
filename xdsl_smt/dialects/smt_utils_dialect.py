@@ -140,4 +140,4 @@ def pair_from_list(*vals: SSAValue) -> SSAValue:
         return reduce(lambda r, l: SSAValue.get(PairOp(l, r)), reversed(vals))
 
 
-SMTUtilsDialect = Dialect([PairOp, FirstOp, SecondOp], [PairType])
+SMTUtilsDialect = Dialect("smt.utils", [PairOp, FirstOp, SecondOp], [PairType])

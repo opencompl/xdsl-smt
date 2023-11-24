@@ -70,6 +70,7 @@ class Constant(IRDLOperation, Pure):
 
 
 Index = Dialect(
+    "index",
     [
         Add,
         Sub,

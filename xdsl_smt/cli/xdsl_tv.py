@@ -109,15 +109,15 @@ def main() -> None:
     args = arg_parser.parse_args()
 
     # Register all dialects
-    ctx.register_dialect(Arith)
-    ctx.register_dialect(Builtin)
-    ctx.register_dialect(Func)
-    ctx.register_dialect(SMTDialect)
-    ctx.register_dialect(SMTBitVectorDialect)
-    ctx.register_dialect(SMTUtilsDialect)
-    ctx.register_dialect(Comb)
-    ctx.register_dialect(HW)
-    ctx.register_dialect(LLVM)
+    ctx.load_dialect(Arith)
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(Comb)
+    ctx.load_dialect(HW)
+    ctx.load_dialect(LLVM)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:

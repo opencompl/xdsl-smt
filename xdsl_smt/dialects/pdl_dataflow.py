@@ -51,4 +51,4 @@ class AttachOp(IRDLOperation):
     domain_name: StringAttr = attr_def(StringAttr)
 
 
-PDLDataflowDialect = Dialect([GetOp, RewriteOp, AttachOp])
+PDLDataflowDialect = Dialect("pdl", [GetOp, RewriteOp, AttachOp])

@@ -23,7 +23,8 @@ class ConstantOp(IRDLOperation):
 
 
 HW = Dialect(
+    "hw",
     [
         ConstantOp,
-    ]
+    ],
 )

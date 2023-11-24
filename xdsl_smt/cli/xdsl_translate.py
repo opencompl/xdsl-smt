@@ -40,11 +40,11 @@ def main() -> None:
     args = arg_parser.parse_args()
 
     # Register all dialects
-    ctx.register_dialect(Arith)
-    ctx.register_dialect(Builtin)
-    ctx.register_dialect(Func)
-    ctx.register_dialect(Transfer)
-    ctx.register_dialect(LLVM)
+    ctx.load_dialect(Arith)
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(Transfer)
+    ctx.load_dialect(LLVM)
 
     # Parse the files
     module = parse_file(args.transfer_functions)

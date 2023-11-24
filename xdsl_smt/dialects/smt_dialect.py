@@ -415,14 +415,15 @@ class BoolAttr(Data[bool]):
 
     @classmethod
     def parse_parameter(cls, parser: AttrParser) -> bool:
-        if parser.parse_optional_keyword("true"):
-            return True
-        if parser.parse_optional_keyword("false"):
-            return False
-        parser.raise_error("'true' or 'false' expected")
+        with parser.in_angle_brackets():
+            if parser.parse_optional_keyword("true"):
+                return True
+            if parser.parse_optional_keyword("false"):
+                return False
+            parser.raise_error("'true' or 'false' expected")
 
     def print_parameter(self, printer: Printer) -> None:
-        printer.print("true" if self.data else "false")
+        printer.print("<true>" if self.data else "<false>")
 
 
 @irdl_op_definition
@@ -552,6 +553,7 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
 
 SMTDialect = Dialect(
+    "smt",
     [
         YieldOp,
         ForallOp,

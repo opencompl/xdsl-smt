@@ -302,6 +302,7 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
 
 
 Transfer = Dialect(
+    "transfer",
     [
         Constant,
         CmpOp,

@@ -532,6 +532,7 @@ class RepeatOp(IRDLOperation, SMTLibOp):
 
 
 SMTBitVectorDialect = Dialect(
+    "smtbv",
     [
         ConstantOp,
         # Arithmetic

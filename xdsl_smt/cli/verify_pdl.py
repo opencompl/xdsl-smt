@@ -76,20 +76,20 @@ def iterate_on_all_integers(
 
 class OptMain(xDSLOptMain):
     def register_all_dialects(self):
-        self.ctx.register_dialect(Arith)
-        self.ctx.register_dialect(Builtin)
-        self.ctx.register_dialect(Func)
-        self.ctx.register_dialect(Index)
-        self.ctx.register_dialect(SMTDialect)
-        self.ctx.register_dialect(SMTBitVectorDialect)
-        self.ctx.register_dialect(SMTUtilsDialect)
-        self.ctx.register_dialect(Transfer)
-        self.ctx.register_dialect(Hoare)
-        self.ctx.register_dialect(PDL)
-        self.ctx.register_dialect(PDLDataflowDialect)
-        self.ctx.register_dialect(Comb)
-        self.ctx.register_dialect(HW)
-        self.ctx.register_dialect(LLVM)
+        self.ctx.load_dialect(Arith)
+        self.ctx.load_dialect(Builtin)
+        self.ctx.load_dialect(Func)
+        self.ctx.load_dialect(Index)
+        self.ctx.load_dialect(SMTDialect)
+        self.ctx.load_dialect(SMTBitVectorDialect)
+        self.ctx.load_dialect(SMTUtilsDialect)
+        self.ctx.load_dialect(Transfer)
+        self.ctx.load_dialect(Hoare)
+        self.ctx.load_dialect(PDL)
+        self.ctx.load_dialect(PDLDataflowDialect)
+        self.ctx.load_dialect(Comb)
+        self.ctx.load_dialect(HW)
+        self.ctx.load_dialect(LLVM)
 
     def run(self):
         """Executes the different steps."""
