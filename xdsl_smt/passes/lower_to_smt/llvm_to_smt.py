@@ -1,4 +1,4 @@
-from xdsl.dialects.builtin import FunctionType
+from xdsl.dialects.builtin import FunctionType, IntegerType
 from xdsl.dialects.llvm import LLVMVoidType
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -7,6 +7,9 @@ from xdsl.pattern_rewriter import (
 )
 import xdsl_smt.dialects.llvm_dialect as llvm
 import xdsl_smt.dialects.smt_dialect as smt
+import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
+import xdsl_smt.dialects.smt_utils_dialect as smt_utils
+from xdsl_smt.passes.lower_to_smt.arith_to_smt import reduce_poison_values
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
 
 
@@ -56,7 +59,243 @@ class FuncToSMTPattern(RewritePattern):
         rewriter.replace_matched_op(smt_func, new_results=[])
 
 
+class AddRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.AddOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("nsw") or op.get_attr_or_prop("nuw"):
+            raise Exception("Cannot handle nsw/nuw add")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.AddOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class SubRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.SubOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("nsw") or op.get_attr_or_prop("nuw"):
+            raise Exception("Cannot handle nsw/nuw sub")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.SubOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class MulRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.MulOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("nsw") or op.get_attr_or_prop("nuw"):
+            raise Exception("Cannot handle nsw/nuw mul")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.MulOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class UDivRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.UDivOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("exact"):
+            raise Exception("Cannot handle exact udiv")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.res.type, IntegerType)
+        width = op.res.type.width.data
+
+        value_op = smt_bv.UDivOp(operands[0], operands[1])
+
+        # Check for division by zero
+        zero = smt_bv.ConstantOp(0, width)
+        is_rhs_zero = smt.EqOp(operands[1], zero.res)
+        new_poison = smt.OrOp(is_rhs_zero.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
+
+
+class SDivRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.SDivOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("exact"):
+            raise Exception("Cannot handle exact sdiv")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+
+        assert isinstance(op.res.type, IntegerType)
+        width = op.res.type.width.data
+
+        # Check for division by zero
+        zero = smt_bv.ConstantOp(0, width)
+        is_div_by_zero = smt.EqOp(zero.res, operands[1])
+
+        # Check for underflow
+        minimum_value = smt_bv.ConstantOp(2 ** (width - 1), width)
+        minus_one = smt_bv.ConstantOp(2**width - 1, width)
+        lhs_is_min_val = smt.EqOp(operands[0], minimum_value.res)
+        rhs_is_minus_one = smt.EqOp(operands[1], minus_one.res)
+        is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+
+        # New poison cases
+        introduce_poison = smt.OrOp(is_div_by_zero.res, is_underflow.res)
+        new_poison = smt.OrOp(introduce_poison.res, poison)
+
+        value_op = smt_bv.SDivOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [
+                zero,
+                is_div_by_zero,
+                minimum_value,
+                minus_one,
+                lhs_is_min_val,
+                rhs_is_minus_one,
+                is_underflow,
+                introduce_poison,
+                new_poison,
+                value_op,
+                res_op,
+            ]
+        )
+
+
+class URemOpRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.URemOp, rewriter: PatternRewriter) -> None:
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.res.type, IntegerType)
+        width = op.res.type.width.data
+
+        value_op = smt_bv.URemOp(operands[0], operands[1])
+
+        # Poison if the rhs is zero
+        zero = smt_bv.ConstantOp(0, width)
+        is_rhs_zero = smt.EqOp(operands[1], zero.res)
+        new_poison = smt.OrOp(is_rhs_zero.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
+
+
+class SRemRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.SRemOp, rewriter: PatternRewriter) -> None:
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        assert isinstance(op.res.type, IntegerType)
+        width = op.res.type.width.data
+
+        value_op = smt_bv.SRemOp(operands[0], operands[1])
+
+        # Poison if the rhs is zero
+        zero = smt_bv.ConstantOp(0, width)
+        is_rhs_zero = smt.EqOp(operands[1], zero.res)
+        new_poison = smt.OrOp(is_rhs_zero.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
+
+
+class AndRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.AndOp, rewriter: PatternRewriter) -> None:
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.AndOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class OrRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.OrOp, rewriter: PatternRewriter) -> None:
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.OrOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class XorRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.XOrOp, rewriter: PatternRewriter) -> None:
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.XorOp(operands[0], operands[1])
+        res_op = smt_utils.PairOp(value_op.res, poison)
+        rewriter.replace_matched_op([value_op, res_op])
+
+
+class ShlRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.ShlOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("nuw") or op.get_attr_or_prop("nsw"):
+            raise Exception("Cannot handle nuw/nsw shl")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.ShlOp(operands[0], operands[1])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = smt_bv.ConstantOp(width, width)
+        shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
+        new_poison = smt.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
+
+
+class AShrRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.AShrOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("exact"):
+            raise Exception("Cannot handle exact ashr")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.AShrOp(operands[0], operands[1])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = smt_bv.ConstantOp(width, width)
+        shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
+        new_poison = smt.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
+
+
+class LShrRewritePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: llvm.LShrOp, rewriter: PatternRewriter) -> None:
+        if op.get_attr_or_prop("exact"):
+            raise Exception("Cannot handle exact lshr")
+        operands, poison = reduce_poison_values(op.operands, rewriter)
+        value_op = smt_bv.LShrOp(operands[0], operands[1])
+
+        # If the shift amount is greater than the width of the value, poison
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width.data
+        width_op = smt_bv.ConstantOp(width, width)
+        shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
+        new_poison = smt.OrOp(shift_amount_too_big.res, poison)
+
+        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        rewriter.replace_matched_op(
+            [value_op, width_op, shift_amount_too_big, new_poison, res_op]
+        )
+
+
 llvm_to_smt_patterns: list[RewritePattern] = [
     FuncToSMTPattern(),
     ReturnPattern(),
+    AddRewritePattern(),
+    SubRewritePattern(),
+    MulRewritePattern(),
+    UDivRewritePattern(),
+    SDivRewritePattern(),
+    URemOpRewritePattern(),
+    SRemRewritePattern(),
+    AndRewritePattern(),
+    OrRewritePattern(),
+    XorRewritePattern(),
+    ShlRewritePattern(),
+    AShrRewritePattern(),
+    LShrRewritePattern(),
 ]
