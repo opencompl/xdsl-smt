@@ -3,7 +3,7 @@ name = "xdsl-smt"
 version = "0.0.0"
 dependencies = [
   "z3-solver==4.12.1.0",
-  "xdsl @ git+ssh://git@github.com/xdslproject/xdsl@a517988cead01a4f4c893f83c403f111b30c2cd5",
+  "xdsl @ git+https://git@github.com/xdslproject/xdsl@a517988cead01a4f4c893f83c403f111b30c2cd5",
 ]
 
 [project.optional-dependencies]
