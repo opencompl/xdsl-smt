@@ -292,14 +292,14 @@ class ICmpOpRewritePattern(RewritePattern):
     predicates = [
         smt.EqOp,
         smt.DistinctOp,
-        smt_bv.UgtOp,
-        smt_bv.UgeOp,
-        smt_bv.UltOp,
-        smt_bv.UleOp,
-        smt_bv.SgtOp,
-        smt_bv.SgeOp,
         smt_bv.SltOp,
         smt_bv.SleOp,
+        smt_bv.SgtOp,
+        smt_bv.SgeOp,
+        smt_bv.UltOp,
+        smt_bv.UleOp,
+        smt_bv.UgtOp,
+        smt_bv.UgeOp,
     ]
 
     @op_type_rewrite_pattern

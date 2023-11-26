@@ -12,14 +12,14 @@ from xdsl.ir import Dialect
 CMPI_COMPARISON_OPERATIONS = [
     "eq",
     "ne",
-    "ugt",
-    "uge",
-    "ult",
-    "ule",
-    "sgt",
-    "sge",
     "slt",
     "sle",
+    "sgt",
+    "sge",
+    "ult",
+    "ule",
+    "ugt",
+    "uge",
 ]
 
 
@@ -45,14 +45,14 @@ class ICmpOp(IRDLOperation, ComparisonOperation):
             cmpi_comparison_operations = {
                 "eq": 0,
                 "ne": 1,
-                "ugt": 2,
-                "uge": 3,
-                "ult": 4,
-                "ule": 5,
-                "sgt": 6,
-                "sge": 7,
-                "slt": 8,
-                "sle": 9,
+                "slt": 2,
+                "sle": 3,
+                "sgt": 4,
+                "sge": 5,
+                "ult": 6,
+                "ule": 7,
+                "ugt": 8,
+                "uge": 9,
             }
             arg = ICmpOp._get_comparison_predicate(arg, cmpi_comparison_operations)
 
