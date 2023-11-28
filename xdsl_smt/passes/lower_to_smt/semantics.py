@@ -1,7 +1,7 @@
 from abc import abstractmethod
-from typing import Generic, Mapping, Sequence
+from typing import Mapping, Sequence
 
-from xdsl.ir import Attribute, AttributeCovT, AttributeInvT, Region, SSAValue
+from xdsl.ir import Attribute, Region, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 

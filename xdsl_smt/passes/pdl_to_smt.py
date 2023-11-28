@@ -61,17 +61,6 @@ def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
     return type
 
 
-def _get_attr_of_erased_attr_value(value: SSAValue) -> Attribute:
-    assert isinstance(value, ErasedSSAValue), "Error in rewriting logic"
-    assert isinstance(
-        (attr_op := value.old_value.owner), AttributeOp
-    ), "Error in rewriting logic"
-    attr = attr_op.value
-    if attr is None:
-        raise Exception("Cannot handle non-constant attributes")
-    return attr
-
-
 class PatternRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: PatternOp, rewriter: PatternRewriter):
@@ -160,15 +149,16 @@ class OperationRewrite(RewritePattern):
         # Create the with the given operands and types
         result_types = [_get_type_of_erased_type_value(type) for type in op.type_values]
 
-        if type(op_def) in LowerToSMT.operation_semantics:
+        if op_def in LowerToSMT.operation_semantics:
             attributes = {
                 name.data: attr
                 for name, attr in zip(op.attributeValueNames, op.attribute_values)
             }
-            results = LowerToSMT.operation_semantics[type(op_def)].get_semantics(
+            results = LowerToSMT.operation_semantics[op_def].get_semantics(
                 op.operand_values, result_types, op.regions, attributes, rewriter
             )
             self.rewrite_context.pdl_op_to_values[op.op] = results
+            rewriter.erase_matched_op(safe_erase=False)
             return
 
         if op.attribute_values:

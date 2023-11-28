@@ -8,6 +8,7 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+from xdsl_smt.passes.lower_to_smt import arith_semantics
 from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
 
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import integer_poison_type_lowerer
@@ -90,6 +91,7 @@ def main():
         ]
         LowerToSMT.type_lowerers = [integer_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+        LowerToSMT.operation_semantics = arith_semantics
     else:
         LowerToSMT.rewrite_patterns = [
             *arith_to_smt_patterns,
@@ -99,6 +101,7 @@ def main():
         ]
         LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+        LowerToSMT.operation_semantics = arith_semantics
 
     xdsl_main.run()
 
