@@ -5,7 +5,7 @@ in PDL.
 
 from xdsl.ir import Operation
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl_smt.passes.lower_to_smt.arith_to_smt import reduce_poison_values
+from xdsl_smt.passes.lower_to_smt.arith_semantics import reduce_poison_values
 
 from xdsl.dialects.pdl import ApplyNativeRewriteOp
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv

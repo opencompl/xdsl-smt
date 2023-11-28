@@ -17,6 +17,7 @@ from xdsl.pattern_rewriter import (
 )
 from ..dialects import smt_dialect as smt
 from ..dialects import smt_utils_dialect as smt_utils
+import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 
 from .dead_code_elimination import DeadCodeElimination
 
@@ -29,6 +30,14 @@ class FoldCorePattern(RewritePattern):
         if not isinstance((constant := value.op), smt.ConstantBoolOp):
             return None
         return constant.value.data
+
+    @staticmethod
+    def get_bv_constant(value: SSAValue) -> int | None:
+        if not isinstance(value, OpResult):
+            return None
+        if not isinstance((constant := value.op), smt_bv.ConstantOp):
+            return None
+        return constant.value.value.data
 
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
         # forall x. True -> True
@@ -148,6 +157,7 @@ class FoldCorePattern(RewritePattern):
         # x == True -> x
         # x == False -> not x
         # x == x -> True
+        # Constant folding for bitvectors
         if isinstance(op, smt.EqOp):
             if (value := self.get_constant(op.lhs)) is not None:
                 if value:
@@ -164,6 +174,12 @@ class FoldCorePattern(RewritePattern):
             if op.lhs == op.rhs:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
                 return
+            if (value := self.get_bv_constant(op.lhs)) is not None:
+                if (value2 := self.get_bv_constant(op.rhs)) is not None:
+                    rewriter.replace_matched_op(
+                        smt.ConstantBoolOp.from_bool(value == value2)
+                    )
+                    return
             return
 
         # True != x -> not x
