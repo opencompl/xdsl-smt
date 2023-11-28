@@ -9,7 +9,7 @@ from functools import reduce
 from typing import Callable, ClassVar
 
 from xdsl.passes import ModulePass
-from xdsl.ir import Attribute, MLContext
+from xdsl.ir import Attribute, MLContext, Operation
 from xdsl.dialects.builtin import IntegerType, ModuleOp
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
@@ -18,6 +18,10 @@ from xdsl.pattern_rewriter import (
 )
 
 from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl_smt.passes.lower_to_smt.semantics import (
+    AttributeSemantics,
+    OperationSemantics,
+)
 
 from ...dialects.smt_bitvector_dialect import BitVectorType
 from ...dialects.smt_utils_dialect import PairType
@@ -43,6 +47,8 @@ class LowerToSMT(ModulePass):
 
     type_lowerers: ClassVar[list[Callable[[Attribute], Attribute | None]]] = []
     rewrite_patterns: ClassVar[list[RewritePattern]] = []
+    operation_semantics: ClassVar[dict[type[Operation], OperationSemantics]] = {}
+    attribute_semantics: ClassVar[dict[type[Attribute], AttributeSemantics]] = {}
 
     @staticmethod
     def lower_type(type: Attribute) -> Attribute:

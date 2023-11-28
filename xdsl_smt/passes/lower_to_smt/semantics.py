@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Generic, Mapping, Sequence
 
-from xdsl.ir import Attribute, AttributeInvT, Region, SSAValue
+from xdsl.ir import Attribute, AttributeCovT, AttributeInvT, Region, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 
@@ -28,7 +28,7 @@ class OperationSemantics:
         pass
 
 
-class AttributeSemantics(Generic[AttributeInvT]):
+class AttributeSemantics:
     """
     The semantics of a class of attributes.
     When an attribute or property has a meaning in an operation,
@@ -38,21 +38,18 @@ class AttributeSemantics(Generic[AttributeInvT]):
     @abstractmethod
     def get_semantics(
         self,
-        attribute: AttributeInvT,
+        attribute: Attribute,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         pass
 
 
-class TypeSemantics(Generic[AttributeInvT]):
+class TypeSemantics:
     """
     The semantics of a class of types.
     Returns an Attribute that encodes the type as an SMT sort.
     """
 
     @abstractmethod
-    def get_semantics(
-        self,
-        attribute: AttributeInvT,
-    ) -> Attribute:
+    def get_semantics(self, attribute: Attribute) -> Attribute:
         pass

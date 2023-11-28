@@ -10,13 +10,15 @@ from io import StringIO
 from typing import Callable, Iterable
 from xdsl.ir import MLContext
 
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, ApplyNativeRewriteOp, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.xdsl_opt_main import xDSLOptMain
+
+from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
 
 
 from ..dialects.hoare_dialect import Hoare
@@ -137,6 +139,7 @@ def main() -> None:
         *llvm_to_smt_patterns,
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
+    LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
 
     OptMain().run()
 

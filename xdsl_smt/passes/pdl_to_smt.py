@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Callable
-from xdsl.dialects.builtin import ModuleOp
+from typing import Callable, Sequence
+from xdsl.dialects.builtin import ModuleOp, IntegerType
 from xdsl.dialects.pdl import (
     ApplyNativeRewriteOp,
     OperandOp,
@@ -45,7 +45,8 @@ from .lower_to_smt.lower_to_smt import LowerToSMT
 
 @dataclass
 class PDLToSMTRewriteContext:
-    pdl_op_to_op: dict[SSAValue, Operation] = field(default_factory=dict)
+    pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
+    pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
     preconditions: list[SSAValue] = field(default_factory=list)
 
 
@@ -94,16 +95,44 @@ class DataflowRewriteRewrite(RewritePattern):
         rewriter.erase_matched_op()
 
 
+@dataclass
 class TypeRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
+        if op.constantType is None:
+            raise Exception("Cannot handle non-constant types")
+
+        self.rewrite_context.pdl_types_to_types[op.result] = LowerToSMT.lower_type(
+            op.constantType
+        )
         rewriter.erase_matched_op(safe_erase=False)
 
 
 class AttributeRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
-        rewriter.erase_matched_op(safe_erase=False)
+        if op.value is not None:
+            value = LowerToSMT.attribute_semantics[type(op.value)].get_semantics(
+                op.value, rewriter
+            )
+            rewriter.replace_matched_op([], [value])
+            return
+
+        if op.value_type is not None:
+            value_type = _get_type_of_erased_type_value(op.value_type)
+            if not isinstance(value_type, IntegerType):
+                raise Exception(
+                    "Cannot handle quantification of attributes with non-integer types"
+                )
+            declare_op = DeclareConstOp(smt_bv.BitVectorType(value_type.width.data))
+            rewriter.replace_matched_op(declare_op)
+            return
+
+        raise Exception("Cannot handle unbounded and untyped attributes")
 
 
 class OperandRewrite(RewritePattern):
@@ -130,12 +159,25 @@ class OperationRewrite(RewritePattern):
 
         # Create the with the given operands and types
         result_types = [_get_type_of_erased_type_value(type) for type in op.type_values]
-        attributes = {
-            name.data: _get_attr_of_erased_attr_value(attr)
-            for attr, name in zip(op.attribute_values, op.attributeValueNames)
-        }
+
+        if type(op_def) in LowerToSMT.operation_semantics:
+            attributes = {
+                name.data: attr
+                for name, attr in zip(op.attributeValueNames, op.attribute_values)
+            }
+            results = LowerToSMT.operation_semantics[type(op_def)].get_semantics(
+                op.operand_values, result_types, op.regions, attributes, rewriter
+            )
+            self.rewrite_context.pdl_op_to_values[op.op] = results
+            return
+
+        if op.attribute_values:
+            raise Exception(
+                "Cannot handle operation without semantics and with attributes"
+            )
+
         synthesized_op = op_def.create(
-            operands=op.operand_values, result_types=result_types, attributes=attributes
+            operands=op.operand_values, result_types=result_types
         )
 
         # Cursed hack: we create a new module with that operation, and
@@ -147,7 +189,7 @@ class OperationRewrite(RewritePattern):
 
         # Set the operation carrying the results in the context
         # FIXME: this does not work if the last operation does not return all results
-        self.rewrite_context.pdl_op_to_op[op.op] = last_op
+        self.rewrite_context.pdl_op_to_values[op.op] = last_op.results
         rewriter.inline_block_before_matched_op(rewrite_module.body.blocks[0])
 
         rewriter.erase_matched_op(safe_erase=False)
@@ -160,9 +202,10 @@ class ReplaceRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
         assert isinstance(op.op_value, ErasedSSAValue)
-        replaced_op = self.rewrite_context.pdl_op_to_op[op.op_value.old_value]
-        if len(replaced_op.results) != 1:
+        replaced_values = self.rewrite_context.pdl_op_to_values[op.op_value.old_value]
+        if len(replaced_values) != 1:
             raise Exception("Cannot handle operations with multiple results")
+        replaced_value = replaced_values[0]
 
         replacing_value: SSAValue
         # Replacing by values case
@@ -172,14 +215,14 @@ class ReplaceRewrite(RewritePattern):
         # Replacing by operations case
         else:
             assert isinstance(op.repl_operation, ErasedSSAValue)
-            replacing_op = self.rewrite_context.pdl_op_to_op[
+            replacing_values = self.rewrite_context.pdl_op_to_values[
                 op.repl_operation.old_value
             ]
-            if len(replacing_op.results) != 1:
+            if len(replacing_values) != 1:
                 raise Exception("Cannot handle operations with multiple results")
-            replacing_value = replacing_op.results[0]
+            replacing_value = replacing_values[0]
 
-        distinct_op = DistinctOp(replacing_value, replaced_op.results[0])
+        distinct_op = DistinctOp(replacing_value, replaced_value)
 
         if len(self.rewrite_context.preconditions) == 0:
             assert_op = AssertOp(distinct_op.res)
@@ -204,7 +247,7 @@ class ResultRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ResultOp, rewriter: PatternRewriter):
         assert isinstance(op.parent_, ErasedSSAValue)
-        result = self.rewrite_context.pdl_op_to_op[op.parent_.old_value].results[
+        result = self.rewrite_context.pdl_op_to_values[op.parent_.old_value][
             op.index.value.data
         ]
         rewriter.replace_matched_op([], new_results=[result])
@@ -340,7 +383,7 @@ class PDLToSMT(ModulePass):
                     PatternRewrite(),
                     RewriteRewrite(),
                     DataflowRewriteRewrite(),
-                    TypeRewrite(),
+                    TypeRewrite(rewrite_context),
                     AttributeRewrite(),
                     OperandRewrite(),
                     GetOpRewrite(rewrite_context),

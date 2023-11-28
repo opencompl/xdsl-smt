@@ -1,5 +1,5 @@
-from xdsl.ir import SSAValue
-from xdsl.parser import AnyIntegerAttr, IntegerAttr, IntegerType
+from xdsl.ir import Attribute, SSAValue
+from xdsl.parser import IntegerAttr, IntegerType
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
 from xdsl_smt.passes.lower_to_smt.semantics import (
@@ -9,9 +9,9 @@ from xdsl_smt.passes.lower_to_smt.semantics import (
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 
 
-class IntegerAttrSemantics(AttributeSemantics[AnyIntegerAttr]):
+class IntegerAttrSemantics(AttributeSemantics):
     def get_semantics(
-        self, attribute: AnyIntegerAttr, rewriter: PatternRewriter
+        self, attribute: Attribute, rewriter: PatternRewriter
     ) -> SSAValue:
         if not isa(attribute, IntegerAttr[IntegerType]):
             raise Exception("Cannot handle semantics of IntegerAttr[IntegerType]")
