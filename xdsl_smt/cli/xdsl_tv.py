@@ -33,7 +33,7 @@ from ..passes.canonicalize_smt import CanonicalizeSMT
 from ..passes.lower_to_smt import (
     LowerToSMT,
     arith_semantics,
-    comb_to_smt_patterns,
+    comb_semantics,
     transfer_to_smt_patterns,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
@@ -137,13 +137,12 @@ def main() -> None:
     assert isinstance(module_after, ModuleOp)
 
     LowerToSMT.rewrite_patterns = [
-        *comb_to_smt_patterns,
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
         *llvm_to_smt_patterns,
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
-    LowerToSMT.operation_semantics = arith_semantics
+    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
 
     # Convert both module to SMTLib
     LowerToSMT().apply(ctx, module)

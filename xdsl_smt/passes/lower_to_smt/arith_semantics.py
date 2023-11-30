@@ -3,11 +3,7 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence
 from xdsl.ir import Operation, Region, SSAValue, Attribute
 from xdsl.parser import AnyIntegerAttr
-from xdsl.pattern_rewriter import (
-    PatternRewriter,
-    RewritePattern,
-    op_type_rewrite_pattern,
-)
+from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.dialects.builtin import IntegerType
 from xdsl.utils.hints import isa
 from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
@@ -795,24 +791,6 @@ class FloorDivSISemantics(SimplePoisonSemantics):
             ]
         )
         return ((res_value_op.res, introduce_poison.res),)
-
-
-def semantics_to_rewrite_pattern(
-    op_type: type[Operation], semantics: OperationSemantics
-) -> RewritePattern:
-    class SemanticsRewritePattern(RewritePattern):
-        @op_type_rewrite_pattern
-        def match_and_rewrite(self, op: op_type, rewriter: PatternRewriter) -> None:
-            res = semantics.get_semantics(
-                op.operands,
-                [result.type for result in op.results],
-                op.regions,
-                op.attributes | op.properties,
-                rewriter,
-            )
-            rewriter.replace_matched_op([], res)
-
-    return SemanticsRewritePattern()
 
 
 arith_semantics: dict[type[Operation], OperationSemantics] = {

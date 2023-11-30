@@ -30,7 +30,7 @@ from ..passes.dead_code_elimination import DeadCodeElimination
 from ..passes.lower_pairs import LowerPairs
 from ..passes.lower_to_smt import (
     LowerToSMT,
-    comb_to_smt_patterns,
+    comb_semantics,
     transfer_to_smt_patterns,
     integer_type_lowerer,
     func_to_smt_patterns,
@@ -84,13 +84,12 @@ def main():
     xdsl_main = OptMain()
     if xdsl_main.args.circt:
         LowerToSMT.rewrite_patterns = [
-            *comb_to_smt_patterns,
             *func_to_smt_patterns,
             *llvm_to_smt_patterns,
         ]
         LowerToSMT.type_lowerers = [integer_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-        LowerToSMT.operation_semantics = arith_semantics
+        LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
     else:
         LowerToSMT.rewrite_patterns = [
             *transfer_to_smt_patterns,
