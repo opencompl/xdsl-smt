@@ -113,7 +113,10 @@ class OptMain(xDSLOptMain):
 
         for pattern in module.walk():
             if isinstance(pattern, PatternOp):
-                print(f"Verifying pattern {pattern.name}")
+                if pattern.sym_name:
+                    print(f"Verifying pattern {pattern.sym_name.data}:")
+                else:
+                    print(f"Verifying pattern:")
                 for specialized_pattern, types in iterate_on_all_integers(pattern):
                     if verify_pattern(self.ctx, ModuleOp([specialized_pattern])):
                         print(f"with types {types}: SOUND")
