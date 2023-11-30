@@ -30,7 +30,6 @@ from ..passes.dead_code_elimination import DeadCodeElimination
 from ..passes.lower_pairs import LowerPairs
 from ..passes.lower_to_smt import (
     LowerToSMT,
-    arith_to_smt_patterns,
     comb_to_smt_patterns,
     transfer_to_smt_patterns,
     integer_type_lowerer,
@@ -94,7 +93,6 @@ def main():
         LowerToSMT.operation_semantics = arith_semantics
     else:
         LowerToSMT.rewrite_patterns = [
-            *arith_to_smt_patterns,
             *transfer_to_smt_patterns,
             *func_to_smt_patterns,
             *llvm_to_smt_patterns,

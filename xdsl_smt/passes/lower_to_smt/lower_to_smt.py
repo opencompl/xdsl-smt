@@ -14,6 +14,7 @@ from xdsl.dialects.builtin import IntegerType, ModuleOp
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     PatternRewriteWalker,
+    PatternRewriter,
     RewritePattern,
 )
 
@@ -39,6 +40,23 @@ def integer_type_lowerer(type: Attribute) -> Attribute | None:
     if isinstance(type, IntegerType):
         return BitVectorType(type.width)
     return None
+
+
+@dataclass
+class OperationSemanticsRewritePattern(RewritePattern):
+    semantics: dict[type[Operation], OperationSemantics]
+
+    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter) -> None:
+        if type(op) in self.semantics:
+            res_values = self.semantics[type(op)].get_semantics(
+                op.operands,
+                tuple(res.type for res in op.results),
+                op.regions,
+                {**op.attributes, **op.properties},
+                rewriter,
+            )
+            rewriter.replace_matched_op([], res_values)
+        return None
 
 
 @dataclass
@@ -74,6 +92,9 @@ class LowerToSMT(ModulePass):
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier(self.rewrite_patterns)
+            GreedyRewritePatternApplier(
+                self.rewrite_patterns
+                + [OperationSemanticsRewritePattern(self.operation_semantics)]
+            )
         )
         walker.rewrite_module(op)

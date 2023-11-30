@@ -843,33 +843,3 @@ arith_semantics: dict[type[Operation], OperationSemantics] = {
     arith.CeilDivSI: CeilDivSISemantics(),
     arith.FloorDivSI: FloorDivSISemantics(),
 }
-
-
-arith_to_smt_patterns: list[RewritePattern] = [
-    semantics_to_rewrite_pattern(arith.Constant, ConstantSemantics()),
-    semantics_to_rewrite_pattern(arith.Addi, AddiSemantics()),
-    semantics_to_rewrite_pattern(arith.Subi, SubiSemantics()),
-    semantics_to_rewrite_pattern(arith.Muli, MuliSemantics()),
-    semantics_to_rewrite_pattern(arith.AndI, AndiSemantics()),
-    semantics_to_rewrite_pattern(arith.OrI, OriSemantics()),
-    semantics_to_rewrite_pattern(arith.XOrI, XoriSemantics()),
-    semantics_to_rewrite_pattern(arith.ShLI, ShliSemantics()),
-    semantics_to_rewrite_pattern(arith.DivSI, DivsiSemantics()),
-    semantics_to_rewrite_pattern(arith.DivUI, DivuiSemantics()),
-    semantics_to_rewrite_pattern(arith.RemSI, RemsiSemantics()),
-    semantics_to_rewrite_pattern(arith.RemUI, RemuiSemantics()),
-    semantics_to_rewrite_pattern(arith.ShRSI, ShrsiSemantics()),
-    semantics_to_rewrite_pattern(arith.ShRUI, ShruiSemantics()),
-    semantics_to_rewrite_pattern(arith.MaxSI, MaxsiSemantics()),
-    semantics_to_rewrite_pattern(arith.MaxUI, MaxuiSemantics()),
-    semantics_to_rewrite_pattern(arith.MinSI, MinsiSemantics()),
-    semantics_to_rewrite_pattern(arith.MinUI, MinuiSemantics()),
-    semantics_to_rewrite_pattern(arith.Cmpi, CmpiSemantics()),
-    semantics_to_rewrite_pattern(arith.Select, SelectSemantics()),
-    semantics_to_rewrite_pattern(arith.TruncIOp, TruncISemantics()),
-    semantics_to_rewrite_pattern(arith.ExtUIOp, ExtuiSemantics()),
-    semantics_to_rewrite_pattern(arith.ExtSIOp, ExtSISemantics()),
-    semantics_to_rewrite_pattern(arith.CeilDivUI, CeilDivUISemantics()),
-    semantics_to_rewrite_pattern(arith.CeilDivSI, CeilDivSISemantics()),
-    semantics_to_rewrite_pattern(arith.FloorDivSI, FloorDivSISemantics()),
-]

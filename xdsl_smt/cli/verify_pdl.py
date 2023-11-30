@@ -35,7 +35,6 @@ from ..dialects.llvm_dialect import LLVM
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.pdl_to_smt import PDLToSMT
 from ..passes.lower_to_smt import (
-    arith_to_smt_patterns,
     func_to_smt_patterns,
     transfer_to_smt_patterns,
     llvm_to_smt_patterns,
@@ -134,7 +133,6 @@ class OptMain(xDSLOptMain):
 
 def main() -> None:
     LowerToSMT.rewrite_patterns = [
-        *arith_to_smt_patterns,
         *transfer_to_smt_patterns,
         *func_to_smt_patterns,
         *llvm_to_smt_patterns,
