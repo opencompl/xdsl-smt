@@ -1,5 +1,4 @@
-// RUN: xdsl-smt "%s" -t mlir -p=pdl-to-smt,canonicalize-smt | filecheck "%s"
-// XFAIL: *
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,canonicalize-smt -t smt | filecheck "%s"
 
 builtin.module {
     pdl.pattern @add_constant_fold : benefit(0) {
@@ -14,7 +13,7 @@ builtin.module {
         %lhs = pdl.result 0 of %constant0
         %rhs = pdl.result 0 of %constant1
 
-        %add = pdl.operation "arith.add" (%lhs, %rhs : !pdl.value, !pdl.value) -> (%type : !pdl.type)
+        %add = pdl.operation "arith.addi" (%lhs, %rhs : !pdl.value, !pdl.value) -> (%type : !pdl.type)
 
         pdl.rewrite %add {
             %res = pdl.apply_native_rewrite "addi"(%c0, %c1 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
@@ -23,3 +22,8 @@ builtin.module {
         }
     }
 }
+
+// CHECK:       (declare-const c0 (_ BitVec 32))
+// CHECK-NEXT:  (declare-const c1 (_ BitVec 32))
+// CHECK-NEXT:  (assert (distinct (pair (bvadd c0 c1) false) (pair (bvadd c0 c1) false)))
+// CHECK-NEXT:  (check-sat)

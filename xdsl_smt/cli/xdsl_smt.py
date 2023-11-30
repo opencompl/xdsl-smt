@@ -40,6 +40,10 @@ from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib
 
+from xdsl_smt.pdl_constraints.integer_arith_constraints import (
+    integer_arith_native_rewrites,
+)
+
 
 class OptMain(xDSLOptMain):
     def register_all_dialects(self):
@@ -99,6 +103,8 @@ def main():
         LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
         LowerToSMT.operation_semantics = arith_semantics
+
+    PDLToSMT.native_rewrites = integer_arith_native_rewrites
 
     xdsl_main.run()
 

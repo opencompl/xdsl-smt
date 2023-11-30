@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Callable, Sequence
+from typing import Callable, ClassVar, Sequence
 from xdsl.dialects.builtin import ModuleOp, IntegerType
 from xdsl.dialects.pdl import (
     ApplyNativeRewriteOp,
@@ -351,9 +351,11 @@ class ApplyNativeRewriteRewrite(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ApplyNativeRewriteOp, rewriter: PatternRewriter, /):
-        if op.name not in self.native_rewrites:
-            raise Exception(f"No semantics for native rewrite {op.name}")
-        rewrite = self.native_rewrites[op.name]
+        if op.constraint_name.data not in self.native_rewrites:
+            raise Exception(
+                f"No semantics for native rewrite {op.constraint_name.data}"
+            )
+        rewrite = self.native_rewrites[op.constraint_name.data]
         rewrite(op, rewriter)
 
 
@@ -361,9 +363,9 @@ class ApplyNativeRewriteRewrite(RewritePattern):
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
-    native_rewrites: dict[
-        str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]
-    ] = field(default_factory=dict)
+    native_rewrites: ClassVar[
+        dict[str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]]
+    ] = {}
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         rewrite_context = PDLToSMTRewriteContext({})

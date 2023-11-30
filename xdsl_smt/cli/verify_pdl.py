@@ -7,15 +7,14 @@ Check for both correctness and precision.
 import subprocess
 
 from io import StringIO
-from typing import Callable, Iterable
+from typing import Iterable
 from xdsl.ir import MLContext
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
-from xdsl.dialects.pdl import PDL, ApplyNativeRewriteOp, PatternOp, TypeOp
+from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
-from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.xdsl_opt_main import xDSLOptMain
 from xdsl_smt.passes.lower_to_smt import arith_semantics
 
@@ -47,15 +46,9 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
 MAX_INT = 32
 
 
-def get_native_rewrite() -> (
-    dict[str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]]
-):
-    return integer_arith_native_rewrites
-
-
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     cloned_op = op.clone()
-    PDLToSMT(get_native_rewrite()).apply(ctx, cloned_op)
+    PDLToSMT().apply(ctx, cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
 
@@ -140,6 +133,8 @@ def main() -> None:
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
     LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     LowerToSMT.operation_semantics = arith_semantics
+
+    PDLToSMT.native_rewrites = integer_arith_native_rewrites
 
     OptMain().run()
 
