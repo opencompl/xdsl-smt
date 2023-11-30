@@ -546,7 +546,7 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     def verify_(self) -> None:
         if not (self.res.type == self.true_val.type == self.false_val.type):
-            raise ValueError("The result and both values must have the same type")
+            raise VerifyException("The result and both values must have the same type")
 
     def op_name(self) -> str:
         return "ite"

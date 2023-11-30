@@ -6,7 +6,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.ir import Attribute, Operation, Region, SSAValue
 from xdsl.irdl import IRDLOperation
-from xdsl.dialects.builtin import AnyIntegerAttr, IntegerType
+from xdsl.dialects.builtin import AnyIntegerAttr, IntegerAttr, IntegerType
 import xdsl.dialects.comb as comb
 
 from xdsl_smt.dialects import hw_dialect as hw
@@ -110,14 +110,12 @@ class ICmpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op([zero_i1, one_i1])
 
         # Predicate 0: eq
-        eq_bool = smt.EqOp(operands[0], operands[1])
-        value_0 = smt.IteOp(eq_bool.res, one_i1.res, zero_i1.res)
-        rewriter.insert_op_before_matched_op([eq_bool, value_0])
+        value_0 = smt.EqOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_0])
 
         # Predicate 1: ne
-        ne_bool = smt.DistinctOp(operands[0], operands[1])
-        value_1 = smt.IteOp(ne_bool.res, one_i1.res, zero_i1.res)
-        rewriter.insert_op_before_matched_op([ne_bool, value_1])
+        value_1 = smt.DistinctOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_1])
 
         # Predicate 2: slt
         value_2 = smt_bv.SltOp(operands[0], operands[1])
@@ -190,7 +188,9 @@ class ICmpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(
             [ite_0, ite_1, ite_2, ite_3, ite_4, ite_5, ite_6, ite_7, ite_8]
         )
-        return (ite_0.res,)
+        to_int = smt.IteOp(ite_0.res, one_i1.res, zero_i1.res)
+        rewriter.insert_op_before_matched_op(to_int)
+        return (to_int.res,)
 
 
 class ParitySemantics(OperationSemantics):
@@ -218,6 +218,30 @@ class ParitySemantics(OperationSemantics):
             res = xor_op.res
 
         return (res,)
+
+
+class ExtractSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        low_bit_attr = attributes["low_bit"]
+        if isinstance(low_bit_attr, SSAValue):
+            if not isinstance(low_bit_attr.owner, smt_bv.ConstantOp):
+                raise Exception(
+                    "comb.extract cannot express its semantics with a non-constant low_bit value"
+                )
+            low_bit_attr = IntegerAttr(low_bit_attr.owner.value.value.data, 32)
+        assert isinstance(low_bit_attr, IntegerAttr)
+        assert isinstance(results[0], IntegerType)
+        end = results[0].width.data + low_bit_attr.value.data - 1
+        extract = smt_bv.ExtractOp(operands[0], low_bit_attr.value.data, end)
+        rewriter.insert_op_before_matched_op(extract)
+        return (extract.res,)
 
 
 class ReplicateSemantics(OperationSemantics):
@@ -273,8 +297,8 @@ comb_semantics: dict[type[Operation], OperationSemantics] = {
     comb.XorOp: VariadicSemantics(comb.XorOp, smt_bv.XorOp, 0),
     comb.ICmpOp: ICmpSemantics(),
     comb.ParityOp: ParitySemantics(),
-    comb.ExtractOp: OperationSemantics(),
-    comb.ConcatOp: OperationSemantics(),
+    comb.ExtractOp: ExtractSemantics(),
+    comb.ConcatOp: VariadicSemantics(comb.ConcatOp, smt_bv.ConcatOp, 0),
     comb.ReplicateOp: ReplicateSemantics(),
     comb.MuxOp: MuxSemantics(),
 }

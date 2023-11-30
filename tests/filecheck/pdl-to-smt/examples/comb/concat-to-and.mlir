@@ -1,5 +1,4 @@
 // RUN: xdsl-smt "%s" --circt -p=pdl-to-smt -t smt | z3 -in | filecheck "%s"
-// XFAIL: *
 
 // or(x, y) -> or(y, x)
 
