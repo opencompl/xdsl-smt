@@ -41,6 +41,7 @@ from ..passes.lower_to_smt import (
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_rewrites,
+    integer_arith_native_constraints,
 )
 
 MAX_INT = 32
@@ -138,6 +139,7 @@ def main() -> None:
     LowerToSMT.operation_semantics = arith_semantics
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
+    PDLToSMT.native_constraints = integer_arith_native_constraints
 
     OptMain().run()
 

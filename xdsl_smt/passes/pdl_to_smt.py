@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Callable, ClassVar, Sequence
 from xdsl.dialects.builtin import ModuleOp, IntegerType
 from xdsl.dialects.pdl import (
+    ApplyNativeConstraintOp,
     ApplyNativeRewriteOp,
     OperandOp,
     OperationOp,
@@ -360,11 +361,34 @@ class ApplyNativeRewriteRewrite(RewritePattern):
 
 
 @dataclass
+class ApplyNativeConstraintRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
+    native_constraints: dict[
+        str, Callable[[ApplyNativeConstraintOp, PatternRewriter], SSAValue]
+    ] = field(default_factory=dict)
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: ApplyNativeConstraintOp, rewriter: PatternRewriter, /
+    ):
+        if op.constraint_name.data not in self.native_constraints:
+            raise Exception(
+                f"No semantics for native constraint {op.constraint_name.data}"
+            )
+        constraint = self.native_constraints[op.constraint_name.data]
+        value = constraint(op, rewriter)
+        self.rewrite_context.preconditions.append(value)
+
+
+@dataclass
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
     native_rewrites: ClassVar[
         dict[str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]]
+    ] = {}
+    native_constraints: ClassVar[
+        dict[str, Callable[[ApplyNativeConstraintOp, PatternRewriter], SSAValue]]
     ] = {}
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
@@ -384,6 +408,9 @@ class PDLToSMT(ModulePass):
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
                     ApplyNativeRewriteRewrite(self.native_rewrites),
+                    ApplyNativeConstraintRewrite(
+                        rewrite_context, self.native_constraints
+                    ),
                 ]
             )
         )
