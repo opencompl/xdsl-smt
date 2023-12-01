@@ -4,12 +4,9 @@ in PDL.
 """
 
 from xdsl.ir import Operation, SSAValue
-from xdsl.dialects.builtin import AnyIntegerAttr, IntegerAttr
 from xdsl.pattern_rewriter import PatternRewriter
 
-from xdsl.dialects import pdl
 from xdsl.dialects.pdl import ApplyNativeConstraintOp, ApplyNativeRewriteOp
-from xdsl.utils.hints import isa
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_dialect as smt
 
