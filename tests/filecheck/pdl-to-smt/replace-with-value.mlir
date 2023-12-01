@@ -21,5 +21,5 @@
 // CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (assert (let ((tmp_1 (or (second tmp) (second tmp_0))))
 // CHECK-NEXT:    (let ((tmp_2 (bvor (first tmp) (first tmp_0))))
-// CHECK-NEXT:    (distinct (pair tmp_2 tmp_1) (pair (bvor (first tmp) tmp_2) (or (second tmp) tmp_1))))))
+// CHECK-NEXT:    (not (=> (not (or (second tmp) tmp_1)) (and (= (bvor (first tmp) tmp_2) tmp_2) (not tmp_1)))))))
 // CHECK-NEXT:  (check-sat)

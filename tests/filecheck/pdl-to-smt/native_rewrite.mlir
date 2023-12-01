@@ -23,7 +23,8 @@ builtin.module {
     }
 }
 
-// CHECK:       (declare-const c0 (_ BitVec 32))
+// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const c0 (_ BitVec 32))
 // CHECK-NEXT:  (declare-const c1 (_ BitVec 32))
-// CHECK-NEXT:  (assert (distinct (pair (bvadd c0 c1) false) (pair (bvadd c0 c1) false)))
+// CHECK-NEXT:  (assert (not (= (bvadd c0 c1) (bvadd c0 c1))))
 // CHECK-NEXT:  (check-sat)

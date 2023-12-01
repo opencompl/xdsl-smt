@@ -38,6 +38,7 @@ from ..dialects.smt_dialect import (
     DeclareConstOp,
     DistinctOp,
     EqOp,
+    ImpliesOp,
     NotOp,
     OrOp,
 )
@@ -213,11 +214,51 @@ class ReplaceRewrite(RewritePattern):
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_values[0]
 
-        distinct_op = DistinctOp(replacing_value, replaced_value)
+        refinement_value: SSAValue
+        # Poison case
+        if isa(
+            replacing_value.type, smt_utils.PairType[smt_bv.BitVectorType, BoolType]
+        ):
+            replacing_poison = smt_utils.SecondOp(replacing_value)
+            replaced_poison = smt_utils.SecondOp(replaced_value)
+
+            replacing_val = smt_utils.FirstOp(replacing_value)
+            replaced_val = smt_utils.FirstOp(replaced_value)
+
+            rewriter.insert_op_before_matched_op(
+                [
+                    replacing_poison,
+                    replaced_poison,
+                    replacing_val,
+                    replaced_val,
+                ]
+            )
+
+            not_replaced_poison = NotOp.get(replaced_poison.res)
+            not_replacing_poison = NotOp.get(replacing_poison.res)
+            eq_vals = EqOp.get(replaced_val.res, replacing_val.res)
+            not_poison_eq = AndOp(eq_vals.res, not_replacing_poison.res)
+            refinement = ImpliesOp(not_replaced_poison.res, not_poison_eq.res)
+            not_refinement = NotOp.get(refinement.res)
+            rewriter.insert_op_before_matched_op(
+                [
+                    not_replaced_poison,
+                    not_replacing_poison,
+                    eq_vals,
+                    not_poison_eq,
+                    refinement,
+                    not_refinement,
+                ]
+            )
+            refinement_value = not_refinement.res
+        else:
+            distinct_op = DistinctOp(replacing_value, replaced_value)
+            rewriter.insert_op_before_matched_op(distinct_op)
+            refinement_value = distinct_op.res
 
         if len(self.rewrite_context.preconditions) == 0:
-            assert_op = AssertOp(distinct_op.res)
-            rewriter.replace_matched_op([distinct_op, assert_op])
+            assert_op = AssertOp(refinement_value)
+            rewriter.replace_matched_op([assert_op])
             return
 
         and_preconditions = self.rewrite_context.preconditions[0]
@@ -226,9 +267,9 @@ class ReplaceRewrite(RewritePattern):
             rewriter.insert_op_before_matched_op(and_preconditions_op)
             and_preconditions = and_preconditions_op.res
 
-        replace_correct = AndOp(distinct_op.res, and_preconditions)
+        replace_correct = AndOp(refinement_value, and_preconditions)
         assert_op = AssertOp(replace_correct.res)
-        rewriter.replace_matched_op([distinct_op, replace_correct, assert_op])
+        rewriter.replace_matched_op([replace_correct, assert_op])
 
 
 @dataclass
@@ -346,8 +387,10 @@ class AttachOpRewrite(RewritePattern):
 
 @dataclass
 class ApplyNativeRewriteRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
     native_rewrites: dict[
-        str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]
+        str,
+        Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
     ] = field(default_factory=dict)
 
     @op_type_rewrite_pattern
@@ -357,14 +400,17 @@ class ApplyNativeRewriteRewrite(RewritePattern):
                 f"No semantics for native rewrite {op.constraint_name.data}"
             )
         rewrite = self.native_rewrites[op.constraint_name.data]
-        rewrite(op, rewriter)
+        rewrite(op, rewriter, self.rewrite_context)
 
 
 @dataclass
 class ApplyNativeConstraintRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
     native_constraints: dict[
-        str, Callable[[ApplyNativeConstraintOp, PatternRewriter], SSAValue]
+        str,
+        Callable[
+            [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext], SSAValue
+        ],
     ] = field(default_factory=dict)
 
     @op_type_rewrite_pattern
@@ -376,7 +422,7 @@ class ApplyNativeConstraintRewrite(RewritePattern):
                 f"No semantics for native constraint {op.constraint_name.data}"
             )
         constraint = self.native_constraints[op.constraint_name.data]
-        value = constraint(op, rewriter)
+        value = constraint(op, rewriter, self.rewrite_context)
         self.rewrite_context.preconditions.append(value)
 
 
@@ -385,10 +431,21 @@ class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
     native_rewrites: ClassVar[
-        dict[str, Callable[[ApplyNativeRewriteOp, PatternRewriter], None]]
+        dict[
+            str,
+            Callable[
+                [ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None
+            ],
+        ]
     ] = {}
     native_constraints: ClassVar[
-        dict[str, Callable[[ApplyNativeConstraintOp, PatternRewriter], SSAValue]]
+        dict[
+            str,
+            Callable[
+                [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
+                SSAValue,
+            ],
+        ]
     ] = {}
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
@@ -407,7 +464,7 @@ class PDLToSMT(ModulePass):
                     ReplaceRewrite(rewrite_context),
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
-                    ApplyNativeRewriteRewrite(self.native_rewrites),
+                    ApplyNativeRewriteRewrite(rewrite_context, self.native_rewrites),
                     ApplyNativeConstraintRewrite(
                         rewrite_context, self.native_constraints
                     ),

@@ -19,5 +19,7 @@
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
 // CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:  (assert (distinct (pair (bvor (first tmp_0) (first tmp)) (or (second tmp_0) (second tmp))) (pair (bvor (first tmp) (first tmp_0)) (or (second tmp) (second tmp_0)))))
+// CHECK-NEXT:  (assert (let ((tmp_1 (pair (bvor (first tmp_0) (first tmp)) (or (second tmp_0) (second tmp)))))
+// CHECK-NEXT:    (let ((tmp_2 (pair (bvor (first tmp) (first tmp_0)) (or (second tmp) (second tmp_0)))))
+// CHECK-NEXT:    (not (=> (not (second tmp_2)) (and (= (first tmp_2) (first tmp_1)) (not (second tmp_1))))))))
 // CHECK-NEXT:  (check-sat)

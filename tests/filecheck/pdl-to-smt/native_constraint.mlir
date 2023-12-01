@@ -26,7 +26,8 @@ builtin.module {
     }
 }
 
-// CHECK:       (declare-const x (Pair (_ BitVec 32) Bool))
+// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const x (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (declare-const c0_attr (_ BitVec 32))
-// CHECK-NEXT:  (assert (and (distinct (pair (bvsub (_ bv0 32) (first x)) (second x)) (pair (bvmul (first x) c0_attr) (second x))) (= c0_attr (_ bv4294967295 32))))
+// CHECK-NEXT:  (assert (and (not (=> (not (second x)) (and (= (bvmul (first x) c0_attr) (bvsub (_ bv0 32) (first x))) (not (second x))))) (= c0_attr (_ bv4294967295 32))))
 // CHECK-NEXT:  (check-sat)
