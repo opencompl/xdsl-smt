@@ -4,7 +4,7 @@ in PDL.
 """
 
 from typing import Callable
-from xdsl.ir import ErasedSSAValue, Operation, SSAValue
+from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
 from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import PatternRewriter
 
@@ -14,6 +14,32 @@ import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
 from xdsl_smt.passes.pdl_to_smt import PDLToSMTRewriteContext
+
+
+class StaticallyUnmatchedConstraintError(Exception):
+    """
+    Exception raised when the constraint is known to be statically unmatched.
+    This is used for avoiding generating unverifying SMT operations. For example,
+    if we know that one type should have a lower bitwidth than another, we can
+    should statically check it, otherwise the SMT program we output will not verify
+    for operations such as `extui`.
+    """
+
+    pass
+
+
+def get_bv_type_from_optional_poison(
+    type: Attribute, origin: str
+) -> smt_bv.BitVectorType:
+    if isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType]):
+        return type.first
+    elif isinstance(type, smt_bv.BitVectorType):
+        return type
+    else:
+        raise Exception(
+            f"{origin} expected to be lowered to a `!smt.bv<...>` or a "
+            f"!smt.utils.pair<!smt.bv<...>, !smt.bool>. Got {type}."
+        )
 
 
 def single_op_rewrite(
@@ -147,6 +173,33 @@ def is_cmpi_predicate(
     return predicate_valid.res
 
 
+def is_greater_integer_type(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (lhs_value, rhs_value) = op.args
+    assert isinstance(lhs_value, ErasedSSAValue)
+    assert isinstance(rhs_value, ErasedSSAValue)
+    lhs_type = context.pdl_types_to_types[lhs_value.old_value]
+    rhs_type = context.pdl_types_to_types[rhs_value.old_value]
+
+    lhs_type = get_bv_type_from_optional_poison(lhs_type, "is_greater_integer_type")
+    rhs_type = get_bv_type_from_optional_poison(rhs_type, "is_greater_integer_type")
+
+    lhs_width = lhs_type.width.data
+    rhs_width = rhs_type.width.data
+
+    if lhs_width <= rhs_width:
+        raise StaticallyUnmatchedConstraintError(
+            "lhs width is not greater than rhs width in is_greater_integer_type"
+        )
+
+    const_true = smt.ConstantBoolOp.from_bool(True)
+    rewriter.replace_matched_op([const_true], [])
+    return const_true.res
+
+
 integer_arith_native_rewrites: dict[
     str,
     Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
@@ -163,4 +216,5 @@ integer_arith_native_constraints = {
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     "is_arith_cmpi_predicate": is_cmpi_predicate,
+    "is_greater_integer_type": is_greater_integer_type,
 }

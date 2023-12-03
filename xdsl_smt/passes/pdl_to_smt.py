@@ -71,6 +71,15 @@ class PatternRewrite(RewritePattern):
         rewriter.erase_matched_op()
 
 
+class PatternStaticallyTrueRewrite(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: PatternOp, rewriter: PatternRewriter):
+        false_const = ConstantBoolOp.from_bool(False)
+        assert_false = AssertOp(false_const.res)
+        check_sat = CheckSatOp()
+        rewriter.replace_matched_op([false_const, assert_false, check_sat])
+
+
 class RewriteRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: RewriteOp, rewriter: PatternRewriter):
@@ -449,11 +458,19 @@ class PDLToSMT(ModulePass):
     ] = {}
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+        from xdsl_smt.pdl_constraints.integer_arith_constraints import (
+            StaticallyUnmatchedConstraintError,
+        )
+
+        n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])
+        if n_patterns > 1:
+            raise Exception(
+                f"Can only handle modules with a single pattern, found {n_patterns}"
+            )
         rewrite_context = PDLToSMTRewriteContext({})
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
-                    PatternRewrite(),
                     RewriteRewrite(),
                     DataflowRewriteRewrite(),
                     TypeRewrite(rewrite_context),
@@ -471,5 +488,11 @@ class PDLToSMT(ModulePass):
                 ]
             )
         )
-        walker.rewrite_module(op)
+        try:
+            walker.rewrite_module(op)
+        except StaticallyUnmatchedConstraintError:
+            PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_module(op)
+        else:
+            PatternRewriteWalker(PatternRewrite()).rewrite_module(op)
+
         LowerToSMT().apply(ctx, op)
