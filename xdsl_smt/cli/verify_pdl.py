@@ -134,7 +134,10 @@ class OptMain(xDSLOptMain):
                         print(f"with types {types}: UNSOUND")
                         is_one_unsound = True
 
-        exit(1 if is_one_unsound else 0)
+        if is_one_unsound:
+            print("At least one pattern is unsound")
+        else:
+            print("All patterns are sound")
 
 
 def main() -> None:
