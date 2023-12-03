@@ -8,6 +8,7 @@ from xdsl.ir import ErasedSSAValue, Operation, SSAValue
 from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import PatternRewriter
 
+from xdsl.dialects import arith
 from xdsl.dialects.pdl import ApplyNativeConstraintOp, ApplyNativeRewriteOp
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
@@ -64,7 +65,68 @@ def get_zero_attr_rewrite(
     rewriter.replace_matched_op([zero])
 
 
-def is_minus_one(
+def invert_arith_cmpi_predicate_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (predicate,) = op.args
+
+    comparison_idx = {
+        name: i for i, name in enumerate(arith.CMPI_COMPARISON_OPERATIONS)
+    }
+    replacements = {
+        "eq": "ne",
+        "ne": "eq",
+        "slt": "sge",
+        "sle": "sgt",
+        "sgt": "sle",
+        "sge": "slt",
+        "ult": "uge",
+        "ule": "ugt",
+        "ugt": "ule",
+        "uge": "ult",
+    }
+    int_replacements = {
+        comparison_idx[from_]: comparison_idx[to] for from_, to in replacements.items()
+    }
+
+    next_case = predicate
+    for from_, to in int_replacements.items():
+        from_constant = smt_bv.ConstantOp(from_, 64)
+        to_constant = smt_bv.ConstantOp(to, 64)
+        eq_from = smt.EqOp(predicate, from_constant.res)
+        res = smt.IteOp(eq_from.res, to_constant.res, next_case)
+        next_case = res.res
+
+        rewriter.insert_op_before_matched_op([from_constant, to_constant, eq_from, res])
+
+    rewriter.replace_matched_op([], [next_case])
+
+
+def is_constant_factory(constant: int):
+    def is_constant(
+        op: ApplyNativeConstraintOp,
+        rewriter: PatternRewriter,
+        context: PDLToSMTRewriteContext,
+    ) -> SSAValue:
+        (value,) = op.args
+
+        if not isinstance(value.type, smt_bv.BitVectorType):
+            raise Exception(
+                "is_minus_one expects the input to be lowered to a `!smt.bv<...>`"
+            )
+
+        width = value.type.width.data
+        minus_one = smt_bv.ConstantOp(
+            ((constant % 2**width) + 2**width) % 2**width, width
+        )
+        eq_minus_one = smt.EqOp(value, minus_one.res)
+        rewriter.replace_matched_op([eq_minus_one, minus_one], [])
+        return eq_minus_one.res
+
+    return is_constant
+
+
+def is_cmpi_predicate(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
@@ -77,10 +139,12 @@ def is_minus_one(
         )
 
     width = value.type.width.data
-    minus_one = smt_bv.ConstantOp(2**width - 1, width)
-    eq_minus_one = smt.EqOp(value, minus_one.res)
-    rewriter.replace_matched_op([eq_minus_one, minus_one], [])
-    return eq_minus_one.res
+    max_predicate_int = len(arith.CMPI_COMPARISON_OPERATIONS)
+    max_predicate = smt_bv.ConstantOp(max_predicate_int, width)
+    predicate_valid = smt_bv.UltOp(value, max_predicate.res)
+
+    rewriter.replace_matched_op([max_predicate, predicate_valid], [])
+    return predicate_valid.res
 
 
 integer_arith_native_rewrites: dict[
@@ -91,8 +155,12 @@ integer_arith_native_rewrites: dict[
     "subi": subi_rewrite,
     "muli": muli_rewrite,
     "get_zero_attr": get_zero_attr_rewrite,
+    "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
 }
 
 integer_arith_native_constraints = {
-    "is_minus_one": is_minus_one,
+    "is_minus_one": is_constant_factory(-1),
+    "is_one": is_constant_factory(1),
+    "is_zero": is_constant_factory(0),
+    "is_arith_cmpi_predicate": is_cmpi_predicate,
 }
