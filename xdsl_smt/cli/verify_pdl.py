@@ -5,6 +5,7 @@ Check for both correctness and precision.
 """
 
 import subprocess
+import argparse
 
 from io import StringIO
 from typing import Iterable
@@ -51,7 +52,7 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_static_constraints,
 )
 
-MAX_INT = 32
+max_bitwidth = 32
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
@@ -82,7 +83,7 @@ def iterate_on_all_integers(
         if isinstance(sub_op, TypeOp) and isinstance(
             sub_op.constantType, TransIntegerType
         ):
-            for i in range(1, MAX_INT + 1):
+            for i in range(1, max_bitwidth + 1):
                 sub_op.constantType = IntegerType(i)
                 sub_types = (*types, i)
                 yield from iterate_on_all_integers(op, sub_types)
@@ -91,6 +92,15 @@ def iterate_on_all_integers(
 
 
 class OptMain(xDSLOptMain):
+    def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
+        arg_parser.add_argument(
+            "--max-bitwidth",
+            type=int,
+            default=32,
+            help="maximum bitwidth of integer types",
+        )
+        super().register_all_arguments(arg_parser)
+
     def register_all_dialects(self):
         self.ctx.load_dialect(Arith)
         self.ctx.load_dialect(Builtin)
@@ -109,6 +119,10 @@ class OptMain(xDSLOptMain):
 
     def run(self):
         """Executes the different steps."""
+
+        global max_bitwidth
+        max_bitwidth = self.args.max_bitwidth
+
         chunks, file_extension = self.prepare_input()
         assert len(chunks) == 1
         chunk = chunks[0]
