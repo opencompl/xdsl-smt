@@ -16,8 +16,8 @@ from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
-from xdsl_smt.passes.lower_to_smt import arith_semantics
 
+from xdsl_smt.passes.lower_to_smt import arith_semantics
 from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
 
 
@@ -31,9 +31,15 @@ from ..dialects.index_dialect import Index
 from ..dialects.transfer import TransIntegerType, Transfer
 from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
-from ..passes.pdl_to_smt import PDLToSMT
-from ..passes.lower_to_smt import (
+
+from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
+    LowerToSMT,
+    integer_poison_type_lowerer,
+)
+from xdsl_smt.passes.pdl_to_smt import PDLToSMT
+from xdsl_smt.passes.lower_to_smt import (
     func_to_smt_patterns,
     transfer_to_smt_patterns,
     llvm_to_smt_patterns,
@@ -51,6 +57,8 @@ MAX_INT = 32
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     cloned_op = op.clone()
     PDLToSMT().apply(ctx, cloned_op)
+    LowerPairs().apply(ctx, cloned_op)
+    CanonicalizeSMT().apply(ctx, cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
 
