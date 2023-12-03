@@ -45,6 +45,18 @@ from ..dialects.smt_dialect import (
 from .lower_to_smt.lower_to_smt import LowerToSMT
 
 
+class StaticallyUnmatchedConstraintError(Exception):
+    """
+    Exception raised when the constraint is known to be statically unmatched.
+    This is used for avoiding generating unverifying SMT operations. For example,
+    if we know that one type should have a lower bitwidth than another, we can
+    should statically check it, otherwise the SMT program we output will not verify
+    for operations such as `extui`.
+    """
+
+    pass
+
+
 @dataclass
 class PDLToSMTRewriteContext:
     pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
@@ -421,18 +433,22 @@ class ApplyNativeConstraintRewrite(RewritePattern):
             [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext], SSAValue
         ],
     ] = field(default_factory=dict)
+    native_static_constraints: dict[
+        str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
+    ] = field(default_factory=dict)
 
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: ApplyNativeConstraintOp, rewriter: PatternRewriter, /
     ):
-        if op.constraint_name.data not in self.native_constraints:
-            raise Exception(
-                f"No semantics for native constraint {op.constraint_name.data}"
-            )
-        constraint = self.native_constraints[op.constraint_name.data]
-        value = constraint(op, rewriter, self.rewrite_context)
-        self.rewrite_context.preconditions.append(value)
+        if op.constraint_name.data in self.native_constraints:
+            constraint = self.native_constraints[op.constraint_name.data]
+            value = constraint(op, rewriter, self.rewrite_context)
+            self.rewrite_context.preconditions.append(value)
+            return
+        if op.constraint_name.data in self.native_static_constraints:
+            raise StaticallyUnmatchedConstraintError()
+        raise Exception(f"No semantics for native constraint {op.constraint_name.data}")
 
 
 @dataclass
@@ -456,12 +472,11 @@ class PDLToSMT(ModulePass):
             ],
         ]
     ] = {}
+    native_static_constraints: ClassVar[
+        dict[str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]]
+    ]
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
-        from xdsl_smt.pdl_constraints.integer_arith_constraints import (
-            StaticallyUnmatchedConstraintError,
-        )
-
         n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])
         if n_patterns > 1:
             raise Exception(
@@ -483,7 +498,9 @@ class PDLToSMT(ModulePass):
                     AttachOpRewrite(rewrite_context),
                     ApplyNativeRewriteRewrite(rewrite_context, self.native_rewrites),
                     ApplyNativeConstraintRewrite(
-                        rewrite_context, self.native_constraints
+                        rewrite_context,
+                        self.native_constraints,
+                        self.native_static_constraints,
                     ),
                 ]
             )

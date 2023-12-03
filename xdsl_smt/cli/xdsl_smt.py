@@ -43,6 +43,7 @@ from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_rewrites,
     integer_arith_native_constraints,
+    integer_arith_native_static_constraints,
 )
 
 
@@ -107,6 +108,7 @@ def main():
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints
+    PDLToSMT.native_static_constraints = integer_arith_native_static_constraints
 
     xdsl_main.run()
 

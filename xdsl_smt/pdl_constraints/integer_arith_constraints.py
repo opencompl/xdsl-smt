@@ -16,18 +16,6 @@ import xdsl_smt.dialects.smt_dialect as smt
 from xdsl_smt.passes.pdl_to_smt import PDLToSMTRewriteContext
 
 
-class StaticallyUnmatchedConstraintError(Exception):
-    """
-    Exception raised when the constraint is known to be statically unmatched.
-    This is used for avoiding generating unverifying SMT operations. For example,
-    if we know that one type should have a lower bitwidth than another, we can
-    should statically check it, otherwise the SMT program we output will not verify
-    for operations such as `extui`.
-    """
-
-    pass
-
-
 def get_bv_type_from_optional_poison(
     type: Attribute, origin: str
 ) -> smt_bv.BitVectorType:
@@ -175,9 +163,8 @@ def is_cmpi_predicate(
 
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
-    rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
-) -> SSAValue:
+) -> bool:
     (lhs_value, rhs_value) = op.args
     assert isinstance(lhs_value, ErasedSSAValue)
     assert isinstance(rhs_value, ErasedSSAValue)
@@ -190,14 +177,7 @@ def is_greater_integer_type(
     lhs_width = lhs_type.width.data
     rhs_width = rhs_type.width.data
 
-    if lhs_width <= rhs_width:
-        raise StaticallyUnmatchedConstraintError(
-            "lhs width is not greater than rhs width in is_greater_integer_type"
-        )
-
-    const_true = smt.ConstantBoolOp.from_bool(True)
-    rewriter.replace_matched_op([const_true], [])
-    return const_true.res
+    return lhs_width > rhs_width
 
 
 integer_arith_native_rewrites: dict[
@@ -216,5 +196,8 @@ integer_arith_native_constraints = {
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     "is_arith_cmpi_predicate": is_cmpi_predicate,
+}
+
+integer_arith_native_static_constraints = {
     "is_greater_integer_type": is_greater_integer_type,
 }
