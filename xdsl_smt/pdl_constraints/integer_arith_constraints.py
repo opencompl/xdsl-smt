@@ -161,6 +161,37 @@ def is_cmpi_predicate(
     return predicate_valid.res
 
 
+def truncation_match_shift_amount(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    """
+    Check that the truncation amount from type arg[0] to type arg[1] is equal
+    to the the value of the arg[2] attribute.
+    """
+    (previous_type, new_type, shift_amount) = op.args
+
+    assert isinstance(previous_type, ErasedSSAValue)
+    previous_type = context.pdl_types_to_types[previous_type.old_value]
+    assert isinstance(new_type, ErasedSSAValue)
+    new_type = context.pdl_types_to_types[new_type.old_value]
+
+    previous_type = get_bv_type_from_optional_poison(
+        previous_type, "truncation_match_shift_amount"
+    )
+    new_type = get_bv_type_from_optional_poison(
+        new_type, "truncation_match_shift_amount"
+    )
+
+    trunc_amonut = previous_type.width.data - new_type.width.data
+    trunc_amount_constant = smt_bv.ConstantOp(trunc_amonut, previous_type.width.data)
+    eq_trunc_amount = smt.EqOp(shift_amount, trunc_amount_constant.res)
+
+    rewriter.replace_matched_op([eq_trunc_amount, trunc_amount_constant], [])
+    return eq_trunc_amount.res
+
+
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
     context: PDLToSMTRewriteContext,
@@ -196,6 +227,7 @@ integer_arith_native_constraints = {
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     "is_arith_cmpi_predicate": is_cmpi_predicate,
+    "truncation_match_shift_amount": truncation_match_shift_amount,
 }
 
 integer_arith_native_static_constraints = {
