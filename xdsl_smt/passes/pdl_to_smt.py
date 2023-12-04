@@ -447,7 +447,11 @@ class ApplyNativeConstraintRewrite(RewritePattern):
             self.rewrite_context.preconditions.append(value)
             return
         if op.constraint_name.data in self.native_static_constraints:
-            raise StaticallyUnmatchedConstraintError()
+            constraint = self.native_static_constraints[op.constraint_name.data]
+            if not constraint(op, self.rewrite_context):
+                raise StaticallyUnmatchedConstraintError()
+            rewriter.erase_matched_op()
+            return
         raise Exception(f"No semantics for native constraint {op.constraint_name.data}")
 
 
