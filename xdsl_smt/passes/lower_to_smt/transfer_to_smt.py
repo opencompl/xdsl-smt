@@ -61,6 +61,19 @@ def trivial_pattern(
     return TrivialBinOpPattern()
 
 
+class UMulOverflowOpPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: transfer.UMulOverflowOp, rewriter: PatternRewriter) -> None:
+        suml_nooverflow=smt_bv.UmulNoOverflowOp.get(op.operands[0], op.operands[1])
+
+        b1 = smt_bv.ConstantOp.from_int_value(1, 1)
+        b0 = smt_bv.ConstantOp.from_int_value(0, 1)
+        bool_to_bv = smt.IteOp(suml_nooverflow.res, b1.res, b0.res)
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res=PairOp(bool_to_bv.res, poison_op.res)
+        rewriter.replace_matched_op([suml_nooverflow,b0,b1,bool_to_bv,poison_op,res])
+
+
 class CmpOpPattern(RewritePattern):
     new_ops = [
         smt.EqOp,
@@ -205,9 +218,10 @@ class CountRZeroOpPattern(RewritePattern):
     ) -> None:
         operand = op.operands[0]
         resList = count_rzeros(operand)
-        for newOp in resList[:-1]:
-            rewriter.insert_op_before_matched_op(newOp)
-        rewriter.replace_matched_op(resList[-1])
+        for newOp in resList[1:]:
+            rewriter.insert_op_after_matched_op(newOp)
+        #countRzero is different, it insert operation after the matched op.
+        rewriter.replace_matched_op(resList[0])
 
 
 class SetHighBitsOpPattern(RewritePattern):
@@ -277,11 +291,12 @@ class UMinOpPattern(RewritePattern):
 transfer_to_smt_patterns: list[RewritePattern] = [
     trivial_pattern(transfer.AndOp, smt_bv.AndOp),
     trivial_pattern(transfer.OrOp, smt_bv.OrOp),
+    trivial_pattern(transfer.XorOp, smt_bv.XorOp),
     trivial_pattern(transfer.SubOp, smt_bv.SubOp),
     trivial_pattern(transfer.AddOp, smt_bv.AddOp),
     trivial_pattern(transfer.MulOp, smt_bv.MulOp),
-    trivial_pattern(transfer.UMulOverflowOp, smt_bv.UmulNoOverflowOp),
     trivial_pattern(transfer.NegOp, smt_bv.NotOp),
+    UMulOverflowOpPattern(),
     CmpOpPattern(),
     GetOpPattern(),
     MakeOpPattern(),

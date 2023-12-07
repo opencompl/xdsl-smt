@@ -176,9 +176,10 @@ def count_rzeros(b: SSAValue) -> list[Operation]:
     one_shl_tmp = smt_bv.ShlOp(const_one[0].results[0], tmp_count_rzeros.results[0])
     false_eq = smt.EqOp(b_minus_and.results[0], one_shl_tmp.results[0])
 
-    result = smt.IteOp(
+    iteOp= smt.IteOp(
         b_eq_0.results[0], width_eq_rzeros.results[0], false_eq.results[0]
     )
+    assertOp=smt.AssertOp.get(iteOp.res)
     return (
         [tmp_count_rzeros]
         + const_zero
@@ -186,7 +187,7 @@ def count_rzeros(b: SSAValue) -> list[Operation]:
         + const_width
         + [width_eq_rzeros]
         + const_one
-        + [b_minus_one, b_and_b_minus_one, b_minus_and, one_shl_tmp, false_eq, result]
+        + [b_minus_one, b_and_b_minus_one, b_minus_and, one_shl_tmp, false_eq, iteOp, assertOp]
     )
 
 

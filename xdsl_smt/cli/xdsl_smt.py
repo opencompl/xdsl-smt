@@ -32,6 +32,10 @@ from ..passes.lower_to_smt import (
     integer_type_lowerer,
     func_to_smt_patterns,
 )
+from ..passes.lower_to_smt.transfer_to_smt import (
+    abstract_value_type_lowerer,
+    transfer_integer_type_lowerer,
+)
 from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib
@@ -67,6 +71,11 @@ class OptMain(xDSLOptMain):
             action="store_true",
             help="Handle only func and comb dialects",
         )
+        arg_parser.add_argument(
+            "--transfer-integer-size",
+            default=8,
+            help="Specify the size of transfer integers",
+        )
         super().register_all_arguments(arg_parser)
 
     def register_all_targets(self):
@@ -85,10 +94,16 @@ def main():
     else:
         LowerToSMT.rewrite_patterns = [
             *arith_to_smt_patterns,
-            *transfer_to_smt_patterns,
             *func_to_smt_patterns,
         ]
         LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
+        if xdsl_main.args.transfer_integer_size:
+            integer_size=int(xdsl_main.args.transfer_integer_size)
+            LowerToSMT.rewrite_patterns += [*transfer_to_smt_patterns]
+            LowerToSMT.type_lowerers += [
+                abstract_value_type_lowerer,
+                lambda type: transfer_integer_type_lowerer(type, integer_size),
+            ]
 
     xdsl_main.run()
 
