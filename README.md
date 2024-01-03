@@ -10,6 +10,20 @@ validation tool between `arith` + `comb` + `func` programs.
 
 ## Installation
 
+### Virtual environment
+
+It is recommended to install the project in a virtual environment.
+To create a virtual environment, use the following commands:
+
+```bash
+# Create a virtual environment
+python -m venv venv
+# Activate the virtual environment
+source venv/bin/activate
+```
+
+### Installation
+
 To install the project, use the following commands:
 
 ```bash
