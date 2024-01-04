@@ -15,6 +15,8 @@ from xdsl.dialects.pdl import (
 )
 from xdsl.utils.hints import isa
 
+from xdsl_smt.passes.lower_to_smt.refinements import optionally_poison_refinement
+
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
 from ..dialects import smt_utils_dialect as smt_utils
@@ -36,9 +38,7 @@ from ..dialects.smt_dialect import (
     CheckSatOp,
     ConstantBoolOp,
     DeclareConstOp,
-    DistinctOp,
     EqOp,
-    ImpliesOp,
     NotOp,
     OrOp,
 )
@@ -211,6 +211,7 @@ class OperationRewrite(RewritePattern):
 @dataclass
 class ReplaceRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
+    refinement: Callable[[SSAValue, SSAValue, PatternRewriter], SSAValue]
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
@@ -223,7 +224,8 @@ class ReplaceRewrite(RewritePattern):
         replacing_value: SSAValue
         # Replacing by values case
         if len(op.repl_values) != 0:
-            assert len(op.repl_values) == 1
+            if len(op.repl_values) != 1:
+                raise Exception("Cannot handle operations with multiple results")
             replacing_value = op.repl_values[0]
         # Replacing by operations case
         else:
@@ -235,50 +237,13 @@ class ReplaceRewrite(RewritePattern):
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_values[0]
 
-        refinement_value: SSAValue
-        # Poison case
-        if isa(
-            replacing_value.type, smt_utils.PairType[smt_bv.BitVectorType, BoolType]
-        ):
-            replacing_poison = smt_utils.SecondOp(replacing_value)
-            replaced_poison = smt_utils.SecondOp(replaced_value)
-
-            replacing_val = smt_utils.FirstOp(replacing_value)
-            replaced_val = smt_utils.FirstOp(replaced_value)
-
-            rewriter.insert_op_before_matched_op(
-                [
-                    replacing_poison,
-                    replaced_poison,
-                    replacing_val,
-                    replaced_val,
-                ]
-            )
-
-            not_replaced_poison = NotOp.get(replaced_poison.res)
-            not_replacing_poison = NotOp.get(replacing_poison.res)
-            eq_vals = EqOp.get(replaced_val.res, replacing_val.res)
-            not_poison_eq = AndOp(eq_vals.res, not_replacing_poison.res)
-            refinement = ImpliesOp(not_replaced_poison.res, not_poison_eq.res)
-            not_refinement = NotOp.get(refinement.res)
-            rewriter.insert_op_before_matched_op(
-                [
-                    not_replaced_poison,
-                    not_replacing_poison,
-                    eq_vals,
-                    not_poison_eq,
-                    refinement,
-                    not_refinement,
-                ]
-            )
-            refinement_value = not_refinement.res
-        else:
-            distinct_op = DistinctOp(replacing_value, replaced_value)
-            rewriter.insert_op_before_matched_op(distinct_op)
-            refinement_value = distinct_op.res
+        refinement_value = self.refinement(replaced_value, replacing_value, rewriter)
+        not_refinement = NotOp(refinement_value)
+        rewriter.insert_op_before_matched_op(not_refinement)
+        not_refinement_value = not_refinement.res
 
         if len(self.rewrite_context.preconditions) == 0:
-            assert_op = AssertOp(refinement_value)
+            assert_op = AssertOp(not_refinement_value)
             rewriter.replace_matched_op([assert_op])
             return
 
@@ -288,7 +253,7 @@ class ReplaceRewrite(RewritePattern):
             rewriter.insert_op_before_matched_op(and_preconditions_op)
             and_preconditions = and_preconditions_op.res
 
-        replace_correct = AndOp(refinement_value, and_preconditions)
+        replace_correct = AndOp(not_refinement_value, and_preconditions)
         assert_op = AssertOp(replace_correct.res)
         rewriter.replace_matched_op([replace_correct, assert_op])
 
@@ -479,6 +444,9 @@ class PDLToSMT(ModulePass):
     native_static_constraints: ClassVar[
         dict[str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]]
     ]
+    refinement: ClassVar[
+        Callable[[SSAValue, SSAValue, PatternRewriter], SSAValue]
+    ] = optionally_poison_refinement
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])
@@ -497,14 +465,16 @@ class PDLToSMT(ModulePass):
                     OperandRewrite(),
                     GetOpRewrite(rewrite_context),
                     OperationRewrite(ctx, rewrite_context),
-                    ReplaceRewrite(rewrite_context),
+                    ReplaceRewrite(rewrite_context, PDLToSMT.refinement),
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
-                    ApplyNativeRewriteRewrite(rewrite_context, self.native_rewrites),
+                    ApplyNativeRewriteRewrite(
+                        rewrite_context, PDLToSMT.native_rewrites
+                    ),
                     ApplyNativeConstraintRewrite(
                         rewrite_context,
-                        self.native_constraints,
-                        self.native_static_constraints,
+                        PDLToSMT.native_constraints,
+                        PDLToSMT.native_static_constraints,
                     ),
                 ]
             )
