@@ -2,7 +2,7 @@
 
 builtin.module {
     // subi(addi(x, c0), c1) -> addi(x, c0 - c1)
-    pdl.pattern @sub_add_fold : benefit(0) {
+    pdl.pattern @SubIRHSAddConstant : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -30,7 +30,7 @@ builtin.module {
     }
 
     // subi(c1, addi(x, c0)) -> subi(c1 - c0, x)
-    pdl.pattern @sub_add_fold2 : benefit(0) {
+    pdl.pattern @SubILHSAddConstant : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -58,7 +58,7 @@ builtin.module {
     }
 
     // subi(subi(x, c0), c1) -> subi(x, c0 + c1)
-    pdl.pattern @sub_sub_fold : benefit(0) {
+    pdl.pattern @SubIRHSSubConstantRHS : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -86,7 +86,7 @@ builtin.module {
     }
 
     // subi(subi(c0, x), c1) -> subi(c0 - c1, x)
-    pdl.pattern @sub_sub_fold3 : benefit(0) {
+    pdl.pattern @SubIRHSSubConstantLHS : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -114,7 +114,7 @@ builtin.module {
     }
 
     // subi(c1, subi(x, c0)) -> subi(c0 + c1, x)
-    pdl.pattern @sub_sub_fold4 : benefit(0) {
+    pdl.pattern @SubILHSSubConstantRHS : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -142,7 +142,7 @@ builtin.module {
     }
 
     // subi(c1, subi(c0, x)) -> addi(x, c1 - c0)
-    pdl.pattern @sub_sub_fold5 : benefit(0) {
+    pdl.pattern @SubILHSSubConstantLHS : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -170,7 +170,7 @@ builtin.module {
     }
 
     // subi(subi(a, b), a) -> subi(0, b)
-    pdl.pattern @sub_sub_cancel : benefit(0) {
+    pdl.pattern @SubISubILHSRHSLHS : benefit(0) {
         %type = pdl.type : i32
         %a = pdl.operand : %type
         %b = pdl.operand : %type

@@ -2,7 +2,7 @@
 
 builtin.module {
     // select(not(pred), a, b) => select(pred, b, a)
-    pdl.pattern @SelectNotpred : benefit(0) {
+    pdl.pattern @SelectNotCond : benefit(0) {
         %i1 = pdl.type : i1
         %type = pdl.type : !transfer.integer
 

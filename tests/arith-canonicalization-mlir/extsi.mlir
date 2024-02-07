@@ -2,7 +2,7 @@
 
 builtin.module {
     // extsi(extui(x iN : iM) : iL) -> extui(x : iL)
-    pdl.pattern @XOrIOfextsi : benefit(0) {
+    pdl.pattern @ExtSIOfExtUI : benefit(0) {
         %iN = pdl.type : !transfer.integer
         %iM = pdl.type : !transfer.integer
         %iL = pdl.type : !transfer.integer
