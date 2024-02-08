@@ -18,8 +18,8 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl_smt.passes.lower_to_smt import arith_semantics
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
 
 from ..dialects.hoare_dialect import Hoare

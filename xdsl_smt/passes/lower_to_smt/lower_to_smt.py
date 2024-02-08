@@ -19,13 +19,13 @@ from xdsl.pattern_rewriter import (
 )
 
 from xdsl_smt.dialects.smt_dialect import BoolType
-from xdsl_smt.passes.lower_to_smt.semantics import (
+from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
     OperationSemantics,
 )
 
-from ...dialects.smt_bitvector_dialect import BitVectorType
-from ...dialects.smt_utils_dialect import PairType
+from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
+from xdsl_smt.dialects.smt_utils_dialect import PairType
 
 
 def integer_poison_type_lowerer(type: Attribute) -> Attribute | None:

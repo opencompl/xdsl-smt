@@ -6,13 +6,13 @@ from xdsl.parser import AnyIntegerAttr
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.dialects.builtin import IntegerType
 from xdsl.utils.hints import isa
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
-from xdsl_smt.passes.lower_to_smt.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics
 
-from ...dialects import smt_dialect as smt
-from ...dialects import smt_bitvector_dialect as smt_bv
-from ...dialects import smt_utils_dialect as smt_utils
+from xdsl_smt.dialects import smt_dialect as smt
+from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 import xdsl.dialects.arith as arith
 
 

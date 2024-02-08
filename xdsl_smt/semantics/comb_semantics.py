@@ -13,8 +13,8 @@ from xdsl_smt.dialects import hw_dialect as hw
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.passes.lower_to_smt import LowerToSMT
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.passes.lower_to_smt.semantics import OperationSemantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics
 
 
 class ConstantSemantics(OperationSemantics):

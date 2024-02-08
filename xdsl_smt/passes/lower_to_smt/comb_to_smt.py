@@ -8,10 +8,10 @@ from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import IntegerType
 import xdsl.dialects.comb as comb
 
-from ...dialects import hw_dialect as hw
-from ...dialects import smt_bitvector_dialect as bv_dialect
-from ...dialects import smt_dialect as core_dialect
-from .lower_to_smt import LowerToSMT
+from xdsl_smt.dialects import hw_dialect as hw
+from xdsl_smt.dialects import smt_bitvector_dialect as bv_dialect
+from xdsl_smt.dialects import smt_dialect as core_dialect
+from xdsl_smt.passes.lower_to_smt import LowerToSMT
 
 
 class ConstantPattern(RewritePattern):

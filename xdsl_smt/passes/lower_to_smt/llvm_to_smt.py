@@ -12,11 +12,11 @@ import xdsl_smt.dialects.llvm_dialect as llvm
 import xdsl_smt.dialects.smt_dialect as smt
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
-from xdsl_smt.passes.lower_to_smt.arith_semantics import (
+from xdsl_smt.semantics.arith_semantics import (
     reduce_poison_values,
     get_int_value_and_poison,
 )
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt import LowerToSMT
 
 
 class ReturnPattern(RewritePattern):

@@ -8,10 +8,10 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
-from xdsl_smt.passes.lower_to_smt import arith_semantics
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import integer_poison_type_lowerer
+from xdsl_smt.passes.lower_to_smt import integer_poison_type_lowerer
 
 
 from ..dialects.hoare_dialect import Hoare
@@ -25,17 +25,17 @@ from ..dialects.transfer import Transfer
 from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
 
-from ..passes.canonicalize_smt import CanonicalizeSMT
-from ..passes.dead_code_elimination import DeadCodeElimination
-from ..passes.lower_pairs import LowerPairs
-from ..passes.lower_to_smt import (
+from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
+from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.lower_to_smt import (
     LowerToSMT,
-    comb_semantics,
     transfer_to_smt_patterns,
     integer_type_lowerer,
     func_to_smt_patterns,
     llvm_to_smt_patterns,
 )
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib

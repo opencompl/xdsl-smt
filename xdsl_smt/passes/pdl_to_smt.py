@@ -15,7 +15,7 @@ from xdsl.dialects.pdl import (
 )
 from xdsl.utils.hints import isa
 
-from xdsl_smt.passes.lower_to_smt.refinements import optionally_poison_refinement
+from xdsl_smt.semantics.refinements import optionally_poison_refinement
 
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
@@ -42,7 +42,7 @@ from ..dialects.smt_dialect import (
     NotOp,
     OrOp,
 )
-from .lower_to_smt.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt import LowerToSMT
 
 
 class StaticallyUnmatchedConstraintError(Exception):
