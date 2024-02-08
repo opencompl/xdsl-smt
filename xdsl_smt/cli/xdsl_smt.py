@@ -30,10 +30,7 @@ from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import (
     LowerToSMT,
-    transfer_to_smt_patterns,
     integer_type_lowerer,
-    func_to_smt_patterns,
-    llvm_to_smt_patterns,
 )
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
@@ -89,19 +86,10 @@ class OptMain(xDSLOptMain):
 def main():
     xdsl_main = OptMain()
     if xdsl_main.args.circt:
-        LowerToSMT.rewrite_patterns = [
-            *func_to_smt_patterns,
-            *llvm_to_smt_patterns,
-        ]
         LowerToSMT.type_lowerers = [integer_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
         LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
     else:
-        LowerToSMT.rewrite_patterns = [
-            *transfer_to_smt_patterns,
-            *func_to_smt_patterns,
-            *llvm_to_smt_patterns,
-        ]
         LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
         LowerToSMT.operation_semantics = arith_semantics
