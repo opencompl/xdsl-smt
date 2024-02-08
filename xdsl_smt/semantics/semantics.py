@@ -53,3 +53,16 @@ class TypeSemantics:
     @abstractmethod
     def get_semantics(self, attribute: Attribute) -> Attribute:
         pass
+
+
+class RefinementSemantics:
+    """
+    The semantics of a refinement.
+    Returns a boolean SSAValue that is true if the refinement holds.
+    """
+
+    @abstractmethod
+    def get_semantics(
+        self, val_before: SSAValue, val_after: SSAValue, rewriter: PatternRewriter
+    ) -> SSAValue:
+        pass

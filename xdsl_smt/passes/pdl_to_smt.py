@@ -15,7 +15,8 @@ from xdsl.dialects.pdl import (
 )
 from xdsl.utils.hints import isa
 
-from xdsl_smt.semantics.refinements import optionally_poison_refinement
+from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
+from xdsl_smt.semantics.semantics import RefinementSemantics
 
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
@@ -211,7 +212,7 @@ class OperationRewrite(RewritePattern):
 @dataclass
 class ReplaceRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
-    refinement: Callable[[SSAValue, SSAValue, PatternRewriter], SSAValue]
+    refinement: RefinementSemantics
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
@@ -237,7 +238,9 @@ class ReplaceRewrite(RewritePattern):
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_values[0]
 
-        refinement_value = self.refinement(replaced_value, replacing_value, rewriter)
+        refinement_value = self.refinement.get_semantics(
+            replaced_value, replacing_value, rewriter
+        )
         not_refinement = NotOp(refinement_value)
         rewriter.insert_op_before_matched_op(not_refinement)
         not_refinement_value = not_refinement.res
@@ -444,9 +447,7 @@ class PDLToSMT(ModulePass):
     native_static_constraints: ClassVar[
         dict[str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]]
     ]
-    refinement: ClassVar[
-        Callable[[SSAValue, SSAValue, PatternRewriter], SSAValue]
-    ] = optionally_poison_refinement
+    refinement: ClassVar[RefinementSemantics] = IntegerTypeRefinementSemantics()
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])

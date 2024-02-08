@@ -4,6 +4,7 @@ from xdsl.utils.hints import isa
 
 import xdsl_smt.dialects.smt_dialect as smt
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
+from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
 def nonpoison_to_poison_refinemnet(
@@ -83,20 +84,23 @@ def nonpoison_to_nonpoison_refinement(
     return eq_op.res
 
 
-def optionally_poison_refinement(
-    val_before: SSAValue, val_after: SSAValue, rewriter: PatternRewriter
-) -> SSAValue:
-    """
-    Compute the refinement from two values that may or may not have poison semantics.
-    This is decided by the value types.
-    """
-    if isa(val_before.type, smt_utils.AnyPairType):
-        if isa(val_after.type, smt_utils.AnyPairType):
-            return poison_to_poison_refinement(val_before, val_after, rewriter)
+class IntegerTypeRefinementSemantics(RefinementSemantics):
+    def get_semantics(
+        self, val_before: SSAValue, val_after: SSAValue, rewriter: PatternRewriter
+    ) -> SSAValue:
+        """
+        Compute the refinement from two values that may or may not have poison semantics.
+        This is decided by the value types.
+        """
+        if isa(val_before.type, smt_utils.AnyPairType):
+            if isa(val_after.type, smt_utils.AnyPairType):
+                return poison_to_poison_refinement(val_before, val_after, rewriter)
+            else:
+                return poison_to_nonpoison_refinement(val_before, val_after, rewriter)
         else:
-            return poison_to_nonpoison_refinement(val_before, val_after, rewriter)
-    else:
-        if isa(val_after.type, smt_utils.AnyPairType):
-            return nonpoison_to_poison_refinemnet(val_before, val_after, rewriter)
-        else:
-            return nonpoison_to_nonpoison_refinement(val_before, val_after, rewriter)
+            if isa(val_after.type, smt_utils.AnyPairType):
+                return nonpoison_to_poison_refinemnet(val_before, val_after, rewriter)
+            else:
+                return nonpoison_to_nonpoison_refinement(
+                    val_before, val_after, rewriter
+                )
