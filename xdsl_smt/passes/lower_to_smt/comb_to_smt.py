@@ -65,7 +65,6 @@ def trivial_binop_pattern(
                 result_types=[LowerToSMT.lower_type(op.results[0].type)],
             )
             rewriter.replace_matched_op([new_op])
-            return super().match_and_rewrite(op, rewriter)
 
     return TrivialBinOpPattern()
 
