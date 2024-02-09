@@ -27,10 +27,7 @@ from ..dialects.llvm_dialect import LLVM
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.lower_to_smt import (
-    LowerToSMT,
-    integer_type_lowerer,
-)
+from xdsl_smt.passes.lower_to_smt import LowerToSMT
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
 
