@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr
@@ -68,15 +67,6 @@ class OptMain(xDSLOptMain):
         self.register_pass(CanonicalizeSMT)
         self.register_pass(LowerPairs)
         self.register_pass(PDLToSMT)
-
-    def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
-        arg_parser.add_argument(
-            "--circt",
-            default=False,
-            action="store_true",
-            help="Handle only func and comb dialects",
-        )
-        super().register_all_arguments(arg_parser)
 
     def register_all_targets(self):
         super().register_all_targets()
