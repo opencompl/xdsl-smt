@@ -85,14 +85,9 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    if xdsl_main.args.circt:
-        LowerToSMT.type_lowerers = [integer_type_lowerer]
-        LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-        LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
-    else:
-        LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
-        LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-        LowerToSMT.operation_semantics = arith_semantics
+    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
+    LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints

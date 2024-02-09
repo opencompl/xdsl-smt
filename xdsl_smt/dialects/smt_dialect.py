@@ -435,6 +435,11 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BoolType)
     value: BoolAttr = attr_def(BoolAttr)
 
+    def __init__(self, value: bool):
+        super().__init__(
+            result_types=[BoolType()], attributes={"value": BoolAttr(value)}
+        )
+
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         if self.value.data:
             print("true", file=stream, end="")

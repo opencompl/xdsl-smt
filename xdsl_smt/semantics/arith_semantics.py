@@ -28,17 +28,23 @@ def get_int_value_and_poison(
 def reduce_poison_values(
     operands: Sequence[SSAValue], rewriter: PatternRewriter
 ) -> tuple[Sequence[SSAValue], SSAValue]:
-    assert len(operands) <= 2
+    if not operands:
+        no_poison_op = smt.ConstantBoolOp(False)
+        rewriter.insert_op_before_matched_op([no_poison_op])
+        return operands, no_poison_op.res
 
-    if len(operands) == 1:
-        value, poison = get_int_value_and_poison(operands[0], rewriter)
-        return ((value,), poison)
+    values = list[SSAValue]()
+    value, result_poison = get_int_value_and_poison(operands[0], rewriter)
+    values.append(value)
 
-    left_value, left_poison = get_int_value_and_poison(operands[0], rewriter)
-    right_value, right_poison = get_int_value_and_poison(operands[1], rewriter)
-    res_poison_op = smt.OrOp(left_poison, right_poison)
-    rewriter.insert_op_before_matched_op(res_poison_op)
-    return [left_value, right_value], res_poison_op.res
+    for operand in operands[1:]:
+        value, poison = get_int_value_and_poison(operand, rewriter)
+        values.append(value)
+        merge_poison = smt.OrOp(result_poison, poison)
+        result_poison = merge_poison.res
+        rewriter.insert_op_before_matched_op(merge_poison)
+
+    return values, result_poison
 
 
 class ConstantSemantics(OperationSemantics):
@@ -86,7 +92,6 @@ class SimplePoisonSemantics(OperationSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[SSAValue]:
-        assert operands
         operands, propagated_poison = reduce_poison_values(operands, rewriter)
         value_results = self.get_simple_semantics(
             operands, results, regions, attributes, rewriter
