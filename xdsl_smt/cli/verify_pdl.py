@@ -20,6 +20,7 @@ from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 
 
 from ..dialects.hoare_dialect import Hoare
@@ -162,7 +163,7 @@ def main() -> None:
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
     LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    LowerToSMT.operation_semantics = arith_semantics
+    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints
