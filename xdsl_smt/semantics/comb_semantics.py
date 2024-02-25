@@ -245,7 +245,7 @@ class ExtractSemantics(SimplePoisonSemantics):
         assert isinstance(low_bit_attr, IntegerAttr)
         assert isinstance(results[0], IntegerType)
         end = results[0].width.data + low_bit_attr.value.data - 1
-        extract = smt_bv.ExtractOp(operands[0], low_bit_attr.value.data, end)
+        extract = smt_bv.ExtractOp(operands[0], end, low_bit_attr.value.data)
         rewriter.insert_op_before_matched_op(extract)
         return ((extract.res, None),)
 
