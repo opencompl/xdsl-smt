@@ -187,7 +187,8 @@ class OperationRewrite(RewritePattern):
 
         if op.attribute_values:
             raise Exception(
-                "Cannot handle operation without semantics and with attributes"
+                f"operation {op.opName} is used with attributes, "
+                "but no semantics are defined for this operation"
             )
 
         synthesized_op = op_def.create(
