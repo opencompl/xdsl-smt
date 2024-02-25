@@ -126,7 +126,7 @@ def is_constant_factory(constant: int):
 
         if not isinstance(value.type, smt_bv.BitVectorType):
             raise Exception(
-                "is_minus_one expects the input to be lowered to a `!smt.bv<...>`"
+                "the constraint expects the input to be lowered to a `!smt.bv<...>`"
             )
 
         width = value.type.width.data
@@ -138,6 +138,25 @@ def is_constant_factory(constant: int):
         return eq_minus_one.res
 
     return is_constant
+
+
+def is_not_zero(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (value,) = op.args
+
+    if not isinstance(value.type, smt_bv.BitVectorType):
+        raise Exception(
+            "is_not_zero expects the input to be lowered to a `!smt.bv<...>`"
+        )
+
+    width = value.type.width.data
+    zero = smt_bv.ConstantOp(0, width)
+    ne_zero = smt.DistinctOp(value, zero.res)
+    rewriter.replace_matched_op([ne_zero, zero], [])
+    return ne_zero.res
 
 
 def is_cmpi_predicate(
@@ -192,6 +211,33 @@ def truncation_match_shift_amount(
     return eq_trunc_amount.res
 
 
+def is_equal_to_width_of_type(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (width_value, erased_int_type) = op.args
+    assert isinstance(width_value.type, smt_bv.BitVectorType)
+    assert isinstance(erased_int_type, ErasedSSAValue)
+    pair_int_type = context.pdl_types_to_types[erased_int_type.old_value]
+    int_type = get_bv_type_from_optional_poison(
+        pair_int_type, "is_equal_to_width_of_type"
+    )
+
+    # If we cannot even put the width of the type in the width_value attribute,
+    # then the result has to be False.
+    if int_type.width.data >= 2**width_value.type.width.data:
+        false_op = smt.ConstantBoolOp(False)
+        rewriter.replace_matched_op([false_op], [])
+        return false_op.res
+
+    width_op = smt_bv.ConstantOp(int_type.width, width_value.type.width)
+    eq_width_op = smt.EqOp(width_value, width_op.res)
+    rewriter.replace_matched_op([eq_width_op, width_op], [])
+
+    return eq_width_op.res
+
+
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
     context: PDLToSMTRewriteContext,
@@ -226,8 +272,10 @@ integer_arith_native_constraints = {
     "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
+    "is_not_zero": is_not_zero,
     "is_arith_cmpi_predicate": is_cmpi_predicate,
     "truncation_match_shift_amount": truncation_match_shift_amount,
+    "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }
 
 integer_arith_native_static_constraints = {
