@@ -86,9 +86,10 @@ class TrivialBinOpSemantics(SimplePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        assert isinstance(result := results[0], IntegerType)
         new_op = self.smt_op_type.create(
             operands=operands,
-            result_types=[LowerToSMT.lower_type(results[0])],
+            result_types=[smt_bv.BitVectorType(result.width)],
         )
         rewriter.insert_op_before_matched_op([new_op])
         return ((new_op.results[0], None),)
