@@ -40,3 +40,5 @@ pdl.pattern @ShlRhsKnownConstant : benefit(0) {
         pdl.replace %shl_op with %res_op
     }
 }
+
+// CHECK: All patterns are sound
