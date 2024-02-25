@@ -27,7 +27,8 @@ pdl.pattern @ShlRhsKnownConstant : benefit(0) {
 
     pdl.rewrite %shl_op {
         %zero_constant = pdl.apply_native_rewrite "get_zero_attr"(%shift_type : !pdl.type) : !pdl.attribute
-        %zero = pdl.result 0 of %zero_constant
+        %zero_op = pdl.operation "hw.constant" {"value" = %zero_constant} -> (%shift_type : !pdl.type)
+        %zero = pdl.result 0 of %zero_op
 
         %extract_type = pdl.apply_native_rewrite "integer_type_sub_width"(%type, %shift_type : !pdl.type, !pdl.type) : !pdl.type
         %low_bit = pdl.apply_native_rewrite "get_zero_attr"(%i32 : !pdl.type) : !pdl.attribute
