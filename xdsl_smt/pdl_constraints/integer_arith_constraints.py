@@ -4,12 +4,13 @@ in PDL.
 """
 
 from typing import Callable
+from xdsl.dialects.builtin import IntegerType
 from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
 from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl.dialects import arith
-from xdsl.dialects.pdl import ApplyNativeConstraintOp, ApplyNativeRewriteOp
+from xdsl.dialects.pdl import ApplyNativeConstraintOp, ApplyNativeRewriteOp, TypeOp
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
@@ -116,6 +117,22 @@ def invert_arith_cmpi_predicate_rewrite(
     rewriter.replace_matched_op([], [next_case])
 
 
+def integer_type_sub_width(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (lhs, rhs) = op.args
+    assert isinstance(lhs, ErasedSSAValue)
+    lhs_type = context.pdl_types_to_types[lhs.old_value]
+    assert isa(lhs_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
+
+    assert isinstance(rhs, ErasedSSAValue)
+    rhs_type = context.pdl_types_to_types[rhs.old_value]
+    assert isa(rhs_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
+
+    type_op = TypeOp(IntegerType(lhs_type.first.width.data - rhs_type.first.width.data))
+    rewriter.replace_matched_op([type_op])
+
+
 def is_constant_factory(constant: int):
     def is_constant(
         op: ApplyNativeConstraintOp,
@@ -155,7 +172,7 @@ def is_not_zero(
     width = value.type.width.data
     zero = smt_bv.ConstantOp(0, width)
     ne_zero = smt.DistinctOp(value, zero.res)
-    rewriter.replace_matched_op([ne_zero, zero], [])
+    rewriter.replace_matched_op([zero, ne_zero], [])
     return ne_zero.res
 
 
@@ -266,6 +283,7 @@ integer_arith_native_rewrites: dict[
     "muli": muli_rewrite,
     "get_zero_attr": get_zero_attr_rewrite,
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
+    "integer_type_sub_width": integer_type_sub_width,
 }
 
 integer_arith_native_constraints = {
