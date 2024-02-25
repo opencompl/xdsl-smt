@@ -36,5 +36,7 @@ pdl.pattern @ShlRhsKnownConstant : benefit(0) {
         %extract = pdl.result 0 of %extract_op
 
         %res_op = pdl.operation "comb.concat"(%extract, %zero : !pdl.value, !pdl.value) -> (%type : !pdl.type)
+
+        pdl.replace %shl_op with %res_op
     }
 }
