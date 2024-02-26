@@ -7,6 +7,7 @@ from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
     i1,
+    AnyAttr,
 )
 from typing import Annotated, Mapping, Sequence
 
@@ -15,7 +16,11 @@ from xdsl.ir import (
     Dialect,
     TypeAttribute,
     OpResult,
+    Region,
     Attribute,
+    SSAValue,
+    Operation,
+    Block,
 )
 from xdsl.utils.hints import isa
 
@@ -26,20 +31,38 @@ from xdsl.irdl import (
     var_operand_def,
     result_def,
     Operand,
+    region_def,
     VarOperand,
     irdl_attr_definition,
     irdl_op_definition,
     ParameterDef,
     IRDLOperation,
+    traits_def,
 )
 from xdsl.utils.exceptions import VerifyException
 
 from ..traits.infer_type import InferResultTypeInterface
 
+from xdsl.traits import (
+    HasParent,
+    IsTerminator,
+    SingleBlockImplicitTerminator,
+)
+
 
 @irdl_attr_definition
 class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.integer"
+
+
+@irdl_op_definition
+class FromArithOp(IRDLOperation):
+    name = "transfer.fromArith"
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    op: Operand = operand_def(IntegerType)
+    result: OpResult = result_def(T)
+
 
 
 @irdl_op_definition
@@ -61,6 +84,15 @@ class Constant(IRDLOperation, InferResultTypeInterface):
                 return [op]
             case _:
                 raise VerifyException("Constant operation expects exactly one operand")
+
+    def __init__(
+            self,
+            op: Operand,
+            value: int,
+    ):
+        super().__init__(
+            operands=[op], result_types=[op.type], properties={"value": IntegerAttr(value, IndexType())}
+        )
 
 
 class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
@@ -137,8 +169,26 @@ class MulOp(BinOp):
 
 
 @irdl_op_definition
+class ShlOp(BinOp):
+    name = "transfer.shl"
+
+@irdl_op_definition
+class AShrOp(BinOp):
+    name = "transfer.ashr"
+
+@irdl_op_definition
+class LShrOp(BinOp):
+    name = "transfer.lshr"
+
+
+@irdl_op_definition
 class UMulOverflowOp(PredicateOp):
     name = "transfer.umul_overflow"
+
+
+@irdl_op_definition
+class ShlOverflowOp(PredicateOp):
+    name = "transfer.shl_overflow"
 
 
 @irdl_op_definition
@@ -157,8 +207,18 @@ class XorOp(BinOp):
 
 
 @irdl_op_definition
+class IntersectsOp(BinOp):
+    name = "transfer.intersects"
+
+
+@irdl_op_definition
 class GetBitWidthOp(UnaryOp):
     name = "transfer.get_bit_width"
+
+
+@irdl_op_definition
+class setAllBitsOp(UnaryOp):
+    name = "transfer.set_all_bits"
 
 
 @irdl_op_definition
@@ -202,6 +262,28 @@ class UMaxOp(BinOp):
 
 
 @irdl_op_definition
+class ConcatOp(BinOp):
+    name = "transfer.concat"
+
+
+@irdl_op_definition
+class RepeatOp(BinOp):
+    name = "transfer.repeat"
+
+
+@irdl_op_definition
+class ExtractOp(IRDLOperation):
+    name = "transfer.extract"
+    # the extracted bits [bitPosition,bitPosition+numBits].
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    val: Operand = operand_def(T)
+    numBits: Operand = operand_def(T)
+    bitPosition: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+
+@irdl_op_definition
 class GetLowBitsOp(IRDLOperation):
     name = "transfer.get_low_bits"
 
@@ -222,6 +304,45 @@ class SetHighBitsOp(IRDLOperation):
     high_bits: Operand = operand_def(T)
     result: OpResult = result_def(T)
 
+@irdl_op_definition
+class SetLowBitsOp(IRDLOperation):
+    name = "transfer.set_low_bits"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    val: Operand = operand_def(T)
+    low_bits: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+@irdl_op_definition
+class SetSignBitOp(IRDLOperation):
+    name = "transfer.set_sign_bit"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    val: Operand = operand_def(T)
+    sign_bit: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+
+@irdl_op_definition
+class IsPowerOf2Op(IRDLOperation):
+    name = "transfer.is_power_of_2"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    val: Operand = operand_def(T)
+    result: OpResult = result_def(i1)
+
+@irdl_op_definition
+class IsAllOnesOp(IRDLOperation):
+    name = "transfer.is_all_ones"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    val: Operand = operand_def(T)
+    result: OpResult = result_def(i1)
+
 
 @irdl_op_definition
 class CmpOp(PredicateOp):
@@ -232,7 +353,7 @@ class CmpOp(PredicateOp):
 
 @irdl_attr_definition
 class AbstractValueType(ParametrizedAttribute, TypeAttribute):
-    name = "abs_value"
+    name = "transfer.abs_value"
     fields: ParameterDef[ArrayAttr[Attribute]]
 
     def get_num_fields(self) -> int:
@@ -289,7 +410,7 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
     def infer_result_type(
         operand_types: Sequence[Attribute], attributes: Mapping[str, Attribute] = {}
     ) -> Sequence[Attribute]:
-        return [AbstractValueType(list(operand_types))]
+        return AbstractValueType(list(operand_types))
 
     def verify_(self) -> None:
         assert isinstance(self.result.type, AbstractValueType)
@@ -299,6 +420,124 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
             )
         if self.result.type.get_fields() != [arg.type for arg in self.arguments]:
             raise VerifyException("The required field doesn't match the result type")
+
+
+@irdl_op_definition
+class SelectOp(IRDLOperation):
+    """
+    Select between two values based on a condition.
+    """
+    name = "transfer.select"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    cond: Operand = operand_def(IntegerType(1))
+    true_value: Operand = operand_def(T)
+    false_value: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+
+@irdl_op_definition
+class NextLoopOp(IRDLOperation):
+    name = "transfer.next_loop"
+    arguments: VarOperand = var_operand_def(AnyAttr())
+    traits = traits_def(
+        lambda: frozenset([IsTerminator(), HasParent(ConstRangeForOp)])
+    )
+
+
+@irdl_op_definition
+class ConstRangeForOp(IRDLOperation):
+    name = "transfer.const_range_for"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    lb: Operand = operand_def(T)
+    ub: Operand = operand_def(T)
+    step: Operand = operand_def(T)
+
+    iter_args: VarOperand = var_operand_def(AnyAttr())
+
+    res: OpResult = result_def(AbstractValueType)
+
+    body: Region = region_def("single_block")
+
+    traits = frozenset([SingleBlockImplicitTerminator(NextLoopOp)])
+
+    def __init__(
+        self,
+        lb: SSAValue | Operation,
+        ub: SSAValue | Operation,
+        step: SSAValue | Operation,
+        iter_args: Sequence[SSAValue | Operation],
+        body: Region | Sequence[Operation] | Sequence[Block] | Block,
+    ):
+        if isinstance(body, Block):
+            body = [body]
+
+        super().__init__(
+            operands=[lb, ub, step, iter_args],
+            result_types=[AbstractValueType],
+            regions=[body],
+        )
+
+    def verify_(self):
+        # body block verification
+        if not self.body.block.args:
+            raise VerifyException(
+                "Body block must have induction var as first block arg"
+            )
+
+        indvar, *block_iter_args = self.body.block.args
+        block_iter_args_num = len(block_iter_args)
+        iter_args = self.iter_args
+        iter_args_num = len(self.iter_args)
+
+        for opnd in (self.lb, self.ub, self.step):
+            if opnd.type != indvar.type:
+                raise VerifyException(
+                    "Expected induction var to be same type as bounds and step"
+                )
+            assert isinstance(opnd.type, Constant) and "Const for requires bounds has to be constant"
+        if iter_args_num + 1 != block_iter_args_num + 1:
+            raise VerifyException(
+                f"Expected {iter_args_num + 1} args, but got {block_iter_args_num + 1}. "
+                "Body block must have induction and loop-carried variables as args."
+            )
+        for i, arg in enumerate(iter_args):
+            if block_iter_args[i].type != arg.type:
+                raise VerifyException(
+                    f"Block arg #{i + 1} expected to be {arg.type}, but got {block_iter_args[i].type}. "
+                    "Block args after the induction variable must match the loop-carried variables."
+                )
+        if (last_op := self.body.block.last_op) is not None and isinstance(
+            last_op, NextLoopOp
+        ):
+            return_val = last_op.argument
+            assert isinstance(return_val, AbstractValueType) and "Returned from loop has to be an abstract val"
+
+
+@irdl_op_definition
+class GetAllOnesOp(IRDLOperation, InferResultTypeInterface):
+    '''
+    A special case of constant, return a bit vector with all bits set
+    '''
+    name = "transfer.get_all_ones"
+
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+    @staticmethod
+    def infer_result_type(
+        operand_types: Sequence[Attribute], attributes: Mapping[str, Attribute] = {}
+    ) -> Sequence[Attribute]:
+        match operand_types:
+            case [op]:
+                return [op]
+            case _:
+                raise VerifyException("Constant operation expects exactly one operand")
 
 
 Transfer = Dialect(
@@ -315,11 +554,16 @@ Transfer = Dialect(
         MakeOp,
         NegOp,
         MulOp,
+        ShlOp,
+        AShrOp,
+        LShrOp,
         CountLOneOp,
         CountLZeroOp,
         CountROneOp,
         CountRZeroOp,
         SetHighBitsOp,
+        SetLowBitsOp,
+        SetSignBitOp,
         GetLowBitsOp,
         GetBitWidthOp,
         SMinOp,
@@ -327,6 +571,18 @@ Transfer = Dialect(
         UMaxOp,
         UMinOp,
         UMulOverflowOp,
+        ShlOverflowOp,
+        SelectOp,
+        IsPowerOf2Op,
+        IsAllOnesOp,
+        ConcatOp,
+        RepeatOp,
+        ExtractOp,
+        ConstRangeForOp,
+        NextLoopOp,
+        GetAllOnesOp,
+        IntersectsOp,
+        FromArithOp,
     ],
     [TransIntegerType, AbstractValueType],
 )
