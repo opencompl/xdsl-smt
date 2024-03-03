@@ -68,27 +68,32 @@ def andi_rewrite(
     return single_op_rewrite(op, rewriter, smt_bv.AndOp)
 
 
-def get_zero_attr_rewrite(
-    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
-) -> None:
-    (value,) = op.args
-    assert isinstance(value, ErasedSSAValue)
-    type = context.pdl_types_to_types[value.old_value]
+def get_cst_rewrite_factory(constant: int):
+    def get_cst_rewrite(
+        op: ApplyNativeRewriteOp,
+        rewriter: PatternRewriter,
+        context: PDLToSMTRewriteContext,
+    ) -> None:
+        (value,) = op.args
+        assert isinstance(value, ErasedSSAValue)
+        type = context.pdl_types_to_types[value.old_value]
 
-    width: int
-    # Poison case
-    if isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType]):
-        width = type.first.width.data
-    elif isinstance(type, smt_bv.BitVectorType):
-        width = type.width.data
-    else:
-        raise Exception(
-            "get_zero_attr expects the input to be lowered to a `!smt.bv<...>` or a"
-            "!smt.utils.pair<!smt.bv<...>, !smt.bool>."
-        )
+        width: int
+        # Poison case
+        if isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType]):
+            width = type.first.width.data
+        elif isinstance(type, smt_bv.BitVectorType):
+            width = type.width.data
+        else:
+            raise Exception(
+                "get_zero_attr expects the input to be lowered to a `!smt.bv<...>` or a"
+                "!smt.utils.pair<!smt.bv<...>, !smt.bool>."
+            )
 
-    zero = smt_bv.ConstantOp(0, width)
-    rewriter.replace_matched_op([zero])
+        zero = smt_bv.ConstantOp(constant, width)
+        rewriter.replace_matched_op([zero])
+
+    return get_cst_rewrite
 
 
 def invert_arith_cmpi_predicate_rewrite(
@@ -344,7 +349,8 @@ integer_arith_native_rewrites: dict[
     "subi": subi_rewrite,
     "muli": muli_rewrite,
     "andi": andi_rewrite,
-    "get_zero_attr": get_zero_attr_rewrite,
+    "get_zero_attr": get_cst_rewrite_factory(0),
+    "get_one_attr": get_cst_rewrite_factory(1),
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
     "cast_to_type": cast_to_type_rewrite,
