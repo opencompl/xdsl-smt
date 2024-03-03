@@ -71,7 +71,10 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
         text=True,
     )
     if res.returncode != 0:
-        raise Exception(res.stderr)
+        raise Exception(
+            "An exception was raised in the following program: "
+            f"{stream.getvalue()} \n\n Error message: {res.stderr}"
+        )
 
     return "unsat" in res.stdout
 
