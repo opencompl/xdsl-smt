@@ -1,6 +1,6 @@
 // RUN: verify-pdl "%s" -opt | filecheck "%s"
 
-// ShlOp(x, shift) -> Concat(Extract(x), zeros) with shift < width(x) and shift != 0
+// ShlOp(x, cst) -> Concat(Extract(x), zeros) with cst < width(x) and cst != 0
 pdl.pattern @ShlRhsKnownConstant : benefit(0) {
     %i32 = pdl.type : i32
     %type = pdl.type : !transfer.integer
