@@ -131,10 +131,10 @@ pdl.pattern @AndReplicateMin : benefit(0) {
     %replicate_op = pdl.operation "comb.replicate"(%x : !pdl.value) -> (%t: !pdl.type)
     %replicate = pdl.result 0 of %replicate_op
 
-    %cst_attr = pdl.attribute : %t
+    %cst_attr = pdl.apply_native_rewrite "get_minimum_signed_value"(%t : !pdl.type) : !pdl.attribute
     %cst_op = pdl.operation "hw.constant" {"value" = %cst_attr} -> (%t: !pdl.type)
     %cst = pdl.result 0 of %cst_op
-    pdl.apply_native_constraint "is_minimum_signed_value"(%cst_attr : !pdl.attribute)
+
 
     %and_op = pdl.operation "comb.and"(%replicate, %cst : !pdl.value, !pdl.value) -> (%t: !pdl.type)
 
