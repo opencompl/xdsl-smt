@@ -177,6 +177,42 @@ def is_constant_factory(constant: int):
     return is_constant
 
 
+def get_constant_factory(constant: int):
+    def get_constant(
+        op: ApplyNativeRewriteOp,
+        rewriter: PatternRewriter,
+        context: PDLToSMTRewriteContext,
+    ) -> None:
+        (type,) = op.args
+
+        assert isinstance(type, ErasedSSAValue)
+        type = context.pdl_types_to_types[type.old_value]
+        assert isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
+
+        width = type.first.width.data
+        attr_op = AttributeOp(IntegerAttr(constant, width))
+        rewriter.replace_matched_op([attr_op])
+
+    return get_constant
+
+
+def get_width(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (type_with_width, expected_type) = op.args
+    assert isinstance(type_with_width, ErasedSSAValue)
+    type_with_width = context.pdl_types_to_types[type_with_width.old_value]
+    type_with_width = get_bv_type_from_optional_poison(type_with_width, "get_width")
+    assert isinstance(expected_type, ErasedSSAValue)
+    expected_type = context.pdl_types_to_types[expected_type.old_value]
+    expected_type = get_bv_type_from_optional_poison(expected_type, "get_width")
+
+    attr_op = AttributeOp(
+        IntegerAttr(type_with_width.width.data, expected_type.width.data)
+    )
+    rewriter.replace_matched_op([attr_op])
+
+
 def is_not_zero(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
@@ -305,6 +341,8 @@ integer_arith_native_rewrites: dict[
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
     "cast_to_type": cast_to_type_rewrite,
+    "get_one": get_constant_factory(1),
+    "get_width": get_width,
 }
 
 integer_arith_native_constraints = {
