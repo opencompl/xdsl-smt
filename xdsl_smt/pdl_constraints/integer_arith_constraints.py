@@ -62,6 +62,12 @@ def muli_rewrite(
     return single_op_rewrite(op, rewriter, smt_bv.MulOp)
 
 
+def andi_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    return single_op_rewrite(op, rewriter, smt_bv.AndOp)
+
+
 def get_zero_attr_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
@@ -337,6 +343,7 @@ integer_arith_native_rewrites: dict[
     "addi": addi_rewrite,
     "subi": subi_rewrite,
     "muli": muli_rewrite,
+    "andi": andi_rewrite,
     "get_zero_attr": get_zero_attr_rewrite,
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
