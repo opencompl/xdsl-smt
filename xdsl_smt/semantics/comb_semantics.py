@@ -19,6 +19,24 @@ from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl_smt.semantics.arith_semantics import SimplePoisonSemantics
 
 
+def cast_integer_type(
+    value: SSAValue, target_type: smt_bv.BitVectorType, rewriter: PatternRewriter
+) -> SSAValue:
+    assert isa(value.type, smt_bv.BitVectorType)
+    if value.type.width == target_type.width:
+        return value
+
+    if value.type.width.data > target_type.width.data:
+        extract_op = smt_bv.ExtractOp(value, target_type.width.data - 1, 0)
+        rewriter.insert_op_before_matched_op([extract_op])
+        return extract_op.res
+
+    zero = smt_bv.ConstantOp(0, target_type.width.data - value.type.width.data)
+    concat_op = smt_bv.ConcatOp(zero.res, value)
+    rewriter.insert_op_before_matched_op([zero, concat_op])
+    return concat_op.res
+
+
 class ConstantSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -235,19 +253,25 @@ class ExtractSemantics(SimplePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        low_bit_attr = attributes["low_bit"]
-        if isinstance(low_bit_attr, SSAValue):
-            if not isinstance(low_bit_attr.owner, smt_bv.ConstantOp):
-                raise Exception(
-                    "comb.extract cannot express its semantics with a non-constant low_bit value"
-                )
-            low_bit_attr = IntegerAttr(low_bit_attr.owner.value.value.data, 32)
-        assert isinstance(low_bit_attr, IntegerAttr)
+        low_bit = attributes["low_bit"]
         assert isinstance(results[0], IntegerType)
-        end = results[0].width.data + low_bit_attr.value.data - 1
-        extract = smt_bv.ExtractOp(operands[0], end, low_bit_attr.value.data)
-        rewriter.insert_op_before_matched_op(extract)
-        return ((extract.res, None),)
+        if isinstance(low_bit, Attribute):
+            if not isa(low_bit, IntegerAttr[IntegerType]):
+                raise Exception(
+                    "comb.extract expects an IntegrAttr constant or an SSA value"
+                )
+            low_bit_op = smt_bv.ConstantOp(low_bit)
+            rewriter.insert_op_before_matched_op(low_bit_op)
+            low_bit = low_bit_op.res
+
+        assert isa(operands[0].type, smt_bv.BitVectorType)
+        low_bit = cast_integer_type(low_bit, operands[0].type, rewriter)
+
+        shift_op = smt_bv.LShrOp(operands[0], low_bit)
+        rewriter.insert_op_before_matched_op(shift_op)
+        extract_op = smt_bv.ExtractOp(shift_op.res, results[0].width.data - 1, 0)
+        rewriter.insert_op_before_matched_op(extract_op)
+        return ((extract_op.res, None),)
 
 
 class ReplicateSemantics(SimplePoisonSemantics):
