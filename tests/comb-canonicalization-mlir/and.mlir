@@ -95,7 +95,7 @@ pdl.pattern @AndMinusOne : benefit(0) {
 }
 
 // `and(replicate(x), 1)` -> `concat(zeros, x)` for `x : i1`
-pdl.pattern @AndPowerOfTwo : benefit(0) {
+pdl.pattern @AndReplicateOne : benefit(0) {
     %i1 = pdl.type : i1
     %t = pdl.type : !transfer.integer
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %i1 : !pdl.type, !pdl.type)
@@ -116,6 +116,33 @@ pdl.pattern @AndPowerOfTwo : benefit(0) {
         %zero_op = pdl.operation "hw.constant" {"value" = %zero_attr} -> (%t: !pdl.type)
         %zero = pdl.result 0 of %zero_op
         %new_op = pdl.operation "comb.concat"(%zero, %x : !pdl.value, !pdl.value) -> (%t: !pdl.type)
+        pdl.replace %and_op with %new_op
+    }
+}
+
+// `and(replicate(x), 2^(n - 1))` -> `concat(x, zeros)` for `x : i1`
+pdl.pattern @AndReplicateMin : benefit(0) {
+    %i1 = pdl.type : i1
+    %t = pdl.type : !transfer.integer
+    pdl.apply_native_constraint "is_greater_integer_type"(%t, %i1 : !pdl.type, !pdl.type)
+    %t_minus_one = pdl.apply_native_rewrite "integer_type_sub_width"(%t, %i1 : !pdl.type, !pdl.type) : !pdl.type
+
+    %x = pdl.operand : %i1
+    %replicate_op = pdl.operation "comb.replicate"(%x : !pdl.value) -> (%t: !pdl.type)
+    %replicate = pdl.result 0 of %replicate_op
+
+    %cst_attr = pdl.attribute : %t
+    %cst_op = pdl.operation "hw.constant" {"value" = %cst_attr} -> (%t: !pdl.type)
+    %cst = pdl.result 0 of %cst_op
+    pdl.apply_native_constraint "is_minimum_signed_value"(%cst_attr : !pdl.attribute)
+
+    %and_op = pdl.operation "comb.and"(%replicate, %cst : !pdl.value, !pdl.value) -> (%t: !pdl.type)
+
+    pdl.rewrite %and_op {
+        %zero_attr = pdl.apply_native_rewrite "get_zero_attr"(%t_minus_one : !pdl.type) : !pdl.attribute
+        %zero_op = pdl.operation "hw.constant" {"value" = %zero_attr} -> (%t: !pdl.type)
+        %zero = pdl.result 0 of %zero_op
+        %new_op = pdl.operation "comb.concat"(%x, %zero : !pdl.value, !pdl.value) -> (%t: !pdl.type)
         pdl.replace %and_op with %new_op
     }
 }

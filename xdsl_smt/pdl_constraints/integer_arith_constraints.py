@@ -322,6 +322,22 @@ def is_equal_to_width_of_type(
     return eq_width_op.res
 
 
+def is_minimum_signed_value(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (value,) = op.args
+    assert isinstance(value.type, smt_bv.BitVectorType)
+
+    width = value.type.width.data
+    minimum_value = 2 ** (width - 1)
+    minimum_value_op = smt_bv.ConstantOp(minimum_value, width)
+    eq_minimum_value = smt.EqOp(value, minimum_value_op.res)
+    rewriter.replace_matched_op([minimum_value_op, eq_minimum_value], [])
+    return eq_minimum_value.res
+
+
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
     context: PDLToSMTRewriteContext,
@@ -366,6 +382,7 @@ integer_arith_native_constraints = {
     "is_arith_cmpi_predicate": is_cmpi_predicate,
     "truncation_match_shift_amount": truncation_match_shift_amount,
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
+    "is_minimum_signed_value": is_minimum_signed_value,
 }
 
 integer_arith_native_static_constraints = {
