@@ -283,8 +283,8 @@ class ReplicateSemantics(SimplePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(operands[0].type, IntegerType)
-        assert isinstance(results[0], smt_bv.BitVectorType)
+        assert isa(operands[0].type, smt_bv.BitVectorType)
+        assert isinstance(results[0], IntegerType)
         num_repetition = results[0].width.data // operands[0].type.width.data
         current_val = operands[0]
 
