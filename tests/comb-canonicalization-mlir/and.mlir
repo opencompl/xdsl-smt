@@ -1,5 +1,9 @@
 // RUN: verify-pdl "%s" -opt | filecheck "%s"
 
+// Missing:
+// `and(replicate(x), powerOfTwCst)` -> `concat(zeros, x, zeros)` for `x : i1`, and powerOfTwoCst != 1 and != 2^(n - 1)
+
+
 // and(x, and(val1, val2)) -> and(x, val1, val2) -- flatten
 pdl.pattern @AndFlatten : benefit(0) {
     %t = pdl.type : !transfer.integer
@@ -134,7 +138,6 @@ pdl.pattern @AndReplicateMin : benefit(0) {
     %cst_attr = pdl.apply_native_rewrite "get_minimum_signed_value"(%t : !pdl.type) : !pdl.attribute
     %cst_op = pdl.operation "hw.constant" {"value" = %cst_attr} -> (%t: !pdl.type)
     %cst = pdl.result 0 of %cst_op
-
 
     %and_op = pdl.operation "comb.and"(%replicate, %cst : !pdl.value, !pdl.value) -> (%t: !pdl.type)
 
