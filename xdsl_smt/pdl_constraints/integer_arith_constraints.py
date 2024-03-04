@@ -149,6 +149,22 @@ def integer_type_sub_width(
     rewriter.replace_matched_op([type_op])
 
 
+def integer_type_add_width(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (lhs, rhs) = op.args
+    assert isinstance(lhs, ErasedSSAValue)
+    lhs_type = context.pdl_types_to_types[lhs.old_value]
+    assert isa(lhs_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
+
+    assert isinstance(rhs, ErasedSSAValue)
+    rhs_type = context.pdl_types_to_types[rhs.old_value]
+    assert isa(rhs_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
+
+    type_op = TypeOp(IntegerType(lhs_type.first.width.data + rhs_type.first.width.data))
+    rewriter.replace_matched_op([type_op])
+
+
 def cast_to_type_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
@@ -381,6 +397,7 @@ integer_arith_native_rewrites: dict[
     "get_one_attr": get_cst_rewrite_factory(1),
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
+    "integer_type_add_width": integer_type_add_width,
     "cast_to_type": cast_to_type_rewrite,
     "get_one": get_constant_factory(1),
     "get_width": get_width,
