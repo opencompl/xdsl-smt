@@ -149,7 +149,7 @@ pdl.pattern @OrConcatCst : benefit(0) {
     }
 }
 
-// and(a[0], a[1], ..., a[n]) -> icmp eq(a, -1)
+// or(a[0], a[1], ..., a[n]) -> icmp ne(a, 0)
 pdl.pattern @OrCommonOperand : benefit(0) {
     %i3 = pdl.type : i3
     %i1 = pdl.type : i1
