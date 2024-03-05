@@ -2,6 +2,8 @@
 
 // Missing:
 // or(..., concat(x, cst1), concat(cst2, y) ==> or(..., concat(x, cst3, y)), when x and y don't overlap.
+// extracts only of or(...) -> or(extract()...)
+
 
 // or(x, or(val1, val2)) -> or(x, val1, val2) -- flatten
 pdl.pattern @OrFlatten : benefit(0) {
