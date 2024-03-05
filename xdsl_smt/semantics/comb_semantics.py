@@ -305,8 +305,10 @@ class MuxSemantics(SimplePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        ite = smt.IteOp(operands[0], operands[1], operands[2])
-        rewriter.insert_op_before_matched_op(ite)
+        one = smt_bv.ConstantOp(1, 1)
+        eq = smt.EqOp(operands[0], one.res)
+        ite = smt.IteOp(eq.res, operands[1], operands[2])
+        rewriter.insert_op_before_matched_op([one, eq, ite])
         return ((ite.res, None),)
 
 

@@ -61,6 +61,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     PDLToSMT().apply(ctx, cloned_op)
     LowerPairs().apply(ctx, cloned_op)
     CanonicalizeSMT().apply(ctx, cloned_op)
+    cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
 
