@@ -2,7 +2,7 @@
 
 // Missing:
 // `and(replicate(x), powerOfTwCst)` -> `concat(zeros, x, zeros)` for `x : i1`, and powerOfTwoCst != 1 and != 2^(n - 1)
-
+// `and(extract(x), 0000???00)` -> `concat(0000, and(extract(x), ???), 00)` with a smaller extract
 
 // and(x, and(val1, val2)) -> and(x, val1, val2) -- flatten
 pdl.pattern @AndFlatten : benefit(0) {
