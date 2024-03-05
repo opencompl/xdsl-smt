@@ -68,6 +68,12 @@ def andi_rewrite(
     return single_op_rewrite(op, rewriter, smt_bv.AndOp)
 
 
+def ori_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    return single_op_rewrite(op, rewriter, smt_bv.OrOp)
+
+
 def get_cst_rewrite_factory(constant: int):
     def get_cst_rewrite(
         op: ApplyNativeRewriteOp,
@@ -395,6 +401,7 @@ integer_arith_native_rewrites: dict[
     "subi": subi_rewrite,
     "muli": muli_rewrite,
     "andi": andi_rewrite,
+    "ori": ori_rewrite,
     "get_zero_attr": get_cst_rewrite_factory(0),
     "get_one_attr": get_cst_rewrite_factory(1),
     "get_minus_one_attr": get_cst_rewrite_factory(-1),
