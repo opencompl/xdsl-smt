@@ -90,7 +90,9 @@ def get_cst_rewrite_factory(constant: int):
                 "!smt.utils.pair<!smt.bv<...>, !smt.bool>."
             )
 
-        zero = smt_bv.ConstantOp(constant, width)
+        zero = smt_bv.ConstantOp(
+            ((constant % (1 << width)) + (1 << width)) % (1 << width), width
+        )
         rewriter.replace_matched_op([zero])
 
     return get_cst_rewrite
@@ -395,6 +397,7 @@ integer_arith_native_rewrites: dict[
     "andi": andi_rewrite,
     "get_zero_attr": get_cst_rewrite_factory(0),
     "get_one_attr": get_cst_rewrite_factory(1),
+    "get_minus_one_attr": get_cst_rewrite_factory(-1),
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
     "integer_type_add_width": integer_type_add_width,

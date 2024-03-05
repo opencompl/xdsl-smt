@@ -3,6 +3,7 @@
 // Missing:
 // `and(replicate(x), powerOfTwCst)` -> `concat(zeros, x, zeros)` for `x : i1`, and powerOfTwoCst != 1 and != 2^(n - 1)
 // `and(extract(x), 0000???00)` -> `concat(0000, and(extract(x), ???), 00)` with a smaller extract
+// extracts only of and(...) -> and(extract()...)
 
 // and(x, and(val1, val2)) -> and(x, val1, val2) -- flatten
 pdl.pattern @AndFlatten : benefit(0) {
@@ -199,6 +200,41 @@ pdl.pattern @AndConcatCst : benefit(0) {
 
         %new_op = pdl.operation "comb.and"(%a, %b, %c, %new_concat : !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
         pdl.replace %and_op with %new_op
+    }
+}
+
+// and(a[0], a[1], ..., a[n]) -> icmp eq(a, -1)
+pdl.pattern @AndCommonOperand : benefit(0) {
+    %i3 = pdl.type : i3
+    %i1 = pdl.type : i1
+
+    %a = pdl.operand : %i3
+
+    %zero = pdl.attribute = 0 : i3
+    %one = pdl.attribute = 1 : i3
+    %two = pdl.attribute = 2 : i3
+
+    %a0_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %zero } -> (%i1 : !pdl.type)
+    %a0 = pdl.result 0 of %a0_op
+
+    %a1_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %one } -> (%i1 : !pdl.type)
+    %a1 = pdl.result 0 of %a1_op
+
+    %a2_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %two } -> (%i1 : !pdl.type)
+    %a2 = pdl.result 0 of %a2_op
+
+    %and_op = pdl.operation "comb.and"(%a0, %a1, %a2 : !pdl.value, !pdl.value, !pdl.value) -> (%i1 : !pdl.type)
+
+    pdl.rewrite %and_op {
+        %minus_one_attr = pdl.apply_native_rewrite "get_minus_one_attr"(%i3 : !pdl.type) : !pdl.attribute
+        %minus_one_op = pdl.operation "hw.constant" {"value" = %minus_one_attr} -> (%i1 : !pdl.type)
+        %minus_one = pdl.result 0 of %minus_one_op
+
+        %eq_attr = pdl.attribute = 0 : i32
+
+        %icmp_op = pdl.operation "comb.icmp"(%a, %minus_one : !pdl.value, !pdl.value) { "predicate" = %eq_attr } -> (%i1 : !pdl.type)
+
+        pdl.replace %and_op with %icmp_op
     }
 }
 
