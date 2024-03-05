@@ -150,4 +150,56 @@ pdl.pattern @AndReplicateMin : benefit(0) {
     }
 }
 
+// and(concat(x, cst1), a, b, c, cst2)
+//    ==> and(a, b, c, concat(and(x,cst2'), and(cst1,cst2'')).
+pdl.pattern @AndConcatCst : benefit(0) {
+    %t = pdl.type : !transfer.integer
+    %t_left = pdl.type : !transfer.integer
+
+    pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
+    %t_right = pdl.apply_native_rewrite "integer_type_sub_width"(%t, %t_left : !pdl.type, !pdl.type) : !pdl.type
+
+    %x = pdl.operand : %t_left
+
+    %cst1_attr = pdl.attribute : %t_right
+    %cst1_op = pdl.operation "hw.constant" {"value" = %cst1_attr} -> (%t_right : !pdl.type)
+    %cst1 = pdl.result 0 of %cst1_op
+
+    %concat_op = pdl.operation "comb.concat"(%x, %cst1 : !pdl.value, !pdl.value) -> (%t : !pdl.type)
+    %concat = pdl.result 0 of %concat_op
+
+    %a = pdl.operand : %t
+    %b = pdl.operand : %t
+    %c = pdl.operand : %t
+
+    %cst2_attr = pdl.attribute : %t
+    %cst2_op = pdl.operation "hw.constant" {"value" = %cst2_attr} -> (%t : !pdl.type)
+    %cst2 = pdl.result 0 of %cst2_op
+
+    %and_op = pdl.operation "comb.and"(%concat, %a, %b, %c, %cst2 : !pdl.value, !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
+
+    pdl.rewrite %and_op {
+        %i32 = pdl.type : i32
+        %right_width = pdl.apply_native_rewrite "get_width"(%t_right, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+        %cst2_prime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %right_width} -> (%t_left : !pdl.type)
+        %cst2_prime = pdl.result 0 of %cst2_prime_op
+
+        %zero = pdl.attribute = 0 : i32
+        %cst2_primeprime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %zero} -> (%t_right : !pdl.type)
+        %cst2_primeprime = pdl.result 0 of %cst2_primeprime_op
+
+        %and_x_cst2_prime_op = pdl.operation "comb.and"(%x, %cst2_prime : !pdl.value, !pdl.value) -> (%t_left : !pdl.type)
+        %and_x_cst2_prime = pdl.result 0 of %and_x_cst2_prime_op
+
+        %and_cst1_cst2_primeprime_op = pdl.operation "comb.and"(%cst1, %cst2_primeprime : !pdl.value, !pdl.value) -> (%t_right : !pdl.type)
+        %and_cst1_cst2_primeprime = pdl.result 0 of %and_cst1_cst2_primeprime_op
+
+        %new_concat_op = pdl.operation "comb.concat"(%and_x_cst2_prime, %and_cst1_cst2_primeprime : !pdl.value, !pdl.value) -> (%t : !pdl.type)
+        %new_concat = pdl.result 0 of %new_concat_op
+
+        %new_op = pdl.operation "comb.and"(%a, %b, %c, %new_concat : !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
+        pdl.replace %and_op with %new_op
+    }
+}
+
 // CHECK: All patterns are sound
