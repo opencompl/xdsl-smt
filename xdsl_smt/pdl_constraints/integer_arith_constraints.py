@@ -10,6 +10,7 @@ from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl.dialects import arith
+from xdsl.dialects import comb
 from xdsl.dialects.pdl import (
     ApplyNativeConstraintOp,
     ApplyNativeRewriteOp,
@@ -111,6 +112,43 @@ def get_cst_rewrite_factory(constant: int):
 
 
 def invert_arith_cmpi_predicate_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (predicate,) = op.args
+
+    comparison_idx = {
+        name: i for i, name in enumerate(arith.CMPI_COMPARISON_OPERATIONS)
+    }
+    replacements = {
+        "eq": "ne",
+        "ne": "eq",
+        "slt": "sge",
+        "sle": "sgt",
+        "sgt": "sle",
+        "sge": "slt",
+        "ult": "uge",
+        "ule": "ugt",
+        "ugt": "ule",
+        "uge": "ult",
+    }
+    int_replacements = {
+        comparison_idx[from_]: comparison_idx[to] for from_, to in replacements.items()
+    }
+
+    next_case = predicate
+    for from_, to in int_replacements.items():
+        from_constant = smt_bv.ConstantOp(from_, 64)
+        to_constant = smt_bv.ConstantOp(to, 64)
+        eq_from = smt.EqOp(predicate, from_constant.res)
+        res = smt.IteOp(eq_from.res, to_constant.res, next_case)
+        next_case = res.res
+
+        rewriter.insert_op_before_matched_op([from_constant, to_constant, eq_from, res])
+
+    rewriter.replace_matched_op([], [next_case])
+
+
+def invert_comb_icmp_predicate_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
     (predicate,) = op.args
@@ -285,7 +323,7 @@ def is_attr_not_equal(
     return eq_op.res
 
 
-def is_cmpi_predicate(
+def is_arith_cmpi_predicate(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
@@ -299,6 +337,27 @@ def is_cmpi_predicate(
 
     width = value.type.width.data
     max_predicate_int = len(arith.CMPI_COMPARISON_OPERATIONS)
+    max_predicate = smt_bv.ConstantOp(max_predicate_int, width)
+    predicate_valid = smt_bv.UltOp(value, max_predicate.res)
+
+    rewriter.replace_matched_op([max_predicate, predicate_valid], [])
+    return predicate_valid.res
+
+
+def is_comb_icmp_predicate(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (value,) = op.args
+
+    if not isinstance(value.type, smt_bv.BitVectorType):
+        raise Exception(
+            "is_minus_one expects the input to be lowered to a `!smt.bv<...>`"
+        )
+
+    width = value.type.width.data
+    max_predicate_int = len(comb.ICMP_COMPARISON_OPERATIONS)
     max_predicate = smt_bv.ConstantOp(max_predicate_int, width)
     predicate_valid = smt_bv.UltOp(value, max_predicate.res)
 
@@ -413,6 +472,7 @@ integer_arith_native_rewrites: dict[
     "get_one_attr": get_cst_rewrite_factory(1),
     "get_minus_one_attr": get_cst_rewrite_factory(-1),
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
+    "invert_comb_icmp_predicate": invert_comb_icmp_predicate_rewrite,
     "integer_type_sub_width": integer_type_sub_width,
     "integer_type_add_width": integer_type_add_width,
     "cast_to_type": cast_to_type_rewrite,
@@ -427,7 +487,8 @@ integer_arith_native_constraints = {
     "is_zero": is_constant_factory(0),
     "is_not_zero": is_not_zero,
     "is_attr_not_equal": is_attr_not_equal,
-    "is_arith_cmpi_predicate": is_cmpi_predicate,
+    "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
+    "is_comb_icmp_predicate": is_comb_icmp_predicate,
     "truncation_match_shift_amount": truncation_match_shift_amount,
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }

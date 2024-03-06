@@ -1,5 +1,7 @@
 // RUN: verify-pdl "%s" -opt | filecheck "%s"
 
+// extracts only of xor(...) -> xor(extract()...)
+
 // xor(x) -> x
 pdl.pattern @XorSingle : benefit(0) {
     %t = pdl.type : !transfer.integer
@@ -153,5 +155,85 @@ pdl.pattern @XOrConcatCst : benefit(0) {
 
         %new_op = pdl.operation "comb.xor"(%a, %b, %c, %new_concat : !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
         pdl.replace %xor_op with %new_op
+    }
+}
+
+// xor(icmp, a, b, 1) -> xor(icmp, a, b)
+pdl.pattern @XorIcmpTrue : benefit(0) {
+    %i1 = pdl.type : i1
+    %i64 = pdl.type : i64
+
+    %predicate = pdl.attribute : %i64
+    pdl.apply_native_constraint "is_comb_icmp_predicate"(%predicate : !pdl.attribute)
+    %x = pdl.operand : %i1
+    %y = pdl.operand : %i1
+
+    %icmp_op = pdl.operation "comb.icmp"(%x, %y : !pdl.value, !pdl.value) {"predicate" = %predicate} -> (%i1 : !pdl.type)
+    %icmp = pdl.result 0 of %icmp_op
+
+    %a = pdl.operand : %i1
+    %b = pdl.operand : %i1
+
+    %one_attr = pdl.attribute : %i1
+    pdl.apply_native_constraint "is_one"(%one_attr : !pdl.attribute)
+    %one_op = pdl.operation "hw.constant" {"value" = %one_attr} -> (%i1 : !pdl.type)
+    %one = pdl.result 0 of %one_op
+
+    %xor_op = pdl.operation "comb.xor"(%icmp, %a, %b, %one : !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%i1 : !pdl.type)
+
+    pdl.rewrite %xor_op {
+        %negated_predicate = pdl.apply_native_rewrite "invert_comb_icmp_predicate"(%predicate : !pdl.attribute) : !pdl.attribute
+        %new_icmp_op = pdl.operation "comb.icmp"(%x, %y : !pdl.value, !pdl.value) {"predicate" = %negated_predicate} -> (%i1 : !pdl.type)
+        %new_icmp = pdl.result 0 of %new_icmp_op
+
+        %new_op = pdl.operation "comb.xor"(%new_icmp, %a, %b : !pdl.value, !pdl.value, !pdl.value) -> (%i1 : !pdl.type)
+        pdl.replace %xor_op with %new_op
+    }
+}
+
+// xor(x, xor(val1, val2)) -> xor(x, val1, val2) -- flatten
+pdl.pattern @XOrFlatten : benefit(0) {
+    %t = pdl.type : !transfer.integer
+    %x = pdl.operand : %t
+    %val1 = pdl.operand : %t
+    %val2 = pdl.operand : %t
+
+    %inner_or_op = pdl.operation "comb.xor"(%val1, %val2 : !pdl.value, !pdl.value) -> (%t: !pdl.type)
+    %inner_and = pdl.result 0 of %inner_or_op
+
+    %or_op = pdl.operation "comb.xor"(%x, %inner_and : !pdl.value, !pdl.value) -> (%t: !pdl.type)
+
+    pdl.rewrite %or_op {
+        %new_op = pdl.operation "comb.xor"(%x, %val1, %val2 : !pdl.value, !pdl.value, !pdl.value) -> (%t: !pdl.type)
+        pdl.replace %or_op with %new_op
+    }
+}
+
+// xor(a[0], a[1], ..., a[n]) -> parity(a)
+pdl.pattern @OrCommonOperand : benefit(0) {
+    %i3 = pdl.type : i3
+    %i1 = pdl.type : i1
+
+    %a = pdl.operand : %i3
+
+    %zero = pdl.attribute = 0 : i3
+    %one = pdl.attribute = 1 : i3
+    %two = pdl.attribute = 2 : i3
+
+    %a0_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %zero } -> (%i1 : !pdl.type)
+    %a0 = pdl.result 0 of %a0_op
+
+    %a1_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %one } -> (%i1 : !pdl.type)
+    %a1 = pdl.result 0 of %a1_op
+
+    %a2_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %two } -> (%i1 : !pdl.type)
+    %a2 = pdl.result 0 of %a2_op
+
+    %or_op = pdl.operation "comb.xor"(%a0, %a1, %a2 : !pdl.value, !pdl.value, !pdl.value) -> (%i1 : !pdl.type)
+
+    pdl.rewrite %or_op {
+        %parity_op = pdl.operation "comb.parity"(%a : !pdl.value) -> (%i1 : !pdl.type)
+
+        pdl.replace %or_op with %parity_op
     }
 }
