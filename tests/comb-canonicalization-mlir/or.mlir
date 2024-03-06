@@ -76,7 +76,7 @@ pdl.pattern @OrMinusOne : benefit(0) {
 }
 
 // or(x, cst1, cst2) -> or(x, cst1 | cst2)
-pdl.pattern @OrMinusOne : benefit(0) {
+pdl.pattern @OrConstantFolding : benefit(0) {
     %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
