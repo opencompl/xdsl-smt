@@ -56,11 +56,12 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
 max_bitwidth = 32
 
 
-def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
+def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     cloned_op = op.clone()
     PDLToSMT().apply(ctx, cloned_op)
-    LowerPairs().apply(ctx, cloned_op)
-    CanonicalizeSMT().apply(ctx, cloned_op)
+    if opt:
+        LowerPairs().apply(ctx, cloned_op)
+        CanonicalizeSMT().apply(ctx, cloned_op)
     cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
@@ -104,6 +105,14 @@ class OptMain(xDSLOptMain):
             default=32,
             help="maximum bitwidth of integer types",
         )
+        arg_parser.add_argument(
+            "--opt",
+            type=bool,
+            default=False,
+            action="store_true",
+            help="Optimize the SMT query before sending it to Z3",
+        )
+
         super().register_all_arguments(arg_parser)
 
     def register_all_dialects(self):
@@ -147,7 +156,9 @@ class OptMain(xDSLOptMain):
                 else:
                     print(f"Verifying pattern:")
                 for specialized_pattern, types in iterate_on_all_integers(pattern):
-                    if verify_pattern(self.ctx, ModuleOp([specialized_pattern])):
+                    if verify_pattern(
+                        self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                    ):
                         print(f"with types {types}: SOUND")
                     else:
                         print(f"with types {types}: UNSOUND")
