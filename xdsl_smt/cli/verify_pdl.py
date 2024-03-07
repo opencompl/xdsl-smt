@@ -100,13 +100,13 @@ def iterate_on_all_integers(
 class OptMain(xDSLOptMain):
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         arg_parser.add_argument(
-            "--max-bitwidth",
+            "-max-bitwidth",
             type=int,
             default=32,
             help="maximum bitwidth of integer types",
         )
         arg_parser.add_argument(
-            "--opt",
+            "-opt",
             type=bool,
             default=False,
             action="store_true",

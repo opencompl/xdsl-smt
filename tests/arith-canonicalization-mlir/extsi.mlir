@@ -1,4 +1,4 @@
-// RUN: verify-pdl "%s" --max-bitwidth=8 -opt | filecheck "%s"
+// RUN: verify-pdl "%s" -max-bitwidth=8 -opt | filecheck "%s"
 
 builtin.module {
     // extsi(extui(x iN : iM) : iL) -> extui(x : iL)
