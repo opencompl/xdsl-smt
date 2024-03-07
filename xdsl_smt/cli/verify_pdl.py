@@ -107,7 +107,6 @@ class OptMain(xDSLOptMain):
         )
         arg_parser.add_argument(
             "-opt",
-            type=bool,
             default=False,
             action="store_true",
             help="Optimize the SMT query before sending it to Z3",
