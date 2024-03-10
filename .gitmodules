@@ -1,0 +1,3 @@
+[submodule "mlir-fuzz"]
+	path = mlir-fuzz
+	url = git@github.com:opencompl/mlir-fuzz.git
