@@ -398,7 +398,7 @@ def truncation_match_shift_amount(
     trunc_amount_constant = smt_bv.ConstantOp(trunc_amonut, previous_type.width.data)
     eq_trunc_amount = smt.EqOp(shift_amount, trunc_amount_constant.res)
 
-    rewriter.replace_matched_op([eq_trunc_amount, trunc_amount_constant], [])
+    rewriter.replace_matched_op([trunc_amount_constant, eq_trunc_amount], [])
     return eq_trunc_amount.res
 
 
