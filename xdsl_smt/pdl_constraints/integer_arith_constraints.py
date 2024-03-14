@@ -256,7 +256,7 @@ def is_constant_factory(constant: int):
             ((constant % 2**width) + 2**width) % 2**width, width
         )
         eq_minus_one = smt.EqOp(value, minus_one.res)
-        rewriter.replace_matched_op([eq_minus_one, minus_one], [])
+        rewriter.replace_matched_op([minus_one, eq_minus_one], [])
         return eq_minus_one.res
 
     return is_constant
