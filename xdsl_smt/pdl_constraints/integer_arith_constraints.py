@@ -424,7 +424,7 @@ def is_equal_to_width_of_type(
 
     width_op = smt_bv.ConstantOp(int_type.width, width_value.type.width)
     eq_width_op = smt.EqOp(width_value, width_op.res)
-    rewriter.replace_matched_op([eq_width_op, width_op], [])
+    rewriter.replace_matched_op([width_op, eq_width_op], [])
 
     return eq_width_op.res
 
