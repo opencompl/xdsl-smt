@@ -230,7 +230,7 @@ pdl.pattern @AndCommonOperand : benefit(0) {
         %minus_one_op = pdl.operation "hw.constant" {"value" = %minus_one_attr} -> (%i1 : !pdl.type)
         %minus_one = pdl.result 0 of %minus_one_op
 
-        %eq_attr = pdl.attribute = 0 : i32
+        %eq_attr = pdl.attribute = 0 : i64
 
         %icmp_op = pdl.operation "comb.icmp"(%a, %minus_one : !pdl.value, !pdl.value) { "predicate" = %eq_attr } -> (%i1 : !pdl.type)
 
