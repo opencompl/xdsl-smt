@@ -210,7 +210,7 @@ class ICmpSemantics(SimplePoisonSemantics):
         ite_1 = smt.IteOp(eq_1.res, value_1.res, ite_2.res)
         ite_0 = smt.IteOp(eq_0.res, value_0.res, ite_1.res)
         rewriter.insert_op_before_matched_op(
-            [ite_0, ite_1, ite_2, ite_3, ite_4, ite_5, ite_6, ite_7, ite_8]
+            [ite_8, ite_7, ite_6, ite_5, ite_4, ite_3, ite_2, ite_1, ite_0]
         )
         to_int = smt.IteOp(ite_0.res, one_i1.res, zero_i1.res)
         rewriter.insert_op_before_matched_op(to_int)

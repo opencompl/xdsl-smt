@@ -178,7 +178,7 @@ pdl.pattern @OrCommonOperand : benefit(0) {
         %zero_op = pdl.operation "hw.constant" {"value" = %zero_attr} -> (%i1 : !pdl.type)
         %zero_res = pdl.result 0 of %zero_op
 
-        %ne_attr = pdl.attribute = 1 : i32
+        %ne_attr = pdl.attribute = 1 : i64
 
         %icmp_op = pdl.operation "comb.icmp"(%a, %zero_res : !pdl.value, !pdl.value) { "predicate" = %ne_attr } -> (%i1 : !pdl.type)
 
