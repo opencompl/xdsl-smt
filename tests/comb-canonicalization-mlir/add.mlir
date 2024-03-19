@@ -167,3 +167,5 @@ pdl.pattern @AddFolding : benefit(0) {
         pdl.replace %add_op with %new_op
     }
 }
+
+// CHECK: All patterns are sound

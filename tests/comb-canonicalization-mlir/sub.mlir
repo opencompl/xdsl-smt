@@ -25,3 +25,5 @@ pdl.pattern @SubCst : benefit(0) {
         pdl.replace %sub_op with %add_op
     }
 }
+
+// CHECK: All patterns are sound

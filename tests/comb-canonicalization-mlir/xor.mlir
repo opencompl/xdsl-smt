@@ -237,3 +237,5 @@ pdl.pattern @OrCommonOperand : benefit(0) {
         pdl.replace %or_op with %parity_op
     }
 }
+
+// CHECK: All patterns are sound

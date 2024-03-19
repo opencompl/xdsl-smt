@@ -27,7 +27,7 @@ pdl.pattern @ShrRhsKnownConstant : benefit(0) {
 
     pdl.rewrite %shrs_op {
         %width = pdl.apply_native_rewrite "get_width"(%type, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
-        %one = pdl.apply_native_rewrite "get_one"(%i32 : !pdl.type) : !pdl.attribute
+        %one = pdl.apply_native_rewrite "get_one_attr"(%i32 : !pdl.type) : !pdl.attribute
         %last_bit_attr = pdl.apply_native_rewrite "subi"(%width, %one : !pdl.attribute, !pdl.attribute) : !pdl.attribute
 
         %i1 = pdl.type : i1
