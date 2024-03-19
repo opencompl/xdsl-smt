@@ -37,7 +37,11 @@ pdl.pattern @ShrRhsKnownConstant : benefit(0) {
         %replicate_op = pdl.operation "comb.replicate"(%last_bit : !pdl.value) -> (%shift_type : !pdl.type)
         %replicate = pdl.result 0 of %replicate_op
 
-        %extract_type = pdl.apply_native_rewrite "integer_type_sub_width"(%type, %shift_type : !pdl.type, !pdl.type) : !pdl.type
+        %type_width = pdl.apply_native_rewrite "get_width"(%type, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+        %shift_width = pdl.apply_native_rewrite "get_width"(%shift_type, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+        %extract_width = pdl.apply_native_rewrite "subi"(%type_width, %shift_width : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        %extract_type = pdl.apply_native_rewrite "integer_type_from_width"(%extract_width : !pdl.attribute) : !pdl.type
+
         %extract_op = pdl.operation "comb.extract"(%x : !pdl.value) {"low_bit" = %shift_attr} -> (%extract_type : !pdl.type)
         %extract = pdl.result 0 of %extract_op
 

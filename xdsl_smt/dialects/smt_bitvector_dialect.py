@@ -107,22 +107,23 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BitVectorType)
 
     @overload
-    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
-        ...
+    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None: ...
 
     @overload
-    def __init__(self, value: IntegerAttr[IntegerType]) -> None:
-        ...
+    def __init__(self, value: IntegerAttr[IntegerType] | BitVectorValue) -> None: ...
 
     def __init__(
         self,
-        value: int | IntAttr | IntegerAttr[IntegerType],
+        value: int | IntAttr | IntegerAttr[IntegerType] | BitVectorValue,
         width: int | IntAttr | None = None,
     ) -> None:
+        attr: BitVectorValue
         if isinstance(value, int | IntAttr):
             if not isinstance(width, int | IntAttr):
                 raise ValueError("Expected width with an `int` value")
             attr = BitVectorValue(value, width)
+        elif isinstance(value, BitVectorValue):
+            attr = value
         else:
             width = value.type.width.data
             value = (

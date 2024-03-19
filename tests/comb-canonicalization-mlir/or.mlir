@@ -104,9 +104,14 @@ pdl.pattern @OrConstantFolding : benefit(0) {
 pdl.pattern @OrConcatCst : benefit(0) {
     %t = pdl.type : !transfer.integer
     %t_left = pdl.type : !transfer.integer
+    %i32 = pdl.type : i32
 
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
-    %t_right = pdl.apply_native_rewrite "integer_type_sub_width"(%t, %t_left : !pdl.type, !pdl.type) : !pdl.type
+
+    %t_width = pdl.apply_native_rewrite "get_width"(%t, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+    %t_left_width = pdl.apply_native_rewrite "get_width"(%t_left, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+    %t_right_width = pdl.apply_native_rewrite "subi"(%t_width, %t_left_width : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+    %t_right = pdl.apply_native_rewrite "integer_type_from_width"(%t_right_width : !pdl.attribute) : !pdl.type
 
     %x = pdl.operand : %t_left
 
@@ -128,7 +133,6 @@ pdl.pattern @OrConcatCst : benefit(0) {
     %or_op = pdl.operation "comb.or"(%concat, %a, %b, %c, %cst2 : !pdl.value, !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
 
     pdl.rewrite %or_op {
-        %i32 = pdl.type : i32
         %right_width = pdl.apply_native_rewrite "get_width"(%t_right, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
         %cst2_prime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %right_width} -> (%t_left : !pdl.type)
         %cst2_prime = pdl.result 0 of %cst2_prime_op

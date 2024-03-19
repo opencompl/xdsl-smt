@@ -11,7 +11,7 @@ builtin.module {
     %extract = pdl.operation "comb.extract"(%operand : !pdl.value) { "low_bit" = %low_bit_attr} -> (%extract_type : !pdl.type)
 
     pdl.rewrite %extract {
-      %shift_cst_attr = pdl.apply_native_rewrite "cast_to_type"(%low_bit_attr, %type : !pdl.attribute, !pdl.type) : !pdl.attribute
+      %shift_cst_attr = pdl.attribute = 2 : i8 
       %shift_cst_op = pdl.operation "hw.constant" { "value" = %shift_cst_attr } -> (%type : !pdl.type)
       %shift_cst_res = pdl.result 0 of %shift_cst_op
       %shift_op = pdl.operation "comb.shru"(%operand, %shift_cst_res : !pdl.value, !pdl.value) -> (%type : !pdl.type)

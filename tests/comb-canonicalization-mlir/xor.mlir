@@ -109,11 +109,15 @@ pdl.pattern @OrMinusOne : benefit(0) {
 // xor(concat(x, cst1), a, b, c, cst2)
 //    ==> xor(a, b, c, concat(xor(x,cst2'), xor(cst1,cst2'')).
 pdl.pattern @XOrConcatCst : benefit(0) {
+    %i32 = pdl.type : i32
     %t = pdl.type : !transfer.integer
     %t_left = pdl.type : !transfer.integer
 
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
-    %t_right = pdl.apply_native_rewrite "integer_type_sub_width"(%t, %t_left : !pdl.type, !pdl.type) : !pdl.type
+    %t_width = pdl.apply_native_rewrite "get_width"(%t, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+    %t_left_width = pdl.apply_native_rewrite "get_width"(%t_left, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
+    %t_right_width = pdl.apply_native_rewrite "subi"(%t_width, %t_left_width : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+    %t_right = pdl.apply_native_rewrite "integer_type_from_width"(%t_right_width : !pdl.attribute) : !pdl.type
 
     %x = pdl.operand : %t_left
 
@@ -135,7 +139,6 @@ pdl.pattern @XOrConcatCst : benefit(0) {
     %xor_op = pdl.operation "comb.xor"(%concat, %a, %b, %c, %cst2 : !pdl.value, !pdl.value, !pdl.value, !pdl.value, !pdl.value) -> (%t : !pdl.type)
 
     pdl.rewrite %xor_op {
-        %i32 = pdl.type : i32
         %right_width = pdl.apply_native_rewrite "get_width"(%t_right, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
         %cst2_prime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %right_width} -> (%t_left : !pdl.type)
         %cst2_prime = pdl.result 0 of %cst2_prime_op
