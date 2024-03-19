@@ -328,6 +328,18 @@ def is_not_zero(
     return ne_zero.res
 
 
+def is_attr_equal(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (lhs, rhs) = op.args
+
+    eq_op = smt.EqOp(lhs, rhs)
+    rewriter.replace_matched_op([eq_op], [])
+    return eq_op.res
+
+
 def is_attr_not_equal(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
@@ -505,10 +517,10 @@ integer_arith_native_constraints = {
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     "is_not_zero": is_not_zero,
+    "is_attr_equal": is_attr_equal,
     "is_attr_not_equal": is_attr_not_equal,
     "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
-    "truncation_match_shift_amount": truncation_match_shift_amount,
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }
 

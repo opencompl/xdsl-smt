@@ -49,13 +49,17 @@ builtin.module {
     pdl.pattern @TruncIShrSIToTrunciShrUI : benefit(0) {
         %iN = pdl.type : !transfer.integer
         %iM = pdl.type : !transfer.integer
+        %i32 = pdl.type : i32
 
         pdl.apply_native_constraint "is_greater_integer_type"(%iN, %iM : !pdl.type, !pdl.type)
 
         %x = pdl.operand : %iN
 
         %c_attr = pdl.attribute : %iN
-        pdl.apply_native_constraint "truncation_match_shift_amount"(%iN, %iM, %c_attr : !pdl.type, !pdl.type, !pdl.attribute)
+        %N = pdl.apply_native_rewrite "get_width"(%iN, %iN : !pdl.type, !pdl.type) : !pdl.attribute
+        %M = pdl.apply_native_rewrite "get_width"(%iM, %iN : !pdl.type, !pdl.type) : !pdl.attribute
+        %N-M = pdl.apply_native_rewrite "subi"(%N, %M : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        pdl.apply_native_constraint "is_attr_equal"(%N-M, %c_attr : !pdl.attribute, !pdl.attribute)
 
         %c_op = pdl.operation "arith.constant" {"value" = %c_attr} -> (%iN : !pdl.type)
         %c = pdl.result 0 of %c_op
