@@ -525,14 +525,18 @@ integer_arith_native_rewrites: dict[
 }
 
 integer_arith_native_constraints = {
+    # Equality to constants
     "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     "is_not_zero": is_not_zero,
+    # Equality between attributes
     "is_attr_equal": is_attr_equal,
     "is_attr_not_equal": is_attr_not_equal,
+    # Predicates
     "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
+    # Integer type equality
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }
 
