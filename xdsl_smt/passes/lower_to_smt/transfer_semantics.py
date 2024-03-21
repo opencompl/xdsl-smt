@@ -24,6 +24,7 @@ from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IndexType
 from ...utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
+    set_low_bits,
     count_lzeros,
     count_rzeros,
     count_lones,
@@ -72,6 +73,24 @@ class ConstantOpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(bv_const)
         return (bv_const.res,)
 
+
+class GetAllOnesOpSemantics(OperationSemantics):
+    def get_semantics(
+            self,
+            operands: Sequence[SSAValue],
+            results: Sequence[Attribute],
+            regions: Sequence[Region],
+            attributes: Mapping[str, Attribute | SSAValue],
+            rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width
+        const_value = (1<<width.data)-1
+
+
+        bv_const = smt_bv.ConstantOp(const_value, width)
+        rewriter.insert_op_before_matched_op(bv_const)
+        return (bv_const.res,)
 
 class GetBitWidthOpSemantics(OperationSemantics):
     """1. There is no direct API to obtain the bit width of a vector.
@@ -277,6 +296,35 @@ class CmpOpSemantics(OperationSemantics):
         return (res_op.res,)
 
 
+class IntersectsOpSemantics(OperationSemantics):
+
+    def get_semantics(
+            self,
+            operands: Sequence[SSAValue],
+            results: Sequence[Attribute],
+            regions: Sequence[Region],
+            attributes: Mapping[str, Attribute | SSAValue],
+            rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+
+        and_res=smt_bv.AndOp(operands[0], operands[1])
+        assert isinstance(and_res.res.type, smt_bv.BitVectorType)
+        const_0=smt_bv.ConstantOp(0,and_res.res.type.width)
+        eq_0 = smt.EqOp(and_res.res,const_0.res)
+
+        resList: list[Operation] = [and_res,const_0,eq_0]
+
+        b1 = smt_bv.ConstantOp.from_int_value(1, 1)
+        b0 = smt_bv.ConstantOp.from_int_value(0, 1)
+        bool_to_bv = smt.IteOp(resList[-1].results[0], b0.results[0], b1.results[0])
+
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res_op = PairOp(bool_to_bv.results[0], poison_op.res)
+
+        resList += [b1, b0, bool_to_bv, poison_op, res_op]
+        rewriter.insert_op_before_matched_op(resList)
+        return (res_op.res,)
+
 class CountLOneOpSemantics(OperationSemantics):
     def get_semantics(
             self,
@@ -349,6 +397,20 @@ class SetHighBitsOpSemantics(OperationSemantics):
             rewriter: PatternRewriter,
     ) -> Sequence[SSAValue]:
         result = set_high_bits(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(result)
+        return (result[-1].results[0],)
+
+
+class SetLowBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+            self,
+            operands: Sequence[SSAValue],
+            results: Sequence[Attribute],
+            regions: Sequence[Region],
+            attributes: Mapping[str, Attribute | SSAValue],
+            rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        result = set_low_bits(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(result)
         return (result[-1].results[0],)
 
@@ -483,6 +545,71 @@ class ExtractOpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(extractOp)
         return (extractOp.res,)
 
+class ConstRangeForOpSemantics(OperationSemantics):
+    def get_semantics(
+            self,
+            operands: Sequence[SSAValue],
+            results: Sequence[Attribute],
+            regions: Sequence[Region],
+            attributes: Mapping[str, Attribute | SSAValue],
+            rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        lb = operands[0].owner
+        ub = operands[1].owner
+        step = operands[2].owner
+        assert isinstance(lb, smt_bv.ConstantOp) and "loop lower bound has to be a constant"
+        assert isinstance(ub, smt_bv.ConstantOp) and "loop upper bound has to be a constant"
+        assert isinstance(step, smt_bv.ConstantOp) and "loop step has to be a constant"
+        lb_int = lb.value.value.data
+        ub_int = ub.value.value.data
+        step_int = step.value.value.data
+
+        assert step_int != 0 and "step size should not be zero"
+        if step_int > 0:
+            assert ub_int > lb_int and "the upper bound should be larger than the lower bound"
+        else:
+            assert ub_int < lb_int and "the upper bound should be smaller than the lower bound"
+
+        iter_args = operands[3:]
+        iter_args_num = len(iter_args)
+
+        indvar, *block_iter_args = regions[0].block.args
+
+        value_map: dict[SSAValue, SSAValue] = {}
+
+        value_map[indvar] = operands[0]
+        for i in range(iter_args_num):
+            value_map[block_iter_args[i]] = iter_args[i]
+        last_result=None
+        for i in range(lb_int, ub_int, step_int):
+            for cur_op in regions[0].block.ops:
+                if not isinstance(cur_op, transfer.NextLoopOp):
+                    clone_op = cur_op.clone()
+                    for idx in range(len(clone_op.operands)):
+                        if cur_op.operands[idx] in value_map:
+                            clone_op.operands[idx] = value_map[cur_op.operands[idx]]
+                    if len(cur_op.results) != 0:
+                        value_map[cur_op.results[0]] = clone_op.results[0]
+                    rewriter.insert_op_before_matched_op(clone_op)
+                    continue
+                if isinstance(cur_op, transfer.NextLoopOp):
+                    if i + step_int < ub_int:
+                        new_value_map: dict[SSAValue, SSAValue] = {}
+                        cur_ind = transfer.Constant(operands[1], i + step_int).result
+                        new_value_map[indvar] = cur_ind
+                        rewriter.insert_op_before_matched_op(cur_ind.owner)
+                        for idx, arg in enumerate(block_iter_args):
+                            new_value_map[block_iter_args[idx]] = value_map[cur_op.operands[idx]]
+                        value_map = new_value_map
+                    else:
+                        make_res = [value_map[arg] for arg in cur_op.arguments]
+                        assert len(make_res) == 1 and "current we only support for one returned value from for"
+                        last_result=make_res[0]
+        #for tmp_op in last_result.owner.parent_block().ops:
+        #    print(tmp_op)
+        return (last_result,)
+
+
 transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.Constant: ConstantOpSemantics(),
     transfer.AddOp: TrivialOpSemantics(transfer.AddOp, smt_bv.AddOp),
@@ -511,7 +638,11 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.UMaxOp: UMaxOpSemantics(),
     transfer.UMinOp: UMinOpSemantics(),
     transfer.SetHighBitsOp: SetHighBitsOpSemantics(),
+    transfer.SetLowBitsOp: SetLowBitsOpSemantics(),
     transfer.GetLowBitsOp: GetLowBitsOpSemantics(),
     transfer.SelectOp: SelectOpSemantics(),
     transfer.IsPowerOf2Op: IsPowerOf2OpSemantics(),
+    transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
+    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
+    transfer.IntersectsOp: IntersectsOpSemantics(),
 }

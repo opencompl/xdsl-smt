@@ -67,6 +67,11 @@ def set_high_bits(b: SSAValue, high_bits: SSAValue) -> list[Operation]:
     return result
     # return get_high_bits_constant(high_bits, b.size()) | b
 
+def set_low_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
+    result = get_low_bits_constant(low_bits)
+    result.append(smt_bv.OrOp(result[-1].results[0], b))
+    return result
+
 
 def count_ones(b: SSAValue) -> list[Operation]:
     assert isinstance(b.type, smt_bv.BitVectorType)

@@ -80,6 +80,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     #print(cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
+    #print_to_smtlib(cloned_op, sys.stdout)
     #print(stream.getvalue())
 
     res = subprocess.run(
@@ -202,8 +203,16 @@ def soundness_check(
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
 
+    arg_constant.append(DeclareConstOp(abstract_type))
+    inst_constant.append(DeclareConstOp(instance_type))
+
     eq_ops: list[EqOp] = []
     assert_ops: list[AssertOp] = []
+
+    eq_ops.append(EqOp(arg_constant[-1].res,abstract_result.res))
+    assert_ops.append(AssertOp(eq_ops[-1].results[0]))
+    eq_ops.append(EqOp(inst_constant[-1].res, inst_result.res))
+    assert_ops.append(AssertOp(eq_ops[-1].results[0]))
 
     for c in arg_constraints_first:
         eq_ops.append(EqOp(constant_bv_1.results[0], c.results[0]))
@@ -267,7 +276,7 @@ def main() -> None:
 
 
     FunctionCallInline(False,func_name_to_func).apply(ctx,module)
-    UnrollTransferLoop().apply(ctx,module)
+    #UnrollTransferLoop().apply(ctx,module)
 
     for width in solveVectorWidth():
         print("Current width: ", width)
@@ -297,8 +306,7 @@ def main() -> None:
             concrete_func = func_name_to_smt_func[concrete_funcname.data]
             print(transfer_funcname)
 
-
-
+            '''
             query_module = ModuleOp([], {})
             added_ops = test_abs_inline_check(transfer_func)
             query_module.body.block.add_ops(added_ops)
@@ -306,39 +314,35 @@ def main() -> None:
             LowerToSMT().apply(ctx, query_module)
             print(query_module)
             print_to_smtlib(query_module, sys.stdout)
-
-
-
-
-
             '''
-            # basic constraint check
-            query_module = ModuleOp([], {})
-            added_ops = basic_constraint_check(transfer_func, get_constraint)
-            query_module.body.block.add_ops(added_ops)
-            FunctionCallInline(True,{}).apply(ctx, query_module)
-            LowerToSMT().apply(ctx, query_module)
-            print("Basic Constraint Check result:", verify_pattern(ctx, query_module))
-            '''
+
+
+
+            if False:
+                # basic constraint check
+                query_module = ModuleOp([], {})
+                added_ops = basic_constraint_check(transfer_func, get_constraint)
+                query_module.body.block.add_ops(added_ops)
+                FunctionCallInline(True,{}).apply(ctx, query_module)
+                LowerToSMT().apply(ctx, query_module)
+                print(query_module)
+                print("Basic Constraint Check result:", verify_pattern(ctx, query_module))
 
 
 
             # soundness check
-            '''
-            query_module = ModuleOp([], {})
-            added_ops = soundness_check(
-                transfer_func, concrete_func, get_constraint, get_instance_constraint
-            )
-            query_module.body.block.add_ops(added_ops)
-            FunctionCallInline(True, {}).apply(ctx, query_module)
-            LowerToSMT().apply(ctx, query_module)
-            #print(query_module)
-            #LowerPairs().apply(ctx, query_module)
-            #print(query_module)
-            #print_to_smtlib(query_module, sys.stdout)
+            if True:
+                query_module = ModuleOp([], {})
+                added_ops = soundness_check(
+                    transfer_func, concrete_func, get_constraint, get_instance_constraint
+                )
+                query_module.body.block.add_ops(added_ops)
+                FunctionCallInline(True, {}).apply(ctx, query_module)
+                LowerToSMT().apply(ctx, query_module)
+                #print_to_smtlib(query_module, sys.stdout)
 
-            print("Soundness Check result:", verify_pattern(ctx, query_module))
-            '''
+                print("Soundness Check result:", verify_pattern(ctx, query_module))
+
 
 
 
