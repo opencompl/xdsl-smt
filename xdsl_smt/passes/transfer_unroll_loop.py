@@ -31,8 +31,6 @@ from xdsl.dialects.builtin import (
 class ConstRangeForOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: transfer.ConstRangeForOp, rewriter: PatternRewriter) -> None:
-        parent_op=op.parent_op()
-        print(parent_op)
         lb=op.lb.owner
         ub=op.ub.owner
         step=op.step.owner
