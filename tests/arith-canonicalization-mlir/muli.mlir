@@ -2,7 +2,7 @@
 
 builtin.module {
     // muli(muli(x, c0), c1) -> muli(x, c0 * c1)
-    pdl.pattern @muli_assoc_fold : benefit(0) {
+    pdl.pattern @MulIMulIConstant : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type

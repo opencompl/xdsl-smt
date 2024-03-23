@@ -32,14 +32,13 @@ from ..passes.lower_pairs import LowerPairs
 from ..passes.canonicalize_smt import CanonicalizeSMT
 from ..passes.lower_to_smt import (
     LowerToSMT,
-    arith_semantics,
-    comb_semantics,
     transfer_to_smt_patterns,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
     llvm_to_smt_patterns,
 )
-
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..traits.smt_printer import print_to_smtlib
 
 

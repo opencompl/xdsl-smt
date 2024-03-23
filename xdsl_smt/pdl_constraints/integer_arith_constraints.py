@@ -4,12 +4,19 @@ in PDL.
 """
 
 from typing import Callable
+from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
 from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl.dialects import arith
-from xdsl.dialects.pdl import ApplyNativeConstraintOp, ApplyNativeRewriteOp
+from xdsl.dialects import comb
+from xdsl.dialects.pdl import (
+    ApplyNativeConstraintOp,
+    ApplyNativeRewriteOp,
+    AttributeOp,
+    TypeOp,
+)
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
@@ -31,9 +38,21 @@ def get_bv_type_from_optional_poison(
 
 
 def single_op_rewrite(
-    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, op_type: type[Operation]
+    op: ApplyNativeRewriteOp,
+    rewriter: PatternRewriter,
+    op_type: type[Operation],
+    fold: Callable[
+        [smt_bv.BitVectorValue, smt_bv.BitVectorValue], smt_bv.BitVectorValue
+    ],
 ) -> None:
     lhs, rhs = op.args
+    if isinstance(lhs.owner, smt_bv.ConstantOp) and isinstance(
+        rhs.owner, smt_bv.ConstantOp
+    ):
+        lhs = lhs.owner.value
+        rhs = rhs.owner.value
+        rewriter.replace_matched_op([smt_bv.ConstantOp(fold(lhs, rhs))])
+        return
     new_op = op_type.create(operands=[lhs, rhs], result_types=[lhs.type])
     rewriter.replace_matched_op(new_op)
 
@@ -41,42 +60,127 @@ def single_op_rewrite(
 def addi_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
-    return single_op_rewrite(op, rewriter, smt_bv.AddOp)
+    def fold_addi(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        return smt_bv.BitVectorValue(lhs.value.data + rhs.value.data, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.AddOp, fold_addi)
 
 
 def subi_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
-    return single_op_rewrite(op, rewriter, smt_bv.SubOp)
+    def fold_subi(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        return smt_bv.BitVectorValue(lhs.value.data - rhs.value.data, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.SubOp, fold_subi)
 
 
 def muli_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
-    return single_op_rewrite(op, rewriter, smt_bv.MulOp)
+    def fold_muli(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        return smt_bv.BitVectorValue(lhs.value.data * rhs.value.data, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.MulOp, fold_muli)
 
 
-def get_zero_attr_rewrite(
+def andi_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
-    (value,) = op.args
-    assert isinstance(value, ErasedSSAValue)
-    type = context.pdl_types_to_types[value.old_value]
+    def fold_andi(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        lhs_value = (
+            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+        )
+        rhs_value = (
+            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
+        )
+        return smt_bv.BitVectorValue(lhs_value & rhs_value, lhs.width)
 
-    width: int
-    # Poison case
-    if isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType]):
-        width = type.first.width.data
-    elif isinstance(type, smt_bv.BitVectorType):
-        width = type.width.data
-    else:
-        raise Exception(
-            "get_zero_attr expects the input to be lowered to a `!smt.bv<...>` or a"
-            "!smt.utils.pair<!smt.bv<...>, !smt.bool>."
+    return single_op_rewrite(op, rewriter, smt_bv.AndOp, fold_andi)
+
+
+def ori_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    def fold_ori(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        lhs_value = (
+            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+        )
+        rhs_value = (
+            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
         )
 
-    zero = smt_bv.ConstantOp(0, width)
-    rewriter.replace_matched_op([zero])
+        return smt_bv.BitVectorValue(lhs_value | rhs_value, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.OrOp, fold_ori)
+
+
+def xori_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    def fold_xori(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        lhs_value = (
+            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+        )
+        rhs_value = (
+            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
+        )
+        return smt_bv.BitVectorValue(lhs_value ^ rhs_value, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.XorOp, fold_xori)
+
+
+def shl_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    def fold_shl(
+        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
+    ) -> smt_bv.BitVectorValue:
+        return smt_bv.BitVectorValue(lhs.value.data << rhs.value.data, lhs.width)
+
+    return single_op_rewrite(op, rewriter, smt_bv.ShlOp, fold_shl)
+
+
+def get_cst_rewrite_factory(constant: int):
+    def get_cst_rewrite(
+        op: ApplyNativeRewriteOp,
+        rewriter: PatternRewriter,
+        context: PDLToSMTRewriteContext,
+    ) -> None:
+        (value,) = op.args
+        assert isinstance(value, ErasedSSAValue)
+        type = context.pdl_types_to_types[value.old_value]
+
+        width: int
+        # Poison case
+        if isa(type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType]):
+            width = type.first.width.data
+        elif isinstance(type, smt_bv.BitVectorType):
+            width = type.width.data
+        else:
+            raise Exception(
+                "get_zero_attr expects the input to be lowered to a `!smt.bv<...>` or a"
+                "!smt.utils.pair<!smt.bv<...>, !smt.bool>."
+            )
+
+        zero = smt_bv.ConstantOp(
+            ((constant % (1 << width)) + (1 << width)) % (1 << width), width
+        )
+        rewriter.replace_matched_op([zero])
+
+    return get_cst_rewrite
 
 
 def invert_arith_cmpi_predicate_rewrite(
@@ -116,6 +220,54 @@ def invert_arith_cmpi_predicate_rewrite(
     rewriter.replace_matched_op([], [next_case])
 
 
+def invert_comb_icmp_predicate_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (predicate,) = op.args
+
+    comparison_idx = {
+        name: i for i, name in enumerate(arith.CMPI_COMPARISON_OPERATIONS)
+    }
+    replacements = {
+        "eq": "ne",
+        "ne": "eq",
+        "slt": "sge",
+        "sle": "sgt",
+        "sgt": "sle",
+        "sge": "slt",
+        "ult": "uge",
+        "ule": "ugt",
+        "ugt": "ule",
+        "uge": "ult",
+    }
+    int_replacements = {
+        comparison_idx[from_]: comparison_idx[to] for from_, to in replacements.items()
+    }
+
+    next_case = predicate
+    for from_, to in int_replacements.items():
+        from_constant = smt_bv.ConstantOp(from_, 64)
+        to_constant = smt_bv.ConstantOp(to, 64)
+        eq_from = smt.EqOp(predicate, from_constant.res)
+        res = smt.IteOp(eq_from.res, to_constant.res, next_case)
+        next_case = res.res
+
+        rewriter.insert_op_before_matched_op([from_constant, to_constant, eq_from, res])
+
+    rewriter.replace_matched_op([], [next_case])
+
+
+def integer_type_from_width(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (width,) = op.args
+    assert isinstance(width, SSAValue)
+    assert isinstance(width.owner, smt_bv.ConstantOp)
+    lhs = width.owner.value
+
+    rewriter.replace_matched_op([TypeOp(IntegerType(lhs.value.data))])
+
+
 def is_constant_factory(constant: int):
     def is_constant(
         op: ApplyNativeConstraintOp,
@@ -126,7 +278,7 @@ def is_constant_factory(constant: int):
 
         if not isinstance(value.type, smt_bv.BitVectorType):
             raise Exception(
-                "is_minus_one expects the input to be lowered to a `!smt.bv<...>`"
+                "the constraint expects the input to be lowered to a `!smt.bv<...>`"
             )
 
         width = value.type.width.data
@@ -134,13 +286,73 @@ def is_constant_factory(constant: int):
             ((constant % 2**width) + 2**width) % 2**width, width
         )
         eq_minus_one = smt.EqOp(value, minus_one.res)
-        rewriter.replace_matched_op([eq_minus_one, minus_one], [])
+        rewriter.replace_matched_op([minus_one, eq_minus_one], [])
         return eq_minus_one.res
 
     return is_constant
 
 
-def is_cmpi_predicate(
+def get_width(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (type_with_width, expected_type) = op.args
+    assert isinstance(type_with_width, ErasedSSAValue)
+    type_with_width = context.pdl_types_to_types[type_with_width.old_value]
+    type_with_width = get_bv_type_from_optional_poison(type_with_width, "get_width")
+    assert isinstance(expected_type, ErasedSSAValue)
+    expected_type = context.pdl_types_to_types[expected_type.old_value]
+    expected_type = get_bv_type_from_optional_poison(expected_type, "get_width")
+
+    attr_op = AttributeOp(
+        IntegerAttr(type_with_width.width.data, expected_type.width.data)
+    )
+    rewriter.replace_matched_op([attr_op])
+
+
+def is_not_zero(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (value,) = op.args
+
+    if not isinstance(value.type, smt_bv.BitVectorType):
+        raise Exception(
+            "is_not_zero expects the input to be lowered to a `!smt.bv<...>`"
+        )
+
+    width = value.type.width.data
+    zero = smt_bv.ConstantOp(0, width)
+    ne_zero = smt.DistinctOp(value, zero.res)
+    rewriter.replace_matched_op([zero, ne_zero], [])
+    return ne_zero.res
+
+
+def is_attr_equal(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (lhs, rhs) = op.args
+
+    eq_op = smt.EqOp(lhs, rhs)
+    rewriter.replace_matched_op([eq_op], [])
+    return eq_op.res
+
+
+def is_attr_not_equal(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (lhs, rhs) = op.args
+
+    eq_op = smt.DistinctOp(lhs, rhs)
+    rewriter.replace_matched_op([eq_op], [])
+    return eq_op.res
+
+
+def is_arith_cmpi_predicate(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
@@ -154,6 +366,27 @@ def is_cmpi_predicate(
 
     width = value.type.width.data
     max_predicate_int = len(arith.CMPI_COMPARISON_OPERATIONS)
+    max_predicate = smt_bv.ConstantOp(max_predicate_int, width)
+    predicate_valid = smt_bv.UltOp(value, max_predicate.res)
+
+    rewriter.replace_matched_op([max_predicate, predicate_valid], [])
+    return predicate_valid.res
+
+
+def is_comb_icmp_predicate(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (value,) = op.args
+
+    if not isinstance(value.type, smt_bv.BitVectorType):
+        raise Exception(
+            "is_minus_one expects the input to be lowered to a `!smt.bv<...>`"
+        )
+
+    width = value.type.width.data
+    max_predicate_int = len(comb.ICMP_COMPARISON_OPERATIONS)
     max_predicate = smt_bv.ConstantOp(max_predicate_int, width)
     predicate_valid = smt_bv.UltOp(value, max_predicate.res)
 
@@ -188,8 +421,51 @@ def truncation_match_shift_amount(
     trunc_amount_constant = smt_bv.ConstantOp(trunc_amonut, previous_type.width.data)
     eq_trunc_amount = smt.EqOp(shift_amount, trunc_amount_constant.res)
 
-    rewriter.replace_matched_op([eq_trunc_amount, trunc_amount_constant], [])
+    rewriter.replace_matched_op([trunc_amount_constant, eq_trunc_amount], [])
     return eq_trunc_amount.res
+
+
+def is_equal_to_width_of_type(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (width_value, erased_int_type) = op.args
+    assert isinstance(width_value.type, smt_bv.BitVectorType)
+    assert isinstance(erased_int_type, ErasedSSAValue)
+    pair_int_type = context.pdl_types_to_types[erased_int_type.old_value]
+    int_type = get_bv_type_from_optional_poison(
+        pair_int_type, "is_equal_to_width_of_type"
+    )
+
+    # If we cannot even put the width of the type in the width_value attribute,
+    # then the result has to be False.
+    if int_type.width.data >= 2**width_value.type.width.data:
+        false_op = smt.ConstantBoolOp(False)
+        rewriter.replace_matched_op([false_op], [])
+        return false_op.res
+
+    width_op = smt_bv.ConstantOp(int_type.width, width_value.type.width)
+    eq_width_op = smt.EqOp(width_value, width_op.res)
+    rewriter.replace_matched_op([width_op, eq_width_op], [])
+
+    return eq_width_op.res
+
+
+def get_minimum_signed_value(
+    op: ApplyNativeRewriteOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> None:
+    (type,) = op.args
+    assert isinstance(type, ErasedSSAValue)
+    type = context.pdl_types_to_types[type.old_value]
+    type = get_bv_type_from_optional_poison(type, "get_minimum_signed_value")
+
+    width = type.width.data
+
+    attr_op = AttributeOp(IntegerAttr(2 ** (width - 1), width))
+    rewriter.replace_matched_op([attr_op])
 
 
 def is_greater_integer_type(
@@ -215,19 +491,37 @@ integer_arith_native_rewrites: dict[
     str,
     Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
 ] = {
+    # Mathematical operations on attributes
     "addi": addi_rewrite,
     "subi": subi_rewrite,
     "muli": muli_rewrite,
-    "get_zero_attr": get_zero_attr_rewrite,
+    "andi": andi_rewrite,
+    "ori": ori_rewrite,
+    "xori": xori_rewrite,
+    "shl": shl_rewrite,
+    "get_minimum_signed_value": get_minimum_signed_value,
+    # Get constant attributes
+    "get_zero_attr": get_cst_rewrite_factory(0),
+    "get_one_attr": get_cst_rewrite_factory(1),
+    "get_minus_one_attr": get_cst_rewrite_factory(-1),
+    # Invert comparison predicates
     "invert_arith_cmpi_predicate": invert_arith_cmpi_predicate_rewrite,
+    "invert_comb_icmp_predicate": invert_comb_icmp_predicate_rewrite,
+    # Integer to type conversion
+    "get_width": get_width,
+    "integer_type_from_width": integer_type_from_width,
 }
 
 integer_arith_native_constraints = {
     "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
-    "is_arith_cmpi_predicate": is_cmpi_predicate,
-    "truncation_match_shift_amount": truncation_match_shift_amount,
+    "is_not_zero": is_not_zero,
+    "is_attr_equal": is_attr_equal,
+    "is_attr_not_equal": is_attr_not_equal,
+    "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
+    "is_comb_icmp_predicate": is_comb_icmp_predicate,
+    "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }
 
 integer_arith_native_static_constraints = {

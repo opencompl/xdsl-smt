@@ -2,7 +2,7 @@
 
 builtin.module {
     // or extui(x), extui(y) -> extui(or(x,y))
-    pdl.pattern @OrIOfExtUI : benefit(0) {
+    pdl.pattern @OrOfExtUI : benefit(0) {
         %type = pdl.type : !transfer.integer
         %new_type = pdl.type : !transfer.integer
 
@@ -31,7 +31,7 @@ builtin.module {
     }
 
     // or extsi(x), extsi(y) -> extsi(or(x,y))
-    pdl.pattern @OrIOfextsi : benefit(0) {
+    pdl.pattern @OrOfExtSI : benefit(0) {
         %type = pdl.type : !transfer.integer
         %new_type = pdl.type : !transfer.integer
 

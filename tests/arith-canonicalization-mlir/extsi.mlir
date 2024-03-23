@@ -1,8 +1,8 @@
-// RUN: verify-pdl "%s" --max-bitwidth=8 | filecheck "%s"
+// RUN: verify-pdl "%s" -max-bitwidth=8 -opt | filecheck "%s"
 
 builtin.module {
     // extsi(extui(x iN : iM) : iL) -> extui(x : iL)
-    pdl.pattern @XOrIOfextsi : benefit(0) {
+    pdl.pattern @ExtSIOfExtUI : benefit(0) {
         %iN = pdl.type : !transfer.integer
         %iM = pdl.type : !transfer.integer
         %iL = pdl.type : !transfer.integer

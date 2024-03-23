@@ -12,9 +12,29 @@ import xdsl.dialects.comb as comb
 from xdsl_smt.dialects import hw_dialect as hw
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
+from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.passes.lower_to_smt import LowerToSMT
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.passes.lower_to_smt.semantics import OperationSemantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics
+from xdsl_smt.semantics.arith_semantics import SimplePoisonSemantics
+
+
+def cast_integer_type(
+    value: SSAValue, target_type: smt_bv.BitVectorType, rewriter: PatternRewriter
+) -> SSAValue:
+    assert isa(value.type, smt_bv.BitVectorType)
+    if value.type.width == target_type.width:
+        return value
+
+    if value.type.width.data > target_type.width.data:
+        extract_op = smt_bv.ExtractOp(value, target_type.width.data - 1, 0)
+        rewriter.insert_op_before_matched_op([extract_op])
+        return extract_op.res
+
+    zero = smt_bv.ConstantOp(0, target_type.width.data - value.type.width.data)
+    concat_op = smt_bv.ConcatOp(zero.res, value)
+    rewriter.insert_op_before_matched_op([zero, concat_op])
+    return concat_op.res
 
 
 class ConstantSemantics(OperationSemantics):
@@ -30,74 +50,78 @@ class ConstantSemantics(OperationSemantics):
         if isinstance(value_value, Attribute):
             assert isa(value_value, AnyIntegerAttr)
             value_value = IntegerAttrSemantics().get_semantics(value_value, rewriter)
-
-        return (value_value,)
+        poison_op = smt.ConstantBoolOp(False)
+        rewriter.insert_op_before_matched_op(poison_op)
+        res_op = smt_utils.PairOp(value_value, poison_op.res)
+        rewriter.insert_op_before_matched_op(res_op)
+        return (res_op.res,)
 
 
 @dataclass
-class VariadicSemantics(OperationSemantics):
+class VariadicSemantics(SimplePoisonSemantics):
     comb_op_type: type[IRDLOperation]
     smt_op_type: type[IRDLOperation]
     empty_value: int
 
-    def get_semantics(
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
         res_type = LowerToSMT.lower_type(results[0])
-        assert isinstance(res_type, smt_bv.BitVectorType)
+        assert isa(res_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
         if len(operands) == 0:
-            constant = smt_bv.ConstantOp(self.empty_value, res_type.width)
+            constant = smt_bv.ConstantOp(self.empty_value, res_type.first.width)
             rewriter.insert_op_before_matched_op(constant)
-            return (constant.res,)
+            return ((constant.res, None),)
 
         current_val = operands[0]
 
         for operand in operands[1:]:
             new_op = self.smt_op_type.create(
                 operands=[current_val, operand],
-                result_types=[res_type],
+                result_types=[res_type.first],
             )
             current_val = new_op.results[0]
             rewriter.insert_op_before_matched_op(new_op)
 
-        return (current_val,)
+        return ((current_val, None),)
 
 
 @dataclass
-class TrivialBinOpSemantics(OperationSemantics):
+class TrivialBinOpSemantics(SimplePoisonSemantics):
     comb_op_type: type[Operation]
     smt_op_type: type[Operation]
 
-    def get_semantics(
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        assert isinstance(result := results[0], IntegerType)
         new_op = self.smt_op_type.create(
             operands=operands,
-            result_types=[LowerToSMT.lower_type(results[0])],
+            result_types=[smt_bv.BitVectorType(result.width)],
         )
         rewriter.insert_op_before_matched_op([new_op])
-        return (new_op.results[0],)
+        return ((new_op.results[0], None),)
 
 
-class ICmpSemantics(OperationSemantics):
-    def get_semantics(
+class ICmpSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
         predicate_value = attributes["predicate"]
         if isinstance(predicate_value, Attribute):
             assert isa(predicate_value, AnyIntegerAttr)
@@ -186,22 +210,22 @@ class ICmpSemantics(OperationSemantics):
         ite_1 = smt.IteOp(eq_1.res, value_1.res, ite_2.res)
         ite_0 = smt.IteOp(eq_0.res, value_0.res, ite_1.res)
         rewriter.insert_op_before_matched_op(
-            [ite_0, ite_1, ite_2, ite_3, ite_4, ite_5, ite_6, ite_7, ite_8]
+            [ite_8, ite_7, ite_6, ite_5, ite_4, ite_3, ite_2, ite_1, ite_0]
         )
         to_int = smt.IteOp(ite_0.res, one_i1.res, zero_i1.res)
         rewriter.insert_op_before_matched_op(to_int)
-        return (to_int.res,)
+        return ((to_int.res, None),)
 
 
-class ParitySemantics(OperationSemantics):
-    def get_semantics(
+class ParitySemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
         assert operands[0].type.width.data > 0
         bits: list[SSAValue] = []
@@ -217,44 +241,50 @@ class ParitySemantics(OperationSemantics):
             rewriter.insert_op_before_matched_op(xor_op)
             res = xor_op.res
 
-        return (res,)
+        return ((res, None),)
 
 
-class ExtractSemantics(OperationSemantics):
-    def get_semantics(
+class ExtractSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        low_bit_attr = attributes["low_bit"]
-        if isinstance(low_bit_attr, SSAValue):
-            if not isinstance(low_bit_attr.owner, smt_bv.ConstantOp):
-                raise Exception(
-                    "comb.extract cannot express its semantics with a non-constant low_bit value"
-                )
-            low_bit_attr = IntegerAttr(low_bit_attr.owner.value.value.data, 32)
-        assert isinstance(low_bit_attr, IntegerAttr)
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        low_bit = attributes["low_bit"]
         assert isinstance(results[0], IntegerType)
-        end = results[0].width.data + low_bit_attr.value.data - 1
-        extract = smt_bv.ExtractOp(operands[0], low_bit_attr.value.data, end)
-        rewriter.insert_op_before_matched_op(extract)
-        return (extract.res,)
+        if isinstance(low_bit, Attribute):
+            if not isa(low_bit, IntegerAttr[IntegerType]):
+                raise Exception(
+                    "comb.extract expects an IntegrAttr constant or an SSA value"
+                )
+            low_bit_op = smt_bv.ConstantOp(low_bit)
+            rewriter.insert_op_before_matched_op(low_bit_op)
+            low_bit = low_bit_op.res
+
+        assert isa(operands[0].type, smt_bv.BitVectorType)
+        low_bit = cast_integer_type(low_bit, operands[0].type, rewriter)
+
+        shift_op = smt_bv.LShrOp(operands[0], low_bit)
+        rewriter.insert_op_before_matched_op(shift_op)
+        extract_op = smt_bv.ExtractOp(shift_op.res, results[0].width.data - 1, 0)
+        rewriter.insert_op_before_matched_op(extract_op)
+        return ((extract_op.res, None),)
 
 
-class ReplicateSemantics(OperationSemantics):
-    def get_semantics(
+class ReplicateSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        assert isinstance(operands[0].type, IntegerType)
-        assert isinstance(results[0], smt_bv.BitVectorType)
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        assert isa(operands[0].type, smt_bv.BitVectorType)
+        assert isinstance(results[0], IntegerType)
         num_repetition = results[0].width.data // operands[0].type.width.data
         current_val = operands[0]
 
@@ -263,21 +293,23 @@ class ReplicateSemantics(OperationSemantics):
             current_val = new_op.results[0]
             rewriter.insert_op_before_matched_op(new_op)
 
-        return (current_val,)
+        return ((current_val, None),)
 
 
-class MuxSemantics(OperationSemantics):
-    def get_semantics(
+class MuxSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        ite = smt.IteOp(operands[0], operands[1], operands[2])
-        rewriter.insert_op_before_matched_op(ite)
-        return (ite.res,)
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        one = smt_bv.ConstantOp(1, 1)
+        eq = smt.EqOp(operands[0], one.res)
+        ite = smt.IteOp(eq.res, operands[1], operands[2])
+        rewriter.insert_op_before_matched_op([one, eq, ite])
+        return ((ite.res, None),)
 
 
 comb_semantics: dict[type[Operation], OperationSemantics] = {

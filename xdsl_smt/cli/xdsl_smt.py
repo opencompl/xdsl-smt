@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr
@@ -26,17 +25,11 @@ from ..dialects.transfer import Transfer
 from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
 
-from ..passes.canonicalize_smt import CanonicalizeSMT
-from ..passes.dead_code_elimination import DeadCodeElimination
-from ..passes.lower_pairs import LowerPairs
-from ..passes.lower_to_smt import (
-    LowerToSMT,
-    comb_semantics,
-    transfer_to_smt_patterns,
-    integer_type_lowerer,
-    func_to_smt_patterns,
-    llvm_to_smt_patterns,
-)
+from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
+from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.lower_to_smt import LowerToSMT
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib
@@ -73,15 +66,6 @@ class OptMain(xDSLOptMain):
         self.register_pass(LowerPairs)
         self.register_pass(PDLToSMT)
 
-    def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
-        arg_parser.add_argument(
-            "--circt",
-            default=False,
-            action="store_true",
-            help="Handle only func and comb dialects",
-        )
-        super().register_all_arguments(arg_parser)
-
     def register_all_targets(self):
         super().register_all_targets()
         self.available_targets["smt"] = print_to_smtlib
@@ -106,7 +90,7 @@ def main():
                                     abstract_value_type_lowerer,
                                     lambda type: transfer_integer_type_lowerer(type, 32),]
         LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-        LowerToSMT.operation_semantics = {**arith_semantics, **transfer_semantics}
+        LowerToSMT.operation_semantics = {**arith_semantics, **transfer_semantics, **comb_semantics}
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints

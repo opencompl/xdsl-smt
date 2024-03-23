@@ -59,7 +59,7 @@ builtin.module {
     }
 
     // xor extsi(x), extsi(y) -> extsi(xor(x,y))
-    pdl.pattern @XOrIOfextsi : benefit(0) {
+    pdl.pattern @XOrIOfExtSI : benefit(0) {
         %type = pdl.type : !transfer.integer
         %new_type = pdl.type : !transfer.integer
 

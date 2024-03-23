@@ -18,8 +18,9 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl_smt.passes.lower_to_smt import arith_semantics
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 
 
 from ..dialects.hoare_dialect import Hoare
@@ -40,11 +41,9 @@ from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
     integer_poison_type_lowerer,
 )
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
-from xdsl_smt.passes.lower_to_smt import (
-    func_to_smt_patterns,
-    transfer_to_smt_patterns,
-    llvm_to_smt_patterns,
-)
+from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
+from xdsl_smt.passes.lower_to_smt.llvm_to_smt import llvm_to_smt_patterns
+from xdsl_smt.passes.lower_to_smt.transfer_to_smt import transfer_to_smt_patterns
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_rewrites,
@@ -55,11 +54,13 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
 max_bitwidth = 32
 
 
-def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
+def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     cloned_op = op.clone()
     PDLToSMT().apply(ctx, cloned_op)
-    LowerPairs().apply(ctx, cloned_op)
-    CanonicalizeSMT().apply(ctx, cloned_op)
+    if opt:
+        LowerPairs().apply(ctx, cloned_op)
+        CanonicalizeSMT().apply(ctx, cloned_op)
+    cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
 
@@ -70,7 +71,10 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
         text=True,
     )
     if res.returncode != 0:
-        raise Exception(res.stderr)
+        raise Exception(
+            "An exception was raised in the following program: "
+            f"{stream.getvalue()} \n\n Error message: {res.stderr}"
+        )
 
     return "unsat" in res.stdout
 
@@ -94,11 +98,18 @@ def iterate_on_all_integers(
 class OptMain(xDSLOptMain):
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         arg_parser.add_argument(
-            "--max-bitwidth",
+            "-max-bitwidth",
             type=int,
             default=32,
             help="maximum bitwidth of integer types",
         )
+        arg_parser.add_argument(
+            "-opt",
+            default=False,
+            action="store_true",
+            help="Optimize the SMT query before sending it to Z3",
+        )
+
         super().register_all_arguments(arg_parser)
 
     def register_all_dialects(self):
@@ -142,7 +153,9 @@ class OptMain(xDSLOptMain):
                 else:
                     print(f"Verifying pattern:")
                 for specialized_pattern, types in iterate_on_all_integers(pattern):
-                    if verify_pattern(self.ctx, ModuleOp([specialized_pattern])):
+                    if verify_pattern(
+                        self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                    ):
                         print(f"with types {types}: SOUND")
                     else:
                         print(f"with types {types}: UNSOUND")
@@ -162,7 +175,7 @@ def main() -> None:
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
     LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    LowerToSMT.operation_semantics = arith_semantics
+    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints

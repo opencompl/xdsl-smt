@@ -2,7 +2,7 @@ from xdsl.ir import Attribute, SSAValue
 from xdsl.parser import IntegerAttr, IntegerType
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl_smt.passes.lower_to_smt.semantics import (
+from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
 )
 

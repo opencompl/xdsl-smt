@@ -15,6 +15,13 @@ dev = [
   "pre-commit==3.3.1",
 ]
 
+[tool.setuptools]
+platforms = ["Linux", "Mac OS-X", "Unix"]
+zip-safe = false
+
+[tool.setuptools.package-data]
+xdsl_smt = ["py.typed"]
+
 [project.scripts]
 xdsl-smt = "xdsl_smt.cli.xdsl_smt:main"
 xdsl-tv = "xdsl_smt.cli.xdsl_tv:main"

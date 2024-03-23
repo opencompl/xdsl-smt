@@ -2,7 +2,7 @@
 
 builtin.module {
     // and extui(x), extui(y) -> extui(and(x,y))
-    pdl.pattern @AndIOfExtUI : benefit(0) {
+    pdl.pattern @AndOfExtUI : benefit(0) {
         %type = pdl.type : !transfer.integer
         %new_type = pdl.type : !transfer.integer
 
@@ -31,7 +31,7 @@ builtin.module {
     }
 
     // and extsi(x), extsi(y) -> extsi(and(x,y))
-    pdl.pattern @AndIOfextsi : benefit(0) {
+    pdl.pattern @AndOfExtSI : benefit(0) {
         %type = pdl.type : !transfer.integer
         %new_type = pdl.type : !transfer.integer
 
