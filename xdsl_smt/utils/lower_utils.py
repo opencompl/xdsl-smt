@@ -15,6 +15,7 @@ from ..dialects.transfer import (
     CountROneOp,
     CountRZeroOp,
     SetHighBitsOp,
+    SetLowBitsOp,
     GetLowBitsOp,
     GetBitWidthOp,
     UMulOverflowOp,
@@ -23,6 +24,18 @@ from ..dialects.transfer import (
     UMinOp,
     UMaxOp,
     TransIntegerType,
+    ShlOp,
+    AShrOp,
+    LShrOp,
+    ExtractOp,
+    ConcatOp,
+    GetAllOnesOp,
+    SelectOp,
+    NextLoopOp,
+    ConstRangeForOp,
+    RepeatOp,
+    IntersectsOp,
+    FromArithOp,
 )
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.pattern_rewriter import *
@@ -30,15 +43,13 @@ from functools import singledispatch
 from typing import TypeVar, cast
 from xdsl.dialects.builtin import Signedness, IntegerType, IndexType
 from xdsl.ir import Operation
-from xdsl.dialects.arith import (
-    AndI,
-    Select,
-)
+import xdsl.dialects.arith as arith
 
 operNameToCpp = {
     "transfer.and": "&",
     "arith.andi": "&",
     "transfer.add": "+",
+    "arith.constant": "APInt",
     "arith.addi": "+",
     "transfer.or": "|",
     "arith.ori": "|",
@@ -56,6 +67,8 @@ operNameToCpp = {
     "transfer.countr_one": ".countr_one",
     "transfer.get_low_bits": ".getLoBits",
     "transfer.set_high_bits": ".setHighBits",
+    "transfer.set_low_bits": ".setLowBits",
+    "transfer.intersects": ".intersects",
     "transfer.cmp": [
         ".eq",
         ".ne",
@@ -66,10 +79,16 @@ operNameToCpp = {
         ".ult",
         ".ule",
         ".ugt",
-        "uge",
+        ".uge",
     ],
+    "transfer.fromArith": "APInt",
     "transfer.make": "std::make_tuple",
     "transfer.get": "std::get<{0}>",
+    "transfer.shl": ".shl",
+    "transfer.ashr": ".ashr",
+    "transfer.lshr": ".lshr",
+    "transfer.concat": ".concat",
+    "transfer.extract": ".extractBits",
     "transfer.umin": [".ule", "?", ":"],
     "transfer.smin": [".sle", "?", ":"],
     "transfer.umax": [".ugt", "?", ":"],
@@ -77,7 +96,10 @@ operNameToCpp = {
     "func.return": "return",
     "transfer.constant": "APInt",
     "arith.select": ["?", ":"],
+    "transfer.get_all_ones": "APInt::getAllOnes",
+    "transfer.select": ["?", ":"],
 }
+# transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
 unsignedReturnedType = {
     CountLOneOp,
@@ -88,6 +110,7 @@ unsignedReturnedType = {
 }
 
 ends = ";\n"
+indent = "\t"
 
 
 def lowerType(typ, specialOp=None):
@@ -115,6 +138,30 @@ def lowerType(typ, specialOp=None):
 
 
 CPP_CLASS_KEY = "CPPCLASS"
+INDUCTION_KEY = "induction"
+
+
+def lowerInductionOps(inductionOp: list[FuncOp]):
+    if len(inductionOp) > 0:
+        functionSignature = """
+{returnedType} {funcName}(ArrayRef<{returnedType}> operands){{
+    {returnedType} result={funcName}(operands[0], operands[1]);
+    for(int i=2;i<operands.size();++i){{
+        result={funcName}(result, operands[i]);
+    }}
+    return result;
+}}
+
+"""
+        result = ""
+        for func in inductionOp:
+            returnedType = func.function_type.outputs.data[0]
+            funcName = func.sym_name.data
+            returnedType = lowerType(returnedType)
+            result += functionSignature.format(
+                returnedType=returnedType, funcName=funcName
+            )
+        return result
 
 
 def lowerDispatcher(needDispatch: list[FuncOp]):
@@ -146,10 +193,13 @@ def lowerDispatcher(needDispatch: list[FuncOp]):
             blockStr = ""
             for cppClass in func.attributes[CPP_CLASS_KEY]:
                 argStr = ""
-                if len(func.args) > 0:
-                    argStr = "operands[0]"
-                for i in range(1, len(func.args)):
-                    argStr += ", operands[" + str(i) + "]"
+                if INDUCTION_KEY in func.attributes:
+                    argStr = "operands"
+                else:
+                    if len(func.args) > 0:
+                        argStr = "operands[0]"
+                    for i in range(1, len(func.args)):
+                        argStr += ", operands[" + str(i) + "]"
                 ifBody = return_inst.format(func.sym_name.data, argStr)
                 blockStr += dyn_cast.format(cppClass.data, ifBody)
             return blockStr
@@ -176,7 +226,8 @@ def lowerToNonClassMethod(op: Operation):
         expr += "," + op.operands[i].name_hint
     expr += ")"
     return (
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -203,9 +254,9 @@ def lowerToClassMethod(op: Operation, castOperand=None, castResult=None):
     for i in range(2, len(operands)):
         expr += "," + operands[i]
     expr += ")"
-    result = returnedType + " " + returnedValue + equals + expr + ends
+    result = indent + returnedType + " " + returnedValue + equals + expr + ends
     if castResult is not None:
-        return result + "\t" + castResult(op)
+        return result + castResult(op)
     return result
 
 
@@ -224,7 +275,8 @@ def lowerOperation(op):
         expr += ")"
     else:
         expr = operandsName[0] + operNameToCpp[op.name] + operandsName[1]
-    return returnedType + " " + returnedValue + equals + expr + ends
+    result = indent + returnedType + " " + returnedValue + equals + expr + ends
+    return result
 
 
 @lowerOperation.register
@@ -241,11 +293,28 @@ def _(op: CmpOp):
     for i in range(2, len(operandsName)):
         expr += "," + operandsName[i]
     expr += ")"
-    return returnedType + " " + returnedValue + equals + expr + ends
+    return indent + returnedType + " " + returnedValue + equals + expr + ends
 
 
 @lowerOperation.register
-def _(op: Select):
+def _(op: arith.Cmpi):
+    returnedType = lowerType(op.results[0].type)
+    returnedValue = op.results[0].name_hint
+    equals = "="
+    operandsName = [oper.name_hint for oper in op.operands]
+    predicate = op.predicate.value.data
+    operName = operNameToCpp[op.name][predicate]
+    expr = operandsName[0] + operName + "("
+    if len(operandsName) > 1:
+        expr += operandsName[1]
+    for i in range(2, len(operandsName)):
+        expr += "," + operandsName[i]
+    expr += ")"
+    return indent + returnedType + " " + returnedValue + equals + expr + ends
+
+
+@lowerOperation.register
+def _(op: arith.Select):
     returnedType = lowerType(op.operands[1].type, op)
     returnedValue = op.results[0].name_hint
     equals = "="
@@ -256,7 +325,22 @@ def _(op: Select):
         expr += operandsName[i] + " "
         if i < len(operator):
             expr += operator[i] + " "
-    return returnedType + " " + returnedValue + equals + expr + ends
+    return indent + returnedType + " " + returnedValue + equals + expr + ends
+
+
+@lowerOperation.register
+def _(op: SelectOp):
+    returnedType = lowerType(op.operands[1].type, op)
+    returnedValue = op.results[0].name_hint
+    equals = "="
+    operandsName = [oper.name_hint for oper in op.operands]
+    operator = operNameToCpp[op.name]
+    expr = ""
+    for i in range(len(operandsName)):
+        expr += operandsName[i] + " "
+        if i < len(operator):
+            expr += operator[i] + " "
+    return indent + returnedType + " " + returnedValue + equals + expr + ends
 
 
 @lowerOperation.register
@@ -266,7 +350,8 @@ def _(op: GetOp):
     equals = "="
     index = op.attributes["index"].value.data
     return (
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -290,7 +375,7 @@ def _(op: UMulOverflowOp):
     expr += op.operands[1].name_hint + "," + op.results[0].name_hint
     expr += ")"
     result = varDecls + "\t" + expr + ends
-    return result
+    return indent + result
 
 
 @lowerOperation.register
@@ -299,7 +384,8 @@ def _(op: NegOp):
     returnedValue = op.results[0].name_hint
     equals = "="
     return (
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -313,7 +399,40 @@ def _(op: NegOp):
 def _(op: Return):
     opName = operNameToCpp[op.name] + " "
     operand = op.arguments[0].name_hint
-    return opName + operand + ends
+    return indent + opName + operand + ends
+
+
+@lowerOperation.register
+def _(op: FromArithOp):
+    opTy = op.op.type
+    assert isinstance(opTy, IntegerType)
+    size = opTy.width.data
+    returnedType = "APInt"
+    returnedValue = op.results[0].name_hint
+    return (
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + "("
+        + str(size)
+        + ", "
+        + op.op.name_hint
+        + ")"
+        + ends
+    )
+
+
+@lowerOperation.register
+def _(op: arith.Constant):
+    value = op.value.value.data
+    assert isinstance(op.results[0].type, IntegerType)
+    size = op.results[0].type.width.data
+    returnedType = "int"
+    if value > ((1 << 31) - 1):
+        assert False and "arith constant overflow maximal int"
+    returnedValue = op.results[0].name_hint
+    return indent + returnedType + " " + returnedValue + " = " + str(value) + ends
 
 
 @lowerOperation.register
@@ -322,13 +441,34 @@ def _(op: Constant):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     return (
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + "("
         + op.operands[0].name_hint
         + ".getBitWidth(),"
         + str(value)
+        + ")"
+        + ends
+    )
+
+
+@lowerOperation.register
+def _(op: GetAllOnesOp):
+    returnedType = lowerType(op.results[0].type)
+    returnedValue = op.results[0].name_hint
+    opName = operNameToCpp[op.name]
+    return (
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + " = "
+        + opName
+        + "("
+        + op.operands[0].name_hint
+        + ".getBitWidth()"
         + ")"
         + ends
     )
@@ -346,7 +486,7 @@ def _(op: Call):
     for i in range(1, len(operandsName)):
         expr += "," + operandsName[i]
     expr += ")"
-    return returnedType + " " + returnedValue + "=" + callee + expr + ends
+    return indent + returnedType + " " + returnedValue + "=" + callee + expr + ends
 
 
 @lowerOperation.register
@@ -362,7 +502,8 @@ def _(op: FuncOp):
     for i in range(1, len(op.args)):
         expr += "," + lowerArgs(op.args[i])
     expr += ")"
-    return returnedType + " " + funcName + expr + "{{\n{0}}}\n\n"
+    # return returnedType + " " + funcName + expr + "{{\n{0}}}\n\n"
+    return returnedType + " " + funcName + expr + "{\n"
 
 
 def castToAPIntFromUnsigned(op: Operation):
@@ -375,7 +516,8 @@ def castToAPIntFromUnsigned(op: Operation):
     returnedType = "APInt"
     returnedValue = op.results[0].name_hint
     return (
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + "("
@@ -385,6 +527,11 @@ def castToAPIntFromUnsigned(op: Operation):
         + ")"
         + ends
     )
+
+
+@lowerOperation.register
+def _(op: IntersectsOp):
+    return lowerToClassMethod(op, None, None)
 
 
 @lowerOperation.register
@@ -422,7 +569,19 @@ def _(op: SetHighBitsOp):
     operands = op.operands[1].name_hint + ".getZExtValue()"
     expr = expr + operands + ")"
     result = returnedType + " " + returnedValue + equals + expr + ends
-    return result
+    return indent + result
+
+
+@lowerOperation.register
+def _(op: SetLowBitsOp):
+    returnedType = lowerType(op.results[0].type, op)
+    returnedValue = op.results[0].name_hint
+    equals = "=" + op.operands[0].name_hint + ends + "\t"
+    expr = op.results[0].name_hint + operNameToCpp[op.name] + "("
+    operands = op.operands[1].name_hint + ".getZExtValue()"
+    expr = expr + operands + ")"
+    result = returnedType + " " + returnedValue + equals + expr + ends
+    return indent + result
 
 
 @lowerOperation.register
@@ -455,7 +614,7 @@ def _(op: SMaxOp):
         + operands[1]
     )
     result = returnedType + " " + returnedValue + equals + expr + ends
-    return result
+    return indent + result
 
 
 @lowerOperation.register
@@ -477,7 +636,7 @@ def _(op: SMinOp):
         + operands[1]
     )
     result = returnedType + " " + returnedValue + equals + expr + ends
-    return result
+    return indent + result
 
 
 @lowerOperation.register
@@ -499,7 +658,7 @@ def _(op: UMaxOp):
         + operands[1]
     )
     result = returnedType + " " + returnedValue + equals + expr + ends
-    return result
+    return indent + result
 
 
 @lowerOperation.register
@@ -521,4 +680,117 @@ def _(op: UMinOp):
         + operands[1]
     )
     result = returnedType + " " + returnedValue + equals + expr + ends
-    return result
+    return indent + result
+
+
+@lowerOperation.register
+def _(op: ShlOp):
+    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
+
+@lowerOperation.register
+def _(op: AShrOp):
+    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
+
+@lowerOperation.register
+def _(op: LShrOp):
+    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
+
+@lowerOperation.register
+def _(op: ExtractOp):
+    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
+
+@lowerOperation.register
+def _(op: ConcatOp):
+    return lowerToClassMethod(op)
+
+
+@lowerOperation.register
+def _(op: ConstRangeForOp):
+    loopBody = op.body.block
+    lowerBound = op.lb.name_hint
+    upperBound = op.ub.name_hint
+    step = op.step.name_hint
+
+    indvar, *block_iter_args = loopBody.args
+    iter_args = op.iter_args
+
+    global indent
+    loopBefore = ""
+    for i, blk_arg in enumerate(block_iter_args):
+        iter_type = lowerType(iter_args[i].type, iter_args[i].owner)
+        iter_name = blk_arg.name_hint
+        loopBefore += (
+            indent + iter_type + " " + iter_name + " = " + iter_args[i].name_hint + ends
+        )
+
+    loopFor = indent + "for(APInt {0} = {1}; {0}.ule({2}); {0}+={3}){{\n".format(
+        indvar.name_hint, lowerBound, upperBound, step
+    )
+    indent += "\t"
+    """
+    mainLoop=""
+    for loopOp in loopBody.ops:
+        mainLoop+=(indent  + indent+ lowerOperation(loopOp))
+    endLoopFor=indent+"}\n"
+    """
+    return loopBefore + loopFor
+
+
+@lowerOperation.register
+def _(op: NextLoopOp):
+    loopBlock = op.parent_block()
+    indvar, *block_iter_args = loopBlock.args
+    global indent
+    assignments = ""
+    for i, arg in enumerate(op.operands):
+        assignments += (
+            indent + block_iter_args[i].name_hint + " = " + arg.name_hint + ends
+        )
+    indent = indent[:-1]
+    endLoopFor = indent + "}\n"
+    loopOp = loopBlock.parent_op()
+    for i, res in enumerate(loopOp.results):
+        endLoopFor += (
+            indent
+            + lowerType(res.type, loopOp)
+            + " "
+            + res.name_hint
+            + " = "
+            + block_iter_args[i].name_hint
+            + ends
+        )
+    return assignments + endLoopFor
+
+
+@lowerOperation.register
+def _(op: RepeatOp):
+    returnedType = lowerType(op.operands[0].type, op)
+    returnedValue = op.results[0].name_hint
+    arg0_name = op.operands[0].name_hint
+    count = op.operands[1].name_hint
+    initExpr = indent + returnedType + " " + returnedValue + " = " + arg0_name + ends
+    forHead = (
+        indent
+        + "for(APInt i("
+        + count
+        + ".getBitWidth(),1);i.ult("
+        + count
+        + ");++i){\n"
+    )
+    forBody = (
+        indent
+        + "\t"
+        + returnedValue
+        + " = "
+        + returnedValue
+        + ".concat("
+        + arg0_name
+        + ")"
+        + ends
+    )
+    forEnd = indent + "}\n"
+    return initExpr + forHead + forBody + forEnd

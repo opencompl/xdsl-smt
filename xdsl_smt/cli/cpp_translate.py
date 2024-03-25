@@ -11,7 +11,7 @@ from xdsl.dialects.func import Func, FuncOp, Call
 from ..dialects.transfer import Transfer
 from ..dialects.llvm_dialect import LLVM
 from xdsl.printer import Printer
-from ..passes.transfer_lower import LowerToCpp, addDispatcher
+from ..passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
 
 from z3 import *
 
@@ -22,7 +22,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(file: str | None) -> Operation:
+def parse_file(ctx, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
     else:
@@ -47,7 +47,7 @@ def main() -> None:
     ctx.load_dialect(LLVM)
 
     # Parse the files
-    module = parse_file(args.transfer_functions)
+    module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
     allFuncMapping = {}
@@ -59,6 +59,7 @@ def main() -> None:
                     # print(isinstance(op,Call))
                 allFuncMapping[func.sym_name.data] = func
                 LowerToCpp(fout).apply(ctx, func)
+        addInductionOps(fout)
         addDispatcher(fout)
 
     # printer = Printer(target=Printer.Target.MLIR)

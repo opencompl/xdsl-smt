@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
 from xdsl.ir import Operation, MLContext
-from ..utils.lower_utils import lowerOperation, CPP_CLASS_KEY, lowerDispatcher
+from ..utils.lower_utils import (
+    lowerOperation,
+    CPP_CLASS_KEY,
+    lowerDispatcher,
+    INDUCTION_KEY,
+    lowerInductionOps,
+)
 
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -27,11 +33,13 @@ def transferFunction(op, fout):
 funcStr = ""
 indent = "\t"
 needDispatch: list[FuncOp] = []
+inductionOp: list[FuncOp] = []
 
 
 @transferFunction.register
 def _(op: Operation, fout):
     global needDispatch
+    global inductionOp
     if isinstance(op, ModuleOp):
         return
         # print(lowerDispatcher(needDispatch))
@@ -41,16 +49,17 @@ def _(op: Operation, fout):
         op.results[0].name_hint = "autogen" + str(autogen)
         autogen += 1
     global funcStr
-    if isinstance(op, FuncOp):
-        funcDecl = lowerOperation(op)
-        funcDecl = funcDecl.format(funcStr)
+    funcStr += lowerOperation(op)
+    parentOp = op.parent_op()
+    if isinstance(parentOp, FuncOp) and parentOp.body.block.last_op == op:
+        funcStr += "}\n"
+        fout.write(funcStr)
         funcStr = ""
-        # print(funcDecl)
-        fout.write(funcDecl)
+    if isinstance(op, FuncOp):
         if CPP_CLASS_KEY in op.attributes:
             needDispatch.append(op)
-    else:
-        funcStr += indent + lowerOperation(op)
+        if INDUCTION_KEY in op.attributes:
+            inductionOp.append(op)
 
 
 @dataclass
@@ -63,10 +72,17 @@ class LowerOperation(RewritePattern):
         transferFunction(op, self.fout)
 
 
+def addInductionOps(fout):
+    global inductionOp
+    if len(inductionOp) != 0:
+        fout.write(lowerInductionOps(inductionOp))
+
+
 def addDispatcher(fout):
     global needDispatch
-    print(lowerDispatcher(needDispatch))
-    fout.write(lowerDispatcher(needDispatch))
+    if len(needDispatch) != 0:
+        # print(lowerDispatcher(needDispatch))
+        fout.write(lowerDispatcher(needDispatch))
 
 
 @dataclass
@@ -79,7 +95,7 @@ class LowerToCpp(ModulePass):
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier([LowerOperation(self.fout)]),
-            walk_regions_first=True,
+            walk_regions_first=False,
             apply_recursively=True,
             walk_reverse=False,
         )

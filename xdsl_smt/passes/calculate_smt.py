@@ -60,6 +60,7 @@ opToSMTFunc = {
     "arith.ori": (lambda solver, a, b: Or(a, b)),
     "arith.xori": (lambda solver, a, b: Xor(a, b)),
     "arith.select": (lambda solver, cond, a, b: If(cond, a, b)),
+    "transfer.select": (lambda solver, cond, a, b: If(cond, a, b)),
 }
 
 funcCall = {}
