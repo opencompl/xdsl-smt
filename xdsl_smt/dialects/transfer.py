@@ -64,7 +64,6 @@ class FromArithOp(IRDLOperation):
     result: OpResult = result_def(T)
 
 
-
 @irdl_op_definition
 class Constant(IRDLOperation, InferResultTypeInterface):
     name = "transfer.constant"
@@ -86,12 +85,14 @@ class Constant(IRDLOperation, InferResultTypeInterface):
                 raise VerifyException("Constant operation expects exactly one operand")
 
     def __init__(
-            self,
-            op: Operand,
-            value: int,
+        self,
+        op: Operand,
+        value: int,
     ):
         super().__init__(
-            operands=[op], result_types=[op.type], properties={"value": IntegerAttr(value, IndexType())}
+            operands=[op],
+            result_types=[op.type],
+            properties={"value": IntegerAttr(value, IndexType())},
         )
 
 
@@ -172,9 +173,11 @@ class MulOp(BinOp):
 class ShlOp(BinOp):
     name = "transfer.shl"
 
+
 @irdl_op_definition
 class AShrOp(BinOp):
     name = "transfer.ashr"
+
 
 @irdl_op_definition
 class LShrOp(BinOp):
@@ -304,6 +307,7 @@ class SetHighBitsOp(IRDLOperation):
     high_bits: Operand = operand_def(T)
     result: OpResult = result_def(T)
 
+
 @irdl_op_definition
 class SetLowBitsOp(IRDLOperation):
     name = "transfer.set_low_bits"
@@ -313,6 +317,7 @@ class SetLowBitsOp(IRDLOperation):
     val: Operand = operand_def(T)
     low_bits: Operand = operand_def(T)
     result: OpResult = result_def(T)
+
 
 @irdl_op_definition
 class SetSignBitOp(IRDLOperation):
@@ -333,6 +338,7 @@ class IsPowerOf2Op(IRDLOperation):
 
     val: Operand = operand_def(T)
     result: OpResult = result_def(i1)
+
 
 @irdl_op_definition
 class IsAllOnesOp(IRDLOperation):
@@ -427,6 +433,7 @@ class SelectOp(IRDLOperation):
     """
     Select between two values based on a condition.
     """
+
     name = "transfer.select"
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
@@ -441,9 +448,7 @@ class SelectOp(IRDLOperation):
 class NextLoopOp(IRDLOperation):
     name = "transfer.next_loop"
     arguments: VarOperand = var_operand_def(AnyAttr())
-    traits = traits_def(
-        lambda: frozenset([IsTerminator(), HasParent(ConstRangeForOp)])
-    )
+    traits = traits_def(lambda: frozenset([IsTerminator(), HasParent(ConstRangeForOp)]))
 
 
 @irdl_op_definition
@@ -498,7 +503,10 @@ class ConstRangeForOp(IRDLOperation):
                 raise VerifyException(
                     "Expected induction var to be same type as bounds and step"
                 )
-            assert isinstance(opnd.type, Constant) and "Const for requires bounds has to be constant"
+            assert (
+                isinstance(opnd.type, Constant)
+                and "Const for requires bounds has to be constant"
+            )
         if iter_args_num + 1 != block_iter_args_num + 1:
             raise VerifyException(
                 f"Expected {iter_args_num + 1} args, but got {block_iter_args_num + 1}. "
@@ -514,14 +522,18 @@ class ConstRangeForOp(IRDLOperation):
             last_op, NextLoopOp
         ):
             return_val = last_op.argument
-            assert isinstance(return_val, AbstractValueType) and "Returned from loop has to be an abstract val"
+            assert (
+                isinstance(return_val, AbstractValueType)
+                and "Returned from loop has to be an abstract val"
+            )
 
 
 @irdl_op_definition
 class GetAllOnesOp(IRDLOperation, InferResultTypeInterface):
-    '''
+    """
     A special case of constant, return a bit vector with all bits set
-    '''
+    """
+
     name = "transfer.get_all_ones"
 
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]

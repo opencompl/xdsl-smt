@@ -67,6 +67,7 @@ def set_high_bits(b: SSAValue, high_bits: SSAValue) -> list[Operation]:
     return result
     # return get_high_bits_constant(high_bits, b.size()) | b
 
+
 def set_low_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
     result = get_low_bits_constant(low_bits)
     result.append(smt_bv.OrOp(result[-1].results[0], b))
@@ -181,18 +182,26 @@ def count_rzeros(b: SSAValue) -> tuple[list[Operation], list[Operation]]:
     one_shl_tmp = smt_bv.ShlOp(const_one[0].results[0], tmp_count_rzeros.results[0])
     false_eq = smt.EqOp(b_minus_and.results[0], one_shl_tmp.results[0])
 
-    iteOp= smt.IteOp(
+    iteOp = smt.IteOp(
         b_eq_0.results[0], width_eq_rzeros.results[0], false_eq.results[0]
     )
-    assertOp=smt.AssertOp.get(iteOp.res)
+    assertOp = smt.AssertOp.get(iteOp.res)
     return (
         [tmp_count_rzeros],
-         const_zero
+        const_zero
         + [b_eq_0]
         + const_width
         + [width_eq_rzeros]
         + const_one
-        + [b_minus_one, b_and_b_minus_one, b_minus_and, one_shl_tmp, false_eq, iteOp,assertOp]
+        + [
+            b_minus_one,
+            b_and_b_minus_one,
+            b_minus_and,
+            one_shl_tmp,
+            false_eq,
+            iteOp,
+            assertOp,
+        ],
     )
 
 

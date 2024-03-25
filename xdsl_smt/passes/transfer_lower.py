@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
 from xdsl.ir import Operation, MLContext
-from ..utils.lower_utils import lowerOperation, CPP_CLASS_KEY, lowerDispatcher, INDUCTION_KEY, lowerInductionOps
+from ..utils.lower_utils import (
+    lowerOperation,
+    CPP_CLASS_KEY,
+    lowerDispatcher,
+    INDUCTION_KEY,
+    lowerInductionOps,
+)
 
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -43,18 +49,17 @@ def _(op: Operation, fout):
         op.results[0].name_hint = "autogen" + str(autogen)
         autogen += 1
     global funcStr
-    funcStr+=lowerOperation(op)
-    parentOp=op.parent_op()
+    funcStr += lowerOperation(op)
+    parentOp = op.parent_op()
     if isinstance(parentOp, FuncOp) and parentOp.body.block.last_op == op:
-        funcStr+="}\n"
+        funcStr += "}\n"
         fout.write(funcStr)
-        funcStr=""
+        funcStr = ""
     if isinstance(op, FuncOp):
         if CPP_CLASS_KEY in op.attributes:
             needDispatch.append(op)
         if INDUCTION_KEY in op.attributes:
             inductionOp.append(op)
-
 
 
 @dataclass
@@ -69,14 +74,14 @@ class LowerOperation(RewritePattern):
 
 def addInductionOps(fout):
     global inductionOp
-    if len(inductionOp) !=0:
+    if len(inductionOp) != 0:
         fout.write(lowerInductionOps(inductionOp))
 
 
 def addDispatcher(fout):
     global needDispatch
-    if len(needDispatch) != 0 :
-        #print(lowerDispatcher(needDispatch))
+    if len(needDispatch) != 0:
+        # print(lowerDispatcher(needDispatch))
         fout.write(lowerDispatcher(needDispatch))
 
 

@@ -107,10 +107,12 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BitVectorType)
 
     @overload
-    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None: ...
+    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
+        ...
 
     @overload
-    def __init__(self, value: IntegerAttr[IntegerType] | BitVectorValue) -> None: ...
+    def __init__(self, value: IntegerAttr[IntegerType] | BitVectorValue) -> None:
+        ...
 
     def __init__(
         self,

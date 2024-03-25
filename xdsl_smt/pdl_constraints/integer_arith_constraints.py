@@ -97,10 +97,14 @@ def andi_rewrite(
         lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
     ) -> smt_bv.BitVectorValue:
         lhs_value = (
-            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+            lhs.value.data + 2**lhs.width.data
+            if lhs.value.data < 0
+            else lhs.value.data
         )
         rhs_value = (
-            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
+            rhs.value.data + 2**rhs.width.data
+            if rhs.value.data < 0
+            else rhs.value.data
         )
         return smt_bv.BitVectorValue(lhs_value & rhs_value, lhs.width)
 
@@ -114,10 +118,14 @@ def ori_rewrite(
         lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
     ) -> smt_bv.BitVectorValue:
         lhs_value = (
-            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+            lhs.value.data + 2**lhs.width.data
+            if lhs.value.data < 0
+            else lhs.value.data
         )
         rhs_value = (
-            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
+            rhs.value.data + 2**rhs.width.data
+            if rhs.value.data < 0
+            else rhs.value.data
         )
 
         return smt_bv.BitVectorValue(lhs_value | rhs_value, lhs.width)
@@ -132,10 +140,14 @@ def xori_rewrite(
         lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
     ) -> smt_bv.BitVectorValue:
         lhs_value = (
-            lhs.value.data + 2**lhs.width.data if lhs.value.data < 0 else lhs.value.data
+            lhs.value.data + 2**lhs.width.data
+            if lhs.value.data < 0
+            else lhs.value.data
         )
         rhs_value = (
-            rhs.value.data + 2**rhs.width.data if rhs.value.data < 0 else rhs.value.data
+            rhs.value.data + 2**rhs.width.data
+            if rhs.value.data < 0
+            else rhs.value.data
         )
         return smt_bv.BitVectorValue(lhs_value ^ rhs_value, lhs.width)
 

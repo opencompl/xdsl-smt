@@ -65,15 +65,19 @@ def trivial_pattern(
 
 class UMulOverflowOpPattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.UMulOverflowOp, rewriter: PatternRewriter) -> None:
-        suml_nooverflow=smt_bv.UmulNoOverflowOp.get(op.operands[0], op.operands[1])
+    def match_and_rewrite(
+        self, op: transfer.UMulOverflowOp, rewriter: PatternRewriter
+    ) -> None:
+        suml_nooverflow = smt_bv.UmulNoOverflowOp.get(op.operands[0], op.operands[1])
 
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(suml_nooverflow.res, b1.res, b0.res)
         poison_op = smt.ConstantBoolOp.from_bool(False)
-        res=PairOp(bool_to_bv.res, poison_op.res)
-        rewriter.replace_matched_op([suml_nooverflow,b0,b1,bool_to_bv,poison_op,res])
+        res = PairOp(bool_to_bv.res, poison_op.res)
+        rewriter.replace_matched_op(
+            [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
+        )
 
 
 class CmpOpPattern(RewritePattern):
@@ -226,7 +230,7 @@ class CountRZeroOpPattern(RewritePattern):
             rewriter.insert_op_after_matched_op(newOp)
         for newOp in afterList:
             rewriter.insert_op_after_matched_op(newOp)
-        #countRzero is different, it insert operation after the matched op.
+        # countRzero is different, it insert operation after the matched op.
         rewriter.replace_matched_op(resList[-1])
 
 
@@ -272,7 +276,6 @@ class SMaxOpPattern(RewritePattern):
         )
 
 
-
 class UMaxOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: transfer.UMaxOp, rewriter: PatternRewriter) -> None:
@@ -292,18 +295,19 @@ class UMinOpPattern(RewritePattern):
             smt.IteOp(umin_if.results[0], op.operands[0], op.operands[1])
         )
 
+
 class CallOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: Call, rewriter: PatternRewriter) -> None:
-        moduleOp=op.parent_op()
-        callee=op.callee.string_value()
+        moduleOp = op.parent_op()
+        callee = op.callee.string_value()
         while not isinstance(moduleOp, ModuleOp):
-            moduleOp=moduleOp.parent_op()
+            moduleOp = moduleOp.parent_op()
         isinstance(moduleOp, ModuleOp)
         for funcOp in moduleOp.ops:
             if isinstance(funcOp, DefineFunOp):
-                if funcOp.fun_name.data==callee:
-                    newCallOp=CallOp.get(funcOp.results[0], op.arguments)
+                if funcOp.fun_name.data == callee:
+                    newCallOp = CallOp.get(funcOp.results[0], op.arguments)
                     rewriter.replace_matched_op(newCallOp)
                     return
         assert False and "Cannot find the desired call"

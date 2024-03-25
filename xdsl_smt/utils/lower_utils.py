@@ -68,7 +68,7 @@ operNameToCpp = {
     "transfer.get_low_bits": ".getLoBits",
     "transfer.set_high_bits": ".setHighBits",
     "transfer.set_low_bits": ".setLowBits",
-    "transfer.intersects" : ".intersects",
+    "transfer.intersects": ".intersects",
     "transfer.cmp": [
         ".eq",
         ".ne",
@@ -143,22 +143,24 @@ INDUCTION_KEY = "induction"
 
 def lowerInductionOps(inductionOp: list[FuncOp]):
     if len(inductionOp) > 0:
-        functionSignature='''
+        functionSignature = """
 {returnedType} {funcName}(ArrayRef<{returnedType}> operands){{
     {returnedType} result={funcName}(operands[0], operands[1]);
     for(int i=2;i<operands.size();++i){{
         result={funcName}(result, operands[i]);
-    }}        
+    }}
     return result;
 }}
 
-'''
-        result=""
+"""
+        result = ""
         for func in inductionOp:
             returnedType = func.function_type.outputs.data[0]
             funcName = func.sym_name.data
             returnedType = lowerType(returnedType)
-            result+=functionSignature.format(returnedType=returnedType,funcName=funcName)
+            result += functionSignature.format(
+                returnedType=returnedType, funcName=funcName
+            )
         return result
 
 
@@ -192,7 +194,7 @@ def lowerDispatcher(needDispatch: list[FuncOp]):
             for cppClass in func.attributes[CPP_CLASS_KEY]:
                 argStr = ""
                 if INDUCTION_KEY in func.attributes:
-                    argStr="operands"
+                    argStr = "operands"
                 else:
                     if len(func.args) > 0:
                         argStr = "operands[0]"
@@ -224,8 +226,8 @@ def lowerToNonClassMethod(op: Operation):
         expr += "," + op.operands[i].name_hint
     expr += ")"
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -310,6 +312,7 @@ def _(op: arith.Cmpi):
     expr += ")"
     return indent + returnedType + " " + returnedValue + equals + expr + ends
 
+
 @lowerOperation.register
 def _(op: arith.Select):
     returnedType = lowerType(op.operands[1].type, op)
@@ -323,6 +326,7 @@ def _(op: arith.Select):
         if i < len(operator):
             expr += operator[i] + " "
     return indent + returnedType + " " + returnedValue + equals + expr + ends
+
 
 @lowerOperation.register
 def _(op: SelectOp):
@@ -346,8 +350,8 @@ def _(op: GetOp):
     equals = "="
     index = op.attributes["index"].value.data
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -380,8 +384,8 @@ def _(op: NegOp):
     returnedValue = op.results[0].name_hint
     equals = "="
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + equals
@@ -406,16 +410,16 @@ def _(op: FromArithOp):
     returnedType = "APInt"
     returnedValue = op.results[0].name_hint
     return (
-            indent +
-            returnedType
-            + " "
-            + returnedValue
-            + "("
-            + str(size)
-            + ", "
-            + op.op.name_hint
-            + ")"
-            + ends
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + "("
+        + str(size)
+        + ", "
+        + op.op.name_hint
+        + ")"
+        + ends
     )
 
 
@@ -425,18 +429,10 @@ def _(op: arith.Constant):
     assert isinstance(op.results[0].type, IntegerType)
     size = op.results[0].type.width.data
     returnedType = "int"
-    if value > ((1<<31)-1):
+    if value > ((1 << 31) - 1):
         assert False and "arith constant overflow maximal int"
     returnedValue = op.results[0].name_hint
-    return (
-        indent +
-        returnedType
-        + " "
-        + returnedValue
-        +" = "
-        + str(value)
-        + ends
-    )
+    return indent + returnedType + " " + returnedValue + " = " + str(value) + ends
 
 
 @lowerOperation.register
@@ -445,8 +441,8 @@ def _(op: Constant):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + "("
@@ -464,8 +460,8 @@ def _(op: GetAllOnesOp):
     returnedValue = op.results[0].name_hint
     opName = operNameToCpp[op.name]
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + " = "
@@ -506,7 +502,7 @@ def _(op: FuncOp):
     for i in range(1, len(op.args)):
         expr += "," + lowerArgs(op.args[i])
     expr += ")"
-    #return returnedType + " " + funcName + expr + "{{\n{0}}}\n\n"
+    # return returnedType + " " + funcName + expr + "{{\n{0}}}\n\n"
     return returnedType + " " + funcName + expr + "{\n"
 
 
@@ -520,8 +516,8 @@ def castToAPIntFromUnsigned(op: Operation):
     returnedType = "APInt"
     returnedValue = op.results[0].name_hint
     return (
-        indent +
-        returnedType
+        indent
+        + returnedType
         + " "
         + returnedValue
         + "("
@@ -536,6 +532,7 @@ def castToAPIntFromUnsigned(op: Operation):
 @lowerOperation.register
 def _(op: IntersectsOp):
     return lowerToClassMethod(op, None, None)
+
 
 @lowerOperation.register
 def _(op: CountLOneOp):
@@ -573,6 +570,7 @@ def _(op: SetHighBitsOp):
     expr = expr + operands + ")"
     result = returnedType + " " + returnedValue + equals + expr + ends
     return indent + result
+
 
 @lowerOperation.register
 def _(op: SetLowBitsOp):
@@ -684,32 +682,38 @@ def _(op: UMinOp):
     result = returnedType + " " + returnedValue + equals + expr + ends
     return indent + result
 
+
 @lowerOperation.register
 def _(op: ShlOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
 
 @lowerOperation.register
 def _(op: AShrOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
 
+
 @lowerOperation.register
 def _(op: LShrOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
+
 
 @lowerOperation.register
 def _(op: ExtractOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
 
+
 @lowerOperation.register
 def _(op: ConcatOp):
     return lowerToClassMethod(op)
 
+
 @lowerOperation.register
 def _(op: ConstRangeForOp):
     loopBody = op.body.block
-    lowerBound=op.lb.name_hint
-    upperBound=op.ub.name_hint
-    step=op.step.name_hint
+    lowerBound = op.lb.name_hint
+    upperBound = op.ub.name_hint
+    step = op.step.name_hint
 
     indvar, *block_iter_args = loopBody.args
     iter_args = op.iter_args
@@ -717,44 +721,76 @@ def _(op: ConstRangeForOp):
     global indent
     loopBefore = ""
     for i, blk_arg in enumerate(block_iter_args):
-        iter_type=lowerType(iter_args[i].type, iter_args[i].owner)
-        iter_name=blk_arg.name_hint
-        loopBefore+=indent + iter_type + " "+ iter_name +" = " + iter_args[i].name_hint + ends
+        iter_type = lowerType(iter_args[i].type, iter_args[i].owner)
+        iter_name = blk_arg.name_hint
+        loopBefore += (
+            indent + iter_type + " " + iter_name + " = " + iter_args[i].name_hint + ends
+        )
 
-
-    loopFor=indent+"for(APInt {0} = {1}; {0}.ule({2}); {0}+={3}){{\n".format(indvar.name_hint,lowerBound,upperBound,step)
-    indent+="\t"
-    '''
+    loopFor = indent + "for(APInt {0} = {1}; {0}.ule({2}); {0}+={3}){{\n".format(
+        indvar.name_hint, lowerBound, upperBound, step
+    )
+    indent += "\t"
+    """
     mainLoop=""
     for loopOp in loopBody.ops:
         mainLoop+=(indent  + indent+ lowerOperation(loopOp))
     endLoopFor=indent+"}\n"
-    '''
-    return loopBefore+loopFor
+    """
+    return loopBefore + loopFor
+
 
 @lowerOperation.register
 def _(op: NextLoopOp):
-    loopBlock=op.parent_block()
+    loopBlock = op.parent_block()
     indvar, *block_iter_args = loopBlock.args
     global indent
-    assignments=""
+    assignments = ""
     for i, arg in enumerate(op.operands):
-        assignments+=indent + block_iter_args[i].name_hint + " = " + arg.name_hint +ends
-    indent=indent[:-1]
-    endLoopFor = indent+ "}\n"
-    loopOp=loopBlock.parent_op()
+        assignments += (
+            indent + block_iter_args[i].name_hint + " = " + arg.name_hint + ends
+        )
+    indent = indent[:-1]
+    endLoopFor = indent + "}\n"
+    loopOp = loopBlock.parent_op()
     for i, res in enumerate(loopOp.results):
-        endLoopFor+= indent + lowerType(res.type, loopOp) + " " + res.name_hint + " = " + block_iter_args[i].name_hint + ends
+        endLoopFor += (
+            indent
+            + lowerType(res.type, loopOp)
+            + " "
+            + res.name_hint
+            + " = "
+            + block_iter_args[i].name_hint
+            + ends
+        )
     return assignments + endLoopFor
+
 
 @lowerOperation.register
 def _(op: RepeatOp):
     returnedType = lowerType(op.operands[0].type, op)
     returnedValue = op.results[0].name_hint
     arg0_name = op.operands[0].name_hint
-    count=op.operands[1].name_hint
+    count = op.operands[1].name_hint
     initExpr = indent + returnedType + " " + returnedValue + " = " + arg0_name + ends
-    forHead=indent + "for(APInt i("+count+".getBitWidth(),1);i.ult(" + count+");++i){\n"
-    forBody=indent+"\t" + returnedValue +" = " + returnedValue+".concat(" + arg0_name+")" + ends
-    forEnd=indent+"}\n"
-    return initExpr + forHead+forBody+forEnd
+    forHead = (
+        indent
+        + "for(APInt i("
+        + count
+        + ".getBitWidth(),1);i.ult("
+        + count
+        + ");++i){\n"
+    )
+    forBody = (
+        indent
+        + "\t"
+        + returnedValue
+        + " = "
+        + returnedValue
+        + ".concat("
+        + arg0_name
+        + ")"
+        + ends
+    )
+    forEnd = indent + "}\n"
+    return initExpr + forHead + forBody + forEnd
