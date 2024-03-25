@@ -59,7 +59,7 @@ class OperationSemanticsRewritePattern(RewritePattern):
         return None
 
 
-@dataclass
+@dataclass(frozen=True)
 class LowerToSMT(ModulePass):
     name = "lower-to-smt"
 

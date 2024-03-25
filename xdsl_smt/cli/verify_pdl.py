@@ -9,7 +9,7 @@ import argparse
 
 from io import StringIO
 from typing import Iterable
-from xdsl.ir import MLContext
+from xdsl.ir import Dialect, MLContext
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
@@ -113,20 +113,35 @@ class OptMain(xDSLOptMain):
         super().register_all_arguments(arg_parser)
 
     def register_all_dialects(self):
-        self.ctx.load_dialect(Arith)
-        self.ctx.load_dialect(Builtin)
-        self.ctx.load_dialect(Func)
-        self.ctx.load_dialect(Index)
-        self.ctx.load_dialect(SMTDialect)
-        self.ctx.load_dialect(SMTBitVectorDialect)
-        self.ctx.load_dialect(SMTUtilsDialect)
-        self.ctx.load_dialect(Transfer)
-        self.ctx.load_dialect(Hoare)
-        self.ctx.load_dialect(PDL)
-        self.ctx.load_dialect(PDLDataflowDialect)
-        self.ctx.load_dialect(Comb)
-        self.ctx.load_dialect(HW)
-        self.ctx.load_dialect(LLVM)
+        NEW_PDL = Dialect(
+            "pdl",
+            [*PDL.operations, *PDLDataflowDialect.operations],
+            [*PDL.attributes, *PDLDataflowDialect.attributes],
+        )
+        SMT_COLLECTION = Dialect(
+            "smt",
+            [
+                *SMTDialect.operations,
+                *SMTBitVectorDialect.operations,
+                *SMTUtilsDialect.operations,
+            ],
+            [
+                *SMTDialect.attributes,
+                *SMTBitVectorDialect.attributes,
+                *SMTUtilsDialect.attributes,
+            ],
+        )
+        self.ctx.register_dialect(Arith.name, lambda: Arith)
+        self.ctx.register_dialect(Builtin.name, lambda: Builtin)
+        self.ctx.register_dialect(Func.name, lambda: Func)
+        self.ctx.register_dialect(Index.name, lambda: Index)
+        self.ctx.register_dialect(SMT_COLLECTION.name, lambda: SMT_COLLECTION)
+        self.ctx.register_dialect(Transfer.name, lambda: Transfer)
+        self.ctx.register_dialect(Hoare.name, lambda: Hoare)
+        self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
+        self.ctx.register_dialect(Comb.name, lambda: Comb)
+        self.ctx.register_dialect(HW.name, lambda: HW)
+        self.ctx.register_dialect(LLVM.name, lambda: LLVM)
 
     def run(self):
         """Executes the different steps."""

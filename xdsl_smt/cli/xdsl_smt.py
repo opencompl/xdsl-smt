@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr
@@ -42,28 +43,43 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
 
 class OptMain(xDSLOptMain):
     def register_all_dialects(self):
-        self.ctx.load_dialect(Arith)
-        self.ctx.load_dialect(Builtin)
-        self.ctx.load_dialect(Func)
-        self.ctx.load_dialect(Index)
-        self.ctx.load_dialect(SMTDialect)
-        self.ctx.load_dialect(SMTBitVectorDialect)
-        self.ctx.load_dialect(SMTUtilsDialect)
-        self.ctx.load_dialect(Transfer)
-        self.ctx.load_dialect(Hoare)
-        self.ctx.load_dialect(PDL)
-        self.ctx.load_dialect(PDLDataflowDialect)
-        self.ctx.load_dialect(Comb)
-        self.ctx.load_dialect(HW)
-        self.ctx.load_dialect(LLVM)
+        NEW_PDL = Dialect(
+            "pdl",
+            [*PDL.operations, *PDLDataflowDialect.operations],
+            [*PDL.attributes, *PDLDataflowDialect.attributes],
+        )
+        SMT_COLLECTION = Dialect(
+            "smt",
+            [
+                *SMTDialect.operations,
+                *SMTBitVectorDialect.operations,
+                *SMTUtilsDialect.operations,
+            ],
+            [
+                *SMTDialect.attributes,
+                *SMTBitVectorDialect.attributes,
+                *SMTUtilsDialect.attributes,
+            ],
+        )
+        self.ctx.register_dialect(Arith.name, lambda: Arith)
+        self.ctx.register_dialect(Builtin.name, lambda: Builtin)
+        self.ctx.register_dialect(Func.name, lambda: Func)
+        self.ctx.register_dialect(Index.name, lambda: Index)
+        self.ctx.register_dialect(SMT_COLLECTION.name, lambda: SMT_COLLECTION)
+        self.ctx.register_dialect(Transfer.name, lambda: Transfer)
+        self.ctx.register_dialect(Hoare.name, lambda: Hoare)
+        self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
+        self.ctx.register_dialect(Comb.name, lambda: Comb)
+        self.ctx.register_dialect(HW.name, lambda: HW)
+        self.ctx.register_dialect(LLVM.name, lambda: LLVM)
 
     def register_all_passes(self):
         super().register_all_passes()
-        self.register_pass(LowerToSMT)
-        self.register_pass(DeadCodeElimination)
-        self.register_pass(CanonicalizeSMT)
-        self.register_pass(LowerPairs)
-        self.register_pass(PDLToSMT)
+        self.register_pass(LowerToSMT.name, lambda: LowerToSMT)
+        self.register_pass(DeadCodeElimination.name, lambda: DeadCodeElimination)
+        self.register_pass(CanonicalizeSMT.name, lambda: CanonicalizeSMT)
+        self.register_pass(LowerPairs.name, lambda: LowerPairs)
+        self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
 
     def register_all_targets(self):
         super().register_all_targets()

@@ -28,19 +28,6 @@ class GetOp(IRDLOperation):
 
 
 @irdl_op_definition
-class RewriteOp(IRDLOperation):
-    """Compute the analysis to an operation."""
-
-    name = "pdl.dataflow.rewrite"
-
-    op: Operand = operand_def(OperationType)
-
-    body: Region = region_def()
-
-    traits = frozenset([NoTerminator(), IsTerminator()])
-
-
-@irdl_op_definition
 class AttachOp(IRDLOperation):
     """Attach an analysis to an operation."""
 
@@ -51,4 +38,4 @@ class AttachOp(IRDLOperation):
     domain_name: StringAttr = attr_def(StringAttr)
 
 
-PDLDataflowDialect = Dialect("pdl", [GetOp, RewriteOp, AttachOp])
+PDLDataflowDialect = Dialect("pdl", [GetOp, AttachOp])

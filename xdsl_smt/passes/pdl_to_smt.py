@@ -101,13 +101,6 @@ class RewriteRewrite(RewritePattern):
         rewriter.erase_matched_op()
 
 
-class DataflowRewriteRewrite(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: pdl_dataflow.RewriteOp, rewriter: PatternRewriter):
-        rewriter.inline_block_before_matched_op(op.body.blocks[0])
-        rewriter.erase_matched_op()
-
-
 @dataclass
 class TypeRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
@@ -424,7 +417,7 @@ class ApplyNativeConstraintRewrite(RewritePattern):
         raise Exception(f"No semantics for native constraint {op.constraint_name.data}")
 
 
-@dataclass
+@dataclass(frozen=True)
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
@@ -461,7 +454,6 @@ class PDLToSMT(ModulePass):
             GreedyRewritePatternApplier(
                 [
                     RewriteRewrite(),
-                    DataflowRewriteRewrite(),
                     TypeRewrite(rewrite_context),
                     AttributeRewrite(),
                     OperandRewrite(),

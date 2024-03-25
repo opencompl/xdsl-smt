@@ -16,7 +16,7 @@ builtin.module {
     // Get an add operation that takes both operands
     %op = pdl.operation "arith.ori"(%lhs, %rhs : !pdl.value, !pdl.value) -> (%type : !pdl.type)
 
-    "pdl.dataflow.rewrite"(%op) ({
+    pdl.rewrite %op {
         // Compute the known bits of the result
         %res_zeros = "transfer.and"(%lhs_zeros, %rhs_zeros) : (!transfer.integer, !transfer.integer) -> !transfer.integer
         %res_ones = "transfer.or"(%lhs_ones, %rhs_ones) : (!transfer.integer, !transfer.integer) -> !transfer.integer
@@ -26,7 +26,7 @@ builtin.module {
 
         // Attach it to the operation
         "pdl.dataflow.attach"(%res, %res_zeros, %res_ones) {"domain_name" = "kb"} : (!pdl.value, !transfer.integer, !transfer.integer) -> ()
-    }) {operand_segment_sizes = array<i32: 1, 0>} : (!pdl.operation) -> ()
+    }
   }
 }
 
@@ -39,11 +39,11 @@ builtin.module {
 // CHECK-NEXT:     %lhs_zeros, %lhs_ones = "pdl.dataflow.get"(%lhs) {"domain_name" = "kb"} : (!pdl.value) -> (!transfer.integer, !transfer.integer)
 // CHECK-NEXT:     %rhs_zeros, %rhs_ones = "pdl.dataflow.get"(%rhs) {"domain_name" = "kb"} : (!pdl.value) -> (!transfer.integer, !transfer.integer)
 // CHECK-NEXT:     %op = pdl.operation "arith.ori" (%lhs, %rhs : !pdl.value, !pdl.value) -> (%type : !pdl.type)
-// CHECK-NEXT:     "pdl.dataflow.rewrite"(%op) ({
+// CHECK-NEXT:     pdl.rewrite %op {
 // CHECK-NEXT:       %res_zeros = "transfer.and"(%lhs_zeros, %rhs_zeros) : (!transfer.integer, !transfer.integer) -> !transfer.integer
 // CHECK-NEXT:       %res_ones = "transfer.or"(%lhs_ones, %rhs_ones) : (!transfer.integer, !transfer.integer) -> !transfer.integer
 // CHECK-NEXT:       %res = pdl.result 0 of %op
 // CHECK-NEXT:       "pdl.dataflow.attach"(%res, %res_zeros, %res_ones) {"domain_name" = "kb"} : (!pdl.value, !transfer.integer, !transfer.integer) -> ()
-// CHECK-NEXT:     }) {"operand_segment_sizes" = array<i32: 1, 0>} : (!pdl.operation) -> ()
+// CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
