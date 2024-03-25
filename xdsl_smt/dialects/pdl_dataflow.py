@@ -1,5 +1,5 @@
 from xdsl.dialects.builtin import StringAttr
-from xdsl.ir import Attribute, Dialect, IsTerminator, NoTerminator, Region
+from xdsl.ir import Attribute, Dialect
 from xdsl.irdl import (
     VarOpResult,
     VarOperand,
@@ -10,9 +10,8 @@ from xdsl.irdl import (
     var_operand_def,
     var_result_def,
     attr_def,
-    region_def,
 )
-from xdsl.dialects.pdl import OperationType, ValueType
+from xdsl.dialects.pdl import ValueType
 
 
 @irdl_op_definition

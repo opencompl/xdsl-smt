@@ -33,7 +33,7 @@ class RenameOpResult(RewritePattern):
                         self.autogen += 1
 
 
-@dataclass
+@dataclass(frozen=True)
 class RenameValuesPass(ModulePass):
     name = "rename_op_result"
 
