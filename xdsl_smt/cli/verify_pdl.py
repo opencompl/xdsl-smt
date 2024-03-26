@@ -51,8 +51,6 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_static_constraints,
 )
 
-max_bitwidth = 32
-
 
 def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     cloned_op = op.clone()
@@ -80,19 +78,47 @@ def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
 
 
 def iterate_on_all_integers(
-    op: PatternOp, types: tuple[int, ...] = ()
+    op: PatternOp,
+    max_bitwidth: int,
 ) -> Iterable[tuple[PatternOp, tuple[int, ...]]]:
-    op = op.clone()
+    # Find all the TypeOp in the pattern
+    type_ops: list[TypeOp] = []
     for sub_op in op.walk():
         if isinstance(sub_op, TypeOp) and isinstance(
             sub_op.constantType, TransIntegerType
         ):
-            for i in range(1, max_bitwidth + 1):
-                sub_op.constantType = IntegerType(i)
-                sub_types = (*types, i)
-                yield from iterate_on_all_integers(op, sub_types)
-            return
-    yield op, types
+            type_ops.append(sub_op)
+
+    # No type to specialize case
+    if not type_ops:
+        yield op.clone(), ()
+        return
+
+    # The initial types are all 1
+    bitwidths = [1 for _ in type_ops]
+
+    while True:
+        # Assign the types in the pattern:
+        for type_op, bitwidth in zip(type_ops, bitwidths):
+            type_op.constantType = IntegerType(bitwidth)
+
+        yield op.clone(), tuple(bitwidths)
+
+        # Get the next bitwidths to try
+        index = 0
+        while index < len(bitwidths):
+            bitwidth = bitwidths[index]
+            if bitwidth == max_bitwidth:
+                bitwidths[index] = 1
+                index += 1
+            else:
+                bitwidths[index] += 1
+                break
+        else:
+            break
+
+    for type_op in type_ops:
+        type_op.constantType = TransIntegerType()
 
 
 class OptMain(xDSLOptMain):
@@ -146,9 +172,6 @@ class OptMain(xDSLOptMain):
     def run(self):
         """Executes the different steps."""
 
-        global max_bitwidth
-        max_bitwidth = self.args.max_bitwidth
-
         chunks, file_extension = self.prepare_input()
         assert len(chunks) == 1
         chunk = chunks[0]
@@ -167,7 +190,9 @@ class OptMain(xDSLOptMain):
                     print(f"Verifying pattern {pattern.sym_name.data}:")
                 else:
                     print(f"Verifying pattern:")
-                for specialized_pattern, types in iterate_on_all_integers(pattern):
+                for specialized_pattern, types in iterate_on_all_integers(
+                    pattern, self.args.max_bitwidth
+                ):
                     if verify_pattern(
                         self.ctx, ModuleOp([specialized_pattern]), self.args.opt
                     ):
