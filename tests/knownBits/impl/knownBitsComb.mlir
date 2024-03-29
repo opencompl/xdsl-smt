@@ -193,7 +193,7 @@
     %umaxResultOverflow = "transfer.umul_overflow"(%arg0Max, %arg1Max) : (!transfer.integer, !transfer.integer) -> i1
     %zero = "transfer.constant"(%arg0Max){value=0:index} : (!transfer.integer) -> !transfer.integer
     %umaxResult_cnt_l_zero = "transfer.countl_zero" (%umaxResult) : (!transfer.integer) -> !transfer.integer
-    %leadZ = "arith.select" (%umaxResultOverflow, %zero, %umaxResult_cnt_l_zero): (i1, !transfer.integer, !transfer.integer) -> !transfer.integer
+    %leadZ = "transfer.select" (%umaxResultOverflow, %zero, %umaxResult_cnt_l_zero): (i1, !transfer.integer, !transfer.integer) -> !transfer.integer
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %arg0_1 = "transfer.get"(%arg0) {index=1:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %arg1_0 = "transfer.get"(%arg1) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -300,11 +300,22 @@
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "shlRHSFastPath"} : () -> ()
 
 
+"func.func"() ({
+  ^bb0(%arg0: !transfer.integer, %arg1: !transfer.integer):
+    %bitwidth = "transfer.get_bit_width"(%arg0_0): (!transfer.integer) -> !transfer.integer
+    %const0 = "transfer.constant"(%arg1) {value=0:index}:(!transfer.integer)->!transfer.integer
+    %ge0 = "transfer.cmp"(%const0, %arg1) {predicate=7:i64}: (!transfer.integer, !transfer.integer) -> i1
+    %ltSize = "transfer.cmp"(%arg1, %bitwidth) {predicate=7:i64}: (!transfer.integer, !transfer.integer) -> i1
+    %check = "arith.andi"(%ge0, %ltSize) : (i1, i1) -> i1
+    "func.return"(%check) : (i1) -> ()
+  }) {function_type = (!transfer.integer, !transfer.integer) -> i1, sym_name = "shl_constraint"} : () -> ()
+
+
   "func.func"() ({
   ^bb0(%arg0: !transfer.integer, %arg1: !transfer.integer):
     %0 = "transfer.shl"(%arg0, %arg1) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     "func.return"(%0) : (!transfer.integer) -> ()
-  }) {function_type = (!transfer.integer, !transfer.integer) -> !transfer.integer, sym_name = "SHL"} : () -> ()
+  }) {function_type = (!transfer.integer, !transfer.integer) -> !transfer.integer, sym_name = "SHL",op_constraint="shl_constraint"} : () -> ()
 
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
@@ -351,7 +362,7 @@
     %const0 = "transfer.constant"(%arg0_0){value=0:index} : (!transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%const0, %const0) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "SHRSImpl", applied_to=["comb.SHRS"], CPPCLASS=["circt::comb::ShrSOp"]} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "SHRSImpl", applied_to=["comb.shrs"], CPPCLASS=["circt::comb::ShrSOp"]} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.integer, %arg1: !transfer.integer):

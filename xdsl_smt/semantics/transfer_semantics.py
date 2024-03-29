@@ -7,21 +7,21 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.ir import Operation
 
-from ...dialects import smt_bitvector_dialect as smt_bv
-from ...dialects import smt_dialect as smt
-from ...dialects import transfer
-from .lower_to_smt import LowerToSMT
+from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import smt_dialect as smt
+from xdsl_smt.dialects import transfer
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
 from xdsl.dialects.func import Call
-from ...dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
+from xdsl_smt.dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
 from xdsl_smt.dialects.smt_dialect import BoolType, DefineFunOp, CallOp
-from xdsl_smt.passes.lower_to_smt.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl.ir import Operation, Region, SSAValue, Attribute
-from xdsl_smt.passes.lower_to_smt.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.parser import AnyIntegerAttr
 from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IndexType
-from ...utils.transfer_to_smt_util import (
+from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
     set_low_bits,
@@ -647,8 +647,6 @@ class ConstRangeForOpSemantics(OperationSemantics):
                             and "current we only support for one returned value from for"
                         )
                         last_result = make_res[0]
-        # for tmp_op in last_result.owner.parent_block().ops:
-        #    print(tmp_op)
         return (last_result,)
 
 

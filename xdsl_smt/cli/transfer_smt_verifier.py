@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 
-from xdsl.ir import MLContext, Operation
+from xdsl.ir import MLContext
 from xdsl.parser import Parser
 
 from io import StringIO
@@ -20,29 +20,27 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect, ConstantOp
 from ..dialects.smt_utils_dialect import FirstOp
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType, i1, FunctionType
 from xdsl.dialects.func import Func
-from ..dialects.transfer import Transfer, AbstractValueType, TransIntegerType
+from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from ..passes.transfer_inline import FunctionCallInline
-from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from ..utils.trans_interpreter_smt import *
-from ..passes.rename_values import RenameValuesPass
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
-from ..passes.pdl_to_smt import PDLToSMT
 from ..passes.lower_to_smt.transfer_to_smt import (
     abstract_value_type_lowerer,
     transfer_integer_type_lowerer,
 )
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
-    arith_semantics,
-    transfer_semantics,
 )
+from xdsl_smt.semantics import transfer_semantics
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
-from z3 import BitVec, Solver, And, Not, simplify, ForAll, Implies
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.transfer_semantics import transfer_semantics
+from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
 
@@ -160,6 +158,7 @@ def soundness_check(
     concrete_func: DefineFunOp,
     get_constraint: DefineFunOp,
     get_inst_constraint: DefineFunOp,
+    op_constraint: DefineFunOp,
 ):
     abstract_type = get_constraint.body.block.args[0].type
     instance_type = concrete_func.body.block.args[1].type
@@ -169,6 +168,7 @@ def soundness_check(
     inst_constraints: list[CallOp] = []
     arg_constraints_first: list[FirstOp] = []
     inst_constraints_first: list[FirstOp] = []
+    print(op_constraint)
 
     for arg in abstract_func.body.block.args:
         arg_constant.append(DeclareConstOp(arg.type))
@@ -249,6 +249,30 @@ def soundness_check(
     )
 
 
+def find_concrete_function(func_name:str, width:int):
+    # iterate all semantics and find corresponding comb operation
+    result=None
+    for k in comb_semantics.keys():
+        if k.name == func_name:
+            # generate a function with the only comb operation
+            # for now, we only handle binary operations and mux
+            intTy=IntegerType(width)
+
+            if func_name=="comb.mux":
+                funcTy=FunctionType.from_lists([i1,intTy,intTy], [intTy])
+                result=FuncOp("comb_mux",funcTy)
+                combOp=k(*result.args)
+                returnOp=Return(combOp.results[0])
+                result.body.block.add_ops([combOp,returnOp])
+            else:
+                funcTy=FunctionType.from_lists([intTy,intTy],[intTy])
+                result=FuncOp(func_name.replace(".","_"),funcTy)
+                combOp = k(*result.args)
+                returnOp = Return(combOp.results[0])
+                result.body.block.add_ops([combOp, returnOp])
+    return result
+
+
 def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
@@ -290,8 +314,19 @@ def main() -> None:
             abstract_value_type_lowerer,
             lambda type: transfer_integer_type_lowerer(type, width),
         ]
-        LowerToSMT.operation_semantics = {**arith_semantics, **transfer_semantics}
         smt_module = module.clone()
+        concrete_funcs =[]
+        func_name_to_concrete_func_name={}
+        for op in smt_module.ops:
+            if isinstance(op, FuncOp) and "applied_to" in op.attributes:
+                concrete_funcname=op.attributes["applied_to"].data[0].data
+                concrete_func=find_concrete_function(concrete_funcname,width)
+                concrete_funcs.append(concrete_func)
+                func_name_to_concrete_func_name[op.sym_name.data]=concrete_func.sym_name.data
+
+        smt_module.body.block.add_ops(concrete_funcs)
+        print(smt_module)
+        LowerToSMT.operation_semantics = {**arith_semantics, **transfer_semantics, **comb_semantics}
         LowerToSMT().apply(ctx, smt_module)
         func_name_to_smt_func: dict[str, DefineFunOp] = {}
         for func in smt_module.ops:
@@ -305,7 +340,10 @@ def main() -> None:
         for func_pair in module.attributes[KEY_NEED_VERIFY]:
             concrete_funcname, transfer_funcname = func_pair
             transfer_func = func_name_to_smt_func[transfer_funcname.data]
-            concrete_func = func_name_to_smt_func[concrete_funcname.data]
+            concrete_func = func_name_to_smt_func[func_name_to_concrete_func_name[transfer_funcname.data]]
+            #op_constraint=None
+            #if "op_constraint" in concrete_func.attributes:
+            #    op_constraint = func_name_to_smt_func[concrete_func.attributes["op_constraint"].data]
             print(transfer_funcname)
 
             """
@@ -338,6 +376,7 @@ def main() -> None:
                     concrete_func,
                     get_constraint,
                     get_instance_constraint,
+                    op_constraint
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
