@@ -15,16 +15,25 @@ from ..dialects.smt_dialect import (
     AssertOp,
     CheckSatOp,
     EqOp,
+    ConstantBoolOp,
 )
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect, ConstantOp
-from ..dialects.smt_utils_dialect import FirstOp
+from ..dialects.smt_utils_dialect import FirstOp, PairOp
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType, i1, FunctionType
+from xdsl.dialects.builtin import (
+    Builtin,
+    ModuleOp,
+    IntegerAttr,
+    IntegerType,
+    i1,
+    FunctionType,
+)
 from xdsl.dialects.func import Func
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from ..passes.transfer_inline import FunctionCallInline
+import xdsl.dialects.comb as comb
 from ..utils.trans_interpreter_smt import *
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.lower_to_smt.transfer_to_smt import (
@@ -161,14 +170,13 @@ def soundness_check(
     op_constraint: DefineFunOp,
 ):
     abstract_type = get_constraint.body.block.args[0].type
-    instance_type = concrete_func.body.block.args[1].type
+    instance_type = concrete_func.body.block.args[1].type.first
     arg_constant: list[DeclareConstOp] = []
     inst_constant: list[DeclareConstOp] = []
     arg_constraints: list[CallOp] = []
     inst_constraints: list[CallOp] = []
     arg_constraints_first: list[FirstOp] = []
     inst_constraints_first: list[FirstOp] = []
-    print(op_constraint)
 
     for arg in abstract_func.body.block.args:
         arg_constant.append(DeclareConstOp(arg.type))
@@ -194,9 +202,14 @@ def soundness_check(
     abstract_result = CallOp.get(
         abstract_func.results[0], [op.results[0] for op in arg_constant]
     )
-    inst_result = CallOp.get(
-        concrete_func.results[0], [op.results[0] for op in inst_constant]
+    constant_false = ConstantBoolOp(False)
+    inst_constant_pair = [
+        PairOp(op.results[0], constant_false.res) for op in inst_constant
+    ]
+    inst_result_pair = CallOp.get(
+        concrete_func.results[0], [op.results[0] for op in inst_constant_pair]
     )
+    inst_result = FirstOp(inst_result_pair.res)
     inst_result_constraint = CallOp.get(
         get_inst_constraint.results[0],
         [abstract_result.results[0], inst_result.results[0]],
@@ -238,6 +251,11 @@ def soundness_check(
         + inst_constraints_first
         + [
             abstract_result,
+            constant_false,
+        ]
+        + inst_constant_pair
+        + [
+            inst_result_pair,
             inst_result,
             inst_result_constraint,
             inst_result_constraint_first,
@@ -249,27 +267,32 @@ def soundness_check(
     )
 
 
-def find_concrete_function(func_name:str, width:int):
+def find_concrete_function(func_name: str, width: int):
     # iterate all semantics and find corresponding comb operation
-    result=None
+    result = None
+    print(func_name)
     for k in comb_semantics.keys():
         if k.name == func_name:
             # generate a function with the only comb operation
             # for now, we only handle binary operations and mux
-            intTy=IntegerType(width)
+            intTy = IntegerType(width)
 
-            if func_name=="comb.mux":
-                funcTy=FunctionType.from_lists([i1,intTy,intTy], [intTy])
-                result=FuncOp("comb_mux",funcTy)
-                combOp=k(*result.args)
-                returnOp=Return(combOp.results[0])
-                result.body.block.add_ops([combOp,returnOp])
-            else:
-                funcTy=FunctionType.from_lists([intTy,intTy],[intTy])
-                result=FuncOp(func_name.replace(".","_"),funcTy)
+            if func_name == "comb.mux":
+                funcTy = FunctionType.from_lists([i1, intTy, intTy], [intTy])
+                result = FuncOp("comb_mux", funcTy)
                 combOp = k(*result.args)
                 returnOp = Return(combOp.results[0])
                 result.body.block.add_ops([combOp, returnOp])
+            else:
+                funcTy = FunctionType.from_lists([intTy, intTy], [intTy])
+                result = FuncOp(func_name.replace(".", "_"), funcTy)
+                if issubclass(k, comb.VariadicCombOperation):
+                    combOp = k.create(operands=result.args, result_types=[intTy])
+                else:
+                    combOp = k(*result.args)
+                returnOp = Return(combOp.results[0])
+                result.body.block.add_ops([combOp, returnOp])
+    assert result is not None and "Cannot find the concrete function for" + func_name
     return result
 
 
@@ -315,18 +338,23 @@ def main() -> None:
             lambda type: transfer_integer_type_lowerer(type, width),
         ]
         smt_module = module.clone()
-        concrete_funcs =[]
-        func_name_to_concrete_func_name={}
+        concrete_funcs = []
+        func_name_to_concrete_func_name = {}
         for op in smt_module.ops:
             if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                concrete_funcname=op.attributes["applied_to"].data[0].data
-                concrete_func=find_concrete_function(concrete_funcname,width)
+                concrete_funcname = op.attributes["applied_to"].data[0].data
+                concrete_func = find_concrete_function(concrete_funcname, width)
                 concrete_funcs.append(concrete_func)
-                func_name_to_concrete_func_name[op.sym_name.data]=concrete_func.sym_name.data
+                func_name_to_concrete_func_name[
+                    op.sym_name.data
+                ] = concrete_func.sym_name.data
 
         smt_module.body.block.add_ops(concrete_funcs)
-        print(smt_module)
-        LowerToSMT.operation_semantics = {**arith_semantics, **transfer_semantics, **comb_semantics}
+        LowerToSMT.operation_semantics = {
+            **arith_semantics,
+            **transfer_semantics,
+            **comb_semantics,
+        }
         LowerToSMT().apply(ctx, smt_module)
         func_name_to_smt_func: dict[str, DefineFunOp] = {}
         for func in smt_module.ops:
@@ -340,11 +368,14 @@ def main() -> None:
         for func_pair in module.attributes[KEY_NEED_VERIFY]:
             concrete_funcname, transfer_funcname = func_pair
             transfer_func = func_name_to_smt_func[transfer_funcname.data]
-            concrete_func = func_name_to_smt_func[func_name_to_concrete_func_name[transfer_funcname.data]]
-            #op_constraint=None
-            #if "op_constraint" in concrete_func.attributes:
-            #    op_constraint = func_name_to_smt_func[concrete_func.attributes["op_constraint"].data]
-            print(transfer_funcname)
+            concrete_func = func_name_to_smt_func[
+                func_name_to_concrete_func_name[transfer_funcname.data]
+            ]
+            op_constraint = None
+            if "op_constraint" in concrete_func.attributes:
+                op_constraint = func_name_to_smt_func[
+                    concrete_func.attributes["op_constraint"].data
+                ]
 
             """
             query_module = ModuleOp([], {})
@@ -376,7 +407,7 @@ def main() -> None:
                     concrete_func,
                     get_constraint,
                     get_instance_constraint,
-                    op_constraint
+                    op_constraint,
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
