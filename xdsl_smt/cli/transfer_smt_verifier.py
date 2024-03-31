@@ -220,6 +220,15 @@ def soundness_check(
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
 
+    # consider op constraint
+    op_constraint_list = []
+    if op_constraint is not None:
+        op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
+        op_constraint_result_first = FirstOp(op_constraint_result.res)
+        op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
+        op_constraint_assert = AssertOp(op_constraint_eq.res)
+        op_constraint_list = [op_constraint_result, op_constraint_result_first, op_constraint_eq, op_constraint_assert]
+
     arg_constant.append(DeclareConstOp(abstract_type))
     inst_constant.append(DeclareConstOp(instance_type))
 
@@ -262,6 +271,7 @@ def soundness_check(
             inst_result_constraint_first,
         ]
         + [constant_bv_1, constant_bv_0]
+        + op_constraint_list
         + eq_ops
         + assert_ops
         + [CheckSatOp()]
@@ -293,7 +303,7 @@ def find_concrete_function(func_name: str, width: int):
                     combOp = k(*result.args)
                 returnOp = Return(combOp.results[0])
                 result.body.block.add_ops([combOp, returnOp])
-    assert result is not None and "Cannot find the concrete function for" + func_name
+    assert result is not None and ("Cannot find the concrete function for" + func_name)
     return result
 
 
@@ -330,17 +340,15 @@ def main() -> None:
 
     for width in solveVectorWidth():
         print("Current width: ", width)
-        LowerToSMT.rewrite_patterns = [
-            *func_to_smt_patterns,
-        ]
-        LowerToSMT.type_lowerers = [
-            integer_poison_type_lowerer,
-            abstract_value_type_lowerer,
-            lambda type: transfer_integer_type_lowerer(type, width),
-        ]
         smt_module = module.clone()
+        #expand for loops
+        unrollTransferLoop = UnrollTransferLoop(width)
+        unrollTransferLoop.apply(ctx, smt_module)
+
+        #add concrete functions
         concrete_funcs = []
         func_name_to_concrete_func_name = {}
+        func_name_to_op_constraint = {}
         for op in smt_module.ops:
             if isinstance(op, FuncOp) and "applied_to" in op.attributes:
                 concrete_funcname = op.attributes["applied_to"].data[0].data
@@ -350,10 +358,20 @@ def main() -> None:
                     op.sym_name.data
                 ] = concrete_func.sym_name.data
 
+            if isinstance(op, FuncOp) and "op_constraint" in op.attributes:
+                func_name_to_op_constraint[op.sym_name.data] = op.attributes["op_constraint"].data
+
         smt_module.body.block.add_ops(concrete_funcs)
-        unrollTransferLoop = UnrollTransferLoop(width)
-        unrollTransferLoop.apply(ctx, smt_module)
-        print(smt_module)
+
+        #lower to SMT
+        LowerToSMT.rewrite_patterns = [
+            *func_to_smt_patterns,
+        ]
+        LowerToSMT.type_lowerers = [
+            integer_poison_type_lowerer,
+            abstract_value_type_lowerer,
+            lambda type: transfer_integer_type_lowerer(type, width),
+        ]
         LowerToSMT.operation_semantics = {
             **arith_semantics,
             **transfer_semantics,
@@ -375,11 +393,9 @@ def main() -> None:
             concrete_func = func_name_to_smt_func[
                 func_name_to_concrete_func_name[transfer_funcname.data]
             ]
-            op_constraint = None
-            if "op_constraint" in concrete_func.attributes:
-                op_constraint = func_name_to_smt_func[
-                    concrete_func.attributes["op_constraint"].data
-                ]
+            op_constraint=None
+            if transfer_funcname.data in func_name_to_op_constraint:
+                op_constraint=func_name_to_smt_func[func_name_to_op_constraint[transfer_funcname.data]]
 
             """
             query_module = ModuleOp([], {})

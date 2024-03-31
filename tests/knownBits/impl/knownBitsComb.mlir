@@ -302,10 +302,10 @@
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.integer, %arg1: !transfer.integer):
-    %bitwidth = "transfer.get_bit_width"(%arg0_0): (!transfer.integer) -> !transfer.integer
+    %bitwidth = "transfer.get_bit_width"(%arg0): (!transfer.integer) -> !transfer.integer
     %const0 = "transfer.constant"(%arg1) {value=0:index}:(!transfer.integer)->!transfer.integer
     %ge0 = "transfer.cmp"(%const0, %arg1) {predicate=7:i64}: (!transfer.integer, !transfer.integer) -> i1
-    %ltSize = "transfer.cmp"(%arg1, %bitwidth) {predicate=7:i64}: (!transfer.integer, !transfer.integer) -> i1
+    %ltSize = "transfer.cmp"(%arg1, %bitwidth) {predicate=6:i64}: (!transfer.integer, !transfer.integer) -> i1
     %check = "arith.andi"(%ge0, %ltSize) : (i1, i1) -> i1
     "func.return"(%check) : (i1) -> ()
   }) {function_type = (!transfer.integer, !transfer.integer) -> i1, sym_name = "shl_constraint"} : () -> ()
@@ -348,7 +348,7 @@
     %result_1 = "transfer.select"(%conflict, %const0, %for_res_1):(i1,!transfer.integer,!transfer.integer)->!transfer.integer
     %result = "transfer.make"(%result_0, %result_1) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "SHLImpl", applied_to=["comb.shl"], CPPCLASS=["circt::comb::ShlOp"]} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "SHLImpl", applied_to=["comb.shl"], CPPCLASS=["circt::comb::ShlOp"],op_constraint="shl_constraint"} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.integer, %arg1: !transfer.integer):
