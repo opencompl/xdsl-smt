@@ -683,6 +683,6 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.SelectOp: SelectOpSemantics(),
     transfer.IsPowerOf2Op: IsPowerOf2OpSemantics(),
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
-    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
+    #    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
 }

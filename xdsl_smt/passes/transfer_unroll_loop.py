@@ -30,6 +30,9 @@ from xdsl.dialects.builtin import (
 
 
 class ConstRangeForOpPattern(RewritePattern):
+    def __init__(self, width):
+        self.width = width
+
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: transfer.ConstRangeForOp, rewriter: PatternRewriter
@@ -37,18 +40,26 @@ class ConstRangeForOpPattern(RewritePattern):
         lb = op.lb.owner
         ub = op.ub.owner
         step = op.step.owner
-        assert (
-            isinstance(lb, transfer.Constant)
-            and "loop lower bound has to be a constant"
-        )
-        assert (
-            isinstance(ub, transfer.Constant)
-            and "loop upper bound has to be a constant"
-        )
-        assert isinstance(step, transfer.Constant) and "loop step has to be a constant"
-        lb_int = lb.value.value.data
-        ub_int = ub.value.value.data
-        step_int = step.value.value.data
+        if isinstance(lb, transfer.Constant):
+            lb_int = lb.value.value.data
+        elif isinstance(lb, transfer.GetBitWidthOp):
+            lb_int = self.width
+        else:
+            assert False and "loop lower bound has to be a constant"
+
+        if isinstance(ub, transfer.Constant):
+            ub_int = ub.value.value.data
+        elif isinstance(ub, transfer.GetBitWidthOp):
+            ub_int = self.width
+        else:
+            assert False and "loop upper bound has to be a constant"
+
+        if isinstance(step, transfer.Constant):
+            step_int = step.value.value.data
+        elif isinstance(step, transfer.GetBitWidthOp):
+            step_int = self.width
+        else:
+            assert False and "loop step has to be a constant"
 
         assert step_int != 0 and "step size should not be zero"
         if step_int > 0:
@@ -76,7 +87,8 @@ class ConstRangeForOpPattern(RewritePattern):
                 if not isinstance(cur_op, transfer.NextLoopOp):
                     clone_op = cur_op.clone()
                     for idx in range(len(clone_op.operands)):
-                        clone_op.operands[idx] = value_map[cur_op.operands[idx]]
+                        if cur_op.operands[idx] in value_map:
+                            clone_op.operands[idx] = value_map[cur_op.operands[idx]]
                     if len(cur_op.results) != 0:
                         value_map[cur_op.results[0]] = clone_op.results[0]
                     rewriter.insert_op_before_matched_op(clone_op)
@@ -94,6 +106,7 @@ class ConstRangeForOpPattern(RewritePattern):
                         value_map = new_value_map
                     else:
                         make_res = [value_map[arg] for arg in cur_op.arguments]
+                        """
                         make_op = transfer.MakeOp.create(
                             operands=make_res,
                             result_types=[
@@ -102,12 +115,23 @@ class ConstRangeForOpPattern(RewritePattern):
                                 )
                             ],
                         )
-                        rewriter.replace_matched_op(make_op)
+                        """
+                        assert (
+                            len(make_res) == 1
+                            and "current we only support for one returned value from for"
+                        )
+                        rewriter.replace_matched_op([], [make_res[0]])
+                        # rewriter.replace_matched_op(make_op)
 
 
 class UnrollTransferLoop(ModulePass):
     name = "unrollTransferLoop"
 
+    def __init__(self, width):
+        self.width = width
+
     def apply(self, ctx: MLContext, op: ModuleOp):
-        walker = PatternRewriteWalker(ConstRangeForOpPattern(), walk_reverse=True)
+        walker = PatternRewriteWalker(
+            ConstRangeForOpPattern(self.width), walk_reverse=True
+        )
         walker.rewrite_module(op)

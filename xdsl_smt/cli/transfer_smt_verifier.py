@@ -43,6 +43,7 @@ from ..passes.lower_to_smt.transfer_to_smt import (
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
 )
+from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
@@ -350,6 +351,9 @@ def main() -> None:
                 ] = concrete_func.sym_name.data
 
         smt_module.body.block.add_ops(concrete_funcs)
+        unrollTransferLoop = UnrollTransferLoop(width)
+        unrollTransferLoop.apply(ctx, smt_module)
+        print(smt_module)
         LowerToSMT.operation_semantics = {
             **arith_semantics,
             **transfer_semantics,
