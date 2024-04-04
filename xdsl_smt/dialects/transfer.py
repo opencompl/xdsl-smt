@@ -61,6 +61,7 @@ class FromArithOp(IRDLOperation):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
     op: Operand = operand_def(IntegerType)
+    trans_op: Operand = operand_def(T)
     result: OpResult = result_def(T)
 
 

@@ -536,6 +536,8 @@ class RepeatOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> Sequence[SSAValue]:
         cntOp = operands[1].owner
+        print(cntOp)
+        print(cntOp.parent_op())
         assert (
             isinstance(cntOp, smt_bv.ConstantOp) and "repeat count has to be a constant"
         )
@@ -568,6 +570,32 @@ class ExtractOpSemantics(OperationSemantics):
         extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition, bitPosition)
         rewriter.insert_op_before_matched_op(extractOp)
         return (extractOp.res,)
+
+
+class FromArithOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+
+        first_op = FirstOp(operands[0])
+        assert isinstance(first_op.res.type, smt_bv.BitVectorType)
+        width = first_op.res.type.width.data
+        assert isinstance(operands[1].type, smt_bv.BitVectorType)
+        new_width = operands[1].type.width.data
+        assert new_width >= width and "only support extend for now"
+        if new_width == width:
+            rewriter.insert_op_before_matched_op([first_op])
+            return (first_op.res,)
+        else:
+            bv_const = smt_bv.ConstantOp(0, new_width-width)
+            last_res = smt_bv.ConcatOp(bv_const.res, first_op.res)
+            rewriter.insert_op_before_matched_op([first_op, bv_const, last_res])
+            return (last_res.res,)
 
 
 class ConstRangeForOpSemantics(OperationSemantics):
@@ -685,4 +713,5 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
     #    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
+    transfer.FromArithOp: FromArithOpSemantics(),
 }

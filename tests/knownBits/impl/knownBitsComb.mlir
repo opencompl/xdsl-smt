@@ -406,8 +406,8 @@
     %result1_0 = "arith.select"(%cond, %const1, %const0):(i1,i1,i1) -> i1
     %result_0_i1 = "arith.select"(%constCheck, %res1_0, %result1_0):(i1,i1,i1) -> i1
     %result_1_i1 = "arith.select"(%constCheck, %res1_1, %const0):(i1,i1,i1) -> i1
-    %result_0 = "transfer.fromArith"(%result_0_i1):(i1) -> !transfer.integer
-    %result_1 = "transfer.fromArith"(%result_1_i1):(i1) -> !transfer.integer
+    %result_0 = "transfer.fromArith"(%result_0_i1, %arg0_0):(i1,!transfer.integer) -> !transfer.integer
+    %result_1 = "transfer.fromArith"(%result_1_i1, %arg0_0):(i1,!transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%result_0, %result_1) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>, !transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "EQImpl"} : () -> ()
@@ -421,9 +421,8 @@
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
     %eqRes = "func.call"(%arg0,%arg1) {callee = @EQImpl} : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer, !transfer.integer]>
-    %const0_i1 = "arith.constant"() {value=0:i1}: () -> i1
-    %const0 = "transfer.fromArith"(%const0_i1):(i1) ->!transfer.integer
     %eqRes_0 = "transfer.get"(%eqRes) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %const0 = "transfer.constant"(%eqRes_0){value=0:index} : (!transfer.integer) -> !transfer.integer
     %eqRes_1 = "transfer.get"(%eqRes) {index=1:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
     %eqConst = "func.call"(%eqRes) {callee = @isConstant} : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> i1
 
@@ -563,7 +562,7 @@
     %result_1 = "transfer.select"(%cond_const, %cond_res_1, %intersection_1): (i1, !transfer.integer,!transfer.integer)->!transfer.integer
     %result = "transfer.make"(%result_0, %result_1) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[i1,i1]>, !transfer.abs_value<[!transfer.integer,!transfer.integer]>, !transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "MUXImpl", applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>, !transfer.abs_value<[!transfer.integer,!transfer.integer]>, !transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "MUXImpl", applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
 
 
 "func.func"() ({
@@ -585,4 +584,4 @@
 
 
 
-}) {"builtin.NEED_VERIFY"=[["MUL","MULImpl"],["OR","ORImpl"],["AND","ANDImpl"],["XOR","XORImpl"],["ADD","ADDImpl"],["SUB","SUBImpl"],["MUX","MUXImpl"],["SHL","SHLImpl"],["ASHR","ASHRImpl"],["LSHR","LSHRImpl"]]}: () -> ()
+}) {"builtin.NEED_VERIFY"=[["MUL","MULImpl"],["OR","ORImpl"],["AND","ANDImpl"],["XOR","XORImpl"],["ADD","ADDImpl"],["SUB","SUBImpl"],["MUX","MUXImpl"],["SHL","SHLImpl"]]}: () -> ()
