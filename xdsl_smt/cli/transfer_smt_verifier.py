@@ -113,25 +113,40 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     return "unsat" in res.stdout
 
 
-def basic_constraint_check(abstract_func: DefineFunOp, get_constraint: DefineFunOp):
-    abstract_type = get_constraint.body.block.args[0].type
+def basic_constraint_check(
+    abstract_func: DefineFunOp, get_constraint: dict[int, DefineFunOp]
+):
+    args_width = []
+
+    abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
+    for ty in abstract_arg_types:
+        assert isinstance(ty, PairType)
+        assert isinstance(ty.first, BitVectorType)
+        args_width.append(ty.first.width.data)
+
+    abstract_return_type = abstract_func.func_type.outputs.data[0]
+    assert isinstance(abstract_return_type, PairType)
+    assert isinstance(abstract_return_type.first, BitVectorType)
+    result_width = abstract_return_type.first.width.data
+
     arg_constant: list[DeclareConstOp] = []
     arg_constraints: list[CallOp] = []
     arg_constraints_first: list[FirstOp] = []
-    for arg in abstract_func.body.block.args:
-        arg_constant.append(DeclareConstOp(arg.type))
-        if arg.type == abstract_type:
-            arg_constraints.append(
-                CallOp.get(get_constraint.results[0], [arg_constant[-1].results[0]])
+    for i, arg in enumerate(abstract_func.body.block.args):
+        arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
+        arg_constraints.append(
+            CallOp.get(
+                get_constraint[args_width[i]].results[0], [arg_constant[-1].results[0]]
             )
-            arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
+        )
+        arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
     assert len(arg_constant) != 0
 
     abstract_result = CallOp.get(
         abstract_func.results[0], [op.results[0] for op in arg_constant]
     )
     result_constraint = CallOp.get(
-        get_constraint.results[0], [abstract_result.results[0]]
+        get_constraint[result_width].results[0], [abstract_result.results[0]]
     )
     result_constraint_first = FirstOp(result_constraint.results[0])
 
