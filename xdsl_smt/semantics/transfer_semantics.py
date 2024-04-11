@@ -20,7 +20,7 @@ from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.parser import AnyIntegerAttr
-from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IndexType
+from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IndexType, IntegerType
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
@@ -38,9 +38,18 @@ def abstract_value_type_lowerer(
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
     if isinstance(type, transfer.AbstractValueType):
-        result = PairType(LowerToSMT.lower_type(type.get_fields()[-1]), BoolType())
+        curTy = type.get_fields()[-1]
+        isIntegerTy = isinstance(curTy, IntegerType)
+        curLoweredTy = LowerToSMT.lower_type(curTy)
+        if isIntegerTy:
+            curLoweredTy = curLoweredTy.first
+        result = PairType(curLoweredTy, BoolType())
         for ty in reversed(type.get_fields()[:-1]):
-            result = PairType(LowerToSMT.lower_type(ty), result)
+            isIntegerTy = isinstance(ty, IntegerType)
+            curLoweredTy = LowerToSMT.lower_type(ty)
+            if isIntegerTy:
+                curLoweredTy = curLoweredTy.first
+            result = PairType(curLoweredTy, result)
         return result
     return None
 
@@ -572,7 +581,7 @@ class ExtractOpSemantics(OperationSemantics):
         return (extractOp.res,)
 
 
-class FromArithOpSemantics(OperationSemantics):
+class AddPoisonOpSemantics(OperationSemantics):
     def get_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -581,21 +590,29 @@ class FromArithOpSemantics(OperationSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[SSAValue]:
+        op_ty = operands[0].type
+        assert isinstance(op_ty, smt_bv.BitVectorType)
+        bool_false = smt.ConstantBoolOp(False)
+        res = PairOp(operands[0], bool_false.res)
 
-        first_op = FirstOp(operands[0])
-        assert isinstance(first_op.res.type, smt_bv.BitVectorType)
-        width = first_op.res.type.width.data
-        assert isinstance(operands[1].type, smt_bv.BitVectorType)
-        new_width = operands[1].type.width.data
-        assert new_width >= width and "only support extend for now"
-        if new_width == width:
-            rewriter.insert_op_before_matched_op([first_op])
-            return (first_op.res,)
-        else:
-            bv_const = smt_bv.ConstantOp(0, new_width-width)
-            last_res = smt_bv.ConcatOp(bv_const.res, first_op.res)
-            rewriter.insert_op_before_matched_op([first_op, bv_const, last_res])
-            return (last_res.res,)
+        rewriter.insert_op_before_matched_op([bool_false, res])
+        return (res.res,)
+
+
+class RemovePoisonOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        op_ty = operands[0].type
+        assert isinstance(op_ty, PairType)
+        res = FirstOp(operands[0])
+        rewriter.insert_op_before_matched_op([res])
+        return (res.res,)
 
 
 class ConstRangeForOpSemantics(OperationSemantics):
@@ -713,5 +730,6 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
     #    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
-    transfer.FromArithOp: FromArithOpSemantics(),
+    transfer.AddPoisonOp: AddPoisonOpSemantics(),
+    transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
 }

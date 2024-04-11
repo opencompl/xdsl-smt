@@ -56,12 +56,20 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
 
 @irdl_op_definition
-class FromArithOp(IRDLOperation):
-    name = "transfer.fromArith"
+class AddPoisonOp(IRDLOperation):
+    name = "transfer.add_poison"
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
-    op: Operand = operand_def(IntegerType)
-    trans_op: Operand = operand_def(T)
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(T)
+
+
+@irdl_op_definition
+class RemovePoisonOp(IRDLOperation):
+    name = "transfer.remove_poison"
+    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+
+    op: Operand = operand_def(T)
     result: OpResult = result_def(T)
 
 
@@ -595,7 +603,8 @@ Transfer = Dialect(
         NextLoopOp,
         GetAllOnesOp,
         IntersectsOp,
-        FromArithOp,
+        AddPoisonOp,
+        RemovePoisonOp,
     ],
     [TransIntegerType, AbstractValueType],
 )
