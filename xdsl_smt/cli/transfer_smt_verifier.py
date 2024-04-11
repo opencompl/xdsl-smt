@@ -177,13 +177,25 @@ def test_abs_inline_check(
 def soundness_check(
     abstract_func: DefineFunOp,
     concrete_func: DefineFunOp,
-    get_constraint: DefineFunOp,
-    get_inst_constraint: DefineFunOp,
+    get_constraint: dict[int, DefineFunOp],
+    get_inst_constraint: dict[int, DefineFunOp],
     op_constraint: DefineFunOp,
-    args_width: list[int],
 ):
-    abstract_type = get_constraint.body.block.args[0].type
-    instance_type = concrete_func.body.block.args[1].type.first
+    args_width = []
+
+    abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
+    for ty in abstract_arg_types:
+        assert isinstance(ty, PairType)
+        assert isinstance(ty.first, BitVectorType)
+        args_width.append(ty.first.width.data)
+
+    abstract_return_type = abstract_func.func_type.outputs.data[0]
+    assert isinstance(abstract_return_type, PairType)
+    assert isinstance(abstract_return_type.first, BitVectorType)
+    result_width = abstract_return_type.first.width.data
+
+    instance_return_type = BitVectorType.from_int(result_width)
+
     arg_constant: list[DeclareConstOp] = []
     inst_constant: list[DeclareConstOp] = []
     arg_constraints: list[CallOp] = []
@@ -191,44 +203,24 @@ def soundness_check(
     arg_constraints_first: list[FirstOp] = []
     inst_constraints_first: list[FirstOp] = []
 
-    def get_new_abs_type(old_type, new_width):
-        if isinstance(old_type, PairType) and new_width != 0:
-            cur_type = old_type
-            elements = []
-            while isinstance(cur_type, PairType):
-                elements.append(cur_type.first)
-                cur_type = cur_type.second
-            for i in range(len(elements)):
-                assert isinstance(elements[i], BitVectorType)
-                elements[i] = BitVectorType.from_int(new_width)
-            for ele in elements[::-1]:
-                cur_type = PairType(ele, cur_type)
-            return cur_type
-        return old_type
-
     for i, arg in enumerate(abstract_func.body.block.args):
-        arg_constant.append(DeclareConstOp(get_new_abs_type(arg.type, args_width[i])))
-        if arg.type == abstract_type:
-            arg_constraints.append(
-                CallOp.get(get_constraint.results[0], [arg_constant[-1].results[0]])
+        arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
+        arg_constraints.append(
+            CallOp.get(
+                get_constraint[args_width[i]].results[0], [arg_constant[-1].results[0]]
             )
-            arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
+        )
+        arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
 
-            if args_width[i] == 0:
-                inst_constant.append(DeclareConstOp(instance_type))
-            else:
-                inst_constant.append(
-                    DeclareConstOp(BitVectorType.from_int(args_width[i]))
-                )
-            inst_constraints.append(
-                CallOp.get(
-                    get_inst_constraint.results[0],
-                    [arg_constant[-1].results[0], inst_constant[-1].results[0]],
-                )
+        inst_constant.append(DeclareConstOp(BitVectorType.from_int(args_width[i])))
+
+        inst_constraints.append(
+            CallOp.get(
+                get_inst_constraint[args_width[i]].results[0],
+                [arg_constant[-1].results[0], inst_constant[-1].results[0]],
             )
-            inst_constraints_first.append(FirstOp(inst_constraints[-1].results[0]))
-        else:
-            inst_constant.append(arg_constant[-1])
+        )
+        inst_constraints_first.append(FirstOp(inst_constraints[-1].results[0]))
 
     assert len(arg_constant) != 0
 
@@ -244,7 +236,7 @@ def soundness_check(
     )
     inst_result = FirstOp(inst_result_pair.res)
     inst_result_constraint = CallOp.get(
-        get_inst_constraint.results[0],
+        get_inst_constraint[result_width].results[0],
         [abstract_result.results[0], inst_result.results[0]],
     )
     inst_result_constraint_first = FirstOp(inst_result_constraint.results[0])
@@ -266,8 +258,8 @@ def soundness_check(
             op_constraint_assert,
         ]
 
-    arg_constant.append(DeclareConstOp(abstract_type))
-    inst_constant.append(DeclareConstOp(instance_type))
+    arg_constant.append(DeclareConstOp(abstract_return_type))
+    inst_constant.append(DeclareConstOp(instance_return_type))
 
     eq_ops: list[EqOp] = []
     assert_ops: list[AssertOp] = []
@@ -843,15 +835,14 @@ def main() -> None:
                 )
 
             # soundness check
-            if False:
+            if True:
                 query_module = ModuleOp([], {})
                 added_ops = soundness_check(
                     transfer_func,
                     concrete_func,
-                    get_constraint,
-                    get_instance_constraint,
+                    width_to_getConstraint,
+                    width_to_getInstanceConstraint,
                     op_constraint,
-                    args_width,
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
@@ -860,7 +851,7 @@ def main() -> None:
 
                 print("Soundness Check result:", verify_pattern(ctx, query_module))
 
-            if True:
+            if False:
                 # print(transfer_func)
                 query_module = ModuleOp([], {})
                 added_ops = precision_check(
