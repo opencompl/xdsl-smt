@@ -333,41 +333,25 @@ def precision_check(
     get_constraint: dict[int, DefineFunOp],
     get_inst_constraint: dict[int, DefineFunOp],
     op_constraint: DefineFunOp,
-    cur_width: int,
-    args_width: list[int],
-    result_width: int,
 ):
-    def get_new_abs_type(old_type, new_width):
-        if isinstance(old_type, PairType) and new_width != 0:
-            cur_type = old_type
-            elements = []
-            while isinstance(cur_type, PairType):
-                elements.append(cur_type.first)
-                cur_type = cur_type.second
-            for i in range(len(elements)):
-                assert isinstance(elements[i], BitVectorType)
-                elements[i] = BitVectorType.from_int(new_width)
-            for ele in elements[::-1]:
-                cur_type = PairType(ele, cur_type)
-            return cur_type
-        return old_type
+    args_width = []
 
-    for i in range(len(args_width)):
-        if args_width[i] == 0:
-            args_width[i] = cur_width
-    if result_width == 0:
-        result_width = cur_width
+    abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
+    for ty in abstract_arg_types:
+        assert isinstance(ty, PairType)
+        assert isinstance(ty.first, BitVectorType)
+        args_width.append(ty.first.width.data)
 
-    abstract_type = get_constraint[cur_width].body.block.args[0].type
-    instance_type = concrete_func.body.block.args[1].type.first
+    abstract_return_type = abstract_func.func_type.outputs.data[0]
+    assert isinstance(abstract_return_type, PairType)
+    assert isinstance(abstract_return_type.first, BitVectorType)
+    result_width = abstract_return_type.first.width.data
+
+    instance_return_type = BitVectorType.from_int(result_width)
     arg_constant: list[DeclareConstOp] = []
     inst_constant: list[BlockArgument] = []
 
-    c_constant = DeclareConstOp(
-        abstract_type
-        if result_width == cur_width
-        else get_new_abs_type(abstract_type, result_width)
-    )
+    c_constant = DeclareConstOp(abstract_return_type)
     c_constraints = CallOp.get(
         get_constraint[result_width].results[0], [c_constant.results[0]]
     )
@@ -393,37 +377,30 @@ def precision_check(
     forall_cfield_constraint_block = Block()
 
     for i, arg in enumerate(abstract_func.body.block.args):
-        arg_constant.append(DeclareConstOp(get_new_abs_type(arg.type, args_width[i])))
+        arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
         # arg_constant.append(DeclareConstOp(arg.type))
         # We found we don't need to consider is an arg in abstract function is in abstract domain or not
-        if arg.type == abstract_type or True:
-            arg_constraints.append(
-                CallOp.get(
-                    get_constraint[args_width[i]].results[0],
-                    [arg_constant[-1].results[0]],
-                )
+        arg_constraints.append(
+            CallOp.get(
+                get_constraint[args_width[i]].results[0],
+                [arg_constant[-1].results[0]],
             )
-            arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
+        )
+        arg_constraints_first.append(FirstOp(arg_constraints[-1].results[0]))
 
-            forall_cfield_constraint_block.insert_arg(
-                instance_type
-                if args_width[i] == 0
-                else BitVectorType.from_int(args_width[i]),
-                len(forall_cfield_constraint_block.args),
-            )
-            inst_constant.append(forall_cfield_constraint_block.args[-1])
+        forall_cfield_constraint_block.insert_arg(
+            BitVectorType.from_int(args_width[i]),
+            len(forall_cfield_constraint_block.args),
+        )
+        inst_constant.append(forall_cfield_constraint_block.args[-1])
 
-            inst_constraints.append(
-                CallOp.get(
-                    get_inst_constraint[args_width[i]].results[0],
-                    [arg_constant[-1].results[0], inst_constant[-1]],
-                )
+        inst_constraints.append(
+            CallOp.get(
+                get_inst_constraint[args_width[i]].results[0],
+                [arg_constant[-1].results[0], inst_constant[-1]],
             )
-            inst_constraints_first.append(FirstOp(inst_constraints[-1].results[0]))
-        else:
-            forall_cfield_constraint_block.insert_arg(
-                arg_constant[-1].res.type, len(forall_cfield_constraint_block.args)
-            )
+        )
+        inst_constraints_first.append(FirstOp(inst_constraints[-1].results[0]))
 
     assert len(arg_constant) != 0
     forall_cfield_constraint_block.add_ops(inst_constraints + inst_constraints_first)
@@ -545,9 +522,7 @@ def precision_check(
         ]
 
     forall_cinst_constraint_block = Block()
-    forall_cinst_constraint_block.insert_arg(
-        instance_type if result_width == 0 else BitVectorType.from_int(result_width), 0
-    )
+    forall_cinst_constraint_block.insert_arg(instance_return_type, 0)
     c_inst = forall_cinst_constraint_block.args[0]
     forall_cinst_constraint_block.add_ops(
         get_cinst_constraint_ops(
@@ -556,16 +531,14 @@ def precision_check(
     )
 
     cinst_constraint = ForallOp.from_variables(
-        [instance_type if result_width == 0 else BitVectorType.from_int(result_width)],
+        [instance_return_type],
         Region(forall_cinst_constraint_block),
     )
     assert_ops.append(AssertOp(cinst_constraint.res))
 
     # And(Not(getInstanceConstraint(abs_resInst, cfield0, cfield1)), getInstanceConstraint(abs_resInst, abs_res[0], abs_res[1]))
     # find an instance that is not in c but in abs_resInst
-    abstract_result_inst = DeclareConstOp(
-        instance_type if result_width == 0 else BitVectorType.from_int(result_width)
-    )
+    abstract_result_inst = DeclareConstOp(instance_return_type)
     abstract_result_inst_constraint = CallOp.get(
         get_inst_constraint[result_width].results[0],
         [abstract_result.results[0], abstract_result_inst.results[0]],
@@ -896,9 +869,6 @@ def main() -> None:
                     width_to_getConstraint,
                     width_to_getInstanceConstraint,
                     op_constraint,
-                    width,
-                    args_width,
-                    result_width,
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
