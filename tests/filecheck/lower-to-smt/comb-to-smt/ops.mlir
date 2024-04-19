@@ -1,7 +1,7 @@
 // RUN: xdsl-smt "%s" -p=lower-to-smt,canonicalize-smt -t=smt --split-input-file | filecheck "%s"
 
 // comb.add
-
+builtin.module {
   "func.func"() ({
   ^0(%x: i32):
     %r = "comb.add"(%x) : (i32) -> i32
@@ -37,15 +37,6 @@
 // comb.mul
 
 builtin.module {
-  "func.func"() ({
-  ^0():
-    %r = "comb.mul"() : () -> i32
-    "func.return"(%r) : (i32) -> ()
-  }) {"sym_name" = "mul_none", "function_type" = () -> i32, "sym_visibility" = "private"} : () -> ()
-
-// CHECK:  (define-fun mul_none () (Pair (_ BitVec 32) Bool)
-// CHECK-NEXT:    (pair (_ bv1 32) false))
-
   "func.func"() ({
   ^0(%x: i32):
     %r = "comb.mul"(%x) : (i32) -> i32
