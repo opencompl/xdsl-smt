@@ -163,7 +163,7 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
     args: VarOperand = var_operand_def()
 
     @staticmethod
-    def get(func: Operand, args: list[Operand]) -> CallOp:
+    def get(func: Operand, args: Sequence[Operand]) -> CallOp:
         if not isinstance(func.type, FunctionType):
             raise Exception("Expected function type, got ", func.type)
         return CallOp.build(
