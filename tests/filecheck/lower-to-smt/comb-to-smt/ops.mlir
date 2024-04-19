@@ -8,7 +8,7 @@ builtin.module {
     "func.return"(%r) : (i32) -> ()
   }) {"sym_name" = "add_one", "function_type" = (i32) -> i32, "sym_visibility" = "private"} : () -> ()
 
-// CHECK-NEXT:  (define-fun add_one (({{.*}} (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
+// CHECK:  (define-fun add_one (({{.*}} (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:    (pair (first {{.*}}) (second {{.*}})))
 
 
@@ -43,7 +43,7 @@ builtin.module {
     "func.return"(%r) : (i32) -> ()
   }) {"sym_name" = "mul_one", "function_type" = (i32) -> i32, "sym_visibility" = "private"} : () -> ()
 
-// CHECK-NEXT:  (define-fun mul_one (({{.*}} (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
+// CHECK:  (define-fun mul_one (({{.*}} (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
 // CHECK-NEXT:    (pair (first {{.*}}) (second {{.*}})))
 
 
