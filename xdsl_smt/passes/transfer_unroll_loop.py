@@ -1,32 +1,14 @@
-from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
     op_type_rewrite_pattern,
 )
-from xdsl.ir import Operation
 
-from ..dialects import smt_bitvector_dialect as smt_bv
-from ..dialects import smt_dialect as smt
 from ..dialects import transfer
-from xdsl.ir import Attribute
-from .lower_to_smt import LowerToSMT
-from ..dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
-from xdsl_smt.dialects.smt_dialect import BoolType, CallOp, DefineFunOp, ReturnOp
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.func import FuncOp, Call, Return
-from xdsl.ir import MLContext, Operation
-from xdsl.ir import Operation, Region, SSAValue, Attribute
+from xdsl.ir import MLContext, SSAValue
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
-from xdsl.dialects.builtin import (
-    ArrayAttr,
-    IndexType,
-    IntegerAttr,
-    IntegerType,
-    i1,
-    AnyAttr,
-)
 
 
 class ConstRangeForOpPattern(RewritePattern):
