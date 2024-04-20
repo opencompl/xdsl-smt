@@ -11,5 +11,7 @@ class ConstantOp(IRDLOperation):
     def __init__(self, type: Attribute):
         super().__init__(result_types=[type])
 
+    assembly_format = "attr-dict `:` type($res)"
 
-SynthDialect = Dialect("smt.synth", [ConstantOp])
+
+SMTSynthDialect = Dialect("smt.synth", [ConstantOp])

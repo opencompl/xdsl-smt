@@ -2,9 +2,13 @@
 
 import argparse
 import sys
+from typing import Sequence
 
-from xdsl.ir import MLContext, Operation
+from xdsl.ir import Attribute, BlockArgument, MLContext, Operation, SSAValue
 from xdsl.parser import Parser
+from xdsl.utils.hints import isa
+
+from xdsl_smt.dialects import synth_dialect
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
@@ -24,8 +28,9 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
 from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
-from xdsl.dialects.func import Func
+from xdsl.dialects.func import Func, FuncOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.builder import Builder, ImplicitBuilder
@@ -42,6 +47,11 @@ from ..passes.lower_to_smt import (
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..traits.smt_printer import print_to_smtlib
+from xdsl_smt.dialects import smt_bitvector_dialect
+
+from xdsl_smt.dialects import smt_dialect
+
+from xdsl_smt.dialects import smt_utils_dialect
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -62,12 +72,30 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
 
 def insert_function_refinement(
-    func: DefineFunOp, func_after: DefineFunOp, builder: Builder
+    func: DefineFunOp,
+    func_after: DefineFunOp,
+    builder: Builder,
 ) -> None:
     """
     Create operations to check that one function refines another.
     An assert check is added to the end of the list of operations.
     """
+
+    synth_types = func_after.func_type.inputs.data[len(func.func_type.inputs.data) :]
+    synth_values: list[SSAValue] = []
+
+    with ImplicitBuilder(builder):
+        for type in synth_types:
+            # Current hack to make this work for poison values
+            assert isa(
+                type,
+                smt_utils_dialect.PairType[
+                    smt_bitvector_dialect.BitVectorType, smt_dialect.BoolType
+                ],
+            )
+            const_value = smt_dialect.DeclareConstOp(type.first).res
+            no_poison = smt_dialect.ConstantBoolOp(False).res
+            synth_values.append(smt_utils_dialect.PairOp(const_value, no_poison).res)
 
     with ImplicitBuilder(builder):
         forall = ForallOp.from_variables([arg.type for arg in func.body.blocks[0].args])
@@ -77,7 +105,7 @@ def insert_function_refinement(
     with ImplicitBuilder(forall.regions[0].block):
         # Call both operations
         func_call = CallOp.get(func.results[0], args)
-        func_call_after = CallOp.get(func_after.results[0], args)
+        func_call_after = CallOp.get(func_after.results[0], [*args, *synth_values])
 
         # Get the function return values and poison
         ret_value = FirstOp(func_call.res)
@@ -94,6 +122,30 @@ def insert_function_refinement(
         YieldOp(refinement.res)
 
 
+def move_synth_constants_to_arguments(func: FuncOp) -> Sequence[Attribute]:
+    """Move smt.synth.constant operations to the end of the function arguments."""
+    synth_ops: list[synth_dialect.ConstantOp] = []
+    arg_types: list[Attribute] = []
+    block_arguments: list[BlockArgument] = []
+
+    for op in func.walk():
+        if isinstance(op, synth_dialect.ConstantOp):
+            synth_ops.append(op)
+            arg_types.append(op.res.type)
+            block_arguments.append(
+                func.body.blocks[0].insert_arg(op.res.type, len(func.args))
+            )
+
+    for op, value in zip(synth_ops, block_arguments):
+        op.res.replace_by(value)
+        op.detach()
+        op.erase()
+
+    func.update_function_type()
+
+    return arg_types
+
+
 def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
@@ -107,6 +159,7 @@ def main() -> None:
     ctx.load_dialect(SMTDialect)
     ctx.load_dialect(SMTBitVectorDialect)
     ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(SMTSynthDialect)
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
     ctx.load_dialect(LLVM)
@@ -135,6 +188,11 @@ def main() -> None:
     ]
     LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
     LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
+
+    # Move smt.synth.constant to function arguments
+    func_after = module_after.ops.first
+    assert isinstance(func_after, FuncOp)
+    move_synth_constants_to_arguments(func_after)
 
     # Convert both module to SMTLib
     LowerToSMT().apply(ctx, module)
