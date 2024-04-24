@@ -3,7 +3,7 @@ name = "xdsl-smt"
 version = "0.0.0"
 dependencies = [
   "z3-solver==4.12.1.0",
-  "xdsl @ git+https://git@github.com/xdslproject/xdsl@684b8efe783a7490c52142f5db2e96cbf9345bff",
+  "xdsl==0.18",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +25,7 @@ xdsl_smt = ["py.typed"]
 [project.scripts]
 xdsl-smt = "xdsl_smt.cli.xdsl_smt:main"
 xdsl-tv = "xdsl_smt.cli.xdsl_tv:main"
+xdsl-synth = "xdsl_smt.cli.xdsl_synth:main"
 xdsl-translate = "xdsl_smt.cli.xdsl_translate:main"
 verifier = "xdsl_smt.cli.verifier:main"
 verify-pdl = "xdsl_smt.cli.verify_pdl:main"

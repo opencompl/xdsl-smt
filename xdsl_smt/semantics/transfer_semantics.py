@@ -1,9 +1,6 @@
-from xdsl.irdl import IRDLOperation
 from dataclasses import dataclass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
-    RewritePattern,
-    op_type_rewrite_pattern,
 )
 from xdsl.ir import Operation
 
@@ -11,16 +8,20 @@ from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
-from xdsl.dialects.func import Call
-from xdsl_smt.dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
-from xdsl_smt.dialects.smt_dialect import BoolType, DefineFunOp, CallOp
+from xdsl_smt.dialects.smt_utils_dialect import (
+    AnyPairType,
+    PairType,
+    SecondOp,
+    FirstOp,
+    PairOp,
+)
+from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl.ir import Operation, Region, SSAValue, Attribute
-from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.parser import AnyIntegerAttr
-from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IndexType, IntegerType
+from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
@@ -42,12 +43,14 @@ def abstract_value_type_lowerer(
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = LowerToSMT.lower_type(curTy)
         if isIntegerTy:
+            assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
             curLoweredTy = curLoweredTy.first
-        result = PairType(curLoweredTy, BoolType())
+        result: AnyPairType = PairType(curLoweredTy, BoolType())
         for ty in reversed(type.get_fields()[:-1]):
             isIntegerTy = isinstance(ty, IntegerType)
             curLoweredTy = LowerToSMT.lower_type(ty)
             if isIntegerTy:
+                assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
                 curLoweredTy = curLoweredTy.first
             result = PairType(curLoweredTy, result)
         return result
