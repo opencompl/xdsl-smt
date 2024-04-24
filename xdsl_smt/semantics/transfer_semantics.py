@@ -556,6 +556,20 @@ class RepeatOpSemantics(OperationSemantics):
         return (repeatOp.res,)
 
 
+class ConcatOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        concatOp = smt_bv.ConcatOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(concatOp)
+        return (concatOp.res,)
+
+
 class ExtractOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -705,7 +719,7 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.SubOp: TrivialOpSemantics(transfer.SubOp, smt_bv.SubOp),
     transfer.NegOp: TrivialOpSemantics(transfer.NegOp, smt_bv.NotOp),
     transfer.ShlOp: TrivialOpSemantics(transfer.ShlOp, smt_bv.ShlOp),
-    transfer.ConcatOp: TrivialOpSemantics(transfer.ConcatOp, smt_bv.ConcatOp),
+    transfer.ConcatOp: ConcatOpSemantics(),
     transfer.RepeatOp: RepeatOpSemantics(),
     transfer.ExtractOp: ExtractOpSemantics(),
     transfer.UMulOverflowOp: UMulOverflowOpSemantics(),
