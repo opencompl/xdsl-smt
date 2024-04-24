@@ -96,11 +96,11 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     # print_to_smtlib(cloned_op,sys.stdout)
     LowerPairs().apply(ctx, cloned_op)
     CanonicalizeSMT().apply(ctx, cloned_op)
-    #print(cloned_op)
+    # print(cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
     # print_to_smtlib(cloned_op, sys.stdout)
-    #print(stream.getvalue())
+    # print(stream.getvalue())
 
     res = subprocess.run(
         ["z3", "-in"],
