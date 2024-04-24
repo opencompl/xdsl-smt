@@ -40,12 +40,12 @@ from xdsl.dialects.builtin import (
     Region,
     Block,
 )
-from xdsl.dialects.func import Func
+from xdsl.dialects.func import Func, FuncOp, Return, Call
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from ..passes.transfer_inline import FunctionCallInline
 import xdsl.dialects.comb as comb
-from ..utils.trans_interpreter_smt import *
+from xdsl.ir import Operation
 from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
