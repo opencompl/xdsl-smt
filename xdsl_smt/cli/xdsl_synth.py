@@ -148,6 +148,7 @@ def move_synth_constants_to_arguments(func: FuncOp) -> Sequence[Attribute]:
 
 def main() -> None:
     ctx = MLContext()
+    ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()
@@ -172,7 +173,7 @@ def main() -> None:
             f = open(file)
 
         parser = Parser(ctx, f.read())
-        module = parser.parse_op()
+        module = parser.parse_module()
         return module
 
     module = parse_file(args.before_file)
