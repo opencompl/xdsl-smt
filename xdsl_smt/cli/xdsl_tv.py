@@ -126,7 +126,7 @@ def main() -> None:
             f = open(file)
 
         parser = Parser(ctx, f.read())
-        module = parser.parse_op()
+        module = parser.parse_module()
         return module
 
     module = parse_file(args.before_file)
