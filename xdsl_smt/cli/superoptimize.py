@@ -18,6 +18,7 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 
+
 def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
     program_lines = list[bytes]()
     assert enumerator.stdout is not None
@@ -35,10 +36,9 @@ def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
         # Add the line to the program lines otherwise
         program_lines.append(output)
 
+
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
-    arg_parser.add_argument(
-        "input_file", type=str, help="path to the input file"
-    )
+    arg_parser.add_argument("input_file", type=str, help="path to the input file")
     arg_parser.add_argument(
         "--max-num-ops",
         type=int,
@@ -50,6 +50,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="The timeout passed to the SMT solver in milliseconds",
         default=8000,
     )
+
 
 def main() -> None:
     ctx = MLContext()
@@ -94,30 +95,24 @@ def main() -> None:
 
             # Call the synthesizer with the read program in stdin
             res = sp.run(
-                [
-                    "xdsl-synth",
-                    args.input_file,
-                    "-opt"
-                ],
+                ["xdsl-synth", args.input_file, "-opt"],
                 input=program,
                 stdout=sp.PIPE,
                 stderr=sp.PIPE,
             )
             if res.returncode != 0:
-                print(f"Error while synthesizing program: {res.stderr}", file=sys.stderr)
+                print(
+                    f"Error while synthesizing program: {res.stderr}", file=sys.stderr
+                )
                 continue
 
             res_z3 = sp.run(
-                [
-                    "z3",
-                    "-in",
-                    f"-T:{args.timeout}"
-                ],
+                ["z3", "-in", f"-T:{args.timeout}"],
                 input=res.stdout + b"\n(get-model)",
                 stdout=sp.PIPE,
                 stderr=sp.PIPE,
             )
-            
+
             if "model is not available" not in res_z3.stdout.decode():
                 print(f"Found candidate program: \n{program.decode()} \n")
                 print(f"With synthesized variables: \n{res_z3.stdout.decode()}\n\n")
@@ -131,7 +126,7 @@ def main() -> None:
         pass
     except Exception as e:
         print(f"Error while enumerating programs: {e}", file=sys.stderr)
-    
+
 
 if __name__ == "__main__":
     main()
