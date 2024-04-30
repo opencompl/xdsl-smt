@@ -21,6 +21,9 @@ class ConstantOp(IRDLOperation):
     value: IntegerAttr[T] = attr_def(IntegerAttr[T])
     result: OpResult = result_def(T)
 
+    def __init__(self, value: IntegerAttr[T]):
+        super().__init__(result_types=[value.type], attributes={"value": value})
+
 
 HW = Dialect(
     "hw",
