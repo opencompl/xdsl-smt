@@ -2,9 +2,12 @@
 
 import sys
 import argparse
+import re
 import subprocess as sp
 
 from xdsl.ir import MLContext
+from xdsl.parser import Parser
+from xdsl.rewriter import Rewriter
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import SMTDialect
@@ -12,11 +15,13 @@ from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
+import xdsl_smt.dialects.synth_dialect as smt_synth
 from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
-from xdsl.dialects.builtin import Builtin
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+import xdsl_smt.dialects.hw_dialect as hw
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
@@ -52,8 +57,21 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
+def replace_synth_with_constants(
+    program: ModuleOp, values: list[IntegerAttr[IntegerType]]
+) -> None:
+    synth_ops: list[smt_synth.ConstantOp] = []
+    for op in program.walk():
+        if isinstance(op, smt_synth.ConstantOp):
+            synth_ops.append(op)
+
+    for op, value in zip(synth_ops, values):
+        Rewriter.replace_op(op, hw.ConstantOp(value))
+
+
 def main() -> None:
     ctx = MLContext()
+    ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()
@@ -114,8 +132,23 @@ def main() -> None:
             )
 
             if "model is not available" not in res_z3.stdout.decode():
-                print(f"Found candidate program: \n{program.decode()} \n")
-                print(f"With synthesized variables: \n{res_z3.stdout.decode()}\n\n")
+                values_str: list[str] = re.findall(
+                    r"#([xb][0-9a-f]+)", res_z3.stdout.decode()
+                )
+                values: list[IntegerAttr[IntegerType]] = []
+                for value in values_str:
+                    if value.startswith("x"):
+                        val = int(value[1:], 16)
+                        bitwidth = len(value[1:]) * 4
+                    else:
+                        val = int(value[1:], 2)
+                        bitwidth = len(value[1:])
+                    values.append(IntegerAttr(val, bitwidth))
+
+                mlir_program = Parser(ctx, program.decode()).parse_module()
+                replace_synth_with_constants(mlir_program, values)
+
+                print(mlir_program)
 
             # Set a character to the enumerator to continue
             assert enumerator.stdin is not None
