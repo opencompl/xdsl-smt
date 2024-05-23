@@ -140,34 +140,69 @@ def splitAndStrip(s: str, delimiter: str) -> list[str]:
     tokens = list(filter(lambda token: len(token) != 0, tokens))
     return tokens
 
+class DSLType:
+    def __init__(self, ty:str) -> None:
+        self.type=ty
+        self.typeStr:dict[str,str]={}
+
+    @staticmethod
+    def parseType(s:str):
+        return DSLType(s)
+
+    def toStr(self)->str:
+        if self.type in self.typeStr:
+            return self.typeStr[self.type]
+        #achieve by replacement
+        mlirTy=self.type
+        #index -> index
+        #int -> !transfer.integer
+        #tuple -> !transfer.abs_value
+        #< -> <[
+        #> -> ]>
+        mlirTy.replace("tuple", "!transfer.abs_value")
+        mlirTy.replace("int", "!transfer.integer")
+        mlirTy.replace("<", "<[")
+        mlirTy.replace(">", "]>")
+        self.typeStr[self.type]=mlirTy
+        return mlirTy
 
 class DSLValue:
-    def __init__(self, name: str, type: str) -> None:
+    def __init__(self, name: str, ty:DSLType) -> None:
         self.name = name
-        self.type = type
+        self.type = ty
 
     @staticmethod
     def parseValue(s: str):
         assert ":" in s
         tokens = splitAndStrip(s, ":")
         assert len(tokens) == 2
-        return DSLValue(tokens[0], tokens[1])
-
-
+        return DSLValue(tokens[0], DSLType.parseType(tokens[1]))
+    
+    def getName(self)->str:
+        return "%"+self.name
+    
+    def getType(self)->str:
+        return self.type.toStr()
+    
+    def toStr(self)->str:
+        return self.getName() + " : "+self.getType()
+    
 class DSLAttribute:
-    def __init__(self, name: str, val: str, type: str) -> None:
+    def __init__(self, name: str, val: str, ty: DSLType) -> None:
         self.val = val
         self.name = name
-        self.type = type
+        self.type = ty
 
     @staticmethod
     def parseAttribute(s: str):
         # we only support index type for now
-        type = "index"
         assert "=" in s
         tokens = splitAndStrip(s, "=")
         assert len(tokens) == 2
-        return DSLAttribute(tokens[0], tokens[1], type)
+        return DSLAttribute(tokens[0], tokens[1], DSLType("index"))
+    
+    def toStr(self) -> str:
+        return self.name+" = "+self.val+" : "+self.type.toStr()
 
 
 # a:tuple<int,int>, b:int should be a:tuple<int,int> and b:int
@@ -191,6 +226,17 @@ def splitToken(s: str, delimiter: str) -> list[str]:
     return result
 
 
+def generateOperationType(args:list[DSLValue], results:list[DSLValue])->str:
+    argsType:list[str]=[arg.getType() for arg in args]
+    argsTypeStr=collectWithDelimiter(argsType, ",")
+
+    resultsType:list[str]=[res.getType() for res in results]
+    resultsTypeStr=collectWithDelimiter(resultsType, ",")
+    if len(resultsType) !=1:
+        resultsTypeStr="("+resultsTypeStr+")"
+
+    return "("+argsTypeStr+") -> "+resultsTypeStr
+
 class DSLOperation:
     def __init__(
         self,
@@ -206,6 +252,10 @@ class DSLOperation:
 
     @staticmethod
     def parseOperation(s: str, valueMap: dict[str, DSLValue]):
+        #special handling on return
+        if s.startswith("return"):
+            pass
+
         # a : tuple<int,int> = foo b, c, index=5
         firstEq = s.find("=")
         # a : tuple<int,int>
@@ -230,6 +280,22 @@ class DSLOperation:
                 assert arg in valueMap
                 args.append(valueMap[arg])
         return DSLOperation(opName, args, attrs, results)
+    
+    def toStr(self) -> str:
+        resultsName:list[str]=[res.getName() for res in self.results]
+        argsName:list[str]=[arg.getName() for arg in self.args]
+        attrs:list[str]=[attr.toStr() for attr in self.attrs]
+        resultsStr=collectWithDelimiter(resultsName, ",")        
+        argsStr=collectWithDelimiter(argsName, ",")
+        typeStr=generateOperationType(self.args, self.results)
+    
+        if self.opName=="return":
+            return '"func.return"('+argsStr+") : "+typeStr
+
+        attrsStr=""
+        if len(attrs) > 0:
+            attrsStr="{"+collectWithDelimiter(attrs, ",") +"}"
+        return indent+resultsStr+" = "+self.opName+"("+argsStr+")"+attrsStr+" : "+typeStr
 
 
 FUNC_DEF_KEYWORD = "def"
@@ -270,6 +336,28 @@ class DSLFuncntion:
             for res in operations[-1].results:
                 valueMap[res.name] = res
         return DSLFuncntion(funcName, args, operations)
+    
+    def toStr(self) -> str:
+        global indent
+        functionHead=indent+'"func.func"() ({\n'
+        argsStr:list[str]=[arg.toStr() for arg in self.args]
+
+        blockHead=indent+'^bb0({args}):\n'.format(args=collectWithDelimiter(argsStr, ","))
+
+        
+        indent+="\t"
+        body=''
+        for op in self.operations:
+            body+=op.toStr()
+            body+="\n"
+        indent=indent[:-1]
+
+        returnVal=self.operations[-1].args
+        assert self.operations[-1].opName=="return"
+        funcType=generateOperationType(self.args,returnVal)
+        #need handle return
+        functionEnd='}}) {{function_type ={func_ty}, sym_name = "{func_name}" }} : () -> ()'.format(func_name=self.funcName, func_ty=funcType)
+        return functionHead+blockHead+body+functionEnd
 
 
 class DSLModule:
@@ -289,6 +377,22 @@ class DSLModule:
                 functions.append(DSLFuncntion.parseFunction(lines[lastIdx:idx]))
                 isInFunc = False
         return DSLModule(functions)
+    
+    def toStr(self) -> str:
+        moduleHead='"builtin.module"() ({\n'
+        global indent
+        indent+="\t"
+
+        body=""
+        for func in self.functions:
+            body+=func.toStr()
+            body+="\n"
+
+        indent=indent[:-1]
+        #maybe need add attr "builtin.NEED_VERIFY"=[["MUL","MULImpl"]]
+        moduleEnd='}): () -> ()\n'
+
+        return moduleHead+body+moduleEnd
 
 
 def parseDSLModule(lines: list[str]) -> DSLModule:
@@ -319,8 +423,6 @@ def main():
         module = parser.parse_module()
         return module
 
-    def parse_dsl(file: str) -> list[str]:
-        return []
 
     module = None
     if args.toDSL:
@@ -345,6 +447,13 @@ def main():
         else:
             print(parser.lowerModule())
     elif args.toMLIR:
-        module = []
+        with open(args.input) as input:
+            lines=input.readlines()
+            dslModule=parseDSLModule(lines)
+            if args.output:
+                with open(args.output) as out:
+                    out.write(dslModule.toStr())
+            else:
+                print(dslModule.toStr())
     else:
         assert "Unknown type keyword, should to 'DLS' or 'MLIR'" and False
