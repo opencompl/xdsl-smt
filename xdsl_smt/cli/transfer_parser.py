@@ -31,7 +31,7 @@ equals = " = "
 
 
 def collectWithDelimiter(lst: list[str], delimiter: str) -> str:
-    if len(lst)==0:
+    if len(lst) == 0:
         return ""
     if len(lst) > 1:
         result = lst[0]
@@ -162,10 +162,10 @@ class DSLType:
         # tuple -> !transfer.abs_value
         # < -> <[
         # > -> ]>
-        mlirTy=mlirTy.replace("tuple", "!transfer.abs_value")
-        mlirTy=mlirTy.replace("int", "!transfer.integer")
-        mlirTy=mlirTy.replace("<", "<[")
-        mlirTy=mlirTy.replace(">", "]>")
+        mlirTy = mlirTy.replace("tuple", "!transfer.abs_value")
+        mlirTy = mlirTy.replace("int", "!transfer.integer")
+        mlirTy = mlirTy.replace("<", "<[")
+        mlirTy = mlirTy.replace(">", "]>")
         self.typeStr[self.type] = mlirTy
         return mlirTy
 
@@ -260,13 +260,12 @@ class DSLOperation:
     def parseOperation(s: str, valueMap: dict[str, DSLValue]):
         # special handling on return
         if s.startswith("return"):
-            tokens=splitAndStrip(s, " ")
-            args:list[DSLValue]=[]
+            tokens = splitAndStrip(s, " ")
+            args: list[DSLValue] = []
             for token in tokens[1:]:
                 assert token in valueMap
                 args.append(valueMap[token])
-            return DSLOperation("return",args,[],[])
-
+            return DSLOperation("return", args, [], [])
 
         # a : tuple<int,int> = foo b, c, index=5
         firstEq = s.find("=")
@@ -294,13 +293,13 @@ class DSLOperation:
         return DSLOperation(opName, args, attrs, results)
 
     def toStr(self) -> str:
-        argsName: list[str] = [arg.getName() for arg in self.args]    
+        argsName: list[str] = [arg.getName() for arg in self.args]
         argsStr = collectWithDelimiter(argsName, ",")
         typeStr = generateOperationType(self.args, self.results)
 
         if self.opName == "return":
             return indent + '"func.return"(' + argsStr + ") : " + typeStr
-    
+
         resultsName: list[str] = [res.getName() for res in self.results]
         resultsStr = collectWithDelimiter(resultsName, ",")
         attrs: list[str] = [attr.toStr() for attr in self.attrs]
@@ -354,7 +353,7 @@ class DSLFuncntion:
             valueMap[args[-1].name] = args[-1]
 
         operations: list[DSLOperation] = []
-        for line in lines[1:]:            
+        for line in lines[1:]:
             operations.append(DSLOperation.parseOperation(line, valueMap))
             for res in operations[-1].results:
                 valueMap[res.name] = res
@@ -394,8 +393,8 @@ class DSLModule:
     def parseModule(lines: list[str]):
         lastIdx = 0
         isInFunc = False
-        functions: list[DSLFuncntion] = []        
-        for idx, line in enumerate(lines):            
+        functions: list[DSLFuncntion] = []
+        for idx, line in enumerate(lines):
             if line.startswith(FUNC_DEF_KEYWORD):
                 lastIdx = idx
                 isInFunc = True
@@ -475,8 +474,8 @@ def main():
         with open(args.input) as input:
             lines = input.readlines()
             for i in range(len(lines)):
-                lines[i]=lines[i].strip()
-            dslModule = parseDSLModule(lines)            
+                lines[i] = lines[i].strip()
+            dslModule = parseDSLModule(lines)
             if args.output:
                 with open(args.output) as out:
                     out.write(dslModule.toStr())
