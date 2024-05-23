@@ -250,20 +250,19 @@ class DSLFuncntion:
         # parse func signature and set value map
         args: list[DSLValue] = []
         # lines[0]:
-        # def ADDImpl(arg0 : tuple<int, int>, arg1 : tuple<int, int>) -> tuple<int, int> : 
-        funcSignature=lines[0][len(FUNC_DEF_KEYWORD):].strip()
-        firstBracket=funcSignature.find('(')
-        lastBracket=funcSignature.find(')')
+        # def ADDImpl(arg0 : tuple<int, int>, arg1 : tuple<int, int>) -> tuple<int, int> :
+        funcSignature = lines[0][len(FUNC_DEF_KEYWORD) :].strip()
+        firstBracket = funcSignature.find("(")
+        lastBracket = funcSignature.find(")")
 
-        funcName=funcSignature[:firstBracket].strip()
+        funcName = funcSignature[:firstBracket].strip()
 
         valueMap: dict[str, DSLValue] = {}
-        argsStr=funcSignature[firstBracket+1:lastBracket]
-        argsTokens=splitToken(argsStr, ",")
+        argsStr = funcSignature[firstBracket + 1 : lastBracket]
+        argsTokens = splitToken(argsStr, ",")
         for token in argsTokens:
             args.append(DSLValue.parseValue(token))
-            valueMap[args[-1].name]=args[-1]            
-        
+            valueMap[args[-1].name] = args[-1]
 
         operations: list[DSLOperation] = []
         for line in lines[1:]:
