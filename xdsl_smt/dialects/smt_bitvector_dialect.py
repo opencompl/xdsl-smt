@@ -534,6 +534,64 @@ class RepeatOp(IRDLOperation, SMTLibOp):
         print(")", file=stream, end="")
 
 
+@irdl_op_definition
+class ZeroExtendOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.zero_extend"
+
+    operand: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
+
+    def __init__(self, operand: SSAValue, res_type: BitVectorType):
+        assert isinstance(operand.type, BitVectorType)
+        assert res_type.width.data > operand.type.width.data
+
+        super().__init__(
+            result_types=[res_type],
+            operands=[operand],
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        assert isinstance(self.res.type, BitVectorType)
+        assert isinstance(self.operand.type, BitVectorType)
+        print(
+            f"((_ zero_extend {self.res.type.width.data - self.operand.type.width.data}) ",
+            file=stream,
+            end="",
+        )
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
+@irdl_op_definition
+class SignExtendOp(IRDLOperation, SMTLibOp):
+    name = "smt.bv.sign_extend"
+
+    operand: Operand = operand_def(BitVectorType)
+    res: OpResult = result_def(BitVectorType)
+
+    def __init__(self, operand: SSAValue, res_type: BitVectorType):
+        assert isinstance(operand.type, BitVectorType)
+        assert res_type.width.data > operand.type.width.data
+
+        super().__init__(
+            result_types=[res_type],
+            operands=[operand],
+        )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        """Print the operation to an SMTLib representation."""
+        assert isinstance(self.res.type, BitVectorType)
+        assert isinstance(self.operand.type, BitVectorType)
+        print(
+            f"((_ sign_extend {self.res.type.width.data - self.operand.type.width.data}) ",
+            file=stream,
+            end="",
+        )
+        ctx.print_expr_to_smtlib(self.operand, stream)
+        print(")", file=stream, end="")
+
+
 SMTBitVectorDialect = Dialect(
     "smtbv",
     [
@@ -575,6 +633,8 @@ SMTBitVectorDialect = Dialect(
         ConcatOp,
         ExtractOp,
         RepeatOp,
+        ZeroExtendOp,
+        SignExtendOp,
     ],
     [BitVectorType, BitVectorValue],
 )

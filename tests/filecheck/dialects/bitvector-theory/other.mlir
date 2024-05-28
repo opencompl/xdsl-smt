@@ -24,4 +24,14 @@ builtin.module {
   %eq_repeat = "smt.eq"(%z, %repeat) : (!smt.bv.bv<15>, !smt.bv.bv<15>) -> !smt.bool
   "smt.assert"(%eq_repeat) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= z ((_ repeat 3) x))
+
+  %zero_extend = "smt.bv.zero_extend"(%x) : (!smt.bv.bv<5>) -> !smt.bv.bv<15>
+  %eq_zero_extend = "smt.eq"(%z, %zero_extend) : (!smt.bv.bv<15>, !smt.bv.bv<15>) -> !smt.bool
+  "smt.assert"(%eq_zero_extend) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (= z ((_ zero_extend 10) x))
+
+  %sign_extend = "smt.bv.sign_extend"(%x) : (!smt.bv.bv<5>) -> !smt.bv.bv<15>
+  %eq_sign_extend = "smt.eq"(%z, %sign_extend) : (!smt.bv.bv<15>, !smt.bv.bv<15>) -> !smt.bool
+  "smt.assert"(%eq_sign_extend) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert (= z ((_ sign_extend 10) x))
 }
