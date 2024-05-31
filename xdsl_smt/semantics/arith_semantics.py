@@ -610,7 +610,7 @@ class TruncISemantics(SimplePoisonSemantics):
         return ((res.res, None),)
 
 
-class ExtuiSemantics(SimplePoisonSemantics):
+class ExtUISemantics(SimplePoisonSemantics):
     def get_simple_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -622,13 +622,9 @@ class ExtuiSemantics(SimplePoisonSemantics):
         assert isinstance(results[0], IntegerType)
         new_width = results[0].width.data
 
-        assert isinstance(operands[0].type, smt_bv.BitVectorType)
-        old_width = operands[0].type.width.data
-
-        prefix = smt_bv.ConstantOp(0, new_width - old_width)
-        res = smt_bv.ConcatOp(prefix.res, operands[0])
-        rewriter.insert_op_before_matched_op([prefix, res])
-        return ((res.res, None),)
+        op = smt_bv.ZeroExtendOp(operands[0], smt_bv.BitVectorType(new_width))
+        rewriter.insert_op_before_matched_op([op])
+        return ((op.res, None),)
 
 
 class ExtSISemantics(SimplePoisonSemantics):
@@ -643,14 +639,9 @@ class ExtSISemantics(SimplePoisonSemantics):
         assert isinstance(results[0], IntegerType)
         new_width = results[0].width.data
 
-        assert isinstance(operands[0].type, smt_bv.BitVectorType)
-        old_width = operands[0].type.width.data
-
-        sign = smt_bv.ExtractOp(operands[0], old_width - 1, old_width - 1)
-        prefix = smt_bv.RepeatOp(sign.res, new_width - old_width)
-        res = smt_bv.ConcatOp(prefix.res, operands[0])
-        rewriter.insert_op_before_matched_op([sign, prefix, res])
-        return ((res.res, None),)
+        op = smt_bv.SignExtendOp(operands[0], smt_bv.BitVectorType(new_width))
+        rewriter.insert_op_before_matched_op([op])
+        return ((op.res, None),)
 
 
 class CeilDivUISemantics(SimplePoisonSemantics):
@@ -876,7 +867,7 @@ arith_semantics: dict[type[Operation], OperationSemantics] = {
     arith.Cmpi: CmpiSemantics(),
     arith.Select: SelectSemantics(),
     arith.TruncIOp: TruncISemantics(),
-    arith.ExtUIOp: ExtuiSemantics(),
+    arith.ExtUIOp: ExtUISemantics(),
     arith.ExtSIOp: ExtSISemantics(),
     arith.CeilDivUI: CeilDivUISemantics(),
     arith.CeilDivSI: CeilDivSISemantics(),

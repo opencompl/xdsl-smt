@@ -8,6 +8,5 @@ builtin.module {
   }
 }
 
-// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (define-fun test ((x (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 64) Bool)
-// CHECK-NEXT:    (pair (concat (_ bv0 32) (first x)) (second x)))
+// CHECK:      (define-fun test ((x (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 64) Bool)
+// CHECK-NEXT:   (pair ((_ zero_extend 32) (first x)) (second x)))
