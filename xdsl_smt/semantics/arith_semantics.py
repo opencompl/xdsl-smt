@@ -138,6 +138,60 @@ OriSemantics = single_binop_semantics(smt_bv.OrOp)
 XoriSemantics = single_binop_semantics(smt_bv.XorOp)
 
 
+class MulSIExtendedSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        assert isinstance(results[0], IntegerType)
+        assert isinstance(results[1], IntegerType)
+        width = results[0].width.data
+
+        lhs_extend = smt_bv.SignExtendOp(operands[0], smt_bv.BitVectorType(width * 2))
+        rhs_extend = smt_bv.SignExtendOp(operands[1], smt_bv.BitVectorType(width * 2))
+
+        res_extend = smt_bv.MulOp(lhs_extend.res, rhs_extend.res)
+
+        low_bits = smt_bv.ExtractOp(res_extend.res, width - 1, 0)
+        high_bits = smt_bv.ExtractOp(res_extend.res, 2 * width - 1, width)
+
+        rewriter.insert_op_before_matched_op(
+            [lhs_extend, rhs_extend, res_extend, low_bits, high_bits]
+        )
+        return ((low_bits.res, None), (high_bits.res, None))
+
+
+class MulUIExtendedSemantics(SimplePoisonSemantics):
+    def get_simple_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        assert isinstance(results[0], IntegerType)
+        assert isinstance(results[1], IntegerType)
+        width = results[0].width.data
+
+        lhs_extend = smt_bv.ZeroExtendOp(operands[0], smt_bv.BitVectorType(width * 2))
+        rhs_extend = smt_bv.ZeroExtendOp(operands[1], smt_bv.BitVectorType(width * 2))
+
+        res_extend = smt_bv.MulOp(lhs_extend.res, rhs_extend.res)
+
+        low_bits = smt_bv.ExtractOp(res_extend.res, width - 1, 0)
+        high_bits = smt_bv.ExtractOp(res_extend.res, 2 * width - 1, width)
+
+        rewriter.insert_op_before_matched_op(
+            [lhs_extend, rhs_extend, res_extend, low_bits, high_bits]
+        )
+        return ((low_bits.res, None), (high_bits.res, None))
+
+
 class ShliSemantics(SimplePoisonSemantics):
     def get_simple_semantics(
         self,
@@ -803,6 +857,8 @@ arith_semantics: dict[type[Operation], OperationSemantics] = {
     arith.Addi: AddiSemantics(),
     arith.Subi: SubiSemantics(),
     arith.Muli: MuliSemantics(),
+    arith.MulSIExtended: MulSIExtendedSemantics(),
+    arith.MulUIExtended: MulUIExtendedSemantics(),
     arith.AndI: AndiSemantics(),
     arith.OrI: OriSemantics(),
     arith.XOrI: XoriSemantics(),
