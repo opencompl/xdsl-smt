@@ -24,7 +24,7 @@ CMPI_COMPARISON_OPERATIONS = [
 
 
 @irdl_op_definition
-class ICmpOp(IRDLOperation, ComparisonOperation):
+class ICmpOp(ComparisonOperation):
     name = "llvm.icmp"
     predicate: AnyIntegerAttr = prop_def(AnyIntegerAttr)
     lhs: Operand = operand_def(signlessIntegerLike)
