@@ -16,14 +16,13 @@ builtin.module {
   "smt.assert"(%func_res) : (!smt.bool) -> ()
 }
 
-// CHECK:       builtin.module {
-// CHECK-NEXT:    %0 = "smt.declare_const"() : () -> !smt.bool
-// CHECK-NEXT:    %1 = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:    %2 = "smt.declare_const"() : () -> !smt.bool
-// CHECK-NEXT:    %func = "smt.define_fun"() ({
-// CHECK-NEXT:    ^0(%arg0 : !smt.bool, %arg1 : !smt.bv.bv<32>, %arg2 : !smt.bool):
-// CHECK-NEXT:      "smt.return"(%arg0) : (!smt.bool) -> ()
-// CHECK-NEXT:    }) {"name" = "test"} : () -> ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool)
-// CHECK-NEXT:    %func_res = "smt.call"(%func, %0, %1, %2) : ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool, !smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool
-// CHECK-NEXT:    "smt.assert"(%func_res) : (!smt.bool) -> ()
-// CHECK-NEXT:  }
+// CHECK:       %const_first = "smt.declare_const"() : () -> !smt.bool
+// CHECK-NEXT:  %const_second_first = "smt.declare_const"() : () -> !smt.bv.bv<32>
+// CHECK-NEXT:  %const_second_second = "smt.declare_const"() : () -> !smt.bool
+// CHECK-NEXT:  %func = "smt.define_fun"() ({
+// CHECK-NEXT:  ^0(%arg0 : !smt.bool, %arg1 : !smt.bv.bv<32>, %arg2 : !smt.bool):
+// CHECK-NEXT:    "smt.return"(%arg0) : (!smt.bool) -> ()
+// CHECK-NEXT:  }) {"name" = "test"} : () -> ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool)
+// CHECK-NEXT:  %func_res = "smt.call"(%func, %const_first, %const_second_first, %const_second_second) : ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool, !smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  "smt.assert"(%func_res) : (!smt.bool) -> ()
+

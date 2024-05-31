@@ -174,7 +174,7 @@ class OptMain(xDSLOptMain):
 
         chunks, file_extension = self.prepare_input()
         assert len(chunks) == 1
-        chunk = chunks[0]
+        chunk = chunks[0][0]
 
         try:
             module = self.parse_chunk(chunk, file_extension)
