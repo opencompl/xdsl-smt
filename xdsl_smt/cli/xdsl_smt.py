@@ -8,6 +8,7 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
@@ -48,24 +49,14 @@ class OptMain(xDSLOptMain):
             [*PDL.operations, *PDLDataflowDialect.operations],
             [*PDL.attributes, *PDLDataflowDialect.attributes],
         )
-        SMT_COLLECTION = Dialect(
-            "smt",
-            [
-                *SMTDialect.operations,
-                *SMTBitVectorDialect.operations,
-                *SMTUtilsDialect.operations,
-            ],
-            [
-                *SMTDialect.attributes,
-                *SMTBitVectorDialect.attributes,
-                *SMTUtilsDialect.attributes,
-            ],
-        )
         self.ctx.register_dialect(Arith.name, lambda: Arith)
         self.ctx.register_dialect(Builtin.name, lambda: Builtin)
         self.ctx.register_dialect(Func.name, lambda: Func)
         self.ctx.register_dialect(Index.name, lambda: Index)
-        self.ctx.register_dialect(SMT_COLLECTION.name, lambda: SMT_COLLECTION)
+        self.ctx.register_dialect(SMTDialect.name, lambda: SMTDialect)
+        self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
+        self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
+        self.ctx.register_dialect(SMTUBDialect.name, lambda: SMTUBDialect)
         self.ctx.register_dialect(Transfer.name, lambda: Transfer)
         self.ctx.register_dialect(Hoare.name, lambda: Hoare)
         self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
