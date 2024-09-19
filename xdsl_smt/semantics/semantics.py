@@ -1,8 +1,33 @@
+from __future__ import annotations
+
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 from xdsl.ir import Attribute, Region, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
+
+
+@dataclass(frozen=True)
+class EffectStates:
+    """
+    The state of all effects. It contains a dictionary associating each handled effect
+    with their current state.
+    """
+
+    states: dict[Attribute, SSAValue]
+    """
+    A dictionary containing all effect states.
+    It is indexed by the type of each effect.
+    """
+
+    def copy(self) -> EffectStates:
+        """Copy the states of all effects."""
+        return EffectStates(self.states.copy())
+
+    def with_updated_effects(self, value: Mapping[Attribute, SSAValue]) -> EffectStates:
+        """Get new effect states updated with the given states."""
+        return EffectStates({**self.states, **value})
 
 
 class OperationSemantics:
@@ -21,10 +46,10 @@ class OperationSemantics:
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         pass
 
 

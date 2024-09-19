@@ -22,6 +22,7 @@ from xdsl.pattern_rewriter import (
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
+    EffectStates,
     OperationSemantics,
 )
 
@@ -49,11 +50,12 @@ class OperationSemanticsRewritePattern(RewritePattern):
 
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter) -> None:
         if type(op) in self.semantics:
-            res_values = self.semantics[type(op)].get_semantics(
+            assert not op.regions
+            res_values, new_effects = self.semantics[type(op)].get_semantics(
                 op.operands,
                 tuple(res.type for res in op.results),
-                op.regions,
                 {**op.attributes, **op.properties},
+                EffectStates({}),
                 rewriter,
             )
             rewriter.replace_matched_op([], res_values)

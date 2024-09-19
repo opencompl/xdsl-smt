@@ -1,14 +1,14 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Mapping, Sequence
-from xdsl.ir import Operation, Region, SSAValue, Attribute
+from xdsl.ir import Operation, SSAValue, Attribute
 from xdsl.parser import AnyIntegerAttr
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.dialects.builtin import IntegerType
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
-from xdsl_smt.semantics.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics, EffectStates
 
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
@@ -52,10 +52,10 @@ class ConstantSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
             assert isa(value_value, AnyIntegerAttr)
@@ -64,13 +64,14 @@ class ConstantSemantics(OperationSemantics):
         no_poison = smt.ConstantBoolOp.from_bool(False)
         res = smt_utils.PairOp(value_value, no_poison.res)
         rewriter.insert_op_before_matched_op([no_poison, res])
-        return (res.res,)
+        return ((res.res,), effect_states)
 
 
 @dataclass
 class SimplePoisonSemantics(OperationSemantics):
     """
     Semantics of an operation that propagates poison, and sometimes produce it.
+    Does not touch any effect.
     """
 
     @abstractmethod
@@ -78,7 +79,6 @@ class SimplePoisonSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -88,13 +88,13 @@ class SimplePoisonSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         operands, propagated_poison = reduce_poison_values(operands, rewriter)
         value_results = self.get_simple_semantics(
-            operands, results, regions, attributes, rewriter
+            operands, results, attributes, rewriter
         )
         value_with_poison_results: list[SSAValue] = []
         for value, new_poison in value_results:
@@ -108,7 +108,7 @@ class SimplePoisonSemantics(OperationSemantics):
                 rewriter.insert_op_before_matched_op([pair])
                 value_with_poison_results.append(pair.res)
 
-        return value_with_poison_results
+        return (value_with_poison_results, effect_states)
 
 
 def single_binop_semantics(
@@ -119,7 +119,6 @@ def single_binop_semantics(
             self,
             operands: Sequence[SSAValue],
             results: Sequence[Attribute],
-            regions: Sequence[Region],
             attributes: Mapping[str, Attribute | SSAValue],
             rewriter: PatternRewriter,
         ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -143,7 +142,6 @@ class MulSIExtendedSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -170,7 +168,6 @@ class MulUIExtendedSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -197,7 +194,6 @@ class ShliSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -220,7 +216,6 @@ class DivsiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -265,7 +260,6 @@ class DivuiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -294,7 +288,6 @@ class RemsiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -323,7 +316,6 @@ class RemuiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -352,7 +344,6 @@ class ShrsiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -381,7 +372,6 @@ class ShruiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -410,7 +400,6 @@ class MaxsiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -432,7 +421,6 @@ class MaxuiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -454,7 +442,6 @@ class MinsiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -476,7 +463,6 @@ class MinuiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -511,7 +497,6 @@ class CmpiSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -567,10 +552,10 @@ class SelectSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         # Get all values and poisons
         cond_val, cond_poi = get_int_value_and_poison(operands[0], rewriter)
         tr_val, tr_poi = get_int_value_and_poison(operands[1], rewriter)
@@ -590,7 +575,7 @@ class SelectSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(
             [one, to_smt_bool, res_val, br_poi, res_poi, res_op]
         )
-        return (res_op.res,)
+        return ((res_op.res,), effect_states)
 
 
 class TruncISemantics(SimplePoisonSemantics):
@@ -598,7 +583,6 @@ class TruncISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -615,7 +599,6 @@ class ExtUISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -632,7 +615,6 @@ class ExtSISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -649,7 +631,6 @@ class CeilDivUISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -694,7 +675,6 @@ class CeilDivSISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -783,7 +763,6 @@ class FloorDivSISemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:

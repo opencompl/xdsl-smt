@@ -16,7 +16,7 @@ from xdsl.dialects.pdl import (
 from xdsl.utils.hints import isa
 
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
-from xdsl_smt.semantics.semantics import RefinementSemantics
+from xdsl_smt.semantics.semantics import EffectStates, RefinementSemantics
 
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
@@ -172,8 +172,8 @@ class OperationRewrite(RewritePattern):
                 name.data: attr
                 for name, attr in zip(op.attributeValueNames, op.attribute_values)
             }
-            results = LowerToSMT.operation_semantics[op_def].get_semantics(
-                op.operand_values, result_types, op.regions, attributes, rewriter
+            results, _ = LowerToSMT.operation_semantics[op_def].get_semantics(
+                op.operand_values, result_types, attributes, EffectStates({}), rewriter
             )
             self.rewrite_context.pdl_op_to_values[op.op] = results
             rewriter.erase_matched_op(safe_erase=False)

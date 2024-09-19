@@ -4,7 +4,7 @@ from xdsl.utils.hints import isa
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
-from xdsl.ir import Attribute, Operation, Region, SSAValue
+from xdsl.ir import Attribute, Operation, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.dialects.builtin import AnyIntegerAttr, IntegerAttr, IntegerType
 import xdsl.dialects.comb as comb
@@ -15,7 +15,7 @@ from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.passes.lower_to_smt import LowerToSMT
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.semantics.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
 from xdsl_smt.semantics.arith_semantics import SimplePoisonSemantics
 
 
@@ -42,10 +42,10 @@ class ConstantSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
             assert isa(value_value, AnyIntegerAttr)
@@ -54,7 +54,7 @@ class ConstantSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(poison_op)
         res_op = smt_utils.PairOp(value_value, poison_op.res)
         rewriter.insert_op_before_matched_op(res_op)
-        return (res_op.res,)
+        return ((res_op.res,), effect_states)
 
 
 @dataclass
@@ -67,7 +67,6 @@ class VariadicSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -100,7 +99,6 @@ class TrivialBinOpSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -118,7 +116,6 @@ class ICmpSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -222,7 +219,6 @@ class ParitySemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -249,7 +245,6 @@ class ExtractSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -279,7 +274,6 @@ class ReplicateSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
@@ -301,7 +295,6 @@ class MuxSemantics(SimplePoisonSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
