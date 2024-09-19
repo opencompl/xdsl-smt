@@ -51,7 +51,7 @@ class OperationSemanticsRewritePattern(RewritePattern):
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter) -> None:
         if type(op) in self.semantics:
             assert not op.regions
-            res_values, new_effects = self.semantics[type(op)].get_semantics(
+            res_values, _ = self.semantics[type(op)].get_semantics(
                 op.operands,
                 tuple(res.type for res in op.results),
                 {**op.attributes, **op.properties},
