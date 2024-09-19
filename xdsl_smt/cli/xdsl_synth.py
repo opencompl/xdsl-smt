@@ -4,7 +4,8 @@ import argparse
 import sys
 from typing import Sequence
 
-from xdsl.ir import Attribute, BlockArgument, MLContext, Operation, SSAValue
+from xdsl.ir import Attribute, BlockArgument, Operation, SSAValue
+from xdsl.context import MLContext
 from xdsl.parser import Parser
 from xdsl.utils.hints import isa
 

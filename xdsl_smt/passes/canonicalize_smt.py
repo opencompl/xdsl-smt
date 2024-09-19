@@ -7,7 +7,8 @@ for the SMT dialects
 """
 
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.ir import MLContext, OpResult, Operation, SSAValue
+from xdsl.ir import OpResult, Operation, SSAValue
+from xdsl.context import MLContext
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,

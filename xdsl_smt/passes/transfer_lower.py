@@ -4,7 +4,8 @@ from functools import singledispatch
 from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
-from xdsl.ir import Operation, MLContext
+from xdsl.ir import Operation
+from xdsl.context import MLContext
 from ..utils.lower_utils import (
     lowerOperation,
     CPP_CLASS_KEY,

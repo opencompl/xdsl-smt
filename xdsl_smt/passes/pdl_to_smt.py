@@ -22,7 +22,8 @@ from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
 from ..dialects import smt_utils_dialect as smt_utils
 
-from xdsl.ir import Attribute, ErasedSSAValue, MLContext, Operation, SSAValue
+from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
+from xdsl.context import MLContext
 
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,

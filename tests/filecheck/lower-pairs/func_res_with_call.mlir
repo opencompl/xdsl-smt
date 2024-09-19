@@ -22,21 +22,23 @@
 }) : () -> ()
 
 
-// CHECK:       %0 = "smt.define_fun"() ({
-// CHECK-NEXT:  ^0(%arg : !smt.bool):
-// CHECK-NEXT:    %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
-// CHECK-NEXT:    "smt.return"(%1) : (!smt.bool) -> ()
-// CHECK-NEXT:  }) {"fun_name" = "test_second_second"} : () -> ((!smt.bool) -> !smt.bool)
-// CHECK-NEXT:  %2 = "smt.define_fun"() ({
-// CHECK-NEXT:  ^1(%3 : !smt.bool):
-// CHECK-NEXT:    %4 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<3: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:    "smt.return"(%4) : (!smt.bv.bv<32>) -> ()
-// CHECK-NEXT:  }) {"fun_name" = "test_second_first"} : () -> ((!smt.bool) -> !smt.bv.bv<32>)
-// CHECK-NEXT:  %5 = "smt.define_fun"() ({
-// CHECK-NEXT:  ^2(%6 : !smt.bool):
-// CHECK-NEXT:    %7 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
-// CHECK-NEXT:    "smt.return"(%7) : (!smt.bool) -> ()
-// CHECK-NEXT:  }) {"fun_name" = "test_first"} : () -> ((!smt.bool) -> !smt.bool)
-// CHECK-NEXT:  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
-// CHECK-NEXT:  %8 = "smt.call"(%0, %true) : ((!smt.bool) -> !smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  "smt.assert"(%8) : (!smt.bool) -> ()
+// CHECK:       builtin.module {
+// CHECK-NEXT:    %0 = "smt.define_fun"() ({
+// CHECK-NEXT:    ^0(%arg : !smt.bool):
+// CHECK-NEXT:      %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:      "smt.return"(%1) : (!smt.bool) -> ()
+// CHECK-NEXT:    }) {"fun_name" = "test_second_second"} : () -> ((!smt.bool) -> !smt.bool)
+// CHECK-NEXT:    %2 = "smt.define_fun"() ({
+// CHECK-NEXT:    ^1(%arg_1 : !smt.bool):
+// CHECK-NEXT:      %3 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<3: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:      "smt.return"(%3) : (!smt.bv.bv<32>) -> ()
+// CHECK-NEXT:    }) {"fun_name" = "test_second_first"} : () -> ((!smt.bool) -> !smt.bv.bv<32>)
+// CHECK-NEXT:    %4 = "smt.define_fun"() ({
+// CHECK-NEXT:    ^2(%arg_2 : !smt.bool):
+// CHECK-NEXT:      %5 = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:      "smt.return"(%5) : (!smt.bool) -> ()
+// CHECK-NEXT:    }) {"fun_name" = "test_first"} : () -> ((!smt.bool) -> !smt.bool)
+// CHECK-NEXT:    %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:    %6 = "smt.call"(%0, %true) : ((!smt.bool) -> !smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    "smt.assert"(%6) : (!smt.bool) -> ()
+// CHECK-NEXT:  }

@@ -63,6 +63,10 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Comb.name, lambda: Comb)
         self.ctx.register_dialect(HW.name, lambda: HW)
         self.ctx.register_dialect(LLVM.name, lambda: LLVM)
+        self.ctx.load_registered_dialect(SMTDialect.name)
+        self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
+        self.ctx.load_registered_dialect(SMTUtilsDialect.name)
+        self.ctx.load_registered_dialect(SMTUBDialect.name)
 
     def register_all_passes(self):
         super().register_all_passes()

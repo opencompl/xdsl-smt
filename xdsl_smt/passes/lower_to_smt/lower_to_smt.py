@@ -9,7 +9,8 @@ from functools import reduce
 from typing import Callable, ClassVar
 
 from xdsl.passes import ModulePass
-from xdsl.ir import Attribute, MLContext, Operation
+from xdsl.ir import Attribute, Operation
+from xdsl.context import MLContext
 from xdsl.dialects.builtin import IntegerType, ModuleOp
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,

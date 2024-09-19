@@ -6,7 +6,8 @@ from xdsl.pattern_rewriter import (
 
 from ..dialects import transfer
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.ir import MLContext, SSAValue
+from xdsl.ir import SSAValue
+from xdsl.context import MLContext
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
 

@@ -29,7 +29,7 @@ class CreateStateOp(IRDLOperation):
 
     name = "smt_ub.create_state"
 
-    res = result_def(UBStateType)
+    res = result_def(UBStateType())
 
     assembly_format = "attr-dict"
 
@@ -40,8 +40,8 @@ class TriggerOp(IRDLOperation):
 
     name = "smt_ub.trigger"
 
-    state = operand_def(UBStateType)
-    res = result_def(UBStateType)
+    state = operand_def(UBStateType())
+    res = result_def(UBStateType())
 
     assembly_format = "$state attr-dict"
 
@@ -55,8 +55,8 @@ class ToBoolOp(IRDLOperation):
 
     name = "smt_ub.to_bool"
 
-    state = operand_def(UBStateType)
-    res = result_def(BoolType)
+    state = operand_def(UBStateType())
+    res = result_def(BoolType())
 
     assembly_format = "$state attr-dict"
 

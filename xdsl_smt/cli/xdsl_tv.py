@@ -3,7 +3,8 @@
 import argparse
 import sys
 
-from xdsl.ir import MLContext, Operation, SSAValue
+from xdsl.context import MLContext
+from xdsl.ir import Operation, SSAValue
 from xdsl.parser import Parser
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect

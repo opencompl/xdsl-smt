@@ -9,7 +9,8 @@ import argparse
 
 from io import StringIO
 from typing import Iterable
-from xdsl.ir import Dialect, MLContext
+from xdsl.ir import Dialect
+from xdsl.context import MLContext
 
 from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
 from xdsl.dialects.func import Func

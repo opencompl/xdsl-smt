@@ -6,7 +6,8 @@ It also duplicate arguments that are pairs, into two arguments.
 
 from typing import cast
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
-from xdsl.ir import Attribute, MLContext
+from xdsl.ir import Attribute
+from xdsl.context import MLContext
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     PatternRewriteWalker,

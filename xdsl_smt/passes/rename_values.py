@@ -2,7 +2,8 @@ from xdsl.dialects.func import FuncOp
 from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
-from xdsl.ir import Operation, MLContext
+from xdsl.ir import Operation
+from xdsl.context import MLContext
 
 from xdsl.pattern_rewriter import (
     RewritePattern,

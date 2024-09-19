@@ -15,7 +15,8 @@ from ..dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
 from xdsl_smt.dialects.smt_dialect import BoolType, CallOp, DefineFunOp, ReturnOp
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.func import FuncOp, Call, Return
-from xdsl.ir import MLContext, Operation
+from xdsl.ir import Operation
+from xdsl.context import MLContext
 from xdsl.ir import Operation, Region, SSAValue, Attribute
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
