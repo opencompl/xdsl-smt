@@ -17,7 +17,7 @@ from xdsl_smt.dialects.smt_utils_dialect import (
 )
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
-from xdsl.ir import Operation, Region, SSAValue, Attribute
+from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.parser import AnyIntegerAttr
