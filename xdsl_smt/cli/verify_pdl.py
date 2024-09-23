@@ -38,7 +38,7 @@ from ..dialects.llvm_dialect import LLVM
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
-    LowerToSMT,
+    SMTLowerer,
     integer_poison_type_lowerer,
 )
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
@@ -209,14 +209,13 @@ class OptMain(xDSLOptMain):
 
 
 def main() -> None:
-    LowerToSMT.rewrite_patterns = [
-        *transfer_to_smt_patterns,
-        *func_to_smt_patterns,
-        *llvm_to_smt_patterns,
-    ]
-    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
-    LowerToSMT.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
+    SMTLowerer.rewrite_patterns = {
+        **transfer_to_smt_patterns,
+        **func_to_smt_patterns,
+    }
+    SMTLowerer.type_lowerers = [integer_poison_type_lowerer]
+    SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints

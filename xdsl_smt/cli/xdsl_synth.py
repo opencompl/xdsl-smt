@@ -10,6 +10,7 @@ from xdsl.parser import Parser
 from xdsl.utils.hints import isa
 
 from xdsl_smt.dialects import synth_dialect
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
@@ -39,7 +40,7 @@ from xdsl.builder import Builder, ImplicitBuilder
 from ..passes.lower_pairs import LowerPairs
 from ..passes.canonicalize_smt import CanonicalizeSMT
 from ..passes.lower_to_smt import (
-    LowerToSMT,
+    LowerToSMTPass,
     transfer_to_smt_patterns,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
@@ -183,13 +184,12 @@ def main() -> None:
     assert isinstance(module, ModuleOp)
     assert isinstance(module_after, ModuleOp)
 
-    LowerToSMT.rewrite_patterns = [
-        *transfer_to_smt_patterns,
-        *func_to_smt_patterns,
-        *llvm_to_smt_patterns,
-    ]
-    LowerToSMT.type_lowerers = [integer_poison_type_lowerer]
-    LowerToSMT.operation_semantics = {**arith_semantics, **comb_semantics}
+    SMTLowerer.rewrite_patterns = {
+        **transfer_to_smt_patterns,
+        **func_to_smt_patterns,
+    }
+    SMTLowerer.type_lowerers = [integer_poison_type_lowerer]
+    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
     # Move smt.synth.constant to function arguments
     func_after = module_after.ops.first
@@ -197,8 +197,8 @@ def main() -> None:
     move_synth_constants_to_arguments(func_after)
 
     # Convert both module to SMTLib
-    LowerToSMT().apply(ctx, module)
-    LowerToSMT().apply(ctx, module_after)
+    LowerToSMTPass().apply(ctx, module)
+    LowerToSMTPass().apply(ctx, module_after)
 
     # Collect the function from both modules
     if (

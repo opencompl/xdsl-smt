@@ -16,7 +16,7 @@ from xdsl_smt.semantics.arith_semantics import (
     reduce_poison_values,
     get_int_value_and_poison,
 )
-from xdsl_smt.passes.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt import SMTLowerer
 
 
 class ReturnPattern(RewritePattern):
@@ -40,11 +40,11 @@ class FuncToSMTPattern(RewritePattern):
             raise Exception("Cannot convert multi-block functions")
 
         operand_types = [
-            LowerToSMT.lower_type(input) for input in op.function_type.inputs.data
+            SMTLowerer.lower_type(input) for input in op.function_type.inputs.data
         ]
         if op.function_type.output == LLVMVoidType():
             raise Exception("Cannot convert void functions")
-        result_type = LowerToSMT.lower_types(op.function_type.output)
+        result_type = SMTLowerer.lower_types(op.function_type.output)
 
         # The SMT function replacing the func.func function
         smt_func = smt.DefineFunOp.from_function_type(

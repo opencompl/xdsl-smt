@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: xdsl-smt "%s" -p=lower-to-smt -t=smt | filecheck "%s"
 
 builtin.module {

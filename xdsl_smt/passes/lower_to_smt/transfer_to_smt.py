@@ -1,16 +1,18 @@
+from __future__ import annotations
+
+from abc import abstractmethod
+from typing import Generic, TypeVar
 from xdsl.irdl import IRDLOperation
-from xdsl.pattern_rewriter import (
-    PatternRewriter,
-    RewritePattern,
-    op_type_rewrite_pattern,
-)
+from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.ir import Operation
+
+from xdsl_smt.semantics.semantics import EffectStates
 
 from ...dialects import smt_bitvector_dialect as smt_bv
 from ...dialects import smt_dialect as smt
 from ...dialects import transfer
 from xdsl.ir import Attribute
-from .lower_to_smt import LowerToSMT
+from .lower_to_smt import SMTLowerer, SMTLoweringRewritePattern
 from xdsl.dialects.func import Call
 from ...dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
 from xdsl_smt.dialects.smt_dialect import BoolType, DefineFunOp, CallOp
@@ -31,9 +33,11 @@ def abstract_value_type_lowerer(
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
     if isinstance(type, transfer.AbstractValueType):
-        result = PairType(LowerToSMT.lower_type(type.get_fields()[-1]), BoolType())
+        result: PairType[Attribute, Attribute] = PairType(
+            SMTLowerer.lower_type(type.get_fields()[-1]), BoolType()
+        )
         for ty in reversed(type.get_fields()[:-1]):
-            result = PairType(LowerToSMT.lower_type(ty), result)
+            result = PairType[Attribute, Attribute](SMTLowerer.lower_type(ty), result)
         return result
     return None
 
@@ -48,26 +52,69 @@ def transfer_integer_type_lowerer(
 
 def trivial_pattern(
     match_type: type[IRDLOperation], rewrite_type: type[IRDLOperation]
-) -> RewritePattern:
-    class TrivialBinOpPattern(RewritePattern):
-        def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter) -> None:
-            if not isinstance(op, match_type):
-                return
+) -> SMTLoweringRewritePattern:
+    class TrivialBinOpPattern(SMTLoweringRewritePattern):
+        def rewrite(
+            self,
+            op: Operation,
+            effect_states: EffectStates,
+            rewriter: PatternRewriter,
+            smt_lowerer: SMTLowerer,
+        ) -> EffectStates:
+            assert isinstance(op, match_type)
             # TODO: How to handle multiple results, or results with different types?
             new_op = rewrite_type.create(
                 operands=op.operands,
                 result_types=[op.operands[0].type],
             )
             rewriter.replace_matched_op([new_op])
+            return effect_states
 
     return TrivialBinOpPattern()
 
 
-class UMulOverflowOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
-        self, op: transfer.UMulOverflowOp, rewriter: PatternRewriter
-    ) -> None:
+_OpType = TypeVar("_OpType", bound=Operation)
+
+
+class SMTPureLoweringPattern(Generic[_OpType], SMTLoweringRewritePattern):
+    op_type: type[_OpType]
+
+    @abstractmethod
+    def rewrite_pure(
+        self,
+        op: _OpType,
+        rewriter: PatternRewriter,
+    ): ...
+
+    def rewrite(
+        self: SMTPureLoweringPattern[_OpType],
+        op: Operation,
+        effect_states: EffectStates,
+        rewriter: PatternRewriter,
+        smt_lowerer: SMTLowerer,
+    ) -> EffectStates:
+        assert isinstance(op, self.op_type)
+        self.rewrite_pure(op, rewriter)
+        return effect_states
+
+
+def smt_pure_lowering_pattern(
+    op_type: type[_OpType],
+) -> type[SMTPureLoweringPattern[_OpType]]:
+    class SMTPureLoweringPatternImpl(SMTPureLoweringPattern[op_type]):
+        def __init__(self):
+            self.op_type = op_type
+
+    return SMTPureLoweringPatternImpl
+
+
+class UMulOverflowOpPattern(smt_pure_lowering_pattern(transfer.UMulOverflowOp)):
+    def rewrite_pure(
+        self,
+        op: transfer.UMulOverflowOp,
+        rewriter: PatternRewriter,
+    ):
+        assert isinstance(op, transfer.UMulOverflowOp)
         suml_nooverflow = smt_bv.UmulNoOverflowOp.get(op.operands[0], op.operands[1])
 
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)
@@ -80,7 +127,7 @@ class UMulOverflowOpPattern(RewritePattern):
         )
 
 
-class CmpOpPattern(RewritePattern):
+class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
     new_ops = [
         smt.EqOp,
         smt.EqOp,
@@ -94,8 +141,7 @@ class CmpOpPattern(RewritePattern):
         smt_bv.UgeOp,
     ]
 
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.CmpOp, rewriter: PatternRewriter) -> None:
+    def rewrite_pure(self, op: transfer.CmpOp, rewriter: PatternRewriter) -> None:
         predicate = op.predicate.value.data
 
         rewrite_type = self.new_ops[predicate]
@@ -120,9 +166,8 @@ class CmpOpPattern(RewritePattern):
         # return resList
 
 
-class GetOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.GetOp, rewriter: PatternRewriter) -> None:
+class GetOpPattern(smt_pure_lowering_pattern(transfer.GetOp)):
+    def rewrite_pure(self, op: transfer.GetOp, rewriter: PatternRewriter) -> None:
         index = op.index.value.data
         arg = op.operands[0]
         insertOps: list[Operation] = []
@@ -136,9 +181,8 @@ class GetOpPattern(RewritePattern):
         rewriter.replace_matched_op([new_op])
 
 
-class MakeOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.MakeOp, rewriter: PatternRewriter) -> None:
+class MakeOpPattern(smt_pure_lowering_pattern(transfer.MakeOp)):
+    def rewrite_pure(self, op: transfer.MakeOp, rewriter: PatternRewriter) -> None:
         argList = op.arguments
         # The last element is useless, getOp won't access it
         # So it can be any bool value
@@ -155,13 +199,12 @@ class MakeOpPattern(RewritePattern):
         rewriter.replace_matched_op(opList[-1])
 
 
-class GetBitWidthOpPattern(RewritePattern):
+class GetBitWidthOpPattern(smt_pure_lowering_pattern(transfer.GetBitWidthOp)):
     """1. There is no direct API to obtain the bit width of a vector.
     2. All bit width are fixed values.
     As a result, we replace this method with a constant."""
 
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
+    def rewrite_pure(
         self, op: transfer.GetBitWidthOp, rewriter: PatternRewriter
     ) -> None:
         assert isinstance(op.op.type, smt_bv.BitVectorType)
@@ -170,22 +213,16 @@ class GetBitWidthOpPattern(RewritePattern):
         rewriter.replace_matched_op(smt_bv.ConstantOp(value, width))
 
 
-class ConstantOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
-        self, op: transfer.Constant, rewriter: PatternRewriter
-    ) -> None:
+class ConstantOpPattern(smt_pure_lowering_pattern(transfer.Constant)):
+    def rewrite_pure(self, op: transfer.Constant, rewriter: PatternRewriter) -> None:
         assert isinstance(op.op.type, smt_bv.BitVectorType)
         width = op.op.type.width
         value = op.value.value.data
         rewriter.replace_matched_op(smt_bv.ConstantOp(value, width))
 
 
-class CountLOneOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
-        self, op: transfer.CountLOneOp, rewriter: PatternRewriter
-    ) -> None:
+class CountLOneOpPattern(smt_pure_lowering_pattern(transfer.CountLOneOp)):
+    def rewrite_pure(self, op: transfer.CountLOneOp, rewriter: PatternRewriter) -> None:
         operand = op.operands[0]
         resList = count_lones(operand)
         for newOp in resList[:-1]:
@@ -193,9 +230,8 @@ class CountLOneOpPattern(RewritePattern):
         rewriter.replace_matched_op(resList[-1])
 
 
-class CountLZeroOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
+class CountLZeroOpPattern(smt_pure_lowering_pattern(transfer.CountLZeroOp)):
+    def rewrite_pure(
         self, op: transfer.CountLZeroOp, rewriter: PatternRewriter
     ) -> None:
         operand = op.operands[0]
@@ -205,11 +241,8 @@ class CountLZeroOpPattern(RewritePattern):
         rewriter.replace_matched_op(resList[-1])
 
 
-class CountROneOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
-        self, op: transfer.CountROneOp, rewriter: PatternRewriter
-    ) -> None:
+class CountROneOpPattern(smt_pure_lowering_pattern(transfer.CountROneOp)):
+    def rewrite_pure(self, op: transfer.CountROneOp, rewriter: PatternRewriter) -> None:
         operand = op.operands[0]
         resList, afterList = count_rones(operand)
         for newOp in resList[:-1]:
@@ -219,9 +252,8 @@ class CountROneOpPattern(RewritePattern):
         rewriter.replace_matched_op(resList[-1])
 
 
-class CountRZeroOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
+class CountRZeroOpPattern(smt_pure_lowering_pattern(transfer.CountRZeroOp)):
+    def rewrite_pure(
         self, op: transfer.CountRZeroOp, rewriter: PatternRewriter
     ) -> None:
         operand = op.operands[0]
@@ -234,9 +266,8 @@ class CountRZeroOpPattern(RewritePattern):
         rewriter.replace_matched_op(resList[-1])
 
 
-class SetHighBitsOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
+class SetHighBitsOpPattern(smt_pure_lowering_pattern(transfer.SetHighBitsOp)):
+    def rewrite_pure(
         self, op: transfer.SetHighBitsOp, rewriter: PatternRewriter
     ) -> None:
         result = set_high_bits(op.operands[0], op.operands[1])
@@ -245,9 +276,8 @@ class SetHighBitsOpPattern(RewritePattern):
         rewriter.replace_matched_op(result[-1])
 
 
-class GetLowBitsOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
+class GetLowBitsOpPattern(smt_pure_lowering_pattern(transfer.GetLowBitsOp)):
+    def rewrite_pure(
         self, op: transfer.GetLowBitsOp, rewriter: PatternRewriter
     ) -> None:
         result = get_low_bits(op.operands[0], op.operands[1])
@@ -256,9 +286,8 @@ class GetLowBitsOpPattern(RewritePattern):
         rewriter.replace_matched_op(result[-1])
 
 
-class SMinOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.SMinOp, rewriter: PatternRewriter) -> None:
+class SMinOpPattern(smt_pure_lowering_pattern(transfer.SMinOp)):
+    def rewrite_pure(self, op: transfer.SMinOp, rewriter: PatternRewriter) -> None:
         smin_if = smt_bv.UleOp(op.operands[0], op.operands[1])
         rewriter.insert_op_before_matched_op(smin_if)
         rewriter.replace_matched_op(
@@ -266,9 +295,8 @@ class SMinOpPattern(RewritePattern):
         )
 
 
-class SMaxOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.SMaxOp, rewriter: PatternRewriter) -> None:
+class SMaxOpPattern(smt_pure_lowering_pattern(transfer.SMaxOp)):
+    def rewrite_pure(self, op: transfer.SMaxOp, rewriter: PatternRewriter) -> None:
         smax_if = smt_bv.SleOp(op.operands[0], op.operands[1])
         rewriter.insert_op_before_matched_op(smax_if)
         rewriter.replace_matched_op(
@@ -276,9 +304,8 @@ class SMaxOpPattern(RewritePattern):
         )
 
 
-class UMaxOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.UMaxOp, rewriter: PatternRewriter) -> None:
+class UMaxOpPattern(smt_pure_lowering_pattern(transfer.UMaxOp)):
+    def rewrite_pure(self, op: transfer.UMaxOp, rewriter: PatternRewriter) -> None:
         umax_if = smt_bv.UleOp(op.operands[0], op.operands[1])
         rewriter.insert_op_before_matched_op(umax_if)
         rewriter.replace_matched_op(
@@ -286,9 +313,8 @@ class UMaxOpPattern(RewritePattern):
         )
 
 
-class UMinOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: transfer.UMinOp, rewriter: PatternRewriter) -> None:
+class UMinOpPattern(smt_pure_lowering_pattern(transfer.UMinOp)):
+    def rewrite_pure(self, op: transfer.UMinOp, rewriter: PatternRewriter) -> None:
         umin_if = smt_bv.UleOp(op.operands[0], op.operands[1])
         rewriter.insert_op_before_matched_op(umin_if)
         rewriter.replace_matched_op(
@@ -296,46 +322,47 @@ class UMinOpPattern(RewritePattern):
         )
 
 
-class CallOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: Call, rewriter: PatternRewriter) -> None:
-        moduleOp = op.parent_op()
+class CallOpPattern(smt_pure_lowering_pattern(Call)):
+    def rewrite_pure(self, op: Call, rewriter: PatternRewriter) -> None:
+        module = op.parent_op()
         callee = op.callee.string_value()
-        while not isinstance(moduleOp, ModuleOp):
-            moduleOp = moduleOp.parent_op()
-        isinstance(moduleOp, ModuleOp)
-        for funcOp in moduleOp.ops:
+        while not isinstance(module, ModuleOp):
+            assert module is not None
+            module = module.parent_op()
+        isinstance(module, ModuleOp)
+        for funcOp in module.ops:
             if isinstance(funcOp, DefineFunOp):
-                if funcOp.fun_name.data == callee:
+                name = funcOp.fun_name
+                if name is not None and name.data == callee:
                     newCallOp = CallOp.get(funcOp.results[0], op.arguments)
                     rewriter.replace_matched_op(newCallOp)
                     return
         assert False and "Cannot find the desired call"
 
 
-transfer_to_smt_patterns: list[RewritePattern] = [
-    trivial_pattern(transfer.AndOp, smt_bv.AndOp),
-    trivial_pattern(transfer.OrOp, smt_bv.OrOp),
-    trivial_pattern(transfer.XorOp, smt_bv.XorOp),
-    trivial_pattern(transfer.SubOp, smt_bv.SubOp),
-    trivial_pattern(transfer.AddOp, smt_bv.AddOp),
-    trivial_pattern(transfer.MulOp, smt_bv.MulOp),
-    trivial_pattern(transfer.NegOp, smt_bv.NotOp),
-    UMulOverflowOpPattern(),
-    CmpOpPattern(),
-    GetOpPattern(),
-    MakeOpPattern(),
-    ConstantOpPattern(),
-    GetBitWidthOpPattern(),
-    CountLOneOpPattern(),
-    CountLZeroOpPattern(),
-    CountROneOpPattern(),
-    CountRZeroOpPattern(),
-    SetHighBitsOpPattern(),
-    GetLowBitsOpPattern(),
-    SMinOpPattern(),
-    SMaxOpPattern(),
-    UMaxOpPattern(),
-    UMinOpPattern(),
-    CallOpPattern(),
-]
+transfer_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {
+    transfer.AndOp: trivial_pattern(transfer.AndOp, smt_bv.AndOp),
+    transfer.OrOp: trivial_pattern(transfer.OrOp, smt_bv.OrOp),
+    transfer.XorOp: trivial_pattern(transfer.XorOp, smt_bv.XorOp),
+    transfer.SubOp: trivial_pattern(transfer.SubOp, smt_bv.SubOp),
+    transfer.AddOp: trivial_pattern(transfer.AddOp, smt_bv.AddOp),
+    transfer.MulOp: trivial_pattern(transfer.MulOp, smt_bv.MulOp),
+    transfer.NegOp: trivial_pattern(transfer.NegOp, smt_bv.NotOp),
+    transfer.UMulOverflowOp: UMulOverflowOpPattern(),
+    transfer.CmpOp: CmpOpPattern(),
+    transfer.GetOp: GetOpPattern(),
+    transfer.MakeOp: MakeOpPattern(),
+    transfer.Constant: ConstantOpPattern(),
+    transfer.GetBitWidthOp: GetBitWidthOpPattern(),
+    transfer.CountLOneOp: CountLOneOpPattern(),
+    transfer.CountLZeroOp: CountLZeroOpPattern(),
+    transfer.CountROneOp: CountROneOpPattern(),
+    transfer.CountRZeroOp: CountRZeroOpPattern(),
+    transfer.SetHighBitsOp: SetHighBitsOpPattern(),
+    transfer.GetLowBitsOp: GetLowBitsOpPattern(),
+    transfer.SMinOp: SMinOpPattern(),
+    transfer.SMaxOp: SMaxOpPattern(),
+    transfer.UMaxOp: UMaxOpPattern(),
+    transfer.UMinOp: UMinOpPattern(),
+    CallOp: CallOpPattern(),
+}

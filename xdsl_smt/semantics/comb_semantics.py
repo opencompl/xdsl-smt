@@ -13,7 +13,7 @@ from xdsl_smt.dialects import hw_dialect as hw
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
-from xdsl_smt.passes.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
 from xdsl_smt.semantics.arith_semantics import SimplePoisonSemantics
@@ -70,7 +70,7 @@ class VariadicSemantics(SimplePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        res_type = LowerToSMT.lower_type(results[0])
+        res_type = SMTLowerer.lower_type(results[0])
         assert isa(res_type, smt_utils.PairType[smt_bv.BitVectorType, smt.BoolType])
         if len(operands) == 0:
             constant = smt_bv.ConstantOp(self.empty_value, res_type.first.width)

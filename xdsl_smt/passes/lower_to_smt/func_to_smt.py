@@ -1,61 +1,86 @@
+from xdsl.ir import Operation
+from xdsl.traits import IsTerminator
 from xdsl.pattern_rewriter import (
     PatternRewriter,
-    RewritePattern,
-    op_type_rewrite_pattern,
 )
 from xdsl.dialects.builtin import FunctionType
 from xdsl.dialects.func import FuncOp, Return
 
+from xdsl_smt.passes.lower_to_smt import (
+    SMTLowerer,
+    SMTLoweringRewritePattern,
+)
+from xdsl_smt.semantics.semantics import EffectStates
 from xdsl_smt.utils.rewrite_tools import new_ops
 from xdsl_smt.dialects.smt_dialect import DefineFunOp, ReturnOp
 from xdsl_smt.dialects.smt_utils_dialect import pair_from_list as smt_pair_from_list
-from xdsl_smt.passes.lower_to_smt import LowerToSMT
 
 
-class ReturnPattern(RewritePattern):
-    @op_type_rewrite_pattern
+class ReturnPattern(SMTLoweringRewritePattern):
+    def rewrite(
+        self,
+        op: Operation,
+        effect_states: EffectStates,
+        rewriter: PatternRewriter,
+        smt_lowerer: SMTLowerer,
+    ) -> EffectStates:
+        assert isinstance(op, Return)
+        smt_op = ReturnOp(
+            smt_pair_from_list(
+                *op.arguments,
+                *(EffectStates.states[effect] for effect in SMTLowerer.effect_types)
+            )
+        )
+        rewriter.replace_matched_op([*new_ops(smt_op)])
+        return effect_states
+
     def match_and_rewrite(self, op: Return, rewriter: PatternRewriter):
         smt_op = ReturnOp(smt_pair_from_list(*op.arguments))
         rewriter.replace_matched_op([*new_ops(smt_op)])
 
 
-class FuncToSMTPattern(RewritePattern):
-    """Convert func.func to an SMT formula"""
+class FuncToSMTPattern(SMTLoweringRewritePattern):
+    """
+    Convert a `func.func` to its SMT semantics.
+    `func.func` semantics is an SMT function, with one new argument per effect kind
+    we handle.
+    """
 
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: FuncOp, rewriter: PatternRewriter):
-        """
-        Convert a `func` function to an smt function.
-        """
-        # We only handle single-block regions for now
-        if len(op.body.blocks) != 1:
-            raise Exception("Cannot convert multi-block functions")
+    def rewrite(
+        self,
+        op: Operation,
+        effect_states: EffectStates,
+        rewriter: PatternRewriter,
+        smt_lowerer: SMTLowerer,
+    ) -> EffectStates:
+        assert isinstance(op, FuncOp)
 
+        # Lower the function body
+        result_values, new_states = smt_lowerer.lower_region(op.body, effect_states)
+
+        """Convert a list of types into a cons-list of SMT pairs"""
+
+        # Get the operands and result types
         operand_types = [
-            LowerToSMT.lower_type(input) for input in op.function_type.inputs.data
+            smt_lowerer.lower_type(input) for input in op.function_type.inputs.data
         ]
-        result_type = LowerToSMT.lower_types(*op.function_type.outputs.data)
-
-        # The SMT function replacing the func.func function
-        smt_func = DefineFunOp.from_function_type(
-            FunctionType.from_lists(operand_types, [result_type]), op.sym_name
+        result_types = (
+            [smt_pair_from_list(*result_values).type] if result_values else []
         )
 
-        # Replace the old arguments to the new ones
-        for i, arg in enumerate(smt_func.body.blocks[0].args):
-            op.body.blocks[0].args[i].replace_by(arg)
-
-        # Move the operations to the SMT function
-        ops = [op for op in op.body.ops]
-        for body_op in ops:
-            body_op.detach()
-        smt_func.body.blocks[0].add_ops(ops)
-
-        # Replace the arith function with the SMT one
+        # Create the new SMT function
+        region = op.detach_region(op.body)
+        smt_func = DefineFunOp.build(
+            result_types=[FunctionType.from_lists(operand_types, result_types)],
+            attributes={"fun_name": op.sym_name},
+            regions=[region],
+        )
         rewriter.replace_matched_op(smt_func, new_results=[])
 
+        return new_states
 
-func_to_smt_patterns: list[RewritePattern] = [
-    FuncToSMTPattern(),
-    ReturnPattern(),
-]
+
+func_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {
+    FuncOp: FuncToSMTPattern(),
+    Return: ReturnPattern(),
+}

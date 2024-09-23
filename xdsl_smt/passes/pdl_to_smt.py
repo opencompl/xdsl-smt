@@ -44,7 +44,7 @@ from ..dialects.smt_dialect import (
     NotOp,
     OrOp,
 )
-from xdsl_smt.passes.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt import SMTLowerer, LowerToSMTPass
 
 
 class StaticallyUnmatchedConstraintError(Exception):
@@ -111,7 +111,7 @@ class TypeRewrite(RewritePattern):
         if op.constantType is None:
             raise Exception("Cannot handle non-constant types")
 
-        self.rewrite_context.pdl_types_to_types[op.result] = LowerToSMT.lower_type(
+        self.rewrite_context.pdl_types_to_types[op.result] = SMTLowerer.lower_type(
             op.constantType
         )
         rewriter.erase_matched_op(safe_erase=False)
@@ -123,7 +123,7 @@ class AttributeRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
         if op.value is not None:
-            value = LowerToSMT.attribute_semantics[type(op.value)].get_semantics(
+            value = SMTLowerer.attribute_semantics[type(op.value)].get_semantics(
                 op.value, rewriter
             )
             rewriter.replace_matched_op([], [value])
@@ -148,7 +148,7 @@ class OperandRewrite(RewritePattern):
         if op.value_type is None:
             raise Exception("Cannot handle non-typed operands")
         type = _get_type_of_erased_type_value(op.value_type)
-        smt_type = LowerToSMT.lower_type(type)
+        smt_type = SMTLowerer.lower_type(type)
         rewriter.replace_matched_op(DeclareConstOp(smt_type))
 
 
@@ -167,12 +167,12 @@ class OperationRewrite(RewritePattern):
         # Create the with the given operands and types
         result_types = [_get_type_of_erased_type_value(type) for type in op.type_values]
 
-        if op_def in LowerToSMT.operation_semantics:
+        if op_def in SMTLowerer.op_semantics:
             attributes = {
                 name.data: attr
                 for name, attr in zip(op.attributeValueNames, op.attribute_values)
             }
-            results, _ = LowerToSMT.operation_semantics[op_def].get_semantics(
+            results, _ = SMTLowerer.op_semantics[op_def].get_semantics(
                 op.operand_values, result_types, attributes, EffectStates({}), rewriter
             )
             self.rewrite_context.pdl_op_to_values[op.op] = results
@@ -192,7 +192,7 @@ class OperationRewrite(RewritePattern):
         # Cursed hack: we create a new module with that operation, and
         # we rewrite it with the arith_to_smt and comb_to_smt pass.
         rewrite_module = ModuleOp([synthesized_op])
-        LowerToSMT().apply(self.ctx, rewrite_module)
+        LowerToSMTPass().apply(self.ctx, rewrite_module)
         last_op = rewrite_module.body.block.last_op
         assert last_op is not None
 
@@ -418,6 +418,18 @@ class ApplyNativeConstraintRewrite(RewritePattern):
         raise Exception(f"No semantics for native constraint {op.constraint_name.data}")
 
 
+class ComputationOpRewrite(RewritePattern):
+    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+        if (
+            type(op) in SMTLowerer.op_semantics
+            or type(op) in SMTLowerer.rewrite_patterns
+        ):
+            new_effects = SMTLowerer.lower_operation(op, EffectStates({}))
+            assert (
+                new_effects.states == {}
+            ), "Operations used as computations in PDL should not have effects"
+
+
 @dataclass(frozen=True)
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
@@ -471,6 +483,7 @@ class PDLToSMT(ModulePass):
                         PDLToSMT.native_constraints,
                         PDLToSMT.native_static_constraints,
                     ),
+                    ComputationOpRewrite(),
                 ]
             )
         )
@@ -480,5 +493,3 @@ class PDLToSMT(ModulePass):
             PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_module(op)
         else:
             PatternRewriteWalker(PatternRewrite()).rewrite_module(op)
-
-        LowerToSMT().apply(ctx, op)
