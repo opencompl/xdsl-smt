@@ -25,4 +25,3 @@ builtin.module {
 // CHECK-NEXT:  }) {"name" = "test"} : () -> ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool)
 // CHECK-NEXT:  %func_res = "smt.call"(%func, %const_first, %const_second_first, %const_second_second) : ((!smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool, !smt.bool, !smt.bv.bv<32>, !smt.bool) -> !smt.bool
 // CHECK-NEXT:  "smt.assert"(%func_res) : (!smt.bool) -> ()
-

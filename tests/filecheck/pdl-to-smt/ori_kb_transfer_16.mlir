@@ -70,4 +70,3 @@ builtin.module {
 // CHECK-NEXT:   "smt.assert"(%25) : (!smt.bool) -> ()
 // CHECK-NEXT:   "smt.check_sat"() : () -> ()
 // CHECK-NEXT: }
-

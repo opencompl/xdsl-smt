@@ -84,7 +84,8 @@ class SMTPureLoweringPattern(Generic[_OpType], SMTLoweringRewritePattern):
         self,
         op: _OpType,
         rewriter: PatternRewriter,
-    ): ...
+    ):
+        ...
 
     def rewrite(
         self: SMTPureLoweringPattern[_OpType],

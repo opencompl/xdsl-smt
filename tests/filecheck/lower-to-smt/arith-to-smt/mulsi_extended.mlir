@@ -10,6 +10,6 @@
 }) : () -> ()
 
 // CHECK:      (define-fun test ((x (Pair (_ BitVec 32) Bool)) (y (Pair (_ BitVec 32) Bool))) (Pair (Pair (_ BitVec 32) Bool) (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:   (let ((tmp (or (second x) (second y)))) 
-// CHECK-NEXT:   (let ((tmp_0 (bvmul ((_ sign_extend 32) (first x)) ((_ sign_extend 32) (first y))))) 
+// CHECK-NEXT:   (let ((tmp (or (second x) (second y))))
+// CHECK-NEXT:   (let ((tmp_0 (bvmul ((_ sign_extend 32) (first x)) ((_ sign_extend 32) (first y)))))
 // CHECK-NEXT:   (pair (pair ((_ extract 31 0) tmp_0) tmp) (pair ((_ extract 63 32) tmp_0) tmp)))))
