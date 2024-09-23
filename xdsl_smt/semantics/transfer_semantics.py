@@ -7,7 +7,7 @@ from xdsl.ir import Operation
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.dialects.smt_utils_dialect import (
     AnyPairType,
     PairType,
@@ -16,7 +16,7 @@ from xdsl_smt.dialects.smt_utils_dialect import (
     PairOp,
 )
 from xdsl_smt.dialects.smt_dialect import BoolType
-from xdsl_smt.semantics.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
 from xdsl.ir import Operation, Region, SSAValue, Attribute
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
@@ -41,18 +41,18 @@ def abstract_value_type_lowerer(
     if isinstance(type, transfer.AbstractValueType):
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
-        curLoweredTy = LowerToSMT.lower_type(curTy)
+        curLoweredTy = SMTLowerer.lower_type(curTy)
         if isIntegerTy:
             assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
             curLoweredTy = curLoweredTy.first
         result: AnyPairType = PairType(curLoweredTy, BoolType())
         for ty in reversed(type.get_fields()[:-1]):
             isIntegerTy = isinstance(ty, IntegerType)
-            curLoweredTy = LowerToSMT.lower_type(ty)
+            curLoweredTy = SMTLowerer.lower_type(ty)
             if isIntegerTy:
                 assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
                 curLoweredTy = curLoweredTy.first
-            result = PairType(curLoweredTy, result)
+            result: AnyPairType = PairType(curLoweredTy, result)
         return result
     return None
 
@@ -70,20 +70,21 @@ class ConstantOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
         width = operands[0].type.width
         const_value = attributes["value"]
-        if isinstance(const_value, Attribute):
-            assert isa(const_value, AnyIntegerAttr)
-            const_value = const_value.value.data
+        if isinstance(const_value, SSAValue):
+            return ((const_value,), effect_states)
 
+        assert isa(const_value, AnyIntegerAttr)
+        const_value = const_value.value.data
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)
-        return (bv_const.res,)
+        return ((bv_const.res,), effect_states)
 
 
 class GetAllOnesOpSemantics(OperationSemantics):
@@ -91,17 +92,17 @@ class GetAllOnesOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
         width = operands[0].type.width
         const_value = (1 << width.data) - 1
 
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)
-        return (bv_const.res,)
+        return ((bv_const.res,), effect_states)
 
 
 class GetBitWidthOpSemantics(OperationSemantics):
@@ -113,16 +114,16 @@ class GetBitWidthOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
         width = operands[0].type.width
         const_value = width
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)
-        return (bv_const.res,)
+        return ((bv_const.res,), effect_states)
 
 
 class MakeOpSemantics(OperationSemantics):
@@ -132,10 +133,10 @@ class MakeOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         false_constant = smt.ConstantBoolOp.from_bool(False)
         argList = operands
         opList: list[Operation] = [PairOp(argList[-1], false_constant.res)]
@@ -148,7 +149,7 @@ class MakeOpSemantics(OperationSemantics):
         for newOp in opList[:-1]:
             rewriter.insert_op_before_matched_op(newOp)
         rewriter.insert_op_before_matched_op(opList[-1])
-        return (opList[-1].results[0],)
+        return ((opList[-1].results[0],), effect_states)
 
 
 class GetOpSemantics(OperationSemantics):
@@ -156,10 +157,10 @@ class GetOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         index = attributes["index"]
         arg = operands[0]
         insertOps: list[Operation] = []
@@ -172,7 +173,7 @@ class GetOpSemantics(OperationSemantics):
         insertOps.append(FirstOp(arg))
         rewriter.insert_op_before_matched_op(insertOps)
 
-        return (insertOps[-1].results[0],)
+        return ((insertOps[-1].results[0],), effect_states)
 
 
 @dataclass
@@ -184,16 +185,16 @@ class TrivialOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         new_op = self.smt_op_type.create(
             operands=operands,
-            result_types=[LowerToSMT.lower_type(results[0])],
+            result_types=[SMTLowerer.lower_type(results[0])],
         )
         rewriter.insert_op_before_matched_op([new_op])
-        return (new_op.results[0],)
+        return ((new_op.results[0],), effect_states)
 
 
 class UMulOverflowOpSemantics(OperationSemantics):
@@ -201,10 +202,10 @@ class UMulOverflowOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         suml_nooverflow = smt_bv.UmulNoOverflowOp.get(operands[0], operands[1])
 
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)
@@ -215,7 +216,7 @@ class UMulOverflowOpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(
             [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
         )
-        return (res.res,)
+        return ((res.res,), effect_states)
 
 
 class ShlOverflowOpSemantics(OperationSemantics):
@@ -223,11 +224,12 @@ class ShlOverflowOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        width = operands[0].type.width
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
+        assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
+        width = lhs_type.width
         const_value = width
         bv_width = smt_bv.ConstantOp(const_value, width)
 
@@ -240,7 +242,7 @@ class ShlOverflowOpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(
             [bv_width, b0, b1, cmp_op, bool_to_bv, poison_op, res]
         )
-        return (res.res,)
+        return ((res.res,), effect_states)
 
 
 class IsPowerOf2OpSemantics(OperationSemantics):
@@ -248,12 +250,13 @@ class IsPowerOf2OpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        width = operands[0].type.width
-        const_value = width
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
+        assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
+        width = lhs_type.width
+        const_value = width.data
 
         b1 = smt_bv.ConstantOp.from_int_value(1, const_value)
         b0 = smt_bv.ConstantOp.from_int_value(0, const_value)
@@ -279,7 +282,7 @@ class IsPowerOf2OpSemantics(OperationSemantics):
                 res,
             ]
         )
-        return (res.res,)
+        return ((res.res,), effect_states)
 
 
 class CmpOpSemantics(OperationSemantics):
@@ -300,10 +303,10 @@ class CmpOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         predicate = attributes["predicate"]
         assert isinstance(predicate, IntegerAttr)
         predicate = predicate.value.data
@@ -322,7 +325,7 @@ class CmpOpSemantics(OperationSemantics):
 
         resList += [b1, b0, bool_to_bv, poison_op, res_op]
         rewriter.insert_op_before_matched_op(resList)
-        return (res_op.res,)
+        return ((res_op.res,), effect_states)
 
 
 class IntersectsOpSemantics(OperationSemantics):
@@ -330,10 +333,10 @@ class IntersectsOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         and_res = smt_bv.AndOp(operands[0], operands[1])
         assert isinstance(and_res.res.type, smt_bv.BitVectorType)
         const_0 = smt_bv.ConstantOp(0, and_res.res.type.width)
@@ -350,7 +353,7 @@ class IntersectsOpSemantics(OperationSemantics):
 
         resList += [b1, b0, bool_to_bv, poison_op, res_op]
         rewriter.insert_op_before_matched_op(resList)
-        return (res_op.res,)
+        return ((res_op.res,), effect_states)
 
 
 class CountLOneOpSemantics(OperationSemantics):
@@ -358,14 +361,14 @@ class CountLOneOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         operand = operands[0]
         resList = count_lones(operand)
         rewriter.insert_op_before_matched_op(resList)
-        return (resList[-1].results[0],)
+        return ((resList[-1].results[0],), effect_states)
 
 
 class CountLZeroOpSemantics(OperationSemantics):
@@ -373,14 +376,14 @@ class CountLZeroOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         operand = operands[0]
         resList = count_lzeros(operand)
         rewriter.insert_op_before_matched_op(resList)
-        return (resList[-1].results[0],)
+        return ((resList[-1].results[0],), effect_states)
 
 
 class CountROneOpSemantics(OperationSemantics):
@@ -388,15 +391,15 @@ class CountROneOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         operand = operands[0]
         resList, afterList = count_rones(operand)
         rewriter.insert_op_before_matched_op(resList)
         rewriter.insert_op_before_matched_op(afterList)
-        return (resList[-1].results[0],)
+        return ((resList[-1].results[0],), effect_states)
 
 
 class CountRZeroOpSemantics(OperationSemantics):
@@ -404,15 +407,15 @@ class CountRZeroOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         operand = operands[0]
         resList, afterList = count_rzeros(operand)
         rewriter.insert_op_before_matched_op(resList)
         rewriter.insert_op_before_matched_op(afterList)
-        return (resList[-1].results[0],)
+        return ((resList[-1].results[0],), effect_states)
 
 
 class SetHighBitsOpSemantics(OperationSemantics):
@@ -420,13 +423,13 @@ class SetHighBitsOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         result = set_high_bits(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(result)
-        return (result[-1].results[0],)
+        return ((result[-1].results[0],), effect_states)
 
 
 class SetLowBitsOpSemantics(OperationSemantics):
@@ -434,13 +437,13 @@ class SetLowBitsOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         result = set_low_bits(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(result)
-        return (result[-1].results[0],)
+        return ((result[-1].results[0],), effect_states)
 
 
 class GetLowBitsOpSemantics(OperationSemantics):
@@ -448,13 +451,13 @@ class GetLowBitsOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         result = get_low_bits(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(result)
-        return (result[-1].results[0],)
+        return ((result[-1].results[0],), effect_states)
 
 
 class SMinOpSemantics(OperationSemantics):
@@ -462,15 +465,15 @@ class SMinOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         smin_if = smt_bv.SleOp(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(smin_if)
         ite_op = smt.IteOp(smin_if.results[0], operands[0], operands[1])
         rewriter.insert_op_before_matched_op(ite_op)
-        return (ite_op.res,)
+        return ((ite_op.res,), effect_states)
 
 
 class UMinOpSemantics(OperationSemantics):
@@ -478,15 +481,15 @@ class UMinOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         smin_if = smt_bv.UleOp(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(smin_if)
         ite_op = smt.IteOp(smin_if.results[0], operands[0], operands[1])
         rewriter.insert_op_before_matched_op(ite_op)
-        return (ite_op.res,)
+        return ((ite_op.res,), effect_states)
 
 
 class SMaxOpSemantics(OperationSemantics):
@@ -494,15 +497,15 @@ class SMaxOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         smin_if = smt_bv.SgtOp(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(smin_if)
         ite_op = smt.IteOp(smin_if.results[0], operands[0], operands[1])
         rewriter.insert_op_before_matched_op(ite_op)
-        return (ite_op.res,)
+        return ((ite_op.res,), effect_states)
 
 
 class UMaxOpSemantics(OperationSemantics):
@@ -510,15 +513,15 @@ class UMaxOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         smin_if = smt_bv.UgtOp(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(smin_if)
         ite_op = smt.IteOp(smin_if.results[0], operands[0], operands[1])
         rewriter.insert_op_before_matched_op(ite_op)
-        return (ite_op.res,)
+        return ((ite_op.res,), effect_states)
 
 
 class SelectOpSemantics(OperationSemantics):
@@ -526,16 +529,16 @@ class SelectOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         bv1 = smt_bv.ConstantOp.from_int_value(1, 1)
         bv_val = FirstOp(operands[0])
         eq1 = smt.EqOp(bv_val.res, bv1.res)
         ite_op = smt.IteOp(eq1.res, operands[1], operands[2])
         rewriter.insert_op_before_matched_op([bv1, bv_val, eq1, ite_op])
-        return (ite_op.res,)
+        return ((ite_op.res,), effect_states)
 
 
 class RepeatOpSemantics(OperationSemantics):
@@ -543,10 +546,10 @@ class RepeatOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         cntOp = operands[1].owner
         print(cntOp)
         print(cntOp.parent_op())
@@ -556,7 +559,7 @@ class RepeatOpSemantics(OperationSemantics):
         cnt = cntOp.value.value.data
         repeatOp = smt_bv.RepeatOp(operands[0], cnt)
         rewriter.insert_op_before_matched_op(repeatOp)
-        return (repeatOp.res,)
+        return ((repeatOp.res,), effect_states)
 
 
 class ConcatOpSemantics(OperationSemantics):
@@ -564,13 +567,13 @@ class ConcatOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         concatOp = smt_bv.ConcatOp(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(concatOp)
-        return (concatOp.res,)
+        return ((concatOp.res,), effect_states)
 
 
 class ExtractOpSemantics(OperationSemantics):
@@ -578,10 +581,10 @@ class ExtractOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         numBitsOp = operands[1].owner
         bitPositionOp = operands[2].owner
         assert (
@@ -595,7 +598,7 @@ class ExtractOpSemantics(OperationSemantics):
         bitPosition = bitPositionOp.value.value.data
         extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition, bitPosition)
         rewriter.insert_op_before_matched_op(extractOp)
-        return (extractOp.res,)
+        return ((extractOp.res,), effect_states)
 
 
 class AddPoisonOpSemantics(OperationSemantics):
@@ -603,17 +606,17 @@ class AddPoisonOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         op_ty = operands[0].type
         assert isinstance(op_ty, smt_bv.BitVectorType)
         bool_false = smt.ConstantBoolOp(False)
         res = PairOp(operands[0], bool_false.res)
 
         rewriter.insert_op_before_matched_op([bool_false, res])
-        return (res.res,)
+        return ((res.res,), effect_states)
 
 
 class RemovePoisonOpSemantics(OperationSemantics):
@@ -621,95 +624,15 @@ class RemovePoisonOpSemantics(OperationSemantics):
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
-        regions: Sequence[Region],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], EffectStates]:
         op_ty = operands[0].type
         assert isinstance(op_ty, PairType)
         res = FirstOp(operands[0])
         rewriter.insert_op_before_matched_op([res])
-        return (res.res,)
-
-
-class ConstRangeForOpSemantics(OperationSemantics):
-    def get_semantics(
-        self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        regions: Sequence[Region],
-        attributes: Mapping[str, Attribute | SSAValue],
-        rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
-        lb = operands[0].owner
-        ub = operands[1].owner
-        step = operands[2].owner
-        assert (
-            isinstance(lb, smt_bv.ConstantOp)
-            and "loop lower bound has to be a constant"
-        )
-        assert (
-            isinstance(ub, smt_bv.ConstantOp)
-            and "loop upper bound has to be a constant"
-        )
-        assert isinstance(step, smt_bv.ConstantOp) and "loop step has to be a constant"
-        lb_int = lb.value.value.data
-        ub_int = ub.value.value.data
-        step_int = step.value.value.data
-
-        assert step_int != 0 and "step size should not be zero"
-        if step_int > 0:
-            assert (
-                ub_int > lb_int
-                and "the upper bound should be larger than the lower bound"
-            )
-        else:
-            assert (
-                ub_int < lb_int
-                and "the upper bound should be smaller than the lower bound"
-            )
-
-        iter_args = operands[3:]
-        iter_args_num = len(iter_args)
-
-        indvar, *block_iter_args = regions[0].block.args
-
-        value_map: dict[SSAValue, SSAValue] = {}
-
-        value_map[indvar] = operands[0]
-        for i in range(iter_args_num):
-            value_map[block_iter_args[i]] = iter_args[i]
-        last_result = None
-        for i in range(lb_int, ub_int, step_int):
-            for cur_op in regions[0].block.ops:
-                if not isinstance(cur_op, transfer.NextLoopOp):
-                    clone_op = cur_op.clone()
-                    for idx in range(len(clone_op.operands)):
-                        if cur_op.operands[idx] in value_map:
-                            clone_op.operands[idx] = value_map[cur_op.operands[idx]]
-                    if len(cur_op.results) != 0:
-                        value_map[cur_op.results[0]] = clone_op.results[0]
-                    rewriter.insert_op_before_matched_op(clone_op)
-                    continue
-                if isinstance(cur_op, transfer.NextLoopOp):
-                    if i + step_int < ub_int:
-                        new_value_map: dict[SSAValue, SSAValue] = {}
-                        cur_ind = transfer.Constant(operands[1], i + step_int).result
-                        new_value_map[indvar] = cur_ind
-                        rewriter.insert_op_before_matched_op(cur_ind.owner)
-                        for idx, arg in enumerate(block_iter_args):
-                            new_value_map[block_iter_args[idx]] = value_map[
-                                cur_op.operands[idx]
-                            ]
-                        value_map = new_value_map
-                    else:
-                        make_res = [value_map[arg] for arg in cur_op.arguments]
-                        assert (
-                            len(make_res) == 1
-                            and "current we only support for one returned value from for"
-                        )
-                        last_result = make_res[0]
-        return (last_result,)
+        return ((res.res,), effect_states)
 
 
 transfer_semantics: dict[type[Operation], OperationSemantics] = {
@@ -745,7 +668,6 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.SelectOp: SelectOpSemantics(),
     transfer.IsPowerOf2Op: IsPowerOf2OpSemantics(),
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
-    #    transfer.ConstRangeForOp: ConstRangeForOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
     transfer.AddPoisonOp: AddPoisonOpSemantics(),
     transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
