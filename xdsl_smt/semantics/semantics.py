@@ -4,7 +4,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-from xdsl.ir import Attribute, Region, SSAValue
+from xdsl.ir import Attribute, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 
