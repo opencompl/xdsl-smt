@@ -1,13 +1,64 @@
-# pyright: reportWildcardImportFromLibrary=false
 # pyright: reportConstantRedefinition=false
 from __future__ import annotations
 
-# We import all the LLVM operations here, so we only access them from here.
-# Once we will have added all LLVM operations in xds, we can remove this file.
+# Expose all base LLVM operations and attributes
+# pyright: reportUnusedImport=false
+from xdsl.dialects.llvm import (
+    AddOp,
+    SubOp,
+    MulOp,
+    UDivOp,
+    SDivOp,
+    URemOp,
+    SRemOp,
+    AndOp,
+    OrOp,
+    XOrOp,
+    ShlOp,
+    LShrOp,
+    AShrOp,
+    ExtractValueOp,
+    InsertValueOp,
+    InlineAsmOp,
+    UndefOp,
+    AllocaOp,
+    GEPOp,
+    IntToPtrOp,
+    NullOp,
+    LoadOp,
+    StoreOp,
+    GlobalOp,
+    AddressOfOp,
+    FuncOp,
+    CallOp,
+    ReturnOp,
+    ConstantOp,
+    CallIntrinsicOp,
+    ZeroOp,
+    LLVMStructType,
+    LLVMPointerType,
+    LLVMArrayType,
+    LLVMVoidType,
+    LLVMFunctionType,
+    LinkageAttr,
+    CallingConventionAttr,
+    FastMathAttr,
+)
 from xdsl.dialects.arith import ComparisonOperation, signlessIntegerLike
-from xdsl.dialects.llvm import *
 from xdsl.dialects import llvm
-from xdsl.ir import Dialect
+from xdsl.parser import Parser
+from xdsl.printer import Printer
+from xdsl.ir import Dialect, OpResult, Operation, SSAValue, Attribute
+from xdsl.irdl import (
+    irdl_op_definition,
+    Operand,
+    operand_def,
+    prop_def,
+    result_def,
+    IRDLOperation,
+)
+from xdsl.dialects.builtin import AnyIntegerAttr, IntegerType, IntegerAttr
+from xdsl.utils.exceptions import VerifyException
 
 CMPI_COMPARISON_OPERATIONS = [
     "eq",
@@ -97,7 +148,7 @@ class SelectOp(IRDLOperation):
     rhs: Operand = operand_def(Attribute)
     result: OpResult = result_def(Attribute)
 
-    fastmathFlags = prop_def(FastMathAttr)
+    fastmathFlags = prop_def(llvm.FastMathAttr)
 
     # TODO replace with trait
     def verify_(self) -> None:
