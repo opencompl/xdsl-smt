@@ -2,12 +2,16 @@
 
 import argparse
 import subprocess
+from typing import Any, Sequence
 
-from xdsl.ir import MLContext
+from xdsl.context import MLContext
 from xdsl.parser import Parser
+from xdsl.ir import Region, Block, Operation, SSAValue
+from xdsl.utils.hints import isa
 
 from io import StringIO
-from ..dialects.smt_dialect import (
+from xdsl.dialects.builtin import ArrayAttr, StringAttr
+from xdsl_smt.dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
     DeclareConstOp,
@@ -21,14 +25,14 @@ from ..dialects.smt_dialect import (
     AndOp,
     YieldOp,
 )
-from ..dialects.smt_bitvector_dialect import (
+from xdsl_smt.dialects.smt_bitvector_dialect import (
     SMTBitVectorDialect,
     ConstantOp,
     BitVectorType,
 )
-from ..dialects.smt_utils_dialect import FirstOp, PairOp, PairType
-from ..dialects.index_dialect import Index
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
+from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairOp, PairType
+from xdsl_smt.dialects.index_dialect import Index
+from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.ir.core import BlockArgument
 from xdsl.dialects.builtin import (
     Builtin,
@@ -37,16 +41,17 @@ from xdsl.dialects.builtin import (
     IntegerType,
     i1,
     FunctionType,
-    Region,
-    Block,
 )
-from xdsl.dialects.func import Func, FuncOp, Return, Call
-from ..dialects.transfer import Transfer
+from xdsl.dialects.func import Func, FuncOp, Return
+from xdsl_smt.dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
-from ..passes.transfer_inline import FunctionCallInline
+from xdsl_smt.passes.transfer_inline import FunctionCallInline
 import xdsl.dialects.comb as comb
-from xdsl.ir import Operation
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
+    LowerToSMTPass,
+    SMTLowerer,
+    integer_poison_type_lowerer,
+)
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
 )
@@ -71,9 +76,10 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(ctx, file: str | None) -> Operation:
+def parse_file(ctx: MLContext, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
+        file = "<stdin>"
     else:
         f = open(file)
 
@@ -116,23 +122,21 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
 def basic_constraint_check(
     abstract_func: DefineFunOp, get_constraint: dict[int, DefineFunOp]
 ):
-    args_width = []
+    args_width: list[int] = []
 
     abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
     for ty in abstract_arg_types:
-        assert isinstance(ty, PairType)
-        assert isinstance(ty.first, BitVectorType)
+        assert isa(ty, PairType[BitVectorType, Any])
         args_width.append(ty.first.width.data)
 
     abstract_return_type = abstract_func.func_type.outputs.data[0]
-    assert isinstance(abstract_return_type, PairType)
-    assert isinstance(abstract_return_type.first, BitVectorType)
+    assert isa(abstract_return_type, PairType[BitVectorType, Any])
     result_width = abstract_return_type.first.width.data
 
     arg_constant: list[DeclareConstOp] = []
     arg_constraints: list[CallOp] = []
     arg_constraints_first: list[FirstOp] = []
-    for i, arg in enumerate(abstract_func.body.block.args):
+    for i in range(len(abstract_func.body.block.args)):
         arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
         arg_constraints.append(
             CallOp.get(
@@ -196,17 +200,15 @@ def soundness_check(
     get_inst_constraint: dict[int, DefineFunOp],
     op_constraint: DefineFunOp,
 ):
-    args_width = []
+    args_width: list[int] = []
 
     abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
     for ty in abstract_arg_types:
-        assert isinstance(ty, PairType)
-        assert isinstance(ty.first, BitVectorType)
+        assert isa(ty, PairType[BitVectorType, Any])
         args_width.append(ty.first.width.data)
 
     abstract_return_type = abstract_func.func_type.outputs.data[0]
-    assert isinstance(abstract_return_type, PairType)
-    assert isinstance(abstract_return_type.first, BitVectorType)
+    assert isa(abstract_return_type, PairType[BitVectorType, Any])
     result_width = abstract_return_type.first.width.data
 
     instance_return_type = BitVectorType.from_int(result_width)
@@ -218,7 +220,7 @@ def soundness_check(
     arg_constraints_first: list[FirstOp] = []
     inst_constraints_first: list[FirstOp] = []
 
-    for i, arg in enumerate(abstract_func.body.block.args):
+    for i in range(len(abstract_func.body.block.args)):
         arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
         arg_constraints.append(
             CallOp.get(
@@ -261,17 +263,16 @@ def soundness_check(
 
     # consider op constraint
     op_constraint_list = []
-    if op_constraint is not None:
-        op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
-        op_constraint_result_first = FirstOp(op_constraint_result.res)
-        op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
-        op_constraint_assert = AssertOp(op_constraint_eq.res)
-        op_constraint_list = [
-            op_constraint_result,
-            op_constraint_result_first,
-            op_constraint_eq,
-            op_constraint_assert,
-        ]
+    op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
+    op_constraint_result_first = FirstOp(op_constraint_result.res)
+    op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
+    op_constraint_assert = AssertOp(op_constraint_eq.res)
+    op_constraint_list = [
+        op_constraint_result,
+        op_constraint_result_first,
+        op_constraint_eq,
+        op_constraint_assert,
+    ]
 
     arg_constant.append(DeclareConstOp(abstract_return_type))
     inst_constant.append(DeclareConstOp(instance_return_type))
@@ -322,11 +323,11 @@ def soundness_check(
     )
 
 
-def compress_and_op(lst):
+def compress_and_op(lst: Sequence[Operation]) -> tuple[SSAValue, list[AndOp]]:
     if len(lst) == 0:
         assert False and "cannot compress lst with size 0 to an AndOp"
     elif len(lst) == 1:
-        return (lst[0].res, [])
+        return (lst[0].results[0], [])
     else:
         new_ops: list[AndOp] = [AndOp(lst[0].results[0], lst[1].results[0])]
         for i in range(2, len(lst)):
@@ -341,17 +342,15 @@ def precision_check(
     get_inst_constraint: dict[int, DefineFunOp],
     op_constraint: DefineFunOp,
 ):
-    args_width = []
+    args_width: list[int] = []
 
     abstract_arg_types = [arg.type for arg in abstract_func.body.block.args]
     for ty in abstract_arg_types:
-        assert isinstance(ty, PairType)
-        assert isinstance(ty.first, BitVectorType)
+        assert isa(ty, PairType[BitVectorType, Any])
         args_width.append(ty.first.width.data)
 
     abstract_return_type = abstract_func.func_type.outputs.data[0]
-    assert isinstance(abstract_return_type, PairType)
-    assert isinstance(abstract_return_type.first, BitVectorType)
+    assert isa(abstract_return_type, PairType[BitVectorType, Any])
     result_width = abstract_return_type.first.width.data
 
     instance_return_type = BitVectorType.from_int(result_width)
@@ -383,7 +382,7 @@ def precision_check(
     # This constraint is called cfiled constraint
     forall_cfield_constraint_block = Block()
 
-    for i, arg in enumerate(abstract_func.body.block.args):
+    for i in range(len(abstract_func.body.block.args)):
         arg_constant.append(DeclareConstOp(abstract_arg_types[i]))
         # arg_constant.append(DeclareConstOp(arg.type))
         # We found we don't need to consider is an arg in abstract function is in abstract domain or not
@@ -452,20 +451,17 @@ def precision_check(
 
     # consider op constraint
     op_constraint_list = []
-    if op_constraint is not None:
-        op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
-        op_constraint_result_first = FirstOp(op_constraint_result.res)
-        op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
-        op_constraint_assert = AssertOp(op_constraint_eq.res)
-        op_constraint_list = [
-            op_constraint_result,
-            op_constraint_result_first,
-            op_constraint_eq,
-            op_constraint_assert,
-        ]
-        and_res, new_and_ops = compress_and_op(inst_eq_ops + [op_constraint_eq])
-    else:
-        and_res, new_and_ops = compress_and_op(inst_eq_ops)
+    op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
+    op_constraint_result_first = FirstOp(op_constraint_result.res)
+    op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
+    op_constraint_assert = AssertOp(op_constraint_eq.res)
+    op_constraint_list = [
+        op_constraint_result,
+        op_constraint_result_first,
+        op_constraint_eq,
+        op_constraint_assert,
+    ]
+    and_res, new_and_ops = compress_and_op(inst_eq_ops + [op_constraint_eq])
 
     forall_cfield_constraint_block.add_ops(
         inst_eq_ops + op_constraint_list + new_and_ops
@@ -481,7 +477,7 @@ def precision_check(
         ]
     )
     cfiled_constraint = ForallOp.from_variables(
-        [inst_constant], Region(forall_cfield_constraint_block)
+        [arg.type for arg in inst_constant], Region(forall_cfield_constraint_block)
     )
     assert_ops.append(AssertOp(cfiled_constraint.res))
 
@@ -630,6 +626,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
             elif func_name == "comb.icmp":
                 funcTy = FunctionType.from_lists([intTy, intTy], [i1])
                 result = FuncOp("comb.icmp" + str(extra), funcTy)
+                assert extra is not None
                 cmpOp = comb.ICmpOp(result.args[0], result.args[1], extra)
                 returnOp = Return(cmpOp.results[0])
                 result.body.block.add_ops([cmpOp, returnOp])
@@ -650,29 +647,29 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
     return (result, args_width, result_width)
 
 
-def lowerToSMTModule(module, width, ctx):
+def lowerToSMTModule(module: ModuleOp, width: int, ctx: MLContext):
     # lower to SMT
-    LowerToSMT.rewrite_patterns = [
-        *func_to_smt_patterns,
-    ]
-    LowerToSMT.type_lowerers = [
+    SMTLowerer.rewrite_patterns = {
+        **func_to_smt_patterns,
+    }
+    SMTLowerer.type_lowerers = [
         integer_poison_type_lowerer,
         abstract_value_type_lowerer,
         lambda type: transfer_integer_type_lowerer(type, width),
     ]
-    LowerToSMT.operation_semantics = {
+    SMTLowerer.op_semantics = {
         **arith_semantics,
         **transfer_semantics,
         **comb_semantics,
     }
-    LowerToSMT().apply(ctx, module)
+    LowerToSMTPass().apply(ctx, module)
 
 
 def update_width_module(
     new_widths: list[int],
     width_to_module: dict[int, ModuleOp],
-    width_to_getConstraint: [int, DefineFunOp],
-    width_to_getInstanceConstraint: [int, DefineFunOp],
+    width_to_getConstraint: dict[int, DefineFunOp],
+    width_to_getInstanceConstraint: dict[int, DefineFunOp],
     constraint_module: ModuleOp,
     ctx: MLContext,
 ):
@@ -682,6 +679,7 @@ def update_width_module(
         width_to_module[width] = module
         for func in module.ops:
             if isinstance(func, DefineFunOp):
+                assert func.fun_name is not None
                 if func.fun_name.data == "getConstraint":
                     width_to_getConstraint[width] = func
                 elif func.fun_name.data == "getInstanceConstraint":
@@ -711,7 +709,7 @@ def main() -> None:
     get_constraint = None
     get_instance_constraint = None
 
-    func_name_to_func = {}
+    func_name_to_func: dict[str, FuncOp] = {}
     for func in module.ops:
         if isinstance(func, FuncOp):
             func_name_to_func[func.sym_name.data] = func
@@ -725,17 +723,19 @@ def main() -> None:
     # part into the inside of the loop. But for now, we place it outside because of
     # performance consideration.
 
-    width_to_getConstraint = {}
-    width_to_getInstanceConstraint = {}
-    width_to_module = {}
+    width_to_getConstraint = dict[int, DefineFunOp]()
+    width_to_getInstanceConstraint = dict[int, DefineFunOp]()
+    width_to_module = dict[int, ModuleOp]()
     constraint_module = ModuleOp([])
-    all_width = set()
+    all_width = set[int]()
     for func in module.ops:
         if isinstance(func, FuncOp):
             if func.sym_name.data == "getConstraint":
                 get_constraint = func
             elif func.sym_name.data == "getInstanceConstraint":
                 get_instance_constraint = func
+    assert get_constraint is not None
+    assert get_instance_constraint is not None
     constraint_module.body.block.add_ops(
         [get_constraint.clone(), get_instance_constraint.clone()]
     )
@@ -749,18 +749,21 @@ def main() -> None:
         unrollTransferLoop.apply(ctx, smt_module)
 
         # add concrete functions
-        concrete_funcs = []
+        concrete_funcs: list[FuncOp] = []
         func_name_to_concrete_func_name = {}
         func_name_to_op_constraint = {}
-        func_name_to_args_width = {}
-        func_name_to_result_width = {}
+        func_name_to_args_width = dict[str, list[int]]()
+        func_name_to_result_width = dict[str, int]()
 
         for op in smt_module.ops:
             if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                concrete_funcname = op.attributes["applied_to"].data[0].data
+                assert isa(
+                    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr]
+                )
+                concrete_funcname = applied_to.data[0].data
                 extra = None
-                if len(op.attributes["applied_to"].data) > 1:
-                    extra = op.attributes["applied_to"].data[1]
+                if len(applied_to.data) > 1:
+                    extra = applied_to.data[1]
                     assert (
                         isinstance(extra, IntegerAttr)
                         and "only support for integer attr for the second appliled arg for now"
@@ -769,10 +772,11 @@ def main() -> None:
                 concrete_func, args_width, result_width = find_concrete_function(
                     concrete_funcname, width, extra
                 )
+                assert result_width is not None
                 concrete_funcs.append(concrete_func)
-                func_name_to_concrete_func_name[
-                    op.sym_name.data
-                ] = concrete_func.sym_name.data
+                func_name_to_concrete_func_name[op.sym_name.data] = (
+                    concrete_func.sym_name.data
+                )
                 func_name_to_args_width[op.sym_name.data] = args_width
                 func_name_to_result_width[op.sym_name.data] = result_width
                 all_width.add(result_width)
@@ -780,13 +784,14 @@ def main() -> None:
                     all_width.add(i)
 
             if isinstance(op, FuncOp) and "op_constraint" in op.attributes:
-                func_name_to_op_constraint[op.sym_name.data] = op.attributes[
-                    "op_constraint"
-                ].data
+                assert isinstance(
+                    op_constraint := op.attributes["op_constraint"], StringAttr
+                )
+                func_name_to_op_constraint[op.sym_name.data] = op_constraint.data
 
         all_width.remove(0)
         all_width.add(width)
-        new_width = []
+        new_width: list[int] = []
         for i in all_width:
             if i not in width_to_module:
                 new_width.append(i)
@@ -807,13 +812,17 @@ def main() -> None:
         func_name_to_smt_func: dict[str, DefineFunOp] = {}
         for func in smt_module.ops:
             if isinstance(func, DefineFunOp):
+                assert func.fun_name is not None
                 func_name_to_smt_func[func.fun_name.data] = func
                 if func.fun_name.data == "getConstraint":
                     get_constraint = func
                 elif func.fun_name.data == "getInstanceConstraint":
                     get_instance_constraint = func
+
         # return
-        for func_pair in module.attributes[KEY_NEED_VERIFY]:
+        need_verify = module.attributes[KEY_NEED_VERIFY]
+        assert isa(need_verify, ArrayAttr[ArrayAttr[StringAttr]])
+        for func_pair in need_verify:
             concrete_funcname, transfer_funcname = func_pair
             transfer_func = func_name_to_smt_func[transfer_funcname.data]
             concrete_func = func_name_to_smt_func[
@@ -851,6 +860,7 @@ def main() -> None:
 
             # soundness check
             if True:
+                assert op_constraint is not None
                 query_module = ModuleOp([], {})
                 print(transfer_func)
                 print(concrete_func)
@@ -863,11 +873,12 @@ def main() -> None:
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
-                LowerToSMT().apply(ctx, query_module)
+                LowerToSMTPass().apply(ctx, query_module)
                 # print_to_smtlib(query_module, sys.stdout)
 
                 print("Soundness Check result:", verify_pattern(ctx, query_module))
 
+            # Precision check
             if False:
                 # print(transfer_func)
                 query_module = ModuleOp([], {})
