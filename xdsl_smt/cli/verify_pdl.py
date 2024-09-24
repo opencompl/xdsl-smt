@@ -43,7 +43,6 @@ from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
 )
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
 from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
-from xdsl_smt.passes.lower_to_smt.llvm_to_smt import llvm_to_smt_patterns
 from xdsl_smt.passes.lower_to_smt.transfer_to_smt import transfer_to_smt_patterns
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.pdl_constraints.integer_arith_constraints import (
