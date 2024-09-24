@@ -1,5 +1,4 @@
 from xdsl.ir import Operation
-from xdsl.traits import IsTerminator
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
