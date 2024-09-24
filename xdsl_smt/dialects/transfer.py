@@ -17,9 +17,6 @@ from xdsl.ir import (
     OpResult,
     Region,
     Attribute,
-    SSAValue,
-    Operation,
-    Block,
 )
 from xdsl.utils.hints import isa
 
