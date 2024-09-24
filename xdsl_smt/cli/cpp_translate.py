@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
 import argparse
+from typing import cast
+import sys
 
-from xdsl.ir import MLContext, Operation
+from xdsl.context import MLContext
+from xdsl.ir import Operation
 from xdsl.parser import Parser
 
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import Builtin, ModuleOp
-from xdsl.dialects.func import Func, FuncOp, Call
-from ..dialects.transfer import Transfer
-from ..dialects.llvm_dialect import LLVM
-from xdsl.printer import Printer
-from ..passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
-
-from z3 import *
+from xdsl.dialects.func import Func, FuncOp
+from xdsl_smt.dialects.transfer import Transfer
+from xdsl_smt.dialects.llvm_dialect import LLVM
+from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -22,9 +22,10 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(ctx, file: str | None) -> Operation:
+def parse_file(ctx: MLContext, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
+        file = "<stdin>"
     else:
         f = open(file)
 
@@ -54,11 +55,9 @@ def main() -> None:
     with open("tmp.cpp", "w") as fout:
         for func in module.ops:
             if isinstance(func, FuncOp):
-                for op in func.body.blocks[0].ops:
-                    pass
-                    # print(isinstance(op,Call))
                 allFuncMapping[func.sym_name.data] = func
-                LowerToCpp(fout).apply(ctx, func)
+                # HACK: we know the pass won't check that the operation is a module
+                LowerToCpp(fout).apply(ctx, cast(ModuleOp, func))
         addInductionOps(fout)
         addDispatcher(fout)
 

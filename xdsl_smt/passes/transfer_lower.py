@@ -1,3 +1,4 @@
+from typing import TextIO
 from xdsl.dialects.func import *
 from xdsl.pattern_rewriter import *
 from functools import singledispatch
@@ -73,13 +74,13 @@ class LowerOperation(RewritePattern):
         transferFunction(op, self.fout)
 
 
-def addInductionOps(fout):
+def addInductionOps(fout: TextIO):
     global inductionOp
     if len(inductionOp) != 0:
         fout.write(lowerInductionOps(inductionOp))
 
 
-def addDispatcher(fout):
+def addDispatcher(fout: TextIO):
     global needDispatch
     if len(needDispatch) != 0:
         # print(lowerDispatcher(needDispatch))
