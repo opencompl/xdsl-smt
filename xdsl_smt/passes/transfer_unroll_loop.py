@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -12,9 +13,9 @@ from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
 
 
+@dataclass(frozen=True)
 class ConstRangeForOpPattern(RewritePattern):
-    def __init__(self, width):
-        self.width = width
+    width: int
 
     @op_type_rewrite_pattern
     def match_and_rewrite(
@@ -82,7 +83,7 @@ class ConstRangeForOpPattern(RewritePattern):
                         cur_ind = transfer.Constant(op.ub, i + step_int).result
                         new_value_map[indvar] = cur_ind
                         rewriter.insert_op_before_matched_op(cur_ind.owner)
-                        for idx, arg in enumerate(block_iter_args):
+                        for idx in range(len(block_iter_args)):
                             new_value_map[block_iter_args[idx]] = value_map[
                                 cur_op.operands[idx]
                             ]
@@ -107,11 +108,11 @@ class ConstRangeForOpPattern(RewritePattern):
                         # rewriter.replace_matched_op(make_op)
 
 
+@dataclass(frozen=True)
 class UnrollTransferLoop(ModulePass):
     name = "unrollTransferLoop"
 
-    def __init__(self, width):
-        self.width = width
+    width: int
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         walker = PatternRewriteWalker(
