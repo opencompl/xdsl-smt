@@ -15,7 +15,7 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
 )
-from xdsl.rewriter import Rewriter
+from xdsl.rewriter import Rewriter, InsertPoint
 from xdsl.passes import ModulePass
 from xdsl.utils.hints import isa
 
@@ -38,12 +38,11 @@ class RemovePairArgsFunction(RewritePattern):
         i = 0
         while i < len(block.args):
             arg = block.args[i]
-            if isinstance(arg.type, PairType):
-                typ = cast(AnyPairType, arg.type)
+            if isa(typ := arg.type, AnyPairType):
                 fst = rewriter.insert_block_argument(block, i + 1, typ.first)
                 snd = rewriter.insert_block_argument(block, i + 2, typ.second)
                 get_pair = PairOp(fst, snd)
-                rewriter.insert_op_at_start(get_pair, block)
+                rewriter.insert_op(get_pair, InsertPoint.at_start(block))
                 arg.replace_by(get_pair.res)
                 rewriter.erase_block_argument(arg)
             else:
