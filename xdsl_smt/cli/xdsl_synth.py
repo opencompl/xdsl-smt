@@ -44,7 +44,6 @@ from ..passes.lower_to_smt import (
     transfer_to_smt_patterns,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
-    llvm_to_smt_patterns,
 )
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
