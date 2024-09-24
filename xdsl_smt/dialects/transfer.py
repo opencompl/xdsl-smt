@@ -7,7 +7,6 @@ from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
     i1,
-    AnyAttr,
 )
 from typing import Annotated, Mapping, Sequence
 
@@ -38,6 +37,7 @@ from xdsl.irdl import (
     ParameterDef,
     IRDLOperation,
     traits_def,
+    AnyAttr,
 )
 from xdsl.utils.exceptions import VerifyException
 
@@ -425,7 +425,7 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
     def infer_result_type(
         operand_types: Sequence[Attribute], attributes: Mapping[str, Attribute] = {}
     ) -> Sequence[Attribute]:
-        return AbstractValueType(list(operand_types))
+        return (AbstractValueType(list(operand_types)),)
 
     def verify_(self) -> None:
         assert isinstance(self.result.type, AbstractValueType)
@@ -478,23 +478,6 @@ class ConstRangeForOp(IRDLOperation):
 
     traits = frozenset([SingleBlockImplicitTerminator(NextLoopOp)])
 
-    def __init__(
-        self,
-        lb: SSAValue | Operation,
-        ub: SSAValue | Operation,
-        step: SSAValue | Operation,
-        iter_args: Sequence[SSAValue | Operation],
-        body: Region | Sequence[Operation] | Sequence[Block] | Block,
-    ):
-        if isinstance(body, Block):
-            body = [body]
-
-        super().__init__(
-            operands=[lb, ub, step, iter_args],
-            result_types=[AbstractValueType],
-            regions=[body],
-        )
-
     def verify_(self):
         # body block verification
         if not self.body.block.args:
@@ -527,10 +510,8 @@ class ConstRangeForOp(IRDLOperation):
                     f"Block arg #{i + 1} expected to be {arg.type}, but got {block_iter_args[i].type}. "
                     "Block args after the induction variable must match the loop-carried variables."
                 )
-        if (last_op := self.body.block.last_op) is not None and isinstance(
-            last_op, NextLoopOp
-        ):
-            return_val = last_op.argument
+        if isinstance(last_op := self.body.block.last_op, NextLoopOp):
+            return_val = last_op.arguments
             assert (
                 isinstance(return_val, AbstractValueType)
                 and "Returned from loop has to be an abstract val"
