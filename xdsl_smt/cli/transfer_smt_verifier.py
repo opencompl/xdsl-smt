@@ -750,8 +750,8 @@ def main() -> None:
 
         # add concrete functions
         concrete_funcs: list[FuncOp] = []
-        func_name_to_concrete_func_name = {}
-        func_name_to_op_constraint = {}
+        func_name_to_concrete_func_name = dict[str, str]()
+        func_name_to_op_constraint = dict[str, str]()
         func_name_to_args_width = dict[str, list[int]]()
         func_name_to_result_width = dict[str, int]()
 
