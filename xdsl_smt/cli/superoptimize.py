@@ -5,16 +5,16 @@ import argparse
 import re
 import subprocess as sp
 
-from xdsl.ir import MLContext
+from xdsl.context import MLContext
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
 
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_dialect import SMTDialect
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from ..dialects.hw_dialect import HW
-from ..dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_dialect import SMTDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from xdsl_smt.dialects.hw_dialect import HW
+from xdsl_smt.dialects.llvm_dialect import LLVM
 import xdsl_smt.dialects.synth_dialect as smt_synth
 from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
