@@ -1,4 +1,4 @@
-from xdsl.irdl import IRDLOperation
+from dataclasses import dataclass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -6,18 +6,12 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.ir import Operation
 
-from ..dialects import smt_bitvector_dialect as smt_bv
-from ..dialects import smt_dialect as smt
-from ..dialects import transfer
-from xdsl.ir import Attribute
-from .lower_to_smt import LowerToSMT
-from ..dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
-from xdsl_smt.dialects.smt_dialect import BoolType, CallOp, DefineFunOp, ReturnOp
+from xdsl_smt.dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.func import FuncOp, Call, Return
 from xdsl.ir import Operation
 from xdsl.context import MLContext
-from xdsl.ir import Operation, Region, SSAValue, Attribute
+from xdsl.ir import Operation, SSAValue
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
 
@@ -71,12 +65,12 @@ class SMTCallInlinePattern(RewritePattern):
                 rewriter.insert_op_before_matched_op(newOp)
 
 
+@dataclass(frozen=True)
 class FunctionCallInline(ModulePass):
     name = "callInline"
 
-    def __init__(self, is_SMT_call, func_name_to_func: dict[str, FuncOp]):
-        self.func_name_to_func = func_name_to_func
-        self.is_SMT_call = is_SMT_call
+    is_SMT_call: bool
+    func_name_to_func: dict[str, FuncOp]
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         if self.is_SMT_call:
