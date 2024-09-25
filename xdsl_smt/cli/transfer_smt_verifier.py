@@ -774,9 +774,9 @@ def main() -> None:
                 )
                 assert result_width is not None
                 concrete_funcs.append(concrete_func)
-                func_name_to_concrete_func_name[op.sym_name.data] = (
-                    concrete_func.sym_name.data
-                )
+                func_name_to_concrete_func_name[
+                    op.sym_name.data
+                ] = concrete_func.sym_name.data
                 func_name_to_args_width[op.sym_name.data] = args_width
                 func_name_to_result_width[op.sym_name.data] = result_width
                 all_width.add(result_width)
