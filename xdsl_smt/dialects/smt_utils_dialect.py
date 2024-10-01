@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Generic, TypeAlias, TypeVar, cast, IO
+from typing import Generic, Sequence, TypeAlias, TypeVar, cast, IO
 from xdsl.ir import (
     Attribute,
     Dialect,
@@ -20,6 +20,8 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
 )
+from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.rewriter import InsertPoint
 
 from .smt_dialect import SMTLibSort, SimpleSMTLibOp
 from ..traits.effects import Pure
@@ -138,6 +140,30 @@ def pair_from_list(*vals: SSAValue) -> SSAValue:
         return vals[0]
     else:
         return reduce(lambda r, l: SSAValue.get(PairOp(l, r)), reversed(vals))
+
+
+def merge_values_with_pairs(
+    vals: Sequence[SSAValue], rewriter: PatternRewriter, insert_point: InsertPoint
+) -> SSAValue | None:
+    """Merge a list of values (a, b, c, ...) into a list of pairs (((a, b), c), ...)"""
+    if len(vals) == 0:
+        return None
+    lhs = vals[0]
+    for rhs in vals[1:]:
+        pair = PairOp(lhs, rhs)
+        rewriter.insert_op(pair, insert_point)
+        lhs = pair.res
+    return lhs
+
+
+def pair_type_from_list(*types: Attribute) -> Attribute:
+    """Convert a list of types into a cons-list of SMT pair types."""
+
+    if len(types) == 0:
+        raise ValueError("Must have at least one value")
+    if len(types) == 1:
+        return types[0]
+    return reduce(lambda r, l: AnyPairType(l, r), reversed(types))
 
 
 SMTUtilsDialect = Dialect("smt.utils", [PairOp, FirstOp, SecondOp], [PairType])

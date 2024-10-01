@@ -1,4 +1,5 @@
-// RUN: xdsl-smt "%s" -p=lower-to-smt -t=smt | filecheck "%s"
+// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize-smt | filecheck %s
+// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize-smt -t=smt | z3 -in
 
 "builtin.module"() ({
   "func.func"() ({
@@ -7,6 +8,10 @@
   }) {"sym_name" = "test", "function_type" = (i32) -> i32, "sym_visibility" = "private"} : () -> ()
 }) : () -> ()
 
-// CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT: (define-fun test ((x (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
-// CHECK-NEXT:   x)
+// CHECK:       builtin.module {
+// CHECK-NEXT:    %0 = "smt.define_fun"() ({
+// CHECK-NEXT:    ^0(%x : !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, %1 : !smt.bool):
+// CHECK-NEXT:      %2 = "smt.utils.pair"(%x, %1) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.bool) -> !smt.utils.pair<!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.bool>
+// CHECK-NEXT:      "smt.return"(%2) : (!smt.utils.pair<!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.bool>) -> ()
+// CHECK-NEXT:    }) {"fun_name" = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.bool) -> !smt.utils.pair<!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.bool>)
+// CHECK-NEXT:  }

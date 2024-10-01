@@ -25,6 +25,7 @@ from xdsl_smt.dialects import smt_dialect
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
+    EffectState,
     EffectStates,
     OperationSemantics,
 )
@@ -92,10 +93,12 @@ class SMTLowerer:
             )
 
         # Lower the block arguments
+        # Do not modify effect states, as they are still referenced by effect_states.
         for i, arg in enumerate(region.block.args):
-            new_arg = region.block.insert_arg(SMTLowerer.lower_type(arg.type), i)
-            arg.replace_by(new_arg)
-            region.block.erase_arg(arg)
+            if (new_type := SMTLowerer.lower_type(arg.type)) != arg.type:
+                new_arg = region.block.insert_arg(new_type, i)
+                arg.replace_by(new_arg)
+                region.block.erase_arg(arg)
 
         # Lower the operations
         for op in list(region.block.ops):
@@ -136,6 +139,9 @@ class SMTLowerer:
     def lower_type(type: Attribute) -> Attribute:
         """Convert a type to an SMT sort"""
 
+        # Do not lower effect states to SMT, these are done in separate passes.
+        if isinstance(type, EffectState):
+            return type
         for lowerer in SMTLowerer.type_lowerers:
             if res := lowerer(type):
                 return res

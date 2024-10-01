@@ -1,4 +1,5 @@
-from xdsl.ir import Operation
+from xdsl.ir import Operation, Attribute, SSAValue
+from xdsl.rewriter import InsertPoint
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
@@ -12,7 +13,13 @@ from xdsl_smt.passes.lower_to_smt import (
 from xdsl_smt.semantics.semantics import EffectStates
 from xdsl_smt.utils.rewrite_tools import new_ops
 from xdsl_smt.dialects.smt_dialect import DefineFunOp, ReturnOp
-from xdsl_smt.dialects.smt_utils_dialect import pair_from_list as smt_pair_from_list
+from xdsl_smt.dialects.smt_utils_dialect import (
+    merge_values_with_pairs,
+    pair_from_list as smt_pair_from_list,
+)
+from xdsl_smt.dialects.smt_utils_dialect import (
+    pair_type_from_list as smt_pair_type_from_list,
+)
 
 
 class ReturnPattern(SMTLoweringRewritePattern):
@@ -24,13 +31,18 @@ class ReturnPattern(SMTLoweringRewritePattern):
         smt_lowerer: SMTLowerer,
     ) -> EffectStates:
         assert isinstance(op, Return)
-        smt_op = ReturnOp(
-            smt_pair_from_list(
+        result = merge_values_with_pairs(
+            (
                 *op.arguments,
-                *(EffectStates.states[effect] for effect in SMTLowerer.effect_types)
-            )
+                *(effect_states.states[effect] for effect in smt_lowerer.effect_types),
+            ),
+            rewriter,
+            InsertPoint.before(op),
         )
-        rewriter.replace_matched_op([*new_ops(smt_op)])
+        assert result is not None, "Cannot handle return with no arguments"
+
+        smt_op = ReturnOp(result)
+        rewriter.replace_matched_op([smt_op])
         return effect_states
 
     def match_and_rewrite(self, op: Return, rewriter: PatternRewriter):
@@ -52,31 +64,39 @@ class FuncToSMTPattern(SMTLoweringRewritePattern):
         rewriter: PatternRewriter,
         smt_lowerer: SMTLowerer,
     ) -> EffectStates:
+        """Convert a list of types into a cons-list of SMT pairs"""
         assert isinstance(op, FuncOp)
 
-        # Lower the function body
-        result_values, new_states = smt_lowerer.lower_region(op.body, effect_states)
-
-        """Convert a list of types into a cons-list of SMT pairs"""
-
         # Get the operands and result types
+        # It is the original operansd and result types, lowered to SMT, plus the
+        # effect states.
         operand_types = [
             smt_lowerer.lower_type(input) for input in op.function_type.inputs.data
-        ]
-        result_types = (
-            [smt_pair_from_list(*result_values).type] if result_values else []
-        )
+        ] + [effect_type for effect_type in smt_lowerer.effect_types]
+        result_types = [
+            smt_lowerer.lower_type(result) for result in op.function_type.outputs.data
+        ] + [effect_type for effect_type in smt_lowerer.effect_types]
+        result_type = smt_pair_type_from_list(*result_types)
 
         # Create the new SMT function
         region = op.detach_region(op.body)
         smt_func = DefineFunOp.build(
-            result_types=[FunctionType.from_lists(operand_types, result_types)],
+            result_types=[FunctionType.from_lists(operand_types, [result_type])],
             attributes={"fun_name": op.sym_name},
             regions=[region],
         )
         rewriter.replace_matched_op(smt_func, new_results=[])
 
-        return new_states
+        # Append block arguments for the effect states
+        region_states = dict[Attribute, SSAValue]()
+        for effect_type in smt_lowerer.effect_types:
+            new_arg = region.block.insert_arg(effect_type, len(region.block.args))
+            region_states[effect_type] = new_arg
+
+        # Lower the function body
+        smt_lowerer.lower_region(region, EffectStates(region_states))
+
+        return effect_states
 
 
 func_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {

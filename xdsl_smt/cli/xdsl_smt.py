@@ -8,7 +8,8 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
-from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect
+from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect, UBStateType
+from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
@@ -80,6 +81,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(CanonicalizeSMT.name, lambda: CanonicalizeSMT)
         self.register_pass(LowerPairs.name, lambda: LowerPairs)
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
+        self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)
 
     def register_all_targets(self):
         super().register_all_targets()
@@ -92,6 +94,7 @@ def main():
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
+    SMTLowerer.effect_types = [UBStateType()]
 
     PDLToSMT.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.native_constraints = integer_arith_native_constraints
