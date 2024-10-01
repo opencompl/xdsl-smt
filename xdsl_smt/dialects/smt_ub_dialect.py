@@ -8,10 +8,11 @@ from xdsl.irdl import (
 )
 
 from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl_smt.semantics.semantics import EffectState
 
 
 @irdl_attr_definition
-class UBStateType(TypeAttribute, ParametrizedAttribute):
+class UBStateType(TypeAttribute, ParametrizedAttribute, EffectState):
     """
     Type of a undefined behavior effect state.
     The undefined behavior effect follows the definition of LLVM and MLIR, where

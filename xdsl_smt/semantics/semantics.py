@@ -8,6 +8,10 @@ from xdsl.ir import Attribute, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 
+class EffectState:
+    """Mark an attribute as an effect state."""
+
+
 @dataclass(frozen=True)
 class EffectStates:
     """
