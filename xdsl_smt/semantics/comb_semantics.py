@@ -16,7 +16,7 @@ from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.passes.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
-from xdsl_smt.semantics.arith_semantics import SimplePoisonSemantics
+from xdsl_smt.semantics.arith_semantics import SimplePurePoisonSemantics
 
 
 def cast_integer_type(
@@ -58,12 +58,12 @@ class ConstantSemantics(OperationSemantics):
 
 
 @dataclass
-class VariadicSemantics(SimplePoisonSemantics):
+class VariadicSemantics(SimplePurePoisonSemantics):
     comb_op_type: type[IRDLOperation]
     smt_op_type: type[IRDLOperation]
     empty_value: int
 
-    def get_simple_semantics(
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -91,11 +91,11 @@ class VariadicSemantics(SimplePoisonSemantics):
 
 
 @dataclass
-class TrivialBinOpSemantics(SimplePoisonSemantics):
+class TrivialBinOpSemantics(SimplePurePoisonSemantics):
     comb_op_type: type[Operation]
     smt_op_type: type[Operation]
 
-    def get_simple_semantics(
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -111,8 +111,8 @@ class TrivialBinOpSemantics(SimplePoisonSemantics):
         return ((new_op.results[0], None),)
 
 
-class ICmpSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ICmpSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -214,8 +214,8 @@ class ICmpSemantics(SimplePoisonSemantics):
         return ((to_int.res, None),)
 
 
-class ParitySemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ParitySemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -240,8 +240,8 @@ class ParitySemantics(SimplePoisonSemantics):
         return ((res, None),)
 
 
-class ExtractSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ExtractSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -269,8 +269,8 @@ class ExtractSemantics(SimplePoisonSemantics):
         return ((extract_op.res, None),)
 
 
-class ReplicateSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ReplicateSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -290,8 +290,8 @@ class ReplicateSemantics(SimplePoisonSemantics):
         return ((current_val, None),)
 
 
-class MuxSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MuxSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],

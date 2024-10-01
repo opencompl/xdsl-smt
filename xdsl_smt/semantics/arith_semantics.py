@@ -13,6 +13,7 @@ from xdsl_smt.semantics.semantics import OperationSemantics, EffectStates
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
+from xdsl_smt.dialects import smt_ub_dialect as smt_ub
 import xdsl.dialects.arith as arith
 
 
@@ -71,7 +72,7 @@ class ConstantSemantics(OperationSemantics):
 class SimplePoisonSemantics(OperationSemantics):
     """
     Semantics of an operation that propagates poison, and sometimes produce it.
-    Does not touch any effect.
+    May have an effect.
     """
 
     @abstractmethod
@@ -80,8 +81,9 @@ class SimplePoisonSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
         pass
 
     def get_semantics(
@@ -93,8 +95,8 @@ class SimplePoisonSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], EffectStates]:
         operands, propagated_poison = reduce_poison_values(operands, rewriter)
-        value_results = self.get_simple_semantics(
-            operands, results, attributes, rewriter
+        value_results, new_effect_states = self.get_simple_semantics(
+            operands, results, attributes, effect_states, rewriter
         )
         value_with_poison_results: list[SSAValue] = []
         for value, new_poison in value_results:
@@ -108,14 +110,45 @@ class SimplePoisonSemantics(OperationSemantics):
                 rewriter.insert_op_before_matched_op([pair])
                 value_with_poison_results.append(pair.res)
 
-        return (value_with_poison_results, effect_states)
+        return (value_with_poison_results, new_effect_states)
+
+
+@dataclass
+class SimplePurePoisonSemantics(SimplePoisonSemantics):
+    """
+    Semantics of an operation that propagates poison, and sometimes produce it.
+    Does not touch any effect.
+    """
+
+    @abstractmethod
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        pass
+
+    def get_simple_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
+        return (
+            self.get_pure_semantics(operands, results, attributes, rewriter),
+            effect_states,
+        )
 
 
 def single_binop_semantics(
     op_type: type[smt_bv.BinaryBVOp],
-) -> type[SimplePoisonSemantics]:
-    class SingleBinopSemantics(SimplePoisonSemantics):
-        def get_simple_semantics(
+) -> type[SimplePurePoisonSemantics]:
+    class SingleBinopSemantics(SimplePurePoisonSemantics):
+        def get_pure_semantics(
             self,
             operands: Sequence[SSAValue],
             results: Sequence[Attribute],
@@ -137,8 +170,8 @@ OriSemantics = single_binop_semantics(smt_bv.OrOp)
 XoriSemantics = single_binop_semantics(smt_bv.XorOp)
 
 
-class MulSIExtendedSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MulSIExtendedSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -163,8 +196,8 @@ class MulSIExtendedSemantics(SimplePoisonSemantics):
         return ((low_bits.res, None), (high_bits.res, None))
 
 
-class MulUIExtendedSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MulUIExtendedSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -189,8 +222,8 @@ class MulUIExtendedSemantics(SimplePoisonSemantics):
         return ((low_bits.res, None), (high_bits.res, None))
 
 
-class ShliSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ShliSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -217,8 +250,9 @@ class DivsiSemantics(SimplePoisonSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_states: EffectStates,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
         assert isinstance(results[0], IntegerType)
         width = results[0].width.data
 
@@ -234,7 +268,12 @@ class DivsiSemantics(SimplePoisonSemantics):
         is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
 
         # New poison cases
-        introduce_poison = smt.OrOp(is_div_by_zero.res, is_underflow.res)
+        ub_state = effect_states.states[smt_ub.UBStateType()]
+        trigger_ub = smt_ub.TriggerOp(ub_state)
+        new_ub_state = smt.IteOp(is_div_by_zero.res, trigger_ub.res, ub_state)
+        new_states = effect_states.with_updated_effects(
+            {smt_ub.UBStateType(): new_ub_state.res}
+        )
 
         # Operation result
         value_op = smt_bv.SDivOp(operands[0], operands[1])
@@ -248,15 +287,14 @@ class DivsiSemantics(SimplePoisonSemantics):
                 lhs_is_min_val,
                 rhs_is_minus_one,
                 is_underflow,
-                introduce_poison,
                 value_op,
             ]
         )
-        return ((value_op.res, introduce_poison.res),)
+        return (((value_op.res, is_underflow.res),), new_states)
 
 
-class DivuiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class DivuiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -283,8 +321,8 @@ class DivuiSemantics(SimplePoisonSemantics):
         return ((value_op.res, is_div_by_zero.res),)
 
 
-class RemsiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class RemsiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -311,8 +349,8 @@ class RemsiSemantics(SimplePoisonSemantics):
         return ((value_op.res, is_rem_by_zero.res),)
 
 
-class RemuiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class RemuiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -339,8 +377,8 @@ class RemuiSemantics(SimplePoisonSemantics):
         return ((value_op.res, is_rem_by_zero.res),)
 
 
-class ShrsiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ShrsiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -367,8 +405,8 @@ class ShrsiSemantics(SimplePoisonSemantics):
         return ((value_op.res, shift_amount_too_big.res),)
 
 
-class ShruiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ShruiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -395,8 +433,8 @@ class ShruiSemantics(SimplePoisonSemantics):
         return ((value_op.res, shift_amount_too_big.res),)
 
 
-class MaxsiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MaxsiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -416,8 +454,8 @@ class MaxsiSemantics(SimplePoisonSemantics):
         return ((value_op.res, None),)
 
 
-class MaxuiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MaxuiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -437,8 +475,8 @@ class MaxuiSemantics(SimplePoisonSemantics):
         return ((value_op.res, None),)
 
 
-class MinsiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MinsiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -458,8 +496,8 @@ class MinsiSemantics(SimplePoisonSemantics):
         return ((value_op.res, None),)
 
 
-class MinuiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class MinuiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -479,7 +517,7 @@ class MinuiSemantics(SimplePoisonSemantics):
         return ((value_op.res, None),)
 
 
-class CmpiSemantics(SimplePoisonSemantics):
+class CmpiSemantics(SimplePurePoisonSemantics):
     predicates = [
         smt.EqOp,
         smt.DistinctOp,
@@ -493,7 +531,7 @@ class CmpiSemantics(SimplePoisonSemantics):
         smt_bv.UgeOp,
     ]
 
-    def get_simple_semantics(
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -578,8 +616,8 @@ class SelectSemantics(OperationSemantics):
         return ((res_op.res,), effect_states)
 
 
-class TruncISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class TruncISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -594,8 +632,8 @@ class TruncISemantics(SimplePoisonSemantics):
         return ((res.res, None),)
 
 
-class ExtUISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ExtUISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -610,8 +648,8 @@ class ExtUISemantics(SimplePoisonSemantics):
         return ((op.res, None),)
 
 
-class ExtSISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class ExtSISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -626,8 +664,8 @@ class ExtSISemantics(SimplePoisonSemantics):
         return ((op.res, None),)
 
 
-class CeilDivUISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class CeilDivUISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -670,8 +708,8 @@ class CeilDivUISemantics(SimplePoisonSemantics):
         return ((value_res.res, is_rhs_zero.res),)
 
 
-class CeilDivSISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class CeilDivSISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
@@ -758,8 +796,8 @@ class CeilDivSISemantics(SimplePoisonSemantics):
         return ((value_res.res, introduce_poison.res),)
 
 
-class FloorDivSISemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class FloorDivSISemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
