@@ -1,4 +1,4 @@
-from xdsl.ir import Dialect, TypeAttribute, ParametrizedAttribute
+from xdsl.ir import Dialect, TypeAttribute, ParametrizedAttribute, SSAValue
 from xdsl.irdl import (
     irdl_op_definition,
     irdl_attr_definition,
@@ -20,6 +20,9 @@ class UBStateType(TypeAttribute, ParametrizedAttribute):
 
     name = "smt_ub.ub_state"
 
+    def __init__(self):
+        super().__init__(())
+
 
 @irdl_op_definition
 class CreateStateOp(IRDLOperation):
@@ -33,6 +36,9 @@ class CreateStateOp(IRDLOperation):
 
     assembly_format = "attr-dict"
 
+    def __init__(self):
+        super().__init__(result_types=[UBStateType()])
+
 
 @irdl_op_definition
 class TriggerOp(IRDLOperation):
@@ -44,6 +50,9 @@ class TriggerOp(IRDLOperation):
     res = result_def(UBStateType())
 
     assembly_format = "$state attr-dict"
+
+    def __init__(self, state: SSAValue):
+        super().__init__(operands=[state], result_types=[UBStateType()])
 
 
 @irdl_op_definition
@@ -59,6 +68,9 @@ class ToBoolOp(IRDLOperation):
     res = result_def(BoolType())
 
     assembly_format = "$state attr-dict"
+
+    def __init__(self, state: SSAValue):
+        super().__init__(operands=[state], result_types=[BoolType()])
 
 
 SMTUBDialect = Dialect(
