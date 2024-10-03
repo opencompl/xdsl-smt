@@ -23,6 +23,7 @@ from xdsl.pattern_rewriter import (
 
 from xdsl_smt.dialects import smt_dialect
 from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
     EffectState,
@@ -32,7 +33,7 @@ from xdsl_smt.semantics.semantics import (
 
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
-
+from xdsl.dialects import pdl
 
 def integer_poison_type_lowerer(type: Attribute) -> Attribute | None:
     """Convert an integer type to a bitvector integer with a poison flag."""
@@ -103,7 +104,10 @@ class SMTLowerer:
         # Lower the operations
         for op in list(region.block.ops):
             # If the operation is a terminator, we know this is the last operation.
-            effect_states = SMTLowerer.lower_operation(op, effect_states)
+            if isinstance(op,pdl.PatternOp):
+                pass
+            else:
+                effect_states = SMTLowerer.lower_operation(op, effect_states)
 
         # Terminators are not lowered yet, they are all considered to be yields.
         if (terminator := region.block.last_op) and terminator.has_trait(IsTerminator):
@@ -127,7 +131,9 @@ class SMTLowerer:
                 effect_states,
                 rewriter,
             )
-            rewriter.replace_matched_op([], new_res)
+            # When the semantics are PDL-based, the replacement is performed in PDL
+            if not isinstance(SMTLowerer.op_semantics[type(op)],PDLSemantics):
+                rewriter.replace_matched_op([], new_res)
             return effect_states
 
         if type(op) in smt_dialect.SMTDialect.operations:
