@@ -430,33 +430,25 @@ class ComputationOpRewrite(RewritePattern):
             ), "Operations used as computations in PDL should not have effects"
 
 
-@dataclass(frozen=True)
-class PDLToSMT(ModulePass):
-    name = "pdl-to-smt"
-
-    native_rewrites: ClassVar[
-        dict[
-            str,
-            Callable[
-                [ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None
-            ],
-        ]
-    ] = {}
-    native_constraints: ClassVar[
-        dict[
-            str,
-            Callable[
-                [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
-                SSAValue,
-            ],
-        ]
-    ] = {}
-    native_static_constraints: ClassVar[
-        dict[str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]]
+@dataclass
+class PDLToSMTLowerer:
+    native_rewrites: dict[
+        str,
+        Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
     ]
-    refinement: ClassVar[RefinementSemantics] = IntegerTypeRefinementSemantics()
+    native_constraints: dict[
+        str,
+        Callable[
+            [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
+            SSAValue,
+        ],
+    ]
+    native_static_constraints: dict[
+        str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
+    ]
+    refinement: RefinementSemantics = IntegerTypeRefinementSemantics()
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def lower_to_smt(self, op: Operation, ctx: MLContext) -> None:
         n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])
         if n_patterns > 1:
             raise Exception(
@@ -472,24 +464,32 @@ class PDLToSMT(ModulePass):
                     OperandRewrite(),
                     GetOpRewrite(rewrite_context),
                     OperationRewrite(ctx, rewrite_context),
-                    ReplaceRewrite(rewrite_context, PDLToSMT.refinement),
+                    ReplaceRewrite(rewrite_context, self.refinement),
                     ResultRewrite(rewrite_context),
                     AttachOpRewrite(rewrite_context),
-                    ApplyNativeRewriteRewrite(
-                        rewrite_context, PDLToSMT.native_rewrites
-                    ),
+                    ApplyNativeRewriteRewrite(rewrite_context, self.native_rewrites),
                     ApplyNativeConstraintRewrite(
                         rewrite_context,
-                        PDLToSMT.native_constraints,
-                        PDLToSMT.native_static_constraints,
+                        self.native_constraints,
+                        self.native_static_constraints,
                     ),
                     ComputationOpRewrite(),
                 ]
             )
         )
         try:
-            walker.rewrite_module(op)
+            walker.rewrite_op(op)
         except StaticallyUnmatchedConstraintError:
-            PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_module(op)
+            PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_op(op)
         else:
-            PatternRewriteWalker(PatternRewrite()).rewrite_module(op)
+            PatternRewriteWalker(PatternRewrite()).rewrite_op(op)
+
+
+@dataclass(frozen=True)
+class PDLToSMT(ModulePass):
+    name = "pdl-to-smt"
+
+    pdl_lowerer: ClassVar[PDLToSMTLowerer] = PDLToSMTLowerer({}, {}, {})
+
+    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+        self.pdl_lowerer.lower_to_smt(op, ctx)
