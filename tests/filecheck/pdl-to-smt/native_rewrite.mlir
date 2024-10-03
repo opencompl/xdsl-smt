@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt,canonicalize-smt -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize-smt -t smt | filecheck "%s"
 
 builtin.module {
     pdl.pattern @add_constant_fold : benefit(0) {
@@ -24,7 +24,8 @@ builtin.module {
 }
 
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const tmp Bool)
 // CHECK-NEXT:  (declare-const c0 (_ BitVec 32))
 // CHECK-NEXT:  (declare-const c1 (_ BitVec 32))
-// CHECK-NEXT:  (assert (not (= (bvadd c0 c1) (bvadd c0 c1))))
+// CHECK-NEXT:  (assert (not (or tmp (and (not tmp) (= (bvadd c0 c1) (bvadd c0 c1))))))
 // CHECK-NEXT:  (check-sat)

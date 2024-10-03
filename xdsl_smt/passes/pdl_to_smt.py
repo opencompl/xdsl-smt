@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Callable, ClassVar, Sequence
-from xdsl.dialects.builtin import ModuleOp, IntegerType
+from xdsl.dialects.builtin import ModuleOp, IntegerType, UnitAttr
 from xdsl.dialects.pdl import (
     ApplyNativeConstraintOp,
     ApplyNativeRewriteOp,
@@ -14,6 +14,7 @@ from xdsl.dialects.pdl import (
     AttributeOp,
 )
 from xdsl.utils.hints import isa
+from xdsl.rewriter import InsertPoint, Rewriter
 
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
 from xdsl_smt.semantics.semantics import EffectStates, RefinementSemantics
@@ -64,6 +65,8 @@ class PDLToSMTRewriteContext:
     pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
     pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
     preconditions: list[SSAValue] = field(default_factory=list)
+    matching_effect_states: EffectStates = EffectStates({})
+    rewriting_effect_states: EffectStates = EffectStates({})
 
 
 def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
@@ -172,9 +175,34 @@ class OperationRewrite(RewritePattern):
                 name.data: attr
                 for name, attr in zip(op.attributeValueNames, op.attribute_values)
             }
-            results, _ = SMTLowerer.op_semantics[op_def].get_semantics(
-                op.operand_values, result_types, attributes, EffectStates({}), rewriter
+
+            # If we are manipulating a created operation, we use the effect states of the rewriting part.
+            # Otherwise, either we are manipulating an operation that is only in the matching part, or we are
+            # manipulating an operation that is in both the matching and rewriting part, in which case both
+            # effect states are the same.
+            is_created = "is_created" in op.attributes
+            is_deleted = "is_deleted" in op.attributes
+            if is_created:
+                effect_states = self.rewrite_context.rewriting_effect_states
+            else:
+                effect_states = self.rewrite_context.matching_effect_states
+            results, new_effect_states = SMTLowerer.op_semantics[op_def].get_semantics(
+                op.operand_values,
+                result_types,
+                attributes,
+                effect_states,
+                rewriter,
             )
+
+            # Update the correct effect states.
+            if is_deleted:
+                self.rewrite_context.matching_effect_states = new_effect_states
+            elif is_created:
+                self.rewrite_context.rewriting_effect_states = new_effect_states
+            else:
+                self.rewrite_context.matching_effect_states = new_effect_states
+                self.rewrite_context.rewriting_effect_states = new_effect_states
+
             self.rewrite_context.pdl_op_to_values[op.op] = results
             rewriter.erase_matched_op(safe_erase=False)
             return
@@ -234,7 +262,11 @@ class ReplaceRewrite(RewritePattern):
             replacing_value = replacing_values[0]
 
         refinement_value = self.refinement.get_semantics(
-            replaced_value, replacing_value, rewriter
+            replaced_value,
+            replacing_value,
+            self.rewrite_context.matching_effect_states,
+            self.rewrite_context.rewriting_effect_states,
+            rewriter,
         )
         not_refinement = NotOp(refinement_value)
         rewriter.insert_op_before_matched_op(not_refinement)
@@ -435,26 +467,82 @@ class PDLToSMTLowerer:
     native_rewrites: dict[
         str,
         Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
-    ]
+    ] = field(default_factory=dict)
     native_constraints: dict[
         str,
         Callable[
             [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
             SSAValue,
         ],
-    ]
+    ] = field(default_factory=dict)
     native_static_constraints: dict[
         str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
-    ]
+    ] = field(default_factory=dict)
     refinement: RefinementSemantics = IntegerTypeRefinementSemantics()
+    effect_state_types: list[Attribute] = field(default_factory=list)
+
+    def mark_pdl_operations(self, op: PatternOp):
+        """
+        Add an unit attribute with name "is_created" to operations that will be created.
+        Add an unit attribute with name "is_deleted" to matching operations that will be deleted.
+        """
+        rewrite_op = op.body.ops.last
+        if not isinstance(rewrite_op, RewriteOp):
+            raise Exception(
+                "Expected a rewrite operation at the end of the pdl pattern"
+            )
+        for sub_op in rewrite_op.walk():
+            if isinstance(sub_op, OperationOp):
+                sub_op.attributes["is_created"] = UnitAttr()
+            if isinstance(sub_op, ReplaceOp):
+                deleted_op = sub_op.op_value.owner
+                assert isinstance(deleted_op, OperationOp)
+                deleted_op.attributes["is_deleted"] = UnitAttr()
+
+        # Check that operations in the matching part are first composed of non-deleted operations,
+        # then deleted operations.
+        # This is just to simplify the logic of the pdl to smt conversion, otherwise we would have
+        # to treat effects differently.
+        has_deleted = False
+        for sub_op in op.body.ops:
+            if not isinstance(sub_op, OperationOp):
+                continue
+            if "is_deleted" in sub_op.attributes:
+                has_deleted = True
+                continue
+            if has_deleted:
+                raise Exception(
+                    "Operations in the matching part of the pdl pattern should be first"
+                    "composed of non-deleted operations, then deleted operations"
+                )
 
     def lower_to_smt(self, op: Operation, ctx: MLContext) -> None:
-        n_patterns = len([0 for sub_op in op.walk() if isinstance(sub_op, PatternOp)])
+        patterns = [sub_op for sub_op in op.walk() if isinstance(sub_op, PatternOp)]
+        n_patterns = len(patterns)
         if n_patterns > 1:
             raise Exception(
                 f"Can only handle modules with a single pattern, found {n_patterns}"
             )
+        if n_patterns == 0:
+            return
+        pattern = patterns[0]
+
+        # First, mark all `pdl.operation` operations that will be created and deleted.
+        # This helps other rewrite patterns to know which effects an operation should modify.
+        self.mark_pdl_operations(pattern)
+
         rewrite_context = PDLToSMTRewriteContext({})
+
+        # Set the input effect states
+        input_effect_states: dict[Attribute, SSAValue] = {}
+        for state_type in self.effect_state_types:
+            insert_point = InsertPoint.at_start(pattern.body.blocks[0])
+            state_input = DeclareConstOp(state_type)
+            Rewriter.insert_op(state_input, insert_point)
+            input_effect_states[state_type] = state_input.res
+        rewrite_context.matching_effect_states = EffectStates(input_effect_states)
+        rewrite_context.rewriting_effect_states = EffectStates(input_effect_states)
+
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [

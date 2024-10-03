@@ -71,7 +71,7 @@ class LowerTriggerOp(RewritePattern):
 class LowerToBoolOp(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ToBoolOp, rewriter: PatternRewriter):
-        rewriter.replace_matched_op([], new_results=[op.res])
+        rewriter.replace_matched_op([], new_results=[op.state])
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt,canonicalize-smt -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize-smt -t smt | filecheck "%s"
 
 // or(x, or(x, y)) -> or(x, y)
 
@@ -17,9 +17,10 @@
 }) : () -> ()
 
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (declare-const tmp (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (declare-const tmp Bool)
 // CHECK-NEXT:  (declare-const tmp_0 (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:  (assert (let ((tmp_1 (or (second tmp) (second tmp_0))))
-// CHECK-NEXT:    (let ((tmp_2 (bvor (first tmp) (first tmp_0))))
-// CHECK-NEXT:    (not (=> (not (or (second tmp) tmp_1)) (and (= (bvor (first tmp) tmp_2) tmp_2) (not tmp_1)))))))
+// CHECK-NEXT:  (declare-const tmp_1 (Pair (_ BitVec 32) Bool))
+// CHECK-NEXT:  (assert (let ((tmp_2 (or (second tmp_0) (second tmp_1))))
+// CHECK-NEXT:    (let ((tmp_3 (bvor (first tmp_0) (first tmp_1))))
+// CHECK-NEXT:    (not (or tmp (and (not tmp) (=> (not (or (second tmp_0) tmp_2)) (and (= (bvor (first tmp_0) tmp_3) tmp_3) (not tmp_2)))))))))
 // CHECK-NEXT:  (check-sat)

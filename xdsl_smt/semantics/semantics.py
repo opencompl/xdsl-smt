@@ -92,6 +92,11 @@ class RefinementSemantics:
 
     @abstractmethod
     def get_semantics(
-        self, val_before: SSAValue, val_after: SSAValue, rewriter: PatternRewriter
+        self,
+        val_before: SSAValue,
+        val_after: SSAValue,
+        states_before: EffectStates,
+        states_after: EffectStates,
+        rewriter: PatternRewriter,
     ) -> SSAValue:
         pass

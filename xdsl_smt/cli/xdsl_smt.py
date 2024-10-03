@@ -101,6 +101,7 @@ def main():
     PDLToSMT.pdl_lowerer.native_static_constraints = (
         integer_arith_native_static_constraints
     )
+    PDLToSMT.pdl_lowerer.effect_state_types = [UBStateType()]
 
     xdsl_main.run()
 

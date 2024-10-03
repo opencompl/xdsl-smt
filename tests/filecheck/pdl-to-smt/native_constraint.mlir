@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt,canonicalize-smt -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize-smt -t smt | filecheck "%s"
 
 builtin.module {
     // x * -1 -> 0 - x
@@ -27,7 +27,8 @@ builtin.module {
 }
 
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// CHECK-NEXT:  (declare-const tmp Bool)
 // CHECK-NEXT:  (declare-const x (Pair (_ BitVec 32) Bool))
 // CHECK-NEXT:  (declare-const c0_attr (_ BitVec 32))
-// CHECK-NEXT:  (assert (and (not (=> (not (second x)) (and (= (bvmul (first x) c0_attr) (bvsub (_ bv0 32) (first x))) (not (second x))))) (= c0_attr (_ bv4294967295 32))))
+// CHECK-NEXT:  (assert (and (not (or tmp (and (not tmp) (=> (not (second x)) (and (= (bvmul (first x) c0_attr) (bvsub (_ bv0 32) (first x))) (not (second x))))))) (= c0_attr (_ bv4294967295 32))))
 // CHECK-NEXT:  (check-sat)
