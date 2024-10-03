@@ -45,10 +45,6 @@ class ReturnPattern(SMTLoweringRewritePattern):
         rewriter.replace_matched_op([smt_op])
         return effect_states
 
-    def match_and_rewrite(self, op: Return, rewriter: PatternRewriter):
-        smt_op = ReturnOp(smt_pair_from_list(*op.arguments))
-        rewriter.replace_matched_op([*new_ops(smt_op)])
-
 
 class FuncToSMTPattern(SMTLoweringRewritePattern):
     """

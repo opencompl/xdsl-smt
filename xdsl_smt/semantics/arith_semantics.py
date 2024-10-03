@@ -287,6 +287,8 @@ class DivsiSemantics(SimplePoisonSemantics):
                 lhs_is_min_val,
                 rhs_is_minus_one,
                 is_underflow,
+                trigger_ub,
+                new_ub_state,
                 value_op,
             ]
         )

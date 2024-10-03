@@ -145,15 +145,15 @@ def pair_from_list(*vals: SSAValue) -> SSAValue:
 def merge_values_with_pairs(
     vals: Sequence[SSAValue], rewriter: PatternRewriter, insert_point: InsertPoint
 ) -> SSAValue | None:
-    """Merge a list of values (a, b, c, ...) into a list of pairs (((a, b), c), ...)"""
+    """Merge a list of values (a, b, c, ...) into a list of pairs (a, (b, (c, ...)))"""
     if len(vals) == 0:
         return None
-    lhs = vals[0]
-    for rhs in vals[1:]:
+    rhs = vals[-1]
+    for lhs in reversed(vals[:-1]):
         pair = PairOp(lhs, rhs)
         rewriter.insert_op(pair, insert_point)
-        lhs = pair.res
-    return lhs
+        rhs = pair.res
+    return rhs
 
 
 def pair_type_from_list(*types: Attribute) -> Attribute:
