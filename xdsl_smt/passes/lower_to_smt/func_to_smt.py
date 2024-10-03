@@ -11,12 +11,8 @@ from xdsl_smt.passes.lower_to_smt import (
     SMTLoweringRewritePattern,
 )
 from xdsl_smt.semantics.semantics import EffectStates
-from xdsl_smt.utils.rewrite_tools import new_ops
 from xdsl_smt.dialects.smt_dialect import DefineFunOp, ReturnOp
-from xdsl_smt.dialects.smt_utils_dialect import (
-    merge_values_with_pairs,
-    pair_from_list as smt_pair_from_list,
-)
+from xdsl_smt.dialects.smt_utils_dialect import merge_values_with_pairs
 from xdsl_smt.dialects.smt_utils_dialect import (
     pair_type_from_list as smt_pair_type_from_list,
 )

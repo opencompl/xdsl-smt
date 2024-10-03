@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from argparse import ArgumentParser
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
