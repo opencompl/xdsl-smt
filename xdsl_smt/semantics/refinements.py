@@ -1,7 +1,6 @@
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
-from xdsl_smt.dialects import smt_ub_dialect
 import xdsl_smt.dialects.smt_dialect as smt
 import xdsl_smt.dialects.smt_ub_dialect as smt_ub
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
