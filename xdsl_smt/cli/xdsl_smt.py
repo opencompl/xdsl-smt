@@ -20,6 +20,8 @@ from xdsl_smt.passes.lower_to_smt import (
     transfer_to_smt_patterns,
 )
 
+from xdsl_smt.passes import dynamic_semantics
+from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
 from ..dialects.hoare_dialect import Hoare
 from ..dialects.pdl_dataflow import PDLDataflowDialect
@@ -82,6 +84,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(LowerPairs.name, lambda: LowerPairs)
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
         self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)
+        self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
 
     def register_all_targets(self):
         super().register_all_targets()
