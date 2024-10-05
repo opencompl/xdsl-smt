@@ -7,6 +7,7 @@ from xdsl.ir import Operation
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
+from xdsl_smt.dialects.transfer import TupleType
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMT
 from xdsl_smt.dialects.smt_utils_dialect import (
     AnyPairType,
@@ -29,7 +30,7 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_lzeros,
     count_rzeros,
     count_lones,
-    count_rones,
+    count_rones, reverse_bits,
 )
 
 
@@ -38,7 +39,7 @@ def abstract_value_type_lowerer(
 ) -> PairType[Attribute, Attribute] | None:
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
-    if isinstance(type, transfer.AbstractValueType):
+    if isinstance(type, transfer.AbstractValueType) or isinstance(type, transfer.TupleType):
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = LowerToSMT.lower_type(curTy)
@@ -632,6 +633,22 @@ class RemovePoisonOpSemantics(OperationSemantics):
         return (res.res,)
 
 
+class ReverseBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        regions: Sequence[Region],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[SSAValue]:
+        op_ty = operands[0].type
+        assert isinstance(op_ty, smt_bv.BitVectorType)
+        res = reverse_bits(operands[0])
+        rewriter.insert_op_before_matched_op(res)
+        return (res[-1].results[0],)
+
+
 class ConstRangeForOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -749,4 +766,5 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.IntersectsOp: IntersectsOpSemantics(),
     transfer.AddPoisonOp: AddPoisonOpSemantics(),
     transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
+    transfer.ReverseBitsOp: ReverseBitsOpSemantics(),
 }
