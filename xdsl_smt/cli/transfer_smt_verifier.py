@@ -40,6 +40,12 @@ from xdsl.dialects.builtin import (
     Region,
     Block,
 )
+from ..utils.transfer_function_util import (
+    getArgumentInstances,
+    getResultInstance,
+    callFunctionAndAssertResult, callFunction, getArgumentWidths, getResultWidth,compress_and_op
+
+)
 from xdsl.dialects.func import Func, FuncOp, Return, Call
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
@@ -189,11 +195,30 @@ def test_abs_inline_check(
     return arg_constant + [abstract_result]
 
 
+def extra_soundness_counterexample(counter_func:DefineFunOp):
+    #init args
+    constant_bv_1 = ConstantOp(1, 1)
+    args_type=[arg.type for arg in counter_func.body.block.args]
+    args:list[DeclareConstOp] = []
+    for ty in args_type:
+        args.append(DeclareConstOp(ty))
+
+    #call conter_func
+    callOp=CallOp.get(counter_func.results[0],args)
+    callFirstOp=FirstOp(callOp.res)
+
+    #check result
+    resEq=EqOp.get(callFirstOp.res,constant_bv_1.res)
+    assertOp=AssertOp.get(resEq.res)
+    satOp=CheckSatOp()
+    return [constant_bv_1] + args + [callOp, resEq, assertOp, satOp]
+
 def soundness_check(
     abstract_func: DefineFunOp,
     concrete_func: DefineFunOp,
     get_constraint: dict[int, DefineFunOp],
     get_inst_constraint: dict[int, DefineFunOp],
+    abs_op_constraint: DefineFunOp,
     op_constraint: DefineFunOp,
 ):
     args_width = []
@@ -208,6 +233,9 @@ def soundness_check(
     assert isinstance(abstract_return_type, PairType)
     assert isinstance(abstract_return_type.first, BitVectorType)
     result_width = abstract_return_type.first.width.data
+
+    #We need result_width because of cmp operation
+    #Cmp operation returns i1, they need different get_instance_constraint
 
     instance_return_type = BitVectorType.from_int(result_width)
 
@@ -273,6 +301,19 @@ def soundness_check(
             op_constraint_assert,
         ]
 
+    abs_op_constraint_list = []
+    if abs_op_constraint is not None:
+        abs_op_constraint_result = CallOp.get(abs_op_constraint.results[0],arg_constant)
+        abs_op_constraint_result_first = FirstOp(abs_op_constraint_result.res)
+        abs_op_constraint_eq = EqOp(constant_bv_1.res, abs_op_constraint_result_first.res)
+        abs_op_constraint_assert = AssertOp(abs_op_constraint_eq.res)
+        abs_op_constraint_list = [
+            abs_op_constraint_result,
+            abs_op_constraint_result_first,
+            abs_op_constraint_eq,
+            abs_op_constraint_assert,
+        ]
+
     arg_constant.append(DeclareConstOp(abstract_return_type))
     inst_constant.append(DeclareConstOp(instance_return_type))
 
@@ -315,6 +356,7 @@ def soundness_check(
             inst_result_constraint_first,
         ]
         + [constant_bv_1, constant_bv_0]
+        + abs_op_constraint_list
         + op_constraint_list
         + eq_ops
         + assert_ops
@@ -322,23 +364,12 @@ def soundness_check(
     )
 
 
-def compress_and_op(lst):
-    if len(lst) == 0:
-        assert False and "cannot compress lst with size 0 to an AndOp"
-    elif len(lst) == 1:
-        return (lst[0].res, [])
-    else:
-        new_ops: list[AndOp] = [AndOp(lst[0].results[0], lst[1].results[0])]
-        for i in range(2, len(lst)):
-            new_ops.append(AndOp(new_ops[-1].res, lst[i].results[0]))
-        return (new_ops[-1].res, new_ops)
-
-
 def precision_check(
     abstract_func: DefineFunOp,
     concrete_func: DefineFunOp,
     get_constraint: dict[int, DefineFunOp],
     get_inst_constraint: dict[int, DefineFunOp],
+    abs_op_constraint: DefineFunOp,
     op_constraint: DefineFunOp,
 ):
     args_width = []
@@ -752,6 +783,7 @@ def main() -> None:
         concrete_funcs = []
         func_name_to_concrete_func_name = {}
         func_name_to_op_constraint = {}
+        func_name_to_abs_op_constraint = {}
         func_name_to_args_width = {}
         func_name_to_result_width = {}
 
@@ -763,7 +795,7 @@ def main() -> None:
                     extra = op.attributes["applied_to"].data[1]
                     assert (
                         isinstance(extra, IntegerAttr)
-                        and "only support for integer attr for the second appliled arg for now"
+                        and "only support for integer attr for the second applied arg for now"
                     )
                     extra = extra.value.data
                 concrete_func, args_width, result_width = find_concrete_function(
@@ -782,6 +814,11 @@ def main() -> None:
             if isinstance(op, FuncOp) and "op_constraint" in op.attributes:
                 func_name_to_op_constraint[op.sym_name.data] = op.attributes[
                     "op_constraint"
+                ].data
+
+            if isinstance(op, FuncOp) and "abs_op_constraint" in op.attributes:
+                func_name_to_abs_op_constraint[op.sym_name.data] = op.attributes[
+                    "abs_op_constraint"
                 ].data
 
         all_width.remove(0)
@@ -827,6 +864,12 @@ def main() -> None:
                     func_name_to_op_constraint[transfer_funcname.data]
                 ]
 
+            abs_op_constraint = None
+            if transfer_funcname.data in func_name_to_abs_op_constraint:
+                abs_op_constraint = func_name_to_smt_func[
+                    func_name_to_abs_op_constraint[transfer_funcname.data]
+                ]
+
             """
             query_module = ModuleOp([], {})
             added_ops = test_abs_inline_check(transfer_func)
@@ -859,6 +902,7 @@ def main() -> None:
                     concrete_func,
                     width_to_getConstraint,
                     width_to_getInstanceConstraint,
+                    abs_op_constraint,
                     op_constraint,
                 )
                 query_module.body.block.add_ops(added_ops)
@@ -876,6 +920,7 @@ def main() -> None:
                     concrete_func,
                     width_to_getConstraint,
                     width_to_getInstanceConstraint,
+                    abs_op_constraint,
                     op_constraint,
                 )
                 query_module.body.block.add_ops(added_ops)
