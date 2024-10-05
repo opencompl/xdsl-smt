@@ -35,13 +35,14 @@ from ..dialects.transfer import (
     ConstRangeForOp,
     RepeatOp,
     IntersectsOp,
-    FromArithOp,
+    #FromArithOp,
+    TupleType,
 )
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.pattern_rewriter import *
 from functools import singledispatch
 from typing import TypeVar, cast
-from xdsl.dialects.builtin import Signedness, IntegerType, IndexType
+from xdsl.dialects.builtin import Signedness, IntegerType, IndexType, IntegerAttr
 from xdsl.ir import Operation
 import xdsl.dialects.arith as arith
 
@@ -81,7 +82,7 @@ operNameToCpp = {
         ".ugt",
         ".uge",
     ],
-    "transfer.fromArith": "APInt",
+    #"transfer.fromArith": "APInt",
     "transfer.make": "std::make_tuple",
     "transfer.get": "std::get<{0}>",
     "transfer.shl": ".shl",
@@ -96,6 +97,7 @@ operNameToCpp = {
     "func.return": "return",
     "transfer.constant": "APInt",
     "arith.select": ["?", ":"],
+    "arith.cmpi": ["==", "!=", "<", "<=", ">", ">="],
     "transfer.get_all_ones": "APInt::getAllOnes",
     "transfer.select": ["?", ":"],
 }
@@ -120,7 +122,7 @@ def lowerType(typ, specialOp=None):
                 return "unsigned"
     if isinstance(typ, TransIntegerType):
         return "APInt"
-    elif isinstance(typ, AbstractValueType):
+    elif isinstance(typ, AbstractValueType) or isinstance(typ, TupleType):
         typeName = "std::tuple<"
         fields = typ.get_fields()
         typeName += lowerType(fields[0])
@@ -133,12 +135,12 @@ def lowerType(typ, specialOp=None):
         return "int"
     elif isinstance(typ, IndexType):
         return "int"
-    print(typ)
     assert False and "unsupported type"
 
 
 CPP_CLASS_KEY = "CPPCLASS"
 INDUCTION_KEY = "induction"
+OPERATION_NO = "operationNo"
 
 
 def lowerInductionOps(inductionOp: list[FuncOp]):
@@ -164,7 +166,7 @@ def lowerInductionOps(inductionOp: list[FuncOp]):
         return result
 
 
-def lowerDispatcher(needDispatch: list[FuncOp]):
+def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
     if len(needDispatch) > 0:
         returnedType = needDispatch[0].function_type.outputs.data[0]
         for func in needDispatch:
@@ -176,20 +178,24 @@ def lowerDispatcher(needDispatch: list[FuncOp]):
         returnedType = lowerType(returnedType)
         funcName = "naiveDispatcher"
         # we assume all operands have the same type as expr
-        expr = "(Operation* op, ArrayRef<" + returnedType + "> operands)"
+        # User should tell the generator all operands
+        if is_forward:
+            expr = "(Operation* op, AbstractValues operands)"
+        else:
+            expr = "(Operation* op, AbstractValues operands, unsigned operationNo)"
         functionSignature = (
             "std::optional<" + returnedType + "> " + funcName + expr + "{{\n{0}}}\n\n"
         )
         indent = "\t"
         dyn_cast = (
             indent
-            + "if(auto castedOp=dyn_cast<{0}>(op);castedOp){{\n{1}"
+            + "if(auto castedOp=dyn_cast<{0}>(op);castedOp&&{1}){{\n{2}"
             + indent
             + "}}\n"
         )
         return_inst = indent + indent + "return {0}({1});\n"
 
-        def handleOneTransferFunction(func: FuncOp) -> str:
+        def handleOneTransferFunction(func: FuncOp, operationNo:int) -> str:
             blockStr = ""
             for cppClass in func.attributes[CPP_CLASS_KEY]:
                 argStr = ""
@@ -201,12 +207,22 @@ def lowerDispatcher(needDispatch: list[FuncOp]):
                     for i in range(1, len(func.args)):
                         argStr += ", operands[" + str(i) + "]"
                 ifBody = return_inst.format(func.sym_name.data, argStr)
-                blockStr += dyn_cast.format(cppClass.data, ifBody)
+                if operationNo == -1:
+                    operationNoStr="true"
+                else:
+                    operationNoStr = "operationNo == "+str(operationNo)
+                blockStr += dyn_cast.format(cppClass.data,operationNoStr , ifBody)
             return blockStr
 
         funcBody = ""
         for func in needDispatch:
-            funcBody += handleOneTransferFunction(func)
+            if is_forward:
+                funcBody += handleOneTransferFunction(func)
+            else:
+                operationNo = func.attributes[OPERATION_NO]
+                assert isinstance(operationNo, IntegerAttr)
+                print(operationNo.value.data)
+                funcBody += handleOneTransferFunction(func, operationNo.value.data)
         funcBody += indent + "return {};\n"
         return functionSignature.format(funcBody)
 
@@ -302,13 +318,10 @@ def _(op: arith.Cmpi):
     returnedValue = op.results[0].name_hint
     equals = "="
     operandsName = [oper.name_hint for oper in op.operands]
+    assert len(operandsName) == 2
     predicate = op.predicate.value.data
     operName = operNameToCpp[op.name][predicate]
-    expr = operandsName[0] + operName + "("
-    if len(operandsName) > 1:
-        expr += operandsName[1]
-    for i in range(2, len(operandsName)):
-        expr += "," + operandsName[i]
+    expr = "(" + operandsName[0] + operName + operandsName[1]
     expr += ")"
     return indent + returnedType + " " + returnedValue + equals + expr + ends
 
@@ -401,7 +414,7 @@ def _(op: Return):
     operand = op.arguments[0].name_hint
     return indent + opName + operand + ends
 
-
+'''
 @lowerOperation.register
 def _(op: FromArithOp):
     opTy = op.op.type
@@ -421,7 +434,7 @@ def _(op: FromArithOp):
         + ")"
         + ends
     )
-
+'''
 
 @lowerOperation.register
 def _(op: arith.Constant):
