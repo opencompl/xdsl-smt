@@ -78,19 +78,17 @@ def addInductionOps(fout):
         fout.write(lowerInductionOps(inductionOp))
 
 
-def addDispatcher(fout):
+def addDispatcher(fout, is_forward:bool):
     global needDispatch
     if len(needDispatch) != 0:
         # print(lowerDispatcher(needDispatch))
-        fout.write(lowerDispatcher(needDispatch))
+        fout.write(lowerDispatcher(needDispatch, is_forward))
 
 
-@dataclass
+@dataclass(frozen=True)
 class LowerToCpp(ModulePass):
     name = "trans_lower"
-
-    def __init__(self, fout):
-        self.fout = fout
+    fout = None
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
         walker = PatternRewriteWalker(

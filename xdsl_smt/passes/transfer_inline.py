@@ -60,7 +60,6 @@ class SMTCallInlinePattern(RewritePattern):
             if isinstance(op, ReturnOp):
                 callOp.results[0].replace_by(value_map[op.ret])
                 rewriter.erase_matched_op()
-                return
             else:
                 newOp = op.clone()
                 for i, arg in enumerate(op.operands):
