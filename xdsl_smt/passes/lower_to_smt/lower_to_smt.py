@@ -131,7 +131,8 @@ class SMTLowerer:
                 effect_states,
                 rewriter,
             )
-            # When the semantics are PDL-based, the replacement is defined in PDL
+
+            # When the semantics are PDL-based, the replacement is performed in PDL
             if not isinstance(SMTLowerer.op_semantics[type(op)],PDLSemantics):
                 rewriter.replace_matched_op([], new_res)
             return effect_states
