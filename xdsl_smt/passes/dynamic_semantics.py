@@ -24,12 +24,13 @@ class DynamicSemantics(ModulePass):
                 elif isinstance(op, pdl.RewriteOp):
                     is_smt_rewrite = True
                     for inner_op in op.walk():
-                        is_smt_rewrite = is_smt_rewrite and (
-                            isinstance(inner_op, pdl.OperationOp)
-                            and (str(inner_op.opName).split('.')[0] == 'smt'
-                                 # Hacky. Bug in xDSL OperationOp parsing.
-                                 and str(inner_op.opName).split('.')[0] == '\"smt')
-                        )
+                        if isinstance(inner_op, pdl.OperationOp):
+                            is_smt_rewrite = is_smt_rewrite and (
+                                str(inner_op.opName).split('.')[0] == 'smt'
+                                # Hacky. Bug in xDSL OperationOp parsing.
+                                or str(inner_op.opName).split('.')[0] == '\"smt'
+                            )
+                    assert(is_smt_rewrite)
                     rewrites.append(op)
                     break
             assert(len(match_ops) == 1)
@@ -45,6 +46,7 @@ class DynamicSemantics(ModulePass):
                         rewrite = rewrites[0]
                     )
         # Update the global semantics
+        SMTLowerer.dynamic_semantics_enabled = True
         SMTLowerer.op_semantics = {
             **SMTLowerer.op_semantics,
             **semantics

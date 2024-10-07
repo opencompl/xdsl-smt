@@ -83,6 +83,7 @@ class SMTLowerer:
     type_lowerers: ClassVar[list[Callable[[Attribute], Attribute | None]]] = []
     attribute_semantics: ClassVar[dict[type[Attribute], AttributeSemantics]] = {}
     effect_types: ClassVar[list[Attribute]] = []
+    dynamic_semantics_enabled: ClassVar[bool] = False
 
     @staticmethod
     def lower_region(
@@ -103,8 +104,10 @@ class SMTLowerer:
 
         # Lower the operations
         for op in list(region.block.ops):
-            # If the operation is a terminator, we know this is the last operation.
-            if isinstance(op,pdl.PatternOp):
+            if (
+                    isinstance(op,pdl.PatternOp)
+                    and SMTLowerer.dynamic_semantics_enabled
+            ):
                 pass
             else:
                 effect_states = SMTLowerer.lower_operation(op, effect_states)
@@ -131,7 +134,8 @@ class SMTLowerer:
                 effect_states,
                 rewriter,
             )
-            # When the semantics are PDL-based, the replacement is defined in PDL
+
+            # When the semantics are PDL-based, the replacement is performed in PDL
             if not isinstance(SMTLowerer.op_semantics[type(op)],PDLSemantics):
                 rewriter.replace_matched_op([], new_res)
             return effect_states
