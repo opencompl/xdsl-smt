@@ -100,5 +100,8 @@ class PDLSemantics(OperationSemantics):
         # Go
         interpreter.run_ssacfg_region(self.pdl_rewrite_op.body, ())
         interpreter.pop_scope()
+        # Should we erase the PDL pattern ?
+        # parent.detach()
+        # parent.erase()
         
         return (functions.new_vals,effect_states)

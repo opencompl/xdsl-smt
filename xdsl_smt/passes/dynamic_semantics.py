@@ -46,6 +46,7 @@ class DynamicSemantics(ModulePass):
                         rewrite = rewrites[0]
                     )
         # Update the global semantics
+        SMTLowerer.dynamic_semantics_enabled = True
         SMTLowerer.op_semantics = {
             **SMTLowerer.op_semantics,
             **semantics
