@@ -100,6 +100,7 @@ operNameToCpp = {
     "arith.cmpi": ["==", "!=", "<", "<=", ">", ">="],
     "transfer.get_all_ones": "APInt::getAllOnes",
     "transfer.select": ["?", ":"],
+    "transfer.reverse_bits": ".reverseBits"
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
