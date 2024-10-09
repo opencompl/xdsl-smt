@@ -1,53 +1,55 @@
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from xdsl.passes import ModulePass
 from xdsl.context import MLContext
-from xdsl.dialects.builtin import ModuleOp, IntegerType
-from xdsl.dialects import pdl,arith
+from xdsl.dialects.builtin import ModuleOp
+from xdsl.dialects import pdl, arith
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
+
 
 @dataclass(frozen=True)
 class DynamicSemantics(ModulePass):
     name = "dynamic-semantics"
-    def apply(self, ctx: MLContext, pdl_module: ModuleOp) -> None:
+
+    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+        pdl_module = op
         patterns = [op for op in pdl_module.walk() if isinstance(op, pdl.PatternOp)]
         semantics = {}
         for p in patterns:
-            match_ops,rewrites = [],[]
-            for op in p.walk():
+            match_ops: list[pdl.OperationOp] = []
+            rewrites: list[pdl.RewriteOp] = []
+            for pdl_op in p.walk():
                 # The matched operation
-                if (isinstance(op, pdl.OperationOp)
-                    and not isinstance(op.parent_op(),pdl.RewriteOp)):
-                    match_ops.append(op)
+                if isinstance(pdl_op, pdl.OperationOp) and not isinstance(
+                    pdl_op.parent_op(), pdl.RewriteOp
+                ):
+                    match_ops.append(pdl_op)
                 # The SMT-targetting rewrite (semantics)
-                elif isinstance(op, pdl.RewriteOp):
+                elif isinstance(pdl_op, pdl.RewriteOp):
                     is_smt_rewrite = True
-                    for inner_op in op.walk():
+                    for inner_op in pdl_op.walk():
                         if isinstance(inner_op, pdl.OperationOp):
                             is_smt_rewrite = is_smt_rewrite and (
-                                str(inner_op.opName).split('.')[0] == 'smt'
+                                str(inner_op.opName).split(".")[0] == "smt"
                                 # Hacky. Bug in xDSL OperationOp parsing.
-                                or str(inner_op.opName).split('.')[0] == '\"smt'
+                                or str(inner_op.opName).split(".")[0] == '"smt'
                             )
-                    assert(is_smt_rewrite)
-                    rewrites.append(op)
+                    assert is_smt_rewrite
+                    rewrites.append(pdl_op)
                     break
-            assert(len(match_ops) == 1)
-            assert(len(rewrites) == 1)
+            assert len(match_ops) == 1
+            assert len(rewrites) == 1
             # Agregates the pairs op,semantics
-            supported_ops = [arith.Addi,arith.Constant]
-            for op in supported_ops:
-                if (str(match_ops[0].opName) == op.name
+            supported_ops = [arith.Addi, arith.Constant]
+            for supported_op in supported_ops:
+                if (
+                    str(match_ops[0].opName) == supported_op.name
                     # Hacky, etc.
-                    or str(match_ops[0].opName) == "\"" + op.name + "\""):
-                    semantics[op] = PDLSemantics(
-                        target_op = match_ops[0],
-                        rewrite = rewrites[0]
+                    or str(match_ops[0].opName) == '"' + supported_op.name + '"'
+                ):
+                    semantics[supported_op] = PDLSemantics(
+                        target_op=match_ops[0], rewrite=rewrites[0]
                     )
         # Update the global semantics
         SMTLowerer.dynamic_semantics_enabled = True
-        SMTLowerer.op_semantics = {
-            **SMTLowerer.op_semantics,
-            **semantics
-        }
+        SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}

@@ -35,6 +35,7 @@ from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
 from xdsl.dialects import pdl
 
+
 def integer_poison_type_lowerer(type: Attribute) -> Attribute | None:
     """Convert an integer type to a bitvector integer with a poison flag."""
     if isinstance(type, IntegerType):
@@ -104,10 +105,7 @@ class SMTLowerer:
 
         # Lower the operations
         for op in list(region.block.ops):
-            if (
-                    isinstance(op,pdl.PatternOp)
-                    and SMTLowerer.dynamic_semantics_enabled
-            ):
+            if isinstance(op, pdl.PatternOp) and SMTLowerer.dynamic_semantics_enabled:
                 pass
             else:
                 effect_states = SMTLowerer.lower_operation(op, effect_states)
@@ -136,7 +134,7 @@ class SMTLowerer:
             )
 
             # When the semantics are PDL-based, the replacement is performed in PDL
-            if not isinstance(SMTLowerer.op_semantics[type(op)],PDLSemantics):
+            if not isinstance(SMTLowerer.op_semantics[type(op)], PDLSemantics):
                 rewriter.replace_matched_op([], new_res)
             return effect_states
 
