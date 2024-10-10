@@ -1,7 +1,8 @@
 from typing import cast
 from xdsl_smt.semantics.semantics import OperationSemantics, EffectStates
 from typing import Mapping, Sequence, Any
-from xdsl.ir import SSAValue, Attribute, Region
+from xdsl.ir import SSAValue, Attribute, Region, Operation
+from xdsl.rewriter import InsertPoint
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.interpreters.experimental.pdl import (
     PDLMatcher,
@@ -14,7 +15,21 @@ from xdsl.interpreter import Interpreter, impl, register_impls
 from dataclasses import dataclass
 from io import StringIO
 from xdsl_smt.dialects.smt_dialect import SMTDialect
+from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+
+
+def defining_pdl_ops(op: Operation) -> list[pdl.OperationOp]:
+    use_chain: list[pdl.OperationOp] = []
+    for operand in op.operands:
+        if isinstance(operand.owner, pdl.OperationOp) or isinstance(
+            operand.owner, pdl.ResultOp
+        ):
+            use_chain += defining_pdl_ops(operand.owner)
+    if isinstance(op, pdl.OperationOp) and isinstance(op.parent_op(), pdl.RewriteOp):
+        use_chain.append(op)
+
+    return use_chain
 
 
 @register_impls
@@ -32,9 +47,17 @@ class ExtPDLRewriteFunctions(PDLRewriteFunctions):
         self, interpreter: Interpreter, op: pdl.ReplaceOp, args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
         rewriter = self.rewriter
-
         (old,) = interpreter.get_values((op.op_value,))
 
+        # Insert dependencies if needed
+        pdl_ops = defining_pdl_ops(op)
+        for pdl_op in pdl_ops:
+            if pdl_op.op == op.repl_operation:
+                continue
+            (new_op,) = interpreter.get_values((pdl_op.op,))
+            rewriter.insert_op(new_op, InsertPoint.before(old))
+
+        # Do the replacement itself (and store the new values)
         if op.repl_operation is not None:
             (new_op,) = interpreter.get_values((op.repl_operation,))
             rewriter.replace_op(old, new_op)
@@ -45,7 +68,6 @@ class ExtPDLRewriteFunctions(PDLRewriteFunctions):
             self.new_vals = new_vals
         else:
             assert False, "Unexpected ReplaceOp"
-
         return ()
 
 
@@ -81,6 +103,7 @@ class PDLSemantics(OperationSemantics):
         ctx.load_dialect(arith.Arith)
         ctx.load_dialect(pdl.PDL)
         ctx.load_dialect(SMTDialect)
+        ctx.load_dialect(SMTUtilsDialect)
         ctx.load_dialect(SMTBitVectorDialect)
         # PDLRewriteFUnctions = the RHS pf the rewrite
         functions = ExtPDLRewriteFunctions(ctx)
