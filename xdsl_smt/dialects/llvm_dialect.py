@@ -3,47 +3,46 @@ from __future__ import annotations
 
 # Expose all base LLVM operations and attributes
 # pyright: reportUnusedImport=false
-from xdsl.dialects.llvm import (
-    AddOp,
-    SubOp,
-    MulOp,
-    UDivOp,
-    SDivOp,
-    URemOp,
-    SRemOp,
-    AndOp,
-    OrOp,
-    XOrOp,
-    ShlOp,
-    LShrOp,
-    AShrOp,
-    ExtractValueOp,
-    InsertValueOp,
-    InlineAsmOp,
-    UndefOp,
-    AllocaOp,
-    GEPOp,
-    IntToPtrOp,
-    NullOp,
-    LoadOp,
-    StoreOp,
-    GlobalOp,
-    AddressOfOp,
-    FuncOp,
-    CallOp,
-    ReturnOp,
-    ConstantOp,
-    CallIntrinsicOp,
-    ZeroOp,
-    LLVMStructType,
-    LLVMPointerType,
-    LLVMArrayType,
-    LLVMVoidType,
-    LLVMFunctionType,
-    LinkageAttr,
-    CallingConventionAttr,
-    FastMathAttr,
-)
+from xdsl.dialects.llvm import AddOp as AddOp
+from xdsl.dialects.llvm import SubOp as SubOp
+from xdsl.dialects.llvm import MulOp as MulOp
+from xdsl.dialects.llvm import UDivOp as UDivOp
+from xdsl.dialects.llvm import SDivOp as SDivOp
+from xdsl.dialects.llvm import URemOp as URemOp
+from xdsl.dialects.llvm import SRemOp as SRemOp
+from xdsl.dialects.llvm import AndOp as AndOp
+from xdsl.dialects.llvm import OrOp as OrOp
+from xdsl.dialects.llvm import XOrOp as XOrOp
+from xdsl.dialects.llvm import ShlOp as ShlOp
+from xdsl.dialects.llvm import LShrOp as LShrOp
+from xdsl.dialects.llvm import AShrOp as AShrOp
+from xdsl.dialects.llvm import ExtractValueOp as ExtractValueOp
+from xdsl.dialects.llvm import InsertValueOp as InsertValueOp
+from xdsl.dialects.llvm import InlineAsmOp as InlineAsmOp
+from xdsl.dialects.llvm import UndefOp as UndefOp
+from xdsl.dialects.llvm import AllocaOp as AllocaOp
+from xdsl.dialects.llvm import GEPOp as GEPOp
+from xdsl.dialects.llvm import IntToPtrOp as IntToPtrOp
+from xdsl.dialects.llvm import NullOp as NullOp
+from xdsl.dialects.llvm import LoadOp as LoadOp
+from xdsl.dialects.llvm import StoreOp as StoreOp
+from xdsl.dialects.llvm import GlobalOp as GlobalOp
+from xdsl.dialects.llvm import AddressOfOp as AddressOfOp
+from xdsl.dialects.llvm import FuncOp as FuncOp
+from xdsl.dialects.llvm import CallOp as CallOp
+from xdsl.dialects.llvm import ReturnOp as ReturnOp
+from xdsl.dialects.llvm import ConstantOp as ConstantOp
+from xdsl.dialects.llvm import CallIntrinsicOp as CallIntrinsicOp
+from xdsl.dialects.llvm import ZeroOp as ZeroOp
+from xdsl.dialects.llvm import LLVMStructType as LLVMStructType
+from xdsl.dialects.llvm import LLVMPointerType as LLVMPointerType
+from xdsl.dialects.llvm import LLVMArrayType as LLVMArrayType
+from xdsl.dialects.llvm import LLVMVoidType as LLVMVoidType
+from xdsl.dialects.llvm import LLVMFunctionType as LLVMFunctionType
+from xdsl.dialects.llvm import LinkageAttr as LinkageAttr
+from xdsl.dialects.llvm import CallingConventionAttr as CallingConventionAttr
+from xdsl.dialects.llvm import FastMathAttr as FastMathAttr
+
 from xdsl.dialects.arith import ComparisonOperation, signlessIntegerLike
 from xdsl.dialects import llvm
 from xdsl.parser import Parser
