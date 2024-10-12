@@ -80,7 +80,7 @@ class TypeSemantics:
     """
 
     @abstractmethod
-    def get_semantics(self, attribute: Attribute) -> Attribute:
+    def get_semantics(self, type: Attribute) -> Attribute:
         pass
 
 

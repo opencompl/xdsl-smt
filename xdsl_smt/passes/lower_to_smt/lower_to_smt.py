@@ -9,45 +9,30 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce
-from typing import Callable, ClassVar
+from typing import ClassVar
 
 from xdsl.passes import ModulePass
 from xdsl.ir import Attribute, Operation, SSAValue, Region
 from xdsl.traits import IsTerminator
 from xdsl.context import MLContext
-from xdsl.dialects.builtin import IntegerType, ModuleOp
+from xdsl.dialects.builtin import ModuleOp
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
 )
 
 from xdsl_smt.dialects import smt_dialect
-from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl_smt.semantics.semantics import (
     AttributeSemantics,
     EffectState,
     EffectStates,
     OperationSemantics,
+    TypeSemantics,
 )
 
-from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
 from xdsl.dialects import pdl
-
-
-def integer_poison_type_lowerer(type: Attribute) -> Attribute | None:
-    """Convert an integer type to a bitvector integer with a poison flag."""
-    if isinstance(type, IntegerType):
-        return PairType(BitVectorType(type.width), BoolType())
-    return None
-
-
-def integer_type_lowerer(type: Attribute) -> Attribute | None:
-    """Convert an integer type to a bitvector integer."""
-    if isinstance(type, IntegerType):
-        return BitVectorType(type.width)
-    return None
 
 
 class SMTLoweringRewritePattern(ABC):
@@ -81,7 +66,7 @@ class SMTLowerer:
 
     rewrite_patterns: ClassVar[dict[type[Operation], SMTLoweringRewritePattern]] = {}
     op_semantics: ClassVar[dict[type[Operation], OperationSemantics]] = {}
-    type_lowerers: ClassVar[list[Callable[[Attribute], Attribute | None]]] = []
+    type_lowerers: ClassVar[dict[type[Attribute], TypeSemantics]] = {}
     attribute_semantics: ClassVar[dict[type[Attribute], AttributeSemantics]] = {}
     effect_types: ClassVar[list[Attribute]] = []
     dynamic_semantics_enabled: ClassVar[bool] = False
@@ -144,16 +129,15 @@ class SMTLowerer:
         raise Exception(f"No SMT lowering defined for the '{op.name}' operation")
 
     @staticmethod
-    def lower_type(type: Attribute) -> Attribute:
+    def lower_type(type_: Attribute) -> Attribute:
         """Convert a type to an SMT sort"""
 
         # Do not lower effect states to SMT, these are done in separate passes.
-        if isinstance(type, EffectState):
-            return type
-        for lowerer in SMTLowerer.type_lowerers:
-            if res := lowerer(type):
-                return res
-        raise ValueError(f"Cannot lower {type} to SMT")
+        if isinstance(type_, EffectState):
+            return type_
+        if type(type_) not in SMTLowerer.type_lowerers:
+            raise ValueError(f"Cannot lower {type_.name} type to SMT")
+        return SMTLowerer.type_lowerers[type(type_)].get_semantics(type_)
 
     @staticmethod
     def lower_types(*types: Attribute) -> Attribute:

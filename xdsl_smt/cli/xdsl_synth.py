@@ -26,27 +26,27 @@ from ..dialects.smt_dialect import (
     SMTDialect,
     YieldOp,
 )
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
-from ..dialects.hw_dialect import HW
-from ..dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
+from xdsl_smt.dialects.hw_dialect import HW
+from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func, FuncOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.builder import Builder, ImplicitBuilder
 
-from ..passes.lower_pairs import LowerPairs
-from ..passes.canonicalize_smt import CanonicalizeSMT
-from ..passes.lower_to_smt import (
+from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
     transfer_to_smt_patterns,
-    integer_poison_type_lowerer,
     func_to_smt_patterns,
 )
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.dialects import smt_bitvector_dialect
 
@@ -187,7 +187,7 @@ def main() -> None:
         **transfer_to_smt_patterns,
         **func_to_smt_patterns,
     }
-    SMTLowerer.type_lowerers = [integer_poison_type_lowerer]
+    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
     # Move smt.synth.constant to function arguments

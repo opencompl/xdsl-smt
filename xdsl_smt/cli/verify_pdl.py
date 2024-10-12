@@ -24,6 +24,7 @@ from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
 
 
 from ..dialects.hoare_dialect import Hoare
@@ -39,10 +40,7 @@ from ..dialects.llvm_dialect import LLVM
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
-    SMTLowerer,
-    integer_poison_type_lowerer,
-)
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
 from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
 from xdsl_smt.passes.lower_to_smt.transfer_to_smt import transfer_to_smt_patterns
@@ -215,7 +213,7 @@ def main() -> None:
         **transfer_to_smt_patterns,
         **func_to_smt_patterns,
     }
-    SMTLowerer.type_lowerers = [integer_poison_type_lowerer]
+    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
