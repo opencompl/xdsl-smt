@@ -22,7 +22,6 @@ from xdsl_smt.passes.lower_to_smt import (
     transfer_to_smt_patterns,
 )
 
-from xdsl_smt.passes import dynamic_semantics
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
 from ..dialects.hoare_dialect import Hoare
