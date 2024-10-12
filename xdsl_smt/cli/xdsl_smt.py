@@ -3,37 +3,40 @@
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr
+from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.test import Test
+from xdsl.dialects.memref import MemRef
 from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect, UBStateType
 from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
+from xdsl_smt.semantics.builtin_semantics import (
+    IntegerAttrSemantics,
+    IntegerTypeSemantics,
+)
 
 from xdsl_smt.passes.lower_to_smt import (
-    integer_poison_type_lowerer,
     func_to_smt_patterns,
     transfer_to_smt_patterns,
 )
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
-from ..dialects.hoare_dialect import Hoare
-from ..dialects.pdl_dataflow import PDLDataflowDialect
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_dialect import SMTDialect
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from ..dialects.index_dialect import Index
-from ..dialects.transfer import Transfer
-from ..dialects.hw_dialect import HW
-from ..dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.hoare_dialect import Hoare
+from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_dialect import SMTDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from xdsl_smt.dialects.index_dialect import Index
+from xdsl_smt.dialects.transfer import Transfer
+from xdsl_smt.dialects.hw_dialect import HW
+from xdsl_smt.dialects.llvm_dialect import LLVM
 
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
@@ -74,6 +77,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(HW.name, lambda: HW)
         self.ctx.register_dialect(LLVM.name, lambda: LLVM)
         self.ctx.register_dialect(Test.name, lambda: Test)
+        self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
@@ -97,7 +101,7 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    SMTLowerer.type_lowerers = [integer_poison_type_lowerer]
+    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}

@@ -16,7 +16,7 @@ from xdsl_smt.dialects.smt_utils_dialect import (
     PairOp,
 )
 from xdsl_smt.dialects.smt_dialect import BoolType
-from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
+from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
@@ -33,12 +33,12 @@ from xdsl_smt.utils.transfer_to_smt_util import (
 )
 
 
-def abstract_value_type_lowerer(
-    type: Attribute,
-) -> PairType[Attribute, Attribute] | None:
+class AbstractValueTypeSemantics(TypeSemantics):
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
-    if isinstance(type, transfer.AbstractValueType):
+
+    def get_semantics(self, type: Attribute) -> Attribute:
+        assert isinstance(type, transfer.AbstractValueType)
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = SMTLowerer.lower_type(curTy)
@@ -54,15 +54,17 @@ def abstract_value_type_lowerer(
                 curLoweredTy = curLoweredTy.first
             result: AnyPairType = PairType(curLoweredTy, result)
         return result
-    return None
 
 
-def transfer_integer_type_lowerer(
-    type: Attribute, width: int
-) -> smt_bv.BitVectorType | None:
-    if isinstance(type, transfer.TransIntegerType):
-        return smt_bv.BitVectorType(width)
-    return None
+@dataclass
+class TransferIntegerTypeSemantics(TypeSemantics):
+    """Lower an integer type to a bitvector integer."""
+
+    width: int
+
+    def get_semantics(self, type: Attribute) -> Attribute:
+        assert isinstance(type, transfer.TransIntegerType)
+        return smt_bv.BitVectorType(self.width)
 
 
 class ConstantOpSemantics(OperationSemantics):
