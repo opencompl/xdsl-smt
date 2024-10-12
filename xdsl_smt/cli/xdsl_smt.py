@@ -8,7 +8,9 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+from xdsl.dialects.test import Test
 from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect, UBStateType
+from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.arith_semantics import arith_semantics
@@ -65,16 +67,19 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
         self.ctx.register_dialect(SMTUBDialect.name, lambda: SMTUBDialect)
+        self.ctx.register_dialect(SMTMemoryDialect.name, lambda: SMTMemoryDialect)
         self.ctx.register_dialect(Transfer.name, lambda: Transfer)
         self.ctx.register_dialect(Hoare.name, lambda: Hoare)
         self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
         self.ctx.register_dialect(Comb.name, lambda: Comb)
         self.ctx.register_dialect(HW.name, lambda: HW)
         self.ctx.register_dialect(LLVM.name, lambda: LLVM)
+        self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
         self.ctx.load_registered_dialect(SMTUBDialect.name)
+        self.ctx.load_registered_dialect(SMTMemoryDialect.name)
 
     def register_all_passes(self):
         super().register_all_passes()

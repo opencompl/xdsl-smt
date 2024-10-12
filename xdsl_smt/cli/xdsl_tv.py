@@ -9,8 +9,8 @@ from xdsl.parser import Parser
 
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_dialect import (
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_dialect import (
     AndOp,
     CallOp,
     CheckSatOp,
@@ -22,25 +22,26 @@ from ..dialects.smt_dialect import (
     OrOp,
     SMTDialect,
 )
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from ..dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
-from ..dialects.hw_dialect import HW
-from ..dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
+from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
+from xdsl_smt.dialects.hw_dialect import HW
+from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 
-from ..passes.lower_pairs import LowerPairs
-from ..passes.canonicalize_smt import CanonicalizeSMT
-from ..passes.lower_to_smt import (
+from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
     integer_poison_type_lowerer,
     func_to_smt_patterns,
 )
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
-from ..traits.smt_printer import print_to_smtlib
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -118,6 +119,7 @@ def main() -> None:
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
     ctx.load_dialect(LLVM)
+    ctx.load_dialect(SMTMemoryDialect)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:
