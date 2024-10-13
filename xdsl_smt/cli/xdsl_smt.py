@@ -3,7 +3,7 @@
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType
+from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType, IndexType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
@@ -16,6 +16,7 @@ from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import (
+    IndexTypeSemantics,
     IntegerAttrSemantics,
     IntegerTypeSemantics,
 )
@@ -101,7 +102,10 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
+    SMTLowerer.type_lowerers = {
+        IntegerType: IntegerTypeSemantics(),
+        IndexType: IndexTypeSemantics(),
+    }
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}

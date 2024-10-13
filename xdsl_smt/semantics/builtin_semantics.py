@@ -1,5 +1,5 @@
 from xdsl.ir import Attribute, SSAValue
-from xdsl.parser import IntegerAttr, IntegerType
+from xdsl.parser import IntegerAttr, IntegerType, IndexType
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.semantics import (
@@ -18,6 +18,17 @@ class IntegerTypeSemantics(TypeSemantics):
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, IntegerType)
         return smt_utils.PairType(smt_bv.BitVectorType(type.width), smt.BoolType())
+
+
+class IndexTypeSemantics(TypeSemantics):
+    """
+    Convert an index type to a bitvector integer with a poison flag.
+    Index types are currently expected to be 64 bits wide integers.
+    """
+
+    def get_semantics(self, type: Attribute) -> Attribute:
+        assert isinstance(type, IndexType)
+        return smt_utils.PairType(smt_bv.BitVectorType(64), smt.BoolType())
 
 
 class IntegerAttrSemantics(AttributeSemantics):
