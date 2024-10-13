@@ -1,4 +1,4 @@
-from xdsl.ir import TypeAttribute, ParametrizedAttribute, Dialect
+from xdsl.ir import TypeAttribute, ParametrizedAttribute, Dialect, SSAValue
 from xdsl.irdl import (
     irdl_attr_definition,
     irdl_op_definition,
@@ -104,10 +104,16 @@ class AllocOp(IRDLOperation):
     state = operand_def(MemoryStateType())
     size = operand_def(BitVectorType(64))
 
-    pointer = result_def(PointerType())
     new_state = result_def(MemoryStateType())
+    pointer = result_def(PointerType())
 
     assembly_format = "$state `,` $size attr-dict"
+
+    def __init__(self, state: SSAValue, size: SSAValue):
+        super().__init__(
+            operands=[state, size],
+            result_types=[PointerType(), MemoryStateType()],
+        )
 
 
 @irdl_op_definition
@@ -125,6 +131,12 @@ class DeallocOp(IRDLOperation):
     new_state = result_def(MemoryStateType())
 
     assembly_format = "$state `,` $pointer attr-dict"
+
+    def __init__(self, state: SSAValue, pointer: SSAValue):
+        super().__init__(
+            operands=[state, pointer],
+            result_types=[MemoryStateType()],
+        )
 
 
 SMTMemoryDialect = Dialect(
