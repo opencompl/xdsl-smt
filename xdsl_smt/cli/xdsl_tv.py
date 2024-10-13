@@ -27,7 +27,7 @@ from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType, IndexType
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -40,7 +40,10 @@ from xdsl_smt.passes.lower_to_smt import (
 )
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
+from xdsl_smt.semantics.builtin_semantics import (
+    IndexTypeSemantics,
+    IntegerTypeSemantics,
+)
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
@@ -143,7 +146,10 @@ def main() -> None:
         **func_to_smt_patterns,
         # *llvm_to_smt_patterns,
     }
-    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
+    SMTLowerer.type_lowerers = {
+        IntegerType: IntegerTypeSemantics(),
+        IndexType: IndexTypeSemantics(),
+    }
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
     # Convert both module to SMTLib
