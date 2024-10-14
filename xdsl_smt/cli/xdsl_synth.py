@@ -8,6 +8,7 @@ from xdsl.ir import Attribute, BlockArgument, Operation, SSAValue
 from xdsl.context import MLContext
 from xdsl.parser import Parser
 from xdsl.utils.hints import isa
+from xdsl.rewriter import Rewriter
 
 from xdsl_smt.dialects import synth_dialect
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
@@ -27,11 +28,16 @@ from ..dialects.smt_dialect import (
     YieldOp,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
+from xdsl_smt.dialects.smt_utils_dialect import (
+    FirstOp,
+    AnyPairType,
+    SMTUtilsDialect,
+    SecondOp,
+)
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType, FunctionType
 from xdsl.dialects.func import Func, FuncOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -147,6 +153,18 @@ def move_synth_constants_to_arguments(func: FuncOp) -> Sequence[Attribute]:
     return arg_types
 
 
+def remove_effect_states(func: DefineFunOp) -> None:
+    effect_state = func.body.blocks[0].args[-1]
+    assert len(effect_state.uses) == 1, "xdsl-synth does not handle effects yet"
+    user = list(effect_state.uses)[0].operation
+    assert isinstance(user, smt_utils_dialect.PairOp)
+    Rewriter.replace_op(user, [], [user.first])
+    func.body.blocks[0].erase_arg(effect_state)
+    assert isinstance(ret := func.ret.type, FunctionType)
+    assert isa(pair := ret.outputs.data[0], AnyPairType)
+    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], [pair.first])
+
+
 def main() -> None:
     ctx = MLContext()
     ctx.allow_unregistered = True
@@ -218,6 +236,12 @@ def main() -> None:
     block.add_op(func)
     func_after.detach()
     block.add_op(func_after)
+
+    # Remove effect states.
+    # This is a temporary hack, and only there because the effect system is still WIP.
+    # Once it is ready, we should remove this and add it to the refinement check.
+    remove_effect_states(func)
+    remove_effect_states(func_after)
 
     # Add refinement operations
     builder = Builder.at_end(block)

@@ -8,31 +8,16 @@ from xdsl.irdl import (
 )
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
-from xdsl_smt.semantics.semantics import EffectState
+from xdsl_smt.dialects.effects.effect import StateType
 
 
 @irdl_attr_definition
-class MemoryStateType(TypeAttribute, ParametrizedAttribute, EffectState):
-    """
-    Type of a memory effect state.
-    The memory effect state contains the memory state of the program.
-    The only operations that can currently be performed on the memory state are
-    memory reads and writes.
-    """
-
-    name = "smt_mem.state"
-
-    def __init__(self):
-        super().__init__(())
-
-
-@irdl_attr_definition
-class PointerType(TypeAttribute, ParametrizedAttribute, EffectState):
+class PointerType(TypeAttribute, ParametrizedAttribute):
     """
     Type of a pointer. It is used to represent an address in memory.
     """
 
-    name = "smt_mem.ptr"
+    name = "mem_effect.ptr"
 
     def __init__(self):
         super().__init__(())
@@ -42,7 +27,7 @@ class PointerType(TypeAttribute, ParametrizedAttribute, EffectState):
 class OffsetPointerOp(IRDLOperation):
     """Offset a pointer by an integer."""
 
-    name = "smt_mem.offset_ptr"
+    name = "mem_effect.offset_ptr"
 
     pointer = operand_def(PointerType())
     offset = operand_def(BitVectorType(64))
@@ -56,9 +41,9 @@ class OffsetPointerOp(IRDLOperation):
 class ReadOp(IRDLOperation):
     """Read at a memory location."""
 
-    name = "smt_mem.read"
+    name = "mem_effect.read"
 
-    state = operand_def(MemoryStateType())
+    state = operand_def(StateType())
     pointer = operand_def(PointerType())
 
     res = result_def(BitVectorType)
@@ -76,13 +61,13 @@ class ReadOp(IRDLOperation):
 class WriteOp(IRDLOperation):
     """Write at a memory location."""
 
-    name = "smt_mem.write"
+    name = "mem_effect.write"
 
-    state = operand_def(MemoryStateType())
+    state = operand_def(StateType())
     pointer = operand_def(PointerType())
     value = operand_def(BitVectorType)
 
-    res = result_def(MemoryStateType())
+    res = result_def(StateType())
 
     assembly_format = "$state `[` $pointer `]` `,` $value attr-dict `:` type($value)"
 
@@ -99,12 +84,12 @@ class AllocOp(IRDLOperation):
     Memory is not initialized, and may contain any value.
     """
 
-    name = "smt_mem.alloc"
+    name = "mem_effect.alloc"
 
-    state = operand_def(MemoryStateType())
+    state = operand_def(StateType())
     size = operand_def(BitVectorType(64))
 
-    new_state = result_def(MemoryStateType())
+    new_state = result_def(StateType())
     pointer = result_def(PointerType())
 
     assembly_format = "$state `,` $size attr-dict"
@@ -112,7 +97,7 @@ class AllocOp(IRDLOperation):
     def __init__(self, state: SSAValue, size: SSAValue):
         super().__init__(
             operands=[state, size],
-            result_types=[PointerType(), MemoryStateType()],
+            result_types=[PointerType(), StateType()],
         )
 
 
@@ -123,24 +108,24 @@ class DeallocOp(IRDLOperation):
     The memory should have been previously allocated at that location.
     """
 
-    name = "smt_mem.dealloc"
+    name = "mem_effect.dealloc"
 
-    state = operand_def(MemoryStateType())
+    state = operand_def(StateType())
     pointer = operand_def(PointerType())
 
-    new_state = result_def(MemoryStateType())
+    new_state = result_def(StateType())
 
     assembly_format = "$state `,` $pointer attr-dict"
 
     def __init__(self, state: SSAValue, pointer: SSAValue):
         super().__init__(
             operands=[state, pointer],
-            result_types=[MemoryStateType()],
+            result_types=[StateType()],
         )
 
 
-SMTMemoryDialect = Dialect(
-    "smt_mem",
+MemoryEffectDialect = Dialect(
+    "mem_effect",
     [
         OffsetPointerOp,
         ReadOp,
@@ -149,7 +134,6 @@ SMTMemoryDialect = Dialect(
         DeallocOp,
     ],
     [
-        MemoryStateType,
         PointerType,
     ],
 )

@@ -276,7 +276,8 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
                 print(" ", file=stream, end="")
             arg_name = ctx.get_fresh_name(arg)
             typ = arg.type
-            assert isinstance(typ, SMTLibSort)
+            if not isinstance(typ, SMTLibSort):
+                raise Exception(f"Type {typ} is not an SMTLib type")
             print(f"({arg_name} ", file=stream, end="")
             typ.print_sort_to_smtlib(stream)
             print(")", file=stream, end="")

@@ -2,9 +2,10 @@ from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 import xdsl_smt.dialects.smt_dialect as smt
-import xdsl_smt.dialects.smt_ub_dialect as smt_ub
+
+from xdsl_smt.dialects.effects import ub_effect
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
-from xdsl_smt.semantics.semantics import EffectStates, RefinementSemantics
+from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
 class IntegerTypeRefinementSemantics(RefinementSemantics):
@@ -12,8 +13,8 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        states_before: EffectStates,
-        states_after: EffectStates,
+        state_before: SSAValue,
+        state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         """Compute the refinement from a value with poison semantics to a value with poison semantics."""
@@ -47,17 +48,9 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
             ]
         )
 
-        if len(states_before.states) == 0:
-            return refinement_integer.res
-
-        if len(states_before.states) != 1:
-            raise ValueError("Integer refinement can only handle UB state for now")
-
         # With UB, our refinement is: ub_before \/ (not ub_after /\ integer_refinement)
-        ub_before = states_before.states[smt_ub.UBStateType()]
-        ub_before_bool = smt_ub.ToBoolOp(ub_before)
-        ub_after = states_after.states[smt_ub.UBStateType()]
-        ub_after_bool = smt_ub.ToBoolOp(ub_after)
+        ub_before_bool = ub_effect.ToBoolOp(state_before)
+        ub_after_bool = ub_effect.ToBoolOp(state_after)
         not_ub_after = smt.NotOp(ub_after_bool.res)
         not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.res)
         refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.res)

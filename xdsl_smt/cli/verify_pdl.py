@@ -19,7 +19,6 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl_smt.dialects.smt_ub_dialect import UBStateType
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
@@ -222,7 +221,6 @@ def main() -> None:
     PDLToSMT.pdl_lowerer.native_static_constraints = (
         integer_arith_native_static_constraints
     )
-    PDLToSMT.pdl_lowerer.effect_state_types = [UBStateType()]
 
     OptMain().run()
 

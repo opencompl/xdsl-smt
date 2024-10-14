@@ -6,9 +6,12 @@ import sys
 from xdsl.context import MLContext
 from xdsl.ir import Operation, SSAValue
 from xdsl.parser import Parser
+from xdsl.rewriter import Rewriter
+from xdsl.utils.hints import isa
 
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
+from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import (
     AndOp,
@@ -23,11 +26,18 @@ from xdsl_smt.dialects.smt_dialect import (
     SMTDialect,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
+from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
+from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType, IndexType
+from xdsl.dialects.builtin import (
+    Builtin,
+    ModuleOp,
+    IntegerType,
+    IndexType,
+    FunctionType,
+)
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -106,6 +116,18 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
     return ops
 
 
+def remove_effect_states(func: DefineFunOp) -> None:
+    effect_state = func.body.blocks[0].args[-1]
+    assert len(effect_state.uses) == 1, "xdsl-synth does not handle effects yet"
+    user = list(effect_state.uses)[0].operation
+    assert isinstance(user, smt_utils.PairOp)
+    Rewriter.replace_op(user, [], [user.first])
+    func.body.blocks[0].erase_arg(effect_state)
+    assert isinstance(ret := func.ret.type, FunctionType)
+    assert isa(pair := ret.outputs.data[0], smt_utils.AnyPairType)
+    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], [pair.first])
+
+
 def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
@@ -122,7 +144,8 @@ def main() -> None:
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
     ctx.load_dialect(LLVM)
-    ctx.load_dialect(SMTMemoryDialect)
+    ctx.load_dialect(EffectDialect)
+    ctx.load_dialect(UBEffectDialect)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:
@@ -167,6 +190,10 @@ def main() -> None:
 
     func = module.ops.first
     func_after = module_after.ops.first
+
+    # HACK: As the effect system is still wip, we do not handle effectse here yet
+    remove_effect_states(func)
+    remove_effect_states(func_after)
 
     # Combine both modules into a new one
     new_module = ModuleOp([])

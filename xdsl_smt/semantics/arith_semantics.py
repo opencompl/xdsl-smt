@@ -8,12 +8,12 @@ from xdsl.dialects.builtin import IntegerType
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
-from xdsl_smt.semantics.semantics import OperationSemantics, EffectStates
+from xdsl_smt.semantics.semantics import OperationSemantics
 
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
-from xdsl_smt.dialects import smt_ub_dialect as smt_ub
+from xdsl_smt.dialects.effects import ub_effect as smt_ub
 import xdsl.dialects.arith as arith
 
 
@@ -54,9 +54,9 @@ class ConstantSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
             assert isa(value_value, AnyIntegerAttr)
@@ -65,7 +65,7 @@ class ConstantSemantics(OperationSemantics):
         no_poison = smt.ConstantBoolOp.from_bool(False)
         res = smt_utils.PairOp(value_value, no_poison.res)
         rewriter.insert_op_before_matched_op([no_poison, res])
-        return ((res.res,), effect_states)
+        return ((res.res,), effect_state)
 
 
 @dataclass
@@ -81,9 +81,9 @@ class SimplePoisonSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], SSAValue]:
         pass
 
     def get_semantics(
@@ -91,12 +91,14 @@ class SimplePoisonSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        if effect_state is None:
+            raise ValueError("Effect state is required for arith operations")
         operands, propagated_poison = reduce_poison_values(operands, rewriter)
-        value_results, new_effect_states = self.get_simple_semantics(
-            operands, results, attributes, effect_states, rewriter
+        value_results, new_effect_state = self.get_simple_semantics(
+            operands, results, attributes, effect_state, rewriter
         )
         value_with_poison_results: list[SSAValue] = []
         for value, new_poison in value_results:
@@ -110,7 +112,7 @@ class SimplePoisonSemantics(OperationSemantics):
                 rewriter.insert_op_before_matched_op([pair])
                 value_with_poison_results.append(pair.res)
 
-        return (value_with_poison_results, new_effect_states)
+        return (value_with_poison_results, new_effect_state)
 
 
 @dataclass
@@ -135,12 +137,12 @@ class SimplePurePoisonSemantics(SimplePoisonSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], SSAValue]:
         return (
             self.get_pure_semantics(operands, results, attributes, rewriter),
-            effect_states,
+            effect_state,
         )
 
 
@@ -250,9 +252,9 @@ class DivsiSemantics(SimplePoisonSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], EffectStates]:
+    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], SSAValue]:
         assert isinstance(results[0], IntegerType)
         width = results[0].width.data
 
@@ -268,12 +270,8 @@ class DivsiSemantics(SimplePoisonSemantics):
         is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
 
         # New poison cases
-        ub_state = effect_states.states[smt_ub.UBStateType()]
-        trigger_ub = smt_ub.TriggerOp(ub_state)
-        new_ub_state = smt.IteOp(is_div_by_zero.res, trigger_ub.res, ub_state)
-        new_states = effect_states.with_updated_effects(
-            {smt_ub.UBStateType(): new_ub_state.res}
-        )
+        trigger_ub = smt_ub.TriggerOp(effect_state)
+        new_state = smt.IteOp(is_div_by_zero.res, trigger_ub.res, effect_state)
 
         # Operation result
         value_op = smt_bv.SDivOp(operands[0], operands[1])
@@ -288,11 +286,11 @@ class DivsiSemantics(SimplePoisonSemantics):
                 rhs_is_minus_one,
                 is_underflow,
                 trigger_ub,
-                new_ub_state,
+                new_state,
                 value_op,
             ]
         )
-        return (((value_op.res, is_underflow.res),), new_states)
+        return (((value_op.res, is_underflow.res),), new_state.res)
 
 
 class DivuiSemantics(SimplePurePoisonSemantics):
@@ -593,9 +591,9 @@ class SelectSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         # Get all values and poisons
         cond_val, cond_poi = get_int_value_and_poison(operands[0], rewriter)
         tr_val, tr_poi = get_int_value_and_poison(operands[1], rewriter)
@@ -615,7 +613,7 @@ class SelectSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(
             [one, to_smt_bool, res_val, br_poi, res_poi, res_op]
         )
-        return ((res_op.res,), effect_states)
+        return ((res_op.res,), effect_state)
 
 
 class TruncISemantics(SimplePurePoisonSemantics):

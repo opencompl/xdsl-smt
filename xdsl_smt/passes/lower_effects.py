@@ -13,15 +13,15 @@ from xdsl.pattern_rewriter import (
 
 from xdsl.dialects.builtin import ModuleOp, AnyArrayAttr
 from xdsl_smt.dialects.smt_dialect import BoolType, ConstantBoolOp
-from xdsl_smt.dialects.smt_ub_dialect import (
+from xdsl_smt.dialects.effects.effect import StateType
+from xdsl_smt.dialects.effects.ub_effect import (
     ToBoolOp,
     TriggerOp,
-    UBStateType,
 )
 
 
 def recursively_convert_attr(attr: Attribute) -> Attribute:
-    if isinstance(attr, UBStateType):
+    if isinstance(attr, StateType):
         return BoolType()
     if isinstance(attr, ParametrizedAttribute):
         return type(attr).new(

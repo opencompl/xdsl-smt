@@ -10,8 +10,9 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.test import Test
 from xdsl.dialects.memref import MemRef
-from xdsl_smt.dialects.smt_ub_dialect import SMTUBDialect, UBStateType
-from xdsl_smt.dialects.smt_memory_dialect import SMTMemoryDialect
+from xdsl_smt.dialects.effects.effect import EffectDialect
+from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
+from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.arith_semantics import arith_semantics
@@ -69,8 +70,9 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTDialect.name, lambda: SMTDialect)
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
-        self.ctx.register_dialect(SMTUBDialect.name, lambda: SMTUBDialect)
-        self.ctx.register_dialect(SMTMemoryDialect.name, lambda: SMTMemoryDialect)
+        self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
+        self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
+        self.ctx.register_dialect(MemoryEffectDialect.name, lambda: MemoryEffectDialect)
         self.ctx.register_dialect(Transfer.name, lambda: Transfer)
         self.ctx.register_dialect(Hoare.name, lambda: Hoare)
         self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
@@ -82,8 +84,6 @@ class OptMain(xDSLOptMain):
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
-        self.ctx.load_registered_dialect(SMTUBDialect.name)
-        self.ctx.load_registered_dialect(SMTMemoryDialect.name)
 
     def register_all_passes(self):
         super().register_all_passes()
@@ -109,14 +109,12 @@ def main():
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
-    SMTLowerer.effect_types = [UBStateType()]
 
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
     PDLToSMT.pdl_lowerer.native_static_constraints = (
         integer_arith_native_static_constraints
     )
-    PDLToSMT.pdl_lowerer.effect_state_types = [UBStateType()]
 
     xdsl_main.run()
 

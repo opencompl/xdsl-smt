@@ -4,9 +4,7 @@ from abc import abstractmethod
 from typing import Generic, TypeVar
 from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.ir import Operation
-
-from xdsl_smt.semantics.semantics import EffectStates
+from xdsl.ir import Operation, SSAValue
 
 from ...dialects import smt_bitvector_dialect as smt_bv
 from ...dialects import smt_dialect as smt
@@ -57,10 +55,10 @@ def trivial_pattern(
         def rewrite(
             self,
             op: Operation,
-            effect_states: EffectStates,
+            effect_state: SSAValue | None,
             rewriter: PatternRewriter,
             smt_lowerer: SMTLowerer,
-        ) -> EffectStates:
+        ) -> SSAValue | None:
             assert isinstance(op, match_type)
             # TODO: How to handle multiple results, or results with different types?
             new_op = rewrite_type.create(
@@ -68,7 +66,7 @@ def trivial_pattern(
                 result_types=[op.operands[0].type],
             )
             rewriter.replace_matched_op([new_op])
-            return effect_states
+            return effect_state
 
     return TrivialBinOpPattern()
 
@@ -90,13 +88,13 @@ class SMTPureLoweringPattern(Generic[_OpType], SMTLoweringRewritePattern):
     def rewrite(
         self: SMTPureLoweringPattern[_OpType],
         op: Operation,
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
         smt_lowerer: SMTLowerer,
-    ) -> EffectStates:
+    ) -> SSAValue | None:
         assert isinstance(op, self.op_type)
         self.rewrite_pure(op, rewriter)
-        return effect_states
+        return effect_state
 
 
 def smt_pure_lowering_pattern(

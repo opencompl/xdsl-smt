@@ -15,7 +15,7 @@ from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.passes.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.semantics.semantics import EffectStates, OperationSemantics
+from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl_smt.semantics.arith_semantics import SimplePurePoisonSemantics
 
 
@@ -43,9 +43,9 @@ class ConstantSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
             assert isa(value_value, AnyIntegerAttr)
@@ -54,7 +54,7 @@ class ConstantSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(poison_op)
         res_op = smt_utils.PairOp(value_value, poison_op.res)
         rewriter.insert_op_before_matched_op(res_op)
-        return ((res_op.res,), effect_states)
+        return ((res_op.res,), effect_state)
 
 
 @dataclass

@@ -1,5 +1,5 @@
 from typing import cast
-from xdsl_smt.semantics.semantics import OperationSemantics, EffectStates
+from xdsl_smt.semantics.semantics import OperationSemantics
 from typing import Mapping, Sequence, Any
 from xdsl.ir import SSAValue, Attribute, Region, Operation
 from xdsl.rewriter import InsertPoint
@@ -81,9 +81,9 @@ class PDLSemantics(OperationSemantics):
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         # Definitions
         matcher = PDLMatcher()
         pdl_op = self.target_op
@@ -118,4 +118,4 @@ class PDLSemantics(OperationSemantics):
         interpreter.run_ssacfg_region(cast(Region, self.pdl_rewrite_op.body), ())
         interpreter.pop_scope()
 
-        return (functions.new_vals, effect_states)
+        return (functions.new_vals, effect_state)

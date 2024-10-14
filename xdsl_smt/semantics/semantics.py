@@ -1,48 +1,15 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 from xdsl.ir import Attribute, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
 
-class EffectState:
-    """Mark an attribute as an effect state."""
-
-
-@dataclass(frozen=True)
-class EffectStates:
-    """
-    The state of all effects. It contains a dictionary associating each handled effect
-    with their current state.
-    """
-
-    states: dict[Attribute, SSAValue]
-    """
-    A dictionary containing all effect states.
-    It is indexed by the type of each effect.
-    """
-
-    def copy(self) -> EffectStates:
-        """Copy the states of all effects."""
-        return EffectStates(self.states.copy())
-
-    def with_updated_effects(self, value: Mapping[Attribute, SSAValue]) -> EffectStates:
-        """Get new effect states updated with the given states."""
-        return EffectStates({**self.states, **value})
-
-
 class OperationSemantics:
     """
     The semantics of an operation represented as a rewrite into the SMT dialect.
-    As semantics might be used in a meta-level such as PDL, attributes are passed
-    as a sequence of SSA values rather than attributes.
-    Regions are expected to be treated as pure regions of code, and their semantics
-    are handled outside of this function. They should generally just be moved, instead
-    of modified.
-    The return SSA values represent the semantics of the operation results.
     """
 
     @abstractmethod
@@ -51,9 +18,18 @@ class OperationSemantics:
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_states: EffectStates,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], EffectStates]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        """
+        As semantics might be used in a meta-level such as PDL, attributes are passed
+        as a sequence of SSA values rather than attributes.
+        Regions are expected to be treated as pure regions of code, and their semantics
+        are handled outside of this function. They should generally just be moved, instead
+        of modified.
+        The sequence of SSA values represent the semantics of the operation results,
+        and the SSA value represents the new effect state.
+        """
         pass
 
 
@@ -95,8 +71,8 @@ class RefinementSemantics:
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        states_before: EffectStates,
-        states_after: EffectStates,
+        state_before: SSAValue,
+        state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         pass

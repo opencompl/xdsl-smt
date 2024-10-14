@@ -16,8 +16,9 @@ from xdsl.dialects.pdl import (
 from xdsl.utils.hints import isa
 from xdsl.rewriter import InsertPoint, Rewriter
 
+from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
-from xdsl_smt.semantics.semantics import EffectStates, RefinementSemantics
+from xdsl_smt.semantics.semantics import RefinementSemantics
 
 from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
@@ -62,11 +63,11 @@ class StaticallyUnmatchedConstraintError(Exception):
 
 @dataclass
 class PDLToSMTRewriteContext:
+    matching_effect_state: SSAValue
+    rewriting_effect_state: SSAValue
     pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
     pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
     preconditions: list[SSAValue] = field(default_factory=list)
-    matching_effect_states: EffectStates = EffectStates({})
-    rewriting_effect_states: EffectStates = EffectStates({})
 
 
 def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
@@ -183,25 +184,29 @@ class OperationRewrite(RewritePattern):
             is_created = "is_created" in op.attributes
             is_deleted = "is_deleted" in op.attributes
             if is_created:
-                effect_states = self.rewrite_context.rewriting_effect_states
+                effect_state = self.rewrite_context.rewriting_effect_state
             else:
-                effect_states = self.rewrite_context.matching_effect_states
-            results, new_effect_states = SMTLowerer.op_semantics[op_def].get_semantics(
+                effect_state = self.rewrite_context.matching_effect_state
+            results, new_effect_state = SMTLowerer.op_semantics[op_def].get_semantics(
                 op.operand_values,
                 result_types,
                 attributes,
-                effect_states,
+                effect_state,
                 rewriter,
             )
+            if new_effect_state is None:
+                raise Exception(
+                    "Cannot handle operations that do not return an effect state"
+                )
 
             # Update the correct effect states.
             if is_deleted:
-                self.rewrite_context.matching_effect_states = new_effect_states
+                self.rewrite_context.matching_effect_state = new_effect_state
             elif is_created:
-                self.rewrite_context.rewriting_effect_states = new_effect_states
+                self.rewrite_context.rewriting_effect_state = new_effect_state
             else:
-                self.rewrite_context.matching_effect_states = new_effect_states
-                self.rewrite_context.rewriting_effect_states = new_effect_states
+                self.rewrite_context.matching_effect_state = new_effect_state
+                self.rewrite_context.rewriting_effect_state = new_effect_state
 
             self.rewrite_context.pdl_op_to_values[op.op] = results
             rewriter.erase_matched_op(safe_erase=False)
@@ -264,8 +269,8 @@ class ReplaceRewrite(RewritePattern):
         refinement_value = self.refinement.get_semantics(
             replaced_value,
             replacing_value,
-            self.rewrite_context.matching_effect_states,
-            self.rewrite_context.rewriting_effect_states,
+            self.rewrite_context.matching_effect_state,
+            self.rewrite_context.rewriting_effect_state,
             rewriter,
         )
         not_refinement = NotOp(refinement_value)
@@ -456,9 +461,9 @@ class ComputationOpRewrite(RewritePattern):
             type(op) in SMTLowerer.op_semantics
             or type(op) in SMTLowerer.rewrite_patterns
         ):
-            new_effects = SMTLowerer.lower_operation(op, EffectStates({}))
+            new_effects = SMTLowerer.lower_operation(op, None)
             assert (
-                new_effects.states == {}
+                new_effects is None
             ), "Operations used as computations in PDL should not have effects"
 
 
@@ -479,7 +484,6 @@ class PDLToSMTLowerer:
         str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
     ] = field(default_factory=dict)
     refinement: RefinementSemantics = IntegerTypeRefinementSemantics()
-    effect_state_types: list[Attribute] = field(default_factory=list)
 
     def mark_pdl_operations(self, op: PatternOp):
         """
@@ -531,17 +535,11 @@ class PDLToSMTLowerer:
         # This helps other rewrite patterns to know which effects an operation should modify.
         self.mark_pdl_operations(pattern)
 
-        rewrite_context = PDLToSMTRewriteContext({})
-
         # Set the input effect states
-        input_effect_states: dict[Attribute, SSAValue] = {}
-        for state_type in self.effect_state_types:
-            insert_point = InsertPoint.at_start(pattern.body.blocks[0])
-            state_input = DeclareConstOp(state_type)
-            Rewriter.insert_op(state_input, insert_point)
-            input_effect_states[state_type] = state_input.res
-        rewrite_context.matching_effect_states = EffectStates(input_effect_states)
-        rewrite_context.rewriting_effect_states = EffectStates(input_effect_states)
+        insert_point = InsertPoint.at_start(pattern.body.blocks[0])
+        new_state_op = DeclareConstOp(StateType())
+        Rewriter.insert_op(new_state_op, insert_point)
+        rewrite_context = PDLToSMTRewriteContext(new_state_op.res, new_state_op.res)
 
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
