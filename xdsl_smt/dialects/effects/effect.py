@@ -1,5 +1,7 @@
 from xdsl.ir import ParametrizedAttribute, TypeAttribute, Dialect
-from xdsl.irdl import irdl_attr_definition
+from xdsl.irdl import (
+    irdl_attr_definition,
+)
 
 
 @irdl_attr_definition

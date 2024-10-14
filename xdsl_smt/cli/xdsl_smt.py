@@ -39,6 +39,7 @@ from xdsl_smt.dialects.index_dialect import Index
 from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects.tv_dialect import TVDialect
 
 from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
@@ -74,6 +75,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
         self.ctx.register_dialect(MemoryEffectDialect.name, lambda: MemoryEffectDialect)
         self.ctx.register_dialect(Transfer.name, lambda: Transfer)
+        self.ctx.register_dialect(TVDialect.name, lambda: TVDialect)
         self.ctx.register_dialect(Hoare.name, lambda: Hoare)
         self.ctx.register_dialect(PDL.name, lambda: NEW_PDL)
         self.ctx.register_dialect(Comb.name, lambda: Comb)
