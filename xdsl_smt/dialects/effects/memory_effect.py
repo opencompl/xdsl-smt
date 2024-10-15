@@ -62,6 +62,12 @@ class ReadOp(IRDLOperation):
         if size % 8 != 0:
             raise VerifyException("read size must be a multiple of 8")
 
+    def __init__(self, state: SSAValue, pointer: SSAValue, result_type: BitVectorType):
+        super().__init__(
+            operands=[state, pointer],
+            result_types=[result_type],
+        )
+
 
 @irdl_op_definition
 class WriteOp(IRDLOperation):
@@ -81,6 +87,12 @@ class WriteOp(IRDLOperation):
         assert isinstance(self.value.type, BitVectorType)
         if self.value.type.width.data % 8 != 0:
             raise VerifyException("written size must be a multiple of 8")
+
+    def __init__(self, state: SSAValue, pointer: SSAValue, value: SSAValue):
+        super().__init__(
+            operands=[state, pointer, value],
+            result_types=[StateType()],
+        )
 
 
 @irdl_op_definition
