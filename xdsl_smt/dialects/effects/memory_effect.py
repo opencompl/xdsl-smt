@@ -1,3 +1,4 @@
+from xdsl.utils.hints import isa
 from xdsl.ir import TypeAttribute, ParametrizedAttribute, Dialect, SSAValue
 from xdsl.irdl import (
     irdl_attr_definition,
@@ -9,6 +10,8 @@ from xdsl.irdl import (
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.effects.effect import StateType
+from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl_smt.dialects.smt_utils_dialect import PairType
 
 
 @irdl_attr_definition
@@ -52,20 +55,26 @@ class ReadOp(IRDLOperation):
     state = operand_def(StateType())
     pointer = operand_def(PointerType())
 
-    res = result_def(BitVectorType)
+    new_state = result_def(StateType())
+    res = result_def(PairType[BitVectorType, BoolType])
 
     assembly_format = "$state `[` $pointer `]` attr-dict `:` type($res)"
 
     def verify_(self):
-        assert isinstance(self.res.type, BitVectorType)
-        size = self.res.type.width.data
+        assert isa(self.res.type, PairType[BitVectorType, BoolType])
+        size = self.res.type.first.width.data
         if size % 8 != 0:
             raise VerifyException("read size must be a multiple of 8")
 
-    def __init__(self, state: SSAValue, pointer: SSAValue, result_type: BitVectorType):
+    def __init__(
+        self,
+        state: SSAValue,
+        pointer: SSAValue,
+        result_type: PairType[BitVectorType, BoolType],
+    ):
         super().__init__(
             operands=[state, pointer],
-            result_types=[result_type],
+            result_types=[StateType(), result_type],
         )
 
 
