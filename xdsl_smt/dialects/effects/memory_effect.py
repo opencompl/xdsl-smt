@@ -12,6 +12,7 @@ from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
+from xdsl.traits import Pure
 
 
 @irdl_attr_definition
@@ -39,6 +40,8 @@ class OffsetPointerOp(IRDLOperation):
 
     assembly_format = "$pointer `[` $offset `]` attr-dict"
 
+    traits = frozenset([Pure()])
+
     def __init__(self, pointer: SSAValue, offset: SSAValue):
         super().__init__(
             operands=[pointer, offset],
@@ -59,6 +62,8 @@ class ReadOp(IRDLOperation):
     res = result_def(PairType[BitVectorType, BoolType])
 
     assembly_format = "$state `[` $pointer `]` attr-dict `:` type($res)"
+
+    traits = frozenset([Pure()])
 
     def verify_(self):
         assert isa(self.res.type, PairType[BitVectorType, BoolType])
@@ -92,6 +97,8 @@ class WriteOp(IRDLOperation):
 
     assembly_format = "$value `,` $state `[` $pointer `]` attr-dict `:` type($value)"
 
+    traits = frozenset([Pure()])
+
     def verify_(self):
         assert isinstance(self.value.type, BitVectorType)
         if self.value.type.width.data % 8 != 0:
@@ -121,6 +128,8 @@ class AllocOp(IRDLOperation):
 
     assembly_format = "$state `,` $size attr-dict"
 
+    traits = frozenset([Pure()])
+
     def __init__(self, state: SSAValue, size: SSAValue):
         super().__init__(
             operands=[state, size],
@@ -143,6 +152,8 @@ class DeallocOp(IRDLOperation):
     new_state = result_def(StateType())
 
     assembly_format = "$state `,` $pointer attr-dict"
+
+    traits = frozenset([Pure()])
 
     def __init__(self, state: SSAValue, pointer: SSAValue):
         super().__init__(

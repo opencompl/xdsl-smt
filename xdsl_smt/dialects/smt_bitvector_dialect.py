@@ -25,6 +25,9 @@ from xdsl.irdl import (
 )
 from xdsl.parser import AttrParser
 from xdsl.printer import Printer
+from xdsl import traits
+from xdsl.traits import HasCanonicalizationPatternsTrait
+from xdsl.pattern_rewriter import RewritePattern
 
 from ..traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
 from ..traits.effects import Pure
@@ -105,6 +108,8 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.bv.constant"
     value: BitVectorValue = attr_def(BitVectorValue)
     res: OpResult = result_def(BitVectorType)
+
+    traits = frozenset([traits.Pure()])
 
     @overload
     def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
@@ -193,17 +198,41 @@ class BinaryBVOp(IRDLOperation, Pure):
 ################################################################################
 
 
+class AddCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            AddCanonicalizationPattern,
+        )
+
+        return (AddCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class AddOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.add"
+
+    traits = frozenset([traits.Pure(), AddCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "bvadd"
 
 
+class SubCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SubCanonicalizationPattern,
+        )
+
+        return (SubCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class SubOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.sub"
+
+    traits = frozenset([traits.Pure(), SubCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "bvsub"
@@ -217,9 +246,21 @@ class NegOp(UnaryBVOp, SimpleSMTLibOp):
         return "bvneg"
 
 
+class MulCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            MulCanonicalizationPattern,
+        )
+
+        return (MulCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class MulOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.mul"
+
+    traits = frozenset([traits.Pure(), MulCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "bvmul"
@@ -406,33 +447,81 @@ class UgtOp(BinaryPredBVOp, SimpleSMTLibOp):
         return "bvugt"
 
 
+class SleCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SleCanonicalizationPattern,
+        )
+
+        return (SleCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class SleOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sle"
 
+    traits = frozenset([traits.Pure(), SleCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvsle"
+
+
+class SltCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SltCanonicalizationPattern,
+        )
+
+        return (SltCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class SltOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.slt"
 
+    traits = frozenset([traits.Pure(), SltCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvslt"
+
+
+class SgeCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SgeCanonicalizationPattern,
+        )
+
+        return (SgeCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class SgeOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sge"
 
+    traits = frozenset([traits.Pure(), SgeCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvsge"
+
+
+class SgtCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SgtCanonicalizationPattern,
+        )
+
+        return (SgtCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sgt"
+
+    traits = frozenset([traits.Pure(), SgtCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "bvsgt"

@@ -161,7 +161,7 @@ def offset_pointer_for_indices(
     for index, size in zip(indices, sizes):
         size_cst = smt_bv.ConstantOp(size, 64)
         mul_op = smt_bv.MulOp(offset, size_cst.res)
-        add_op = smt_bv.AddOp(offset, index)
+        add_op = smt_bv.AddOp(mul_op.res, index)
         offset = add_op.res
         rewriter.insert_op_before_matched_op([size_cst, mul_op, add_op])
     pointer_op = mem_effect.OffsetPointerOp(pointer, offset)
