@@ -42,8 +42,8 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 
+from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
     func_to_smt_patterns,
@@ -209,7 +209,7 @@ def main() -> None:
 
     if args.opt:
         LowerPairs().apply(ctx, new_module)
-        CanonicalizeSMT().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
     print_to_smtlib(new_module, sys.stdout)
 
 

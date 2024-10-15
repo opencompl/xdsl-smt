@@ -27,7 +27,10 @@ from ..dialects.smt_utils_dialect import (
     PairType,
     SecondOp,
 )
-from .canonicalize_smt import FoldUtilsPattern
+from xdsl_smt.passes.canonicalization_patterns.smt_utils import (
+    FirstCanonicalizationPattern,
+    SecondCanonicalizationPattern,
+)
 from .dead_code_elimination import DeadCodeElimination
 
 
@@ -186,7 +189,11 @@ class LowerPairs(ModulePass):
         remove_pairs_from_function_return(op)
 
         # Simplify pairs away
-        walker = PatternRewriteWalker(FoldUtilsPattern())
+        walker = PatternRewriteWalker(
+            GreedyRewritePatternApplier(
+                [FirstCanonicalizationPattern(), SecondCanonicalizationPattern()]
+            )
+        )
         walker.rewrite_module(op)
 
         # Apply DCE pass

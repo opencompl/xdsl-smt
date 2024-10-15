@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -t mlir -p=pdl-to-smt,lower-effects,canonicalize-smt -t smt | z3 -in | filecheck %s
+// RUN: xdsl-smt "%s" -t mlir -p=pdl-to-smt,lower-effects,canonicalize,dce -t smt | z3 -in | filecheck %s
 
 builtin.module {
   pdl.pattern @addi_analysis : benefit(0) {

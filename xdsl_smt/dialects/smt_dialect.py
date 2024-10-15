@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Sequence, TypeVar, IO
 
-from xdsl.traits import IsTerminator
+from xdsl import traits
+from xdsl.traits import IsTerminator, HasCanonicalizationPatternsTrait
 from xdsl.irdl import (
     attr_def,
     opt_attr_def,
@@ -32,6 +33,7 @@ from xdsl.parser import AttrParser
 from xdsl.printer import Printer
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.utils.exceptions import VerifyException
+from xdsl.pattern_rewriter import RewritePattern
 
 from ..traits.effects import Pure
 
@@ -66,6 +68,16 @@ class YieldOp(IRDLOperation):
         super().__init__(operands=[ret])
 
 
+class QuantifierCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            QuantifierCanonicalizationPattern,
+        )
+
+        return (QuantifierCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class ForallOp(IRDLOperation, Pure, SMTLibOp):
     """Universal quantifier."""
@@ -74,6 +86,8 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
 
     res: OpResult = result_def(BoolType)
     body: Region = region_def("single_block")
+
+    traits = frozenset([traits.Pure(), QuantifierCanonicalizationPatterns()])
 
     @staticmethod
     def from_variables(
@@ -117,6 +131,8 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
 
     res: OpResult = result_def(BoolType)
     body: Region = region_def("single_block")
+
+    traits = frozenset([traits.Pure(), QuantifierCanonicalizationPatterns()])
 
     @staticmethod
     def from_variables(
@@ -454,6 +470,16 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
         )
 
 
+class NotCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            NotCanonicalizationPattern,
+        )
+
+        return (NotCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
     """Boolean negation."""
@@ -462,6 +488,8 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     res: OpResult = result_def(BoolType)
     arg: Operand = operand_def(BoolType)
+
+    traits = frozenset([traits.Pure(), NotCanonicalizationPatterns()])
 
     def __init__(self, arg: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[arg])
@@ -474,14 +502,36 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
         return "not"
 
 
+class ImpliesCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            ImpliesCanonicalizationPattern,
+        )
+
+        return (ImpliesCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class ImpliesOp(BinaryBoolOp, SimpleSMTLibOp):
     """Boolean implication."""
 
     name = "smt.implies"
 
+    traits = frozenset([traits.Pure(), ImpliesCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "=>"
+
+
+class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            AndCanonicalizationPattern,
+        )
+
+        return (AndCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -490,8 +540,20 @@ class AndOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.and"
 
+    traits = frozenset([traits.Pure(), AndCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "and"
+
+
+class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            OrCanonicalizationPattern,
+        )
+
+        return (OrCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -500,8 +562,20 @@ class OrOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.or"
 
+    traits = frozenset([traits.Pure(), OrCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "or"
+
+
+class XorCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            XorCanonicalizationPattern,
+        )
+
+        return (XorCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -510,8 +584,20 @@ class XorOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.xor"
 
+    traits = frozenset([traits.Pure(), XorCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "xor"
+
+
+class EqCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            EqCanonicalizationPattern,
+        )
+
+        return (EqCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -520,8 +606,20 @@ class EqOp(BinaryTOp, SimpleSMTLibOp):
 
     name = "smt.eq"
 
+    traits = frozenset([traits.Pure(), EqCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "="
+
+
+class DistinctCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            DistinctCanonicalizationPattern,
+        )
+
+        return (DistinctCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -530,8 +628,20 @@ class DistinctOp(BinaryTOp, SimpleSMTLibOp):
 
     name = "smt.distinct"
 
+    traits = frozenset([traits.Pure(), DistinctCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "distinct"
+
+
+class IteCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt import (
+            IteCanonicalizationPattern,
+        )
+
+        return (IteCanonicalizationPattern(),)
 
 
 @irdl_op_definition
@@ -544,6 +654,8 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     cond: Operand = operand_def(BoolType)
     true_val: Operand = operand_def()
     false_val: Operand = operand_def()
+
+    traits = frozenset([traits.Pure(), IteCanonicalizationPatterns()])
 
     def __init__(self, cond: SSAValue, true_val: SSAValue, false_val: SSAValue):
         super().__init__(

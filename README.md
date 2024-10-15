@@ -82,12 +82,12 @@ verify-pdl file.mlir
 `xdsl-smt` uses the `-p` command to run passes on a program.
 ```bash
 # Run dce, then convert arith to smt, and output the result in SMTLib form
-xdsl-smt file.xdsl -p=dce,lower-to-smt,canonicalize-smt -t smt
+xdsl-smt file.xdsl -p=dce,lower-to-smt,canonicalize,dce -t smt
 ```
 
 `xdsl-smt` defines the following passes:
 * `dce`: Eliminate dead code.
-* `canonicalize-smt`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
+* `canonicalize,dce`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
 * `lower-pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
 * `lower-to-smt`: Lowers `arith`, `comb`, `func` to the `smt` dialect. Can also be extended with additional rewrite
   patterns for new dialects.

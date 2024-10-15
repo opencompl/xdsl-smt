@@ -60,7 +60,7 @@ from xdsl_smt.semantics import transfer_semantics
 from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.transfer_semantics import (
     transfer_semantics,
@@ -102,7 +102,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     # PDLToSMT().apply(ctx, cloned_op)
     # print_to_smtlib(cloned_op,sys.stdout)
     LowerPairs().apply(ctx, cloned_op)
-    CanonicalizeSMT().apply(ctx, cloned_op)
+    CanonicalizePass().apply(ctx, cloned_op)
     # print(cloned_op)
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)

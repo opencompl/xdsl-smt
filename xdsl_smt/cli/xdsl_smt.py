@@ -42,7 +42,6 @@ from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
 
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
@@ -92,7 +91,6 @@ class OptMain(xDSLOptMain):
         super().register_all_passes()
         self.register_pass(LowerToSMTPass.name, lambda: LowerToSMTPass)
         self.register_pass(DeadCodeElimination.name, lambda: DeadCodeElimination)
-        self.register_pass(CanonicalizeSMT.name, lambda: CanonicalizeSMT)
         self.register_pass(LowerPairs.name, lambda: LowerPairs)
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
         self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)

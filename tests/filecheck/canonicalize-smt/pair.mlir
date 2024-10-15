@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=canonicalize-smt -t=smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=canonicalize,dce -t=smt | filecheck "%s"
 
 //CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
 

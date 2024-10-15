@@ -38,7 +38,7 @@ from ..dialects.hw_dialect import HW
 from ..dialects.llvm_dialect import LLVM
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
 from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
@@ -57,7 +57,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     LowerEffectPass().apply(ctx, cloned_op)
     if opt:
         LowerPairs().apply(ctx, cloned_op)
-        CanonicalizeSMT().apply(ctx, cloned_op)
+        CanonicalizePass().apply(ctx, cloned_op)
     cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)

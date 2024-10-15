@@ -20,8 +20,10 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
 )
-from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.rewriter import InsertPoint
+from xdsl.traits import HasCanonicalizationPatternsTrait
+from xdsl import traits
 
 from .smt_dialect import SMTLibSort, SimpleSMTLibOp
 from ..traits.effects import Pure
@@ -77,12 +79,24 @@ class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
         return "pair"
 
 
+class FirstCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_utils import (
+            FirstCanonicalizationPattern,
+        )
+
+        return (FirstCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.first"
 
     res: OpResult = result_def()
     pair: Operand = operand_def(AnyPairType)
+
+    traits = frozenset([traits.Pure(), FirstCanonicalizationPatterns()])
 
     def __init__(self, pair: SSAValue) -> None:
         if not isinstance(pair.type, PairType):
@@ -104,12 +118,24 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
         return "first"
 
 
+class SecondCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_utils import (
+            SecondCanonicalizationPattern,
+        )
+
+        return (SecondCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.second"
 
     res: OpResult = result_def()
     pair: Operand = operand_def(AnyPairType)
+
+    traits = frozenset([traits.Pure(), SecondCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "second"

@@ -1,5 +1,5 @@
-// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize-smt | filecheck %s
-// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize-smt -t=smt | z3 -in
+// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize,dce | filecheck %s
+// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize,dce -t=smt | z3 -in
 
 builtin.module {
   func.func @test(%x : i32) -> i64 {
