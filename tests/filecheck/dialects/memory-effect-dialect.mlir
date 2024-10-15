@@ -7,7 +7,7 @@ builtin.module {
     %offset = "smt.bv.constant"() {value = #smt.bv.bv_val<8 : 64>} : () -> !smt.bv.bv<64>
     %new_ptr = mem_effect.offset_ptr %ptr[%offset]
     %val = "smt.bv.constant"() {value = #smt.bv.bv_val<42 : 16>} : () -> !smt.bv.bv<16>
-    %state3 = mem_effect.write %state2[%new_ptr], %val : !smt.bv.bv<16>
+    %state3 = mem_effect.write %val, %state2[%new_ptr] : !smt.bv.bv<16>
     %state4, %val2 = mem_effect.read %state3[%new_ptr] : !smt.utils.pair<!smt.bv.bv<16>, !smt.bool>
     mem_effect.dealloc %state4, %ptr
 }
@@ -19,6 +19,6 @@ builtin.module {
 // CHECK-NEXT:    %offset = "smt.bv.constant"() {"value" = #smt.bv.bv_val<8: 64>} : () -> !smt.bv.bv<64>
 // CHECK-NEXT:    %new_ptr = mem_effect.offset_ptr %ptr[%offset]
 // CHECK-NEXT:    %val = "smt.bv.constant"() {"value" = #smt.bv.bv_val<42: 16>} : () -> !smt.bv.bv<16>
-// CHECK-NEXT:    %state3 = mem_effect.write %state2[%new_ptr], %val : !smt.bv.bv<16>
+// CHECK-NEXT:    %state3 = mem_effect.write %val, %state2[%new_ptr] : !smt.bv.bv<16>
 // CHECK-NEXT:    %state4, %val2 = mem_effect.read %state3[%new_ptr] : !smt.utils.pair<!smt.bv.bv<16>, !smt.bool>
 // CHECK-NEXT:    %0 = mem_effect.dealloc %state4, %ptr

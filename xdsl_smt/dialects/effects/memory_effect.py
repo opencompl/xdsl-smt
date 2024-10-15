@@ -84,22 +84,22 @@ class WriteOp(IRDLOperation):
 
     name = "mem_effect.write"
 
+    value = operand_def(BitVectorType)
     state = operand_def(StateType())
     pointer = operand_def(PointerType())
-    value = operand_def(BitVectorType)
 
-    res = result_def(StateType())
+    new_state = result_def(StateType())
 
-    assembly_format = "$state `[` $pointer `]` `,` $value attr-dict `:` type($value)"
+    assembly_format = "$value `,` $state `[` $pointer `]` attr-dict `:` type($value)"
 
     def verify_(self):
         assert isinstance(self.value.type, BitVectorType)
         if self.value.type.width.data % 8 != 0:
             raise VerifyException("written size must be a multiple of 8")
 
-    def __init__(self, state: SSAValue, pointer: SSAValue, value: SSAValue):
+    def __init__(self, value: SSAValue, state: SSAValue, pointer: SSAValue):
         super().__init__(
-            operands=[state, pointer, value],
+            operands=[value, state, pointer],
             result_types=[StateType()],
         )
 
@@ -124,7 +124,7 @@ class AllocOp(IRDLOperation):
     def __init__(self, state: SSAValue, size: SSAValue):
         super().__init__(
             operands=[state, size],
-            result_types=[PointerType(), StateType()],
+            result_types=[StateType(), PointerType()],
         )
 
 
