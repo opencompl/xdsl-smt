@@ -36,6 +36,12 @@ class OffsetPointerOp(IRDLOperation):
 
     assembly_format = "$pointer `[` $offset `]` attr-dict"
 
+    def __init__(self, pointer: SSAValue, offset: SSAValue):
+        super().__init__(
+            operands=[pointer, offset],
+            result_types=[PointerType()],
+        )
+
 
 @irdl_op_definition
 class ReadOp(IRDLOperation):
