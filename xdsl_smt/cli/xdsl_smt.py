@@ -15,6 +15,7 @@ from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.semantics.memref_semantics import memref_semantics
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import (
     IndexTypeSemantics,
@@ -109,7 +110,7 @@ def main():
         IndexType: IndexTypeSemantics(),
     }
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
+    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
 
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites

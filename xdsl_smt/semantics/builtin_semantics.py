@@ -1,5 +1,5 @@
 from xdsl.ir import Attribute, SSAValue
-from xdsl.parser import IntegerAttr, IntegerType, IndexType
+from xdsl.parser import IntegerAttr, IntegerType, IndexType, i64
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.semantics import (
@@ -35,8 +35,10 @@ class IntegerAttrSemantics(AttributeSemantics):
     def get_semantics(
         self, attribute: Attribute, rewriter: PatternRewriter
     ) -> SSAValue:
+        if isa(attribute, IntegerAttr[IndexType]):
+            attribute = IntegerAttr(attribute.value.data, i64)
         if not isa(attribute, IntegerAttr[IntegerType]):
-            raise Exception("Cannot handle semantics of IntegerAttr[IntegerType]")
+            raise Exception(f"Cannot handle semantics of {attribute}")
         op = smt_bv.ConstantOp(attribute)
         rewriter.insert_op_before_matched_op(op)
         return op.res
