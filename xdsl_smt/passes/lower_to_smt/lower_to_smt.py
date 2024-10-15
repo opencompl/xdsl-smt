@@ -15,7 +15,7 @@ from xdsl.passes import ModulePass
 from xdsl.ir import Attribute, Operation, SSAValue, Region
 from xdsl.traits import IsTerminator
 from xdsl.context import MLContext
-from xdsl.dialects.builtin import ModuleOp
+from xdsl.dialects.builtin import ModuleOp, ArrayAttr
 from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl_smt.dialects import smt_dialect
@@ -156,5 +156,15 @@ class LowerToSMTPass(ModulePass):
     name = "lower-to-smt"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+        # HACK: This is a temporary solution to get access to the operand types
+        # during the lowering.
+        # This should be fixed once we have a better lowering scheme that ressemble
+        # the conversion patterns in MLIR.
+        for sub_op in op.walk():
+            sub_op.attributes["__operand_types"] = ArrayAttr(
+                [op.type for op in sub_op.operands]
+            )
+        del op.attributes["__operand_types"]
+
         lowerer = SMTLowerer()
         lowerer.lower_region(op.body, None)
