@@ -124,7 +124,36 @@ def offset_pointer_for_indices(
     indices: Sequence[SSAValue],
     sizes: Sequence[int],
     rewriter: PatternRewriter,
-):
+) -> tuple[SSAValue, SSAValue]:
+    """
+    Get the adress of an element in a memref, given the pointer to the memref, and
+    a list of indices.
+    Additionally return an SSAValue representing whether the indices are in bounds.
+    """
+    # Check that the memref can fit in 64 bits
+    if reduce(operator.mul, sizes, 1) > 2**64:
+        raise ValueError("Cannot handle memrefs larger than 2^64 bytes")
+
+    zero_op = smt_bv.ConstantOp(0, 64)
+    rewriter.insert_op_before_matched_op([zero_op])
+
+    # Check that all indices are in bounds
+    # This is sufficient to ensure that the pointer is in bounds, and that no
+    # address computation is overflowing.
+    in_bounds_op = smt.ConstantBoolOp(True)
+    in_bounds = in_bounds_op.res
+    rewriter.insert_op_before_matched_op(in_bounds_op)
+    for index, size in zip(indices, sizes):
+        nonnegative = smt_bv.SgeOp(index, zero_op.res)
+        size_cst = smt_bv.ConstantOp(size, 64)
+        less_size = smt_bv.SltOp(index, size_cst.res)
+        in_bounds_dim = smt.AndOp(nonnegative.res, less_size.res)
+        in_bounds_op = smt.AndOp(in_bounds, in_bounds_dim.res)
+        in_bounds = in_bounds_op.res
+        rewriter.insert_op_before_matched_op(
+            [nonnegative, size_cst, less_size, in_bounds_dim, in_bounds_op]
+        )
+
     # Compute the load offset
     offset_op = smt_bv.ConstantOp(0, 64)
     offset = offset_op.res
@@ -137,7 +166,7 @@ def offset_pointer_for_indices(
         rewriter.insert_op_before_matched_op([size_cst, mul_op, add_op])
     pointer_op = mem_effect.OffsetPointerOp(pointer, offset)
     rewriter.insert_op_before_matched_op(pointer_op)
-    return pointer_op.res
+    return (pointer_op.res, in_bounds)
 
 
 class LoadSemantics(OperationSemantics):
@@ -177,16 +206,22 @@ class LoadSemantics(OperationSemantics):
         ), "Cannot handle memrefs with non-i8 element types"
 
         # Compute the load offset
-        address = offset_pointer_for_indices(pointer, indices, memref_size, rewriter)
+        address, in_bounds = offset_pointer_for_indices(
+            pointer, indices, memref_size, rewriter
+        )
 
         read_op = mem_effect.ReadOp(effect_state, address, memref_element)
         rewriter.insert_op_before_matched_op([read_op])
 
         # Handle poison. If the pointer is poisoned, or any of the indices are poisoned,
-        # undefined behavior is triggered.
+        # or indices are not in bounds, undefined behavior is triggered.
         state_if_poison = ub_effect.TriggerOp(effect_state)
-        new_state = smt.IteOp(poison, state_if_poison.res, read_op.new_state)
-        rewriter.insert_op_before_matched_op([state_if_poison, new_state])
+        not_in_bounds = smt.NotOp(in_bounds)
+        ub_condition = smt.OrOp(poison, not_in_bounds.res)
+        new_state = smt.IteOp(ub_condition.res, state_if_poison.res, read_op.new_state)
+        rewriter.insert_op_before_matched_op(
+            [state_if_poison, not_in_bounds, ub_condition, new_state]
+        )
 
         return (read_op.res,), new_state.res
 
@@ -228,7 +263,9 @@ class StoreSemantics(OperationSemantics):
         ), "Cannot handle memrefs with non-i8 element types"
 
         # Compute the write offset
-        address = offset_pointer_for_indices(pointer, indices, memref_size, rewriter)
+        address, in_bounds = offset_pointer_for_indices(
+            pointer, indices, memref_size, rewriter
+        )
 
         write_op = mem_effect.WriteOp(value, effect_state, address)
         rewriter.insert_op_before_matched_op([write_op])
@@ -236,8 +273,12 @@ class StoreSemantics(OperationSemantics):
         # Handle poison. If the pointer is poisoned, or any of the indices are poisoned,
         # undefined behavior is triggered.
         state_if_poison = ub_effect.TriggerOp(effect_state)
-        new_state = smt.IteOp(poison, state_if_poison.res, write_op.new_state)
-        rewriter.insert_op_before_matched_op([state_if_poison, new_state])
+        not_in_bounds = smt.NotOp(in_bounds)
+        ub_condition = smt.OrOp(poison, not_in_bounds.res)
+        new_state = smt.IteOp(ub_condition.res, state_if_poison.res, write_op.new_state)
+        rewriter.insert_op_before_matched_op(
+            [state_if_poison, not_in_bounds, ub_condition, new_state]
+        )
 
         return (), write_op.new_state
 
