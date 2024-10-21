@@ -112,7 +112,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
             firstBlockTerminator = firstBlock.last_op
             assert firstBlockTerminator is not None
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
-            firstRet = ReturnOp.from_ret_value(firstOp.res)
+            firstRet = ReturnOp(firstOp.res)
             Rewriter.replace_op(firstBlockTerminator, firstRet)
             firstFunc.ret.type = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
@@ -130,7 +130,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
             assert secondBlockTerminator is not None
             secondOp = SecondOp(secondFunc.return_values[0])
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
-            secondRet = ReturnOp.from_ret_value(secondOp.res)
+            secondRet = ReturnOp(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
             secondFunc.ret.type = FunctionType.from_attrs(
                 secondFunc.func_type.inputs,

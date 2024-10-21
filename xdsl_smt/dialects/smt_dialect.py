@@ -333,12 +333,8 @@ class ReturnOp(IRDLOperation):
 
     traits = frozenset([IsTerminator()])
 
-    def __init__(self, operand: SSAValue):
+    def __init__(self, operand: SSAValue | Sequence[SSAValue]):
         super().__init__(operands=[operand])
-
-    @staticmethod
-    def from_ret_value(ret_value: SSAValue):
-        return ReturnOp.create(operands=[ret_value])
 
     def verify_(self):
         parent = self.parent_op()
