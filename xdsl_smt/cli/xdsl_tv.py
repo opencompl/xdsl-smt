@@ -191,7 +191,7 @@ def main() -> None:
     func = module.ops.first
     func_after = module_after.ops.first
 
-    # HACK: As the effect system is still wip, we do not handle effectse here yet
+    # HACK: As the effect system is still wip, we do not handle effects here yet
     remove_effect_states(func)
     remove_effect_states(func_after)
 
