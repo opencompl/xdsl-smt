@@ -18,7 +18,7 @@ class EffectfulRefinementOp(IRDLOperation):
     Check if a pair of effect states and values are in a refinement relation.
     """
 
-    name = "effect.refinement"
+    name = "effect.effectful_refinement"
 
     T = Annotated[Attribute, ConstraintVar("T")]
 
@@ -51,7 +51,7 @@ class RefinementOp(IRDLOperation):
     The refinement semantics is defined
     """
 
-    name = "tv.effectful_refinement"
+    name = "tv.refinement"
 
     T = Annotated[Attribute, ConstraintVar("T")]
 
