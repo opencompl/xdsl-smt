@@ -1,6 +1,7 @@
 from typing import Sequence
 from xdsl.ir import Dialect, SSAValue
 from xdsl.irdl import (
+    prop_def,
     irdl_op_definition,
     IRDLOperation,
     operand_def,
@@ -9,8 +10,26 @@ from xdsl.irdl import (
 )
 from xdsl.irdl import SameVariadicOperandSize
 
+from xdsl.dialects.builtin import SymbolRefAttr
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects.effects.effect import StateType
+
+
+@irdl_op_definition
+class FunctionRefinementOp(IRDLOperation):
+    """Represent a check that two functions refines each other."""
+
+    name = "tv.assert_refinement"
+
+    func_before = prop_def(SymbolRefAttr)
+    func_after = prop_def(SymbolRefAttr)
+
+    assembly_format = "$func_before `refines` $func_after"
+
+    def __init__(self, func_before: SymbolRefAttr, func_after: SymbolRefAttr):
+        super().__init__(
+            properties={"func_before": func_before, "func_after": func_after}
+        )
 
 
 @irdl_op_definition
@@ -19,7 +38,7 @@ class EffectfulRefinementOp(IRDLOperation):
     Check if a pair of effect states and values are in a refinement relation.
     """
 
-    name = "effect.effectful_refinement"
+    name = "tv.effectful_refinement"
 
     state_before = operand_def(StateType())
     value_before = var_operand_def()
@@ -69,6 +88,7 @@ class RefinementOp(IRDLOperation):
 TVDialect = Dialect(
     "tv",
     [
+        FunctionRefinementOp,
         EffectfulRefinementOp,
         RefinementOp,
     ],
