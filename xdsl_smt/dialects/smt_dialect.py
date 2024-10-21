@@ -220,7 +220,13 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
 
 @irdl_op_definition
 class DefineFunOp(IRDLOperation, SMTLibScriptOp):
-    """Define a function."""
+    """
+    Define a function.
+    Unlike SMT-LIB, to ease the manipulation of functions, functions may have more
+    than one return value.
+    Functions with more than one return value should be converted to multiple
+    functions or to a function with a tuple return type before conversion to SMT-LIB.
+    """
 
     name = "smt.define_fun"
 
@@ -236,10 +242,12 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
         for arg, arg_type in zip(self.body.blocks[0].args, self.func_type.inputs.data):
             if arg.type != arg_type:
                 raise VerifyException("Incorrect argument type")
-        if len(self.func_type.outputs.data) != 1:
-            raise VerifyException("Incorrect number of return values")
-        if self.return_val.type != self.func_type.outputs.data[0]:
-            raise VerifyException("Incorrect return type")
+        for arg, arg_type in zip(self.body.blocks[0].args, self.func_type.inputs.data):
+            if arg.type != arg_type:
+                raise VerifyException("Incorrect argument type")
+        for ret, ret_type in zip(self.return_values, self.func_type.outputs.data):
+            if ret.type != ret_type:
+                raise VerifyException("Incorrect return type")
 
     @property
     def func_type(self) -> FunctionType:
@@ -249,8 +257,8 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
         return self.ret.type
 
     @property
-    def return_val(self) -> SSAValue:
-        """Get the return value of this operation."""
+    def return_values(self) -> Sequence[SSAValue]:
+        """Get the return values of this operation."""
         ret_op = self.body.block.last_op
         if not isinstance(ret_op, ReturnOp):
             raise ValueError("Region does not end in a return")
@@ -308,7 +316,11 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
 
         # Print the function body
         print("  ", file=stream, end="")
-        ctx.print_expr_to_smtlib(self.return_val, stream, identation="  ")
+        if len(self.return_values) != 1:
+            raise Exception(
+                "Functions with multiple return values cannot be converted to SMT-LIB"
+            )
+        ctx.print_expr_to_smtlib(self.return_values[0], stream, identation="  ")
         print(")", file=stream)
 
 
@@ -317,7 +329,7 @@ class ReturnOp(IRDLOperation):
     """The return operation of a function."""
 
     name = "smt.return"
-    ret: Operand = operand_def()
+    ret = var_operand_def()
 
     traits = frozenset([IsTerminator()])
 
@@ -332,8 +344,9 @@ class ReturnOp(IRDLOperation):
         parent = self.parent_op()
         if not isinstance(parent, DefineFunOp):
             raise VerifyException("ReturnOp must be nested inside a DefineFunOp")
-        if not self.ret.type == parent.func_type.outputs.data[0]:
-            raise VerifyException("ReturnOp type mismatch with DefineFunOp")
+        for ret, ret_type in zip(self.ret, parent.func_type.outputs.data):
+            if ret.type != ret_type:
+                raise VerifyException("Incorrect return type")
 
 
 @irdl_op_definition

@@ -90,6 +90,12 @@ def remove_pairs_from_function_return(module: ModuleOp):
         func = funcs[-1]
         funcs.pop()
 
+        if len(func.func_type.outputs.data) != 1:
+            if any(isinstance(t, PairType) for t in func.func_type.outputs.data):
+                raise ValueError(
+                    "lower-pairs do not handle functions with multiple results with pairs yet"
+                )
+
         if isinstance((output := func.func_type.outputs.data[0]), PairType):
             output = cast(AnyPairType, output)
 
@@ -102,7 +108,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
 
             # Mutate the new function to return the first element of the pair.
             firstBlock = firstFunc.body.blocks[0]
-            firstOp = FirstOp(firstFunc.return_val)
+            firstOp = FirstOp(firstFunc.return_values[0])
             firstBlockTerminator = firstBlock.last_op
             assert firstBlockTerminator is not None
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
@@ -122,7 +128,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
             secondBlock = secondFunc.body.blocks[0]
             secondBlockTerminator = secondBlock.last_op
             assert secondBlockTerminator is not None
-            secondOp = SecondOp(secondFunc.return_val)
+            secondOp = SecondOp(secondFunc.return_values[0])
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp.from_ret_value(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
