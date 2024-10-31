@@ -33,6 +33,7 @@ from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 from xdsl_smt.dialects.hoare_dialect import Hoare
 from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_int_dialect import SMTIntDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
@@ -70,6 +71,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Index.name, lambda: Index)
         self.ctx.register_dialect(SMTDialect.name, lambda: SMTDialect)
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
+        self.ctx.register_dialect(SMTIntDialect.name, lambda: SMTIntDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
@@ -85,6 +87,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
+        self.ctx.load_registered_dialect(SMTIntDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
 
     def register_all_passes(self):
