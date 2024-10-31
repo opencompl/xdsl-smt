@@ -44,23 +44,6 @@ class SMTIntType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
 _BOpT = TypeVar("_BOpT", bound="BinaryIntOp")
 
 
-@irdl_attr_definition
-class SMTIntAttr(Data[int]):
-    """Integer value."""
-
-    name = "smt.int.int_attr"
-
-    @classmethod
-    def parse_parameter(cls, parser: AttrParser) -> int:
-        with parser.in_angle_brackets():
-            data = parser.parse_integer(allow_boolean=False, allow_negative=False)
-        return data
-
-    def print_parameter(self, printer: Printer) -> None:
-        with printer.in_angle_brackets():
-            printer.print_string(f"{self.data}")
-
-
 class BinaryIntOp(IRDLOperation, Pure):
     """Base class for binary integer operations."""
 
