@@ -13,7 +13,6 @@ from xdsl.irdl import (
 from xdsl.ir import (
     Dialect,
     OpResult,
-    Data,
     Operation,
     ParametrizedAttribute,
     SSAValue,
@@ -27,8 +26,6 @@ from ..traits.smt_printer import (
     SMTConversionCtx,
 )
 from .smt_dialect import BoolType
-from xdsl.parser import AttrParser
-from xdsl.printer import Printer
 
 _OpT = TypeVar("_OpT", bound=Operation)
 
