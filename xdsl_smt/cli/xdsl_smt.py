@@ -29,6 +29,7 @@ from xdsl_smt.passes.lower_to_smt import (
 )
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
+from xdsl_smt.passes.load_parametric_int_semantics import LoadParametricIntSemantics
 
 from xdsl_smt.dialects.hoare_dialect import Hoare
 from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
@@ -98,6 +99,9 @@ class OptMain(xDSLOptMain):
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
         self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)
         self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
+        self.register_pass(
+            LoadParametricIntSemantics.name, lambda: LoadParametricIntSemantics
+        )
 
     def register_all_targets(self):
         super().register_all_targets()
