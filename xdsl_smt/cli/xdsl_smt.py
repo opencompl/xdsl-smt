@@ -108,6 +108,9 @@ class OptMain(xDSLOptMain):
             LoadParametricIntSemantics.name, lambda: LoadParametricIntSemantics
         )
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
+        self.register_pass(
+            LoadParametricIntSemantics.name, lambda: LoadParametricIntSemantics
+        )
 
     def register_all_targets(self):
         super().register_all_targets()
