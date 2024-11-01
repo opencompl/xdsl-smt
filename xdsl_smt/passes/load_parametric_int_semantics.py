@@ -9,6 +9,7 @@ from xdsl_smt.semantics.arith_int_semantics import (
     IntAddSemantics,
     IntSubSemantics,
     IntMulSemantics,
+    IntCmpSemantics,
 )
 
 
@@ -22,5 +23,6 @@ class LoadParametricIntSemantics(ModulePass):
             arith.Addi: IntAddSemantics(),
             arith.Subi: IntSubSemantics(),
             arith.Muli: IntMulSemantics(),
+            arith.Cmpi: IntCmpSemantics(),
         }
         SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
