@@ -11,7 +11,7 @@ from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 
 
 def get_int_max(width: int):
-    # 2^width
+    # 2 ^ width
     two = smt_int.ConstantOp(2)
     times: list[smt_int.ConstantOp | smt_int.MulOp] = [two]
     for _ in range(width - 1):
@@ -21,11 +21,9 @@ def get_int_max(width: int):
 
 
 def get_generic_modulo(x: SSAValue, int_max: SSAValue):
-    # ((x % INT_MAX) + INT_MAX) % INT_MAX
+    # x % INT_MAX
     modulo0 = smt_int.ModOp(x, int_max)
-    add = smt_int.AddOp(modulo0.res, int_max)
-    modulo1 = smt_int.ModOp(add.res, int_max)
-    return [modulo0, add, modulo1]
+    return [modulo0]
 
 
 class IntConstantSemantics(OperationSemantics):
@@ -44,12 +42,12 @@ class IntConstantSemantics(OperationSemantics):
         literal = smt_int.ConstantOp(value_value.value.data)
         int_max = get_int_max(results[0].width.data)
         assert len(int_max) > 0
-        modulo = smt_int.ModOp(literal.res, int_max[-1].res)
+        modulo = get_generic_modulo(literal.res, int_max[-1].res)
         no_poison = smt.ConstantBoolOp.from_bool(False)
-        inner_pair = smt_utils.PairOp(modulo.res, no_poison.res)
+        inner_pair = smt_utils.PairOp(modulo[-1].res, no_poison.res)
         outer_pair = smt_utils.PairOp(inner_pair.res, int_max[-1].res)
         rewriter.insert_op_before_matched_op(
-            int_max + [literal, modulo, no_poison, inner_pair, outer_pair]
+            int_max + modulo + [literal, no_poison, inner_pair, outer_pair]
         )
         return ((outer_pair.res,), effect_state)
 
