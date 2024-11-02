@@ -15,6 +15,7 @@ from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.semantics.memref_semantics import memref_semantics
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import (
@@ -95,6 +96,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
         self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)
         self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
+        self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
 
     def register_all_targets(self):
         super().register_all_targets()

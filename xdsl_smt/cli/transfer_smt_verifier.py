@@ -252,7 +252,7 @@ def soundness_check(
     inst_result_pair = CallOp.get(
         concrete_func.results[0], [op.results[0] for op in inst_constant_pair]
     )
-    inst_result = FirstOp(inst_result_pair.res)
+    inst_result = FirstOp(inst_result_pair.res[0])
     inst_result_constraint = CallOp.get(
         get_inst_constraint[result_width].results[0],
         [abstract_result.results[0], inst_result.results[0]],
@@ -265,7 +265,7 @@ def soundness_check(
     # consider op constraint
     op_constraint_list = []
     op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
-    op_constraint_result_first = FirstOp(op_constraint_result.res)
+    op_constraint_result_first = FirstOp(op_constraint_result.res[0])
     op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
     op_constraint_assert = AssertOp(op_constraint_eq.res)
     op_constraint_list = [
@@ -281,7 +281,7 @@ def soundness_check(
     eq_ops: list[EqOp] = []
     assert_ops: list[AssertOp] = []
 
-    eq_ops.append(EqOp(arg_constant[-1].res, abstract_result.res))
+    eq_ops.append(EqOp(arg_constant[-1].res, abstract_result.res[0]))
     assert_ops.append(AssertOp(eq_ops[-1].results[0]))
     eq_ops.append(EqOp(inst_constant[-1].res, inst_result.res))
     assert_ops.append(AssertOp(eq_ops[-1].results[0]))
@@ -362,7 +362,7 @@ def precision_check(
     c_constraints = CallOp.get(
         get_constraint[result_width].results[0], [c_constant.results[0]]
     )
-    c_constraints_first = FirstOp(c_constraints.res)
+    c_constraints_first = FirstOp(c_constraints.res[0])
 
     arg_constraints: list[CallOp] = []
     inst_constraints: list[CallOp] = []
@@ -425,7 +425,7 @@ def precision_check(
         concrete_func.results[0], [op.results[0] for op in inst_constant_pair]
     )
     # concrete_op(arg0inst, arg1inst)
-    inst_result = FirstOp(inst_result_pair.res)
+    inst_result = FirstOp(inst_result_pair.res[0])
     # getInstanceConstraint(concrete_op(arg0inst, arg1inst), cfield0, cfield1))
     inst_result_constraint = CallOp.get(
         get_inst_constraint[result_width].results[0],
@@ -453,7 +453,7 @@ def precision_check(
     # consider op constraint
     op_constraint_list = []
     op_constraint_result = CallOp.get(op_constraint.results[0], inst_constant)
-    op_constraint_result_first = FirstOp(op_constraint_result.res)
+    op_constraint_result_first = FirstOp(op_constraint_result.res[0])
     op_constraint_eq = EqOp(constant_bv_1.res, op_constraint_result_first.res)
     op_constraint_assert = AssertOp(op_constraint_eq.res)
     op_constraint_list = [
@@ -501,9 +501,9 @@ def precision_check(
         cinst_in_c_constraint_first = FirstOp(cinst_in_c_constraint.results[0])
         cinst_in_abs_res_constraint = CallOp.get(
             get_inst_constraint.results[0],
-            [abs_res.res, cinst],
+            [abs_res.res[0], cinst],
         )
-        cinst_in_abs_res_constraint_first = FirstOp(cinst_in_abs_res_constraint.res)
+        cinst_in_abs_res_constraint_first = FirstOp(cinst_in_abs_res_constraint.res[0])
         cinst_in_c_constraint_first_eq = EqOp(
             cinst_in_c_constraint_first.res, constant_bv_1.res
         )
@@ -559,7 +559,7 @@ def precision_check(
         [c_constant.results[0], abstract_result_inst.results[0]],
     )
     abstract_result_inst_constraint_c_first = FirstOp(
-        abstract_result_inst_constraint_c.res
+        abstract_result_inst_constraint_c.res[0]
     )
     abstract_result_inst_constraint_c_first_eq = EqOp(
         abstract_result_inst_constraint_c_first.res, constant_bv_0.res

@@ -156,7 +156,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
                     result_types=[secondFunc.ret.type.outputs.data[0]],
                     operands=[secondFunc.ret] + list(call.args),
                 )
-                mergeCalls = PairOp(callFirst.res, callSecond.res)
+                mergeCalls = PairOp(callFirst.res[0], callSecond.res[0])
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 

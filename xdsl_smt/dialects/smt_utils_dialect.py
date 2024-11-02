@@ -170,10 +170,13 @@ def pair_from_list(*vals: SSAValue) -> SSAValue:
 
 def merge_values_with_pairs(
     vals: Sequence[SSAValue], rewriter: PatternRewriter, insert_point: InsertPoint
-) -> SSAValue | None:
-    """Merge a list of values (a, b, c, ...) into a list of pairs (a, (b, (c, ...)))"""
+) -> SSAValue:
+    """
+    Merge a list of values (a, b, c, ...) into a list of pairs (a, (b, (c, ...))).
+    Expect at least one value.
+    """
     if len(vals) == 0:
-        return None
+        raise ValueError("Sequence must have at least one value")
     rhs = vals[-1]
     for lhs in reversed(vals[:-1]):
         pair = PairOp(lhs, rhs)
