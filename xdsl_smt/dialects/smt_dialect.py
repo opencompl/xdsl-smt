@@ -9,9 +9,9 @@ from xdsl.irdl import (
     opt_attr_def,
     operand_def,
     result_def,
+    var_result_def,
     region_def,
     var_operand_def,
-    VarOperand,
     irdl_attr_definition,
     irdl_op_definition,
     Operand,
@@ -174,9 +174,17 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
 
     name = "smt.call"
 
-    res: OpResult = result_def()
-    func: Operand = operand_def(FunctionType)
-    args: VarOperand = var_operand_def()
+    res = var_result_def()
+    func = operand_def(FunctionType)
+    args = var_operand_def()
+
+    def __init__(self, func: Operand, args: Sequence[Operand | Operation]):
+        if not isinstance(func.type, FunctionType):
+            raise Exception("Expected function type, got ", func.type)
+        super().__init__(
+            operands=[func, args],
+            result_types=[func.type.outputs.data],
+        )
 
     @staticmethod
     def get(func: Operand, args: Sequence[Operand | Operation]) -> CallOp:
@@ -196,7 +204,7 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
                 raise VerifyException("Incorrect argument type")
         if len(self.func.type.outputs.data) != 1:
             raise VerifyException("Incorrect number of return values")
-        if self.res.type != self.func.type.outputs.data[0]:
+        if tuple(res.type for res in self.res) != self.func.type.outputs.data:
             raise VerifyException("Incorrect return type")
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
@@ -233,6 +241,24 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
     fun_name: StringAttr | None = opt_attr_def(StringAttr)
     ret: OpResult = result_def(FunctionType)
     body: Region = region_def("single_block")
+
+    def __init__(self, region: Region, name: str | StringAttr | None = None) -> None:
+        """
+        Create a new function given its body and name.
+        The body is expected to have a single block terminated by an `smt.return`.
+        """
+        operand_types = region.block.arg_types
+        if not isinstance(terminator := region.block.last_op, ReturnOp):
+            raise Exception(f"In {self.name} constructor: Region must end in a return")
+        result_types = tuple(res.type for res in terminator.ret)
+        if isinstance(name, str):
+            name = StringAttr(name)
+        attributes = {"fun_name": name} if name is not None else {}
+        super().__init__(
+            attributes=attributes,
+            result_types=[FunctionType.from_lists(operand_types, result_types)],
+            regions=[region],
+        )
 
     def verify_(self) -> None:
         if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, ReturnOp):

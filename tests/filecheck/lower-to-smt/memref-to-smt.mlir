@@ -24,7 +24,6 @@ builtin.module {
 // CHECK-NEXT:      %9 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<97: 64>} : () -> !smt.bv.bv<64>
 // CHECK-NEXT:      %10 = mem_effect.offset_ptr %4[%9]
 // CHECK-NEXT:      %11, %val = mem_effect.read %8[%10] : !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>
-// CHECK-NEXT:      %12 = "smt.utils.pair"(%val, %11) : (!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state) -> !smt.utils.pair<!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state>
-// CHECK-NEXT:      "smt.return"(%12) : (!smt.utils.pair<!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state>) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "add"} : () -> ((!effect.state) -> !smt.utils.pair<!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state>)
+// CHECK-NEXT:      "smt.return"(%val, %11) : (!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state) -> ()
+// CHECK-NEXT:    }) {"fun_name" = "add"} : () -> ((!effect.state) -> (!smt.utils.pair<!smt.bv.bv<8>, !smt.bool>, !effect.state))
 // CHECK-NEXT:  }

@@ -19,6 +19,7 @@ from ..dialects.smt_dialect import (
     CallOp,
     CheckSatOp,
     DefineFunOp,
+    ReturnOp,
     EqOp,
     AssertOp,
     ForallOp,
@@ -30,7 +31,6 @@ from ..dialects.smt_dialect import (
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import (
     FirstOp,
-    AnyPairType,
     SMTUtilsDialect,
     SecondOp,
 )
@@ -115,10 +115,10 @@ def insert_function_refinement(
         func_call_after = CallOp.get(func_after.results[0], [*args, *synth_values])
 
         # Get the function return values and poison
-        ret_value = FirstOp(func_call.res)
-        ret_poison = SecondOp(func_call.res)
-        ret_value_after = FirstOp(func_call_after.res)
-        ret_poison_after = SecondOp(func_call_after.res)
+        ret_value = FirstOp(func_call.res[0])
+        ret_poison = SecondOp(func_call.res[0])
+        ret_value_after = FirstOp(func_call_after.res[0])
+        ret_poison_after = SecondOp(func_call_after.res[0])
 
         # Check for refinement
         not_after_poison = NotOp.get(ret_poison_after.res)
@@ -155,14 +155,18 @@ def move_synth_constants_to_arguments(func: FuncOp) -> Sequence[Attribute]:
 
 def remove_effect_states(func: DefineFunOp) -> None:
     effect_state = func.body.blocks[0].args[-1]
-    assert len(effect_state.uses) == 1, "xdsl-synth does not handle effects yet"
-    user = list(effect_state.uses)[0].operation
-    assert isinstance(user, smt_utils_dialect.PairOp)
-    Rewriter.replace_op(user, [], [user.first])
+    assert (
+        len(effect_state.uses) == 1
+    ), "xdsl-synth does not handle operations effects yet"
+    use = list(effect_state.uses)[0]
+    user = use.operation
+    assert isinstance(
+        user, ReturnOp
+    ), "xdsl-synth does not handle operations with effects yet"
+    Rewriter.replace_op(user, ReturnOp(user.ret[:-1]))
     func.body.blocks[0].erase_arg(effect_state)
     assert isinstance(ret := func.ret.type, FunctionType)
-    assert isa(pair := ret.outputs.data[0], AnyPairType)
-    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], [pair.first])
+    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], ret.outputs.data[:-1])
 
 
 def main() -> None:

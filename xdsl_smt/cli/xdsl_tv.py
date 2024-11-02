@@ -7,11 +7,9 @@ from xdsl.context import MLContext
 from xdsl.ir import Operation, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
-from xdsl.utils.hints import isa
 
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
-from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import (
     AndOp,
@@ -23,6 +21,7 @@ from xdsl_smt.dialects.smt_dialect import (
     AssertOp,
     NotOp,
     OrOp,
+    ReturnOp,
     SMTDialect,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -88,17 +87,17 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
         args.append(const_op.res)
 
     # Call both operations
-    func_call = CallOp.get(func.results[0], args)
-    func_call_after = CallOp.get(func_after.results[0], args)
+    func_call = CallOp(func.results[0], args)
+    func_call_after = CallOp(func_after.results[0], args)
     ops += [func_call, func_call_after]
 
     # Get the function return values and poison
-    ret_value = FirstOp(func_call.res)
-    ret_poison = SecondOp(func_call.res)
+    ret_value = FirstOp(func_call.res[0])
+    ret_poison = SecondOp(func_call.res[0])
     ops.extend((ret_value, ret_poison))
 
-    ret_value_after = FirstOp(func_call_after.res)
-    ret_poison_after = SecondOp(func_call_after.res)
+    ret_value_after = FirstOp(func_call_after.res[0])
+    ret_poison_after = SecondOp(func_call_after.res[0])
     ops.extend((ret_value_after, ret_poison_after))
 
     not_after_poison = NotOp.get(ret_poison_after.res)
@@ -118,14 +117,18 @@ def function_refinement(func: DefineFunOp, func_after: DefineFunOp) -> list[Oper
 
 def remove_effect_states(func: DefineFunOp) -> None:
     effect_state = func.body.blocks[0].args[-1]
-    assert len(effect_state.uses) == 1, "xdsl-synth does not handle effects yet"
-    user = list(effect_state.uses)[0].operation
-    assert isinstance(user, smt_utils.PairOp)
-    Rewriter.replace_op(user, [], [user.first])
+    assert (
+        len(effect_state.uses) == 1
+    ), "xdsl-synth does not handle operations effects yet"
+    use = list(effect_state.uses)[0]
+    user = use.operation
+    assert isinstance(
+        user, ReturnOp
+    ), "xdsl-synth does not handle operations with effects yet"
+    Rewriter.replace_op(user, ReturnOp(user.ret[:-1]))
     func.body.blocks[0].erase_arg(effect_state)
     assert isinstance(ret := func.ret.type, FunctionType)
-    assert isa(pair := ret.outputs.data[0], smt_utils.AnyPairType)
-    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], [pair.first])
+    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], ret.outputs.data[:-1])
 
 
 def main() -> None:
