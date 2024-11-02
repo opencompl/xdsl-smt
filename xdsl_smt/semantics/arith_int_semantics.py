@@ -19,6 +19,16 @@ def get_is_equal(lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter) -> SSA
     return andop.res
 
 
+def get_is_not_equal(
+    lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
+) -> SSAValue:
+    ltop = smt_int.LtOp(lhs, rhs)
+    gtop = smt_int.GtOp(lhs, rhs)
+    orop = smt.OrOp(ltop.res, gtop.res)
+    rewriter.insert_op_before_matched_op([ltop, gtop, orop])
+    return orop.res
+
+
 def get_int_max(width: int, rewriter: PatternRewriter) -> SSAValue:
     # 2 ^ width
     two = smt_int.ConstantOp(2)
@@ -106,10 +116,10 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
             ]
         )
         assert effect_state
-        effect_state = self.check_ub(
+        effect_state = self.get_ub(
             lhs_get_payload.res, rhs_get_payload.res, effect_state, rewriter
         )
-        payload = self.get_modular_payload_semantics(
+        payload = self.get_payload_semantics(
             lhs_get_payload.res,
             rhs_get_payload.res,
             lhs_get_int_max.res,
@@ -135,12 +145,43 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         return ((outer_pair.res,), effect_state)
 
     @abstractmethod
-    def check_ub(
+    def get_ub(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
         effect_state: SSAValue,
         rewriter: PatternRewriter,
+    ) -> SSAValue:
+        ...
+
+    @abstractmethod
+    def get_poison(
+        self,
+        poison0: SSAValue,
+        poison1: SSAValue,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        res: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        ...
+
+    @abstractmethod
+    def get_payload_semantics(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        int_max: SSAValue,
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        ...
+
+
+class IntDivBasedSemantics(AbsIntBinarySemantics):
+    @abstractmethod
+    def _get_payload_semantics(
+        self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
     ) -> SSAValue:
         ...
 
@@ -157,26 +198,7 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         rewriter.insert_op_before_matched_op([or_poison])
         return or_poison.res
 
-    @abstractmethod
-    def get_modular_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        int_max: SSAValue,
-        attributes: Mapping[str, Attribute | SSAValue],
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        ...
-
-
-class IntDivBasedSemantics(AbsIntBinarySemantics):
-    @abstractmethod
-    def get_payload_semantics(
-        self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
-    ) -> SSAValue:
-        ...
-
-    def check_ub(
+    def get_ub(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -191,7 +213,7 @@ class IntDivBasedSemantics(AbsIntBinarySemantics):
         rewriter.insert_op_before_matched_op([trigger_ub, new_state])
         return effect_state
 
-    def get_modular_payload_semantics(
+    def get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -199,11 +221,11 @@ class IntDivBasedSemantics(AbsIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        return self.get_payload_semantics(lhs, rhs, rewriter)
+        return self._get_payload_semantics(lhs, rhs, rewriter)
 
 
 class IntBinaryEFSemantics(AbsIntBinarySemantics):
-    def check_ub(
+    def get_ub(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -213,12 +235,25 @@ class IntBinaryEFSemantics(AbsIntBinarySemantics):
         return effect_state
 
     @abstractmethod
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
     ) -> SSAValue:
         ...
 
-    def get_modular_payload_semantics(
+    def get_poison(
+        self,
+        poison0: SSAValue,
+        poison1: SSAValue,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        res: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        or_poison = smt.OrOp(poison0, poison1)
+        rewriter.insert_op_before_matched_op([or_poison])
+        return or_poison.res
+
+    def get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -226,13 +261,13 @@ class IntBinaryEFSemantics(AbsIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        payload = self.get_payload_semantics(lhs, rhs, rewriter)
+        payload = self._get_payload_semantics(lhs, rhs, rewriter)
         modulo = get_generic_modulo(payload, int_max, rewriter)
         return modulo
 
 
 class IntCmpiSemantics(AbsIntBinarySemantics):
-    def check_ub(
+    def get_ub(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -241,7 +276,20 @@ class IntCmpiSemantics(AbsIntBinarySemantics):
     ):
         return effect_state
 
-    def get_modular_payload_semantics(
+    def get_poison(
+        self,
+        poison0: SSAValue,
+        poison1: SSAValue,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        res: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        or_poison = smt.OrOp(poison0, poison1)
+        rewriter.insert_op_before_matched_op([or_poison])
+        return or_poison.res
+
+    def get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -288,7 +336,7 @@ class IntCmpiSemantics(AbsIntBinarySemantics):
 
 
 class IntAddiSemantics(IntBinaryEFSemantics):
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -300,7 +348,7 @@ class IntAddiSemantics(IntBinaryEFSemantics):
 
 
 class IntSubiSemantics(IntBinaryEFSemantics):
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -312,7 +360,7 @@ class IntSubiSemantics(IntBinaryEFSemantics):
 
 
 class IntMuliSemantics(IntBinaryEFSemantics):
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -324,7 +372,7 @@ class IntMuliSemantics(IntBinaryEFSemantics):
 
 
 class IntDivUISemantics(IntDivBasedSemantics):
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
@@ -336,7 +384,7 @@ class IntDivUISemantics(IntDivBasedSemantics):
 
 
 class IntRemUISemantics(IntDivBasedSemantics):
-    def get_payload_semantics(
+    def _get_payload_semantics(
         self,
         lhs: SSAValue,
         rhs: SSAValue,
