@@ -110,12 +110,7 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         # Pack
         inner_pair = smt_utils.PairOp(payload, poison)
         outer_pair = smt_utils.PairOp(inner_pair.res, lhs_get_int_max.res)
-        rewriter.insert_op_before_matched_op(
-            [
-                inner_pair,
-                outer_pair,
-            ]
-        )
+        rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
         return ((outer_pair.res,), effect_state)
 
     def get_poison(
@@ -178,12 +173,14 @@ class IntCmpSemantics(AbsIntBinarySemantics):
                 leop = smt_int.LeOp(lhs, rhs)
                 geop = smt_int.GeOp(lhs, rhs)
                 andop = smt.AndOp(leop.res, geop.res)
-                rewriter.insert_op_before_matched_op([leop, geop, andop])
+                payload = [leop, geop, andop]
+                rewriter.insert_op_before_matched_op(payload)
             case 1:
                 ltop = smt_int.LtOp(lhs, rhs)
                 gtop = smt_int.GtOp(lhs, rhs)
                 orop = smt.OrOp(ltop.res, gtop.res)
-                rewriter.insert_op_before_matched_op([ltop, gtop, orop])
+                payload = [ltop, gtop, orop]
+                rewriter.insert_op_before_matched_op(payload)
             case 2:
                 assert False
             case 3:
@@ -193,13 +190,17 @@ class IntCmpSemantics(AbsIntBinarySemantics):
             case 5:
                 assert False
             case 6:
-                rewriter.insert_op_before_matched_op([smt_int.LtOp(lhs, rhs)])
+                payload = [smt_int.LtOp(lhs, rhs)]
+                rewriter.insert_op_before_matched_op(payload)
             case 7:
-                rewriter.insert_op_before_matched_op([smt_int.LeOp(lhs, rhs)])
+                payload = [smt_int.LeOp(lhs, rhs)]
+                rewriter.insert_op_before_matched_op(payload)
             case 8:
-                rewriter.insert_op_before_matched_op([smt_int.GtOp(lhs, rhs)])
+                payload = [smt_int.GtOp(lhs, rhs)]
+                rewriter.insert_op_before_matched_op(payload)
             case 9:
-                rewriter.insert_op_before_matched_op([smt_int.GeOp(lhs, rhs)])
+                payload = [smt_int.GeOp(lhs, rhs)]
+                rewriter.insert_op_before_matched_op(payload)
             case _:
                 assert False
         return payload[-1].res
