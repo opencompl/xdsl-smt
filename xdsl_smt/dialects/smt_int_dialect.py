@@ -93,9 +93,6 @@ class UnaryIntOp(IRDLOperation, Pure):
     def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
         return cls.create(result_types=[arg.type], operands=[arg])
 
-    def verify_(self):
-        if not (self.res.type == self.arg.type):
-            raise VerifyException("Operand and result must have the same type")
 
 
 @irdl_op_definition
