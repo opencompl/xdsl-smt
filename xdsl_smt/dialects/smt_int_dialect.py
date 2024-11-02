@@ -74,10 +74,6 @@ class BinaryPredIntOp(IRDLOperation, Pure):
     def get(cls: type[_BPOpT], lhs: SSAValue, rhs: SSAValue) -> _BPOpT:
         return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
 
-    def verify_(self):
-        if not (self.lhs.type == self.rhs.type):
-            raise VerifyException("Operands must have the same type")
-
 
 _UOpT = TypeVar("_UOpT", bound="UnaryIntOp")
 
