@@ -20,7 +20,6 @@ from xdsl.ir import (
     ParametrizedAttribute,
     SSAValue,
     TypeAttribute,
-    VerifyException,
 )
 from ..traits.smt_printer import (
     SMTLibOp,
@@ -54,10 +53,6 @@ class BinaryIntOp(IRDLOperation, Pure):
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[SMTIntType([])], operands=[lhs, rhs])
 
-    @classmethod
-    def get(cls: type[_BOpT], lhs: SSAValue, rhs: SSAValue) -> _BOpT:
-        return cls.create(result_types=[SMTIntType([])], operands=[lhs, rhs])
-
 
 _BPOpT = TypeVar("_BPOpT", bound="BinaryPredIntOp")
 
@@ -88,7 +83,6 @@ class UnaryIntOp(IRDLOperation, Pure):
     @classmethod
     def get(cls: type[_UOpT], arg: SSAValue) -> _UOpT:
         return cls.create(result_types=[arg.type], operands=[arg])
-
 
 
 @irdl_op_definition
