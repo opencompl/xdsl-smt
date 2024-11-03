@@ -72,7 +72,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Func.name, lambda: Func)
         self.ctx.register_dialect(Index.name, lambda: Index)
         self.ctx.register_dialect(SMTDialect.name, lambda: SMTDialect)
-        self.ctx.register_dialect(SMTIntDialect, lambda: SMTIntDialect)
+        self.ctx.register_dialect(SMTIntDialect.name, lambda: SMTIntDialect)
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
@@ -88,6 +88,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
+        self.ctx.load_registered_dialect(SMTIntDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
 
