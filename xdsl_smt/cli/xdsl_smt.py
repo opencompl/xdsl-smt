@@ -10,6 +10,7 @@ from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.test import Test
 from xdsl.dialects.memref import MemRef
+from xdsl_smt.dialects.smt_int_dialect import SMTIntDialect
 from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
@@ -71,6 +72,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Func.name, lambda: Func)
         self.ctx.register_dialect(Index.name, lambda: Index)
         self.ctx.register_dialect(SMTDialect.name, lambda: SMTDialect)
+        self.ctx.register_dialect(SMTIntDialect, lambda: SMTIntDialect)
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
