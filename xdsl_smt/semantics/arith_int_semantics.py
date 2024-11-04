@@ -40,15 +40,6 @@ def get_int_max(width: int, rewriter: PatternRewriter) -> SSAValue:
     return times[-1].res
 
 
-def get_generic_modulo(
-    x: SSAValue, int_max: SSAValue, rewriter: PatternRewriter
-) -> SSAValue:
-    # x % INT_MAX
-    modulo0 = smt_int.ModOp(x, int_max)
-    rewriter.insert_op_before_matched_op([modulo0])
-    return modulo0.res
-
-
 class IntIntegerTypeSemantics(TypeSemantics):
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, IntegerType)
@@ -73,11 +64,13 @@ class IntConstantSemantics(OperationSemantics):
         literal = smt_int.ConstantOp(value_value.value.data)
         rewriter.insert_op_before_matched_op([literal])
         int_max = get_int_max(results[0].width.data, rewriter)
-        modulo = get_generic_modulo(literal.res, int_max, rewriter)
+        modulo = smt_int.ModOp(literal.res, int_max)
         no_poison = smt.ConstantBoolOp.from_bool(False)
-        inner_pair = smt_utils.PairOp(modulo, no_poison.res)
+        inner_pair = smt_utils.PairOp(modulo.res, no_poison.res)
         outer_pair = smt_utils.PairOp(inner_pair.res, int_max)
-        rewriter.insert_op_before_matched_op([no_poison, inner_pair, outer_pair])
+        rewriter.insert_op_before_matched_op(
+            [modulo, no_poison, inner_pair, outer_pair]
+        )
         return ((outer_pair.res,), effect_state)
 
 
@@ -262,8 +255,9 @@ class IntBinaryEFSemantics(AbsIntBinarySemantics):
         rewriter: PatternRewriter,
     ) -> SSAValue:
         payload = self._get_payload_semantics(lhs, rhs, rewriter)
-        modulo = get_generic_modulo(payload, int_max, rewriter)
-        return modulo
+        modulo = smt_int.ModOp(payload, int_max)
+        rewriter.insert_op_before_matched_op([modulo])
+        return modulo.res
 
 
 class IntCmpiSemantics(AbsIntBinarySemantics):
