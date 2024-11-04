@@ -240,8 +240,8 @@ class StoreSemantics(OperationSemantics):
         # HACK to get the old operands
         assert isa(old_operands := attributes["__operand_types"], AnyArrayAttr)
 
-        operand_values, poison = combine_poison_values(operands, rewriter)
-        value, pointer, *indices = operand_values
+        (pointer, *indices), poison = combine_poison_values(operands[1:], rewriter)
+        value = operands[0]
 
         # Get the memref and its indices.
         # As the operand is now a pointer and not a memref anymore, we need to get

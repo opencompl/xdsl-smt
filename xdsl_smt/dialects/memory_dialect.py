@@ -1,4 +1,4 @@
-from xdsl.ir import ParametrizedAttribute, TypeAttribute, SSAValue, Dialect
+from xdsl.ir import ParametrizedAttribute, TypeAttribute, SSAValue, Dialect, Attribute
 from xdsl.irdl import (
     IRDLOperation,
     irdl_attr_definition,
@@ -6,9 +6,12 @@ from xdsl.irdl import (
     result_def,
     irdl_op_definition,
 )
+from xdsl.utils.exceptions import VerifyException
+from xdsl.utils.isattr import isattr
 
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl_smt.dialects.smt_utils_dialect import PairType
 
 
 @irdl_attr_definition
@@ -30,6 +33,13 @@ class MemoryBlockType(ParametrizedAttribute, TypeAttribute):
     """Type of a memory block."""
 
     name = "memory.block"
+
+
+@irdl_attr_definition
+class BytesType(ParametrizedAttribute, TypeAttribute):
+    """Type of a sequence of memory bytes."""
+
+    name = "memory.bytes"
 
 
 @irdl_attr_definition
@@ -63,19 +73,56 @@ class SetBlockOp(IRDLOperation):
 
     name = "memory.set_block"
 
+    block = operand_def(MemoryBlockType())
     memory = operand_def(MemoryType())
     block_id = operand_def(BlockIDType())
-    block = operand_def(MemoryBlockType())
 
     res = result_def(MemoryType())
 
-    assembly_format = "$memory `[` $block_id `]` `,` $block attr-dict"
+    assembly_format = "$block `,` $memory `[` $block_id `]` attr-dict"
 
-    def __init__(self, memory: SSAValue, block_id: SSAValue, block: SSAValue):
+    def __init__(self, block: SSAValue, memory: SSAValue, block_id: SSAValue):
         super().__init__(
-            operands=[memory, block_id, block], result_types=[MemoryType()]
+            operands=[block, memory, block_id], result_types=[MemoryType()]
         )
         self.res.name_hint = "memory"
+
+
+@irdl_op_definition
+class GetBlockBytesOp(IRDLOperation):
+    """Get the bytes of a memory block."""
+
+    name = "memory.get_block_bytes"
+
+    memory_block = operand_def(MemoryBlockType())
+
+    res = result_def(BytesType())
+
+    assembly_format = "$memory_block attr-dict"
+
+    def __init__(self, memory_block: SSAValue):
+        super().__init__(operands=[memory_block], result_types=[BytesType()])
+        self.res.name_hint = "block_bytes"
+
+
+@irdl_op_definition
+class SetBlockBytesOp(IRDLOperation):
+    """Set the bytes of a memory block."""
+
+    name = "memory.set_block_bytes"
+
+    memory_block = operand_def(MemoryBlockType())
+    bytes = operand_def(BytesType())
+
+    res = result_def(MemoryBlockType())
+
+    assembly_format = "$bytes `,` $memory_block attr-dict"
+
+    def __init__(self, bytes: SSAValue, memory_block: SSAValue):
+        super().__init__(
+            operands=[bytes, memory_block], result_types=[MemoryBlockType()]
+        )
+        self.res.name_hint = "block"
 
 
 @irdl_op_definition
@@ -159,6 +206,56 @@ class SetBlockLiveMarkerOp(IRDLOperation):
 
 
 @irdl_op_definition
+class ReadBytesOp(IRDLOperation):
+    """
+    Read a (possibly poisoned) bitvector in an infinite sequence of bytes.
+    The index is the first byte to read, and the read bitvector is expected
+    to be a multiple of 8 bits.
+    """
+
+    name = "memory.read_bytes"
+
+    bytes = operand_def(BytesType())
+    index = operand_def(BitVectorType(64))
+
+    res = result_def(PairType[BitVectorType, BoolType])
+
+    assembly_format = "$bytes `[` $index `]` attr-dict `:` type($res)"
+
+    def __init__(self, bytes: SSAValue, index: SSAValue, res_type: Attribute):
+        super().__init__(operands=[bytes, index], result_types=[res_type])
+        self.res.name_hint = "read"
+
+    def verify_(self):
+        assert isattr(self.res.type, PairType[BitVectorType, BoolType])
+        if self.res.type.first.width.data % 8 != 0:
+            raise VerifyException("return bitvector must have a multiple of 8 bitwidth")
+
+
+@irdl_op_definition
+class WriteBytesOp(IRDLOperation):
+    """
+    Write a (possibly poisoned) bitvector in an infinite sequence of bytes.
+    The index is the first byte to read, and the read bitvector is expected
+    to be a multiple of 8 bits.
+    """
+
+    name = "memory.write_bytes"
+
+    value = operand_def(PairType[BitVectorType, BoolType])
+    bytes = operand_def(BytesType())
+    index = operand_def(BitVectorType(64))
+
+    res = result_def(BytesType())
+
+    assembly_format = "$value `,` $bytes `[` $index `]` attr-dict `:` type($value)"
+
+    def __init__(self, value: SSAValue, bytes: SSAValue, index: SSAValue):
+        super().__init__(operands=[value, bytes, index], result_types=[BytesType()])
+        self.res.name_hint = "bytes"
+
+
+@irdl_op_definition
 class GetFreshBlockIDOp(IRDLOperation):
     """
     Allocate a fresh block ID.
@@ -184,16 +281,21 @@ MemoryDialect = Dialect(
     [
         GetBlockOp,
         SetBlockOp,
+        GetBlockBytesOp,
+        SetBlockBytesOp,
         GetBlockSizeOp,
         SetBlockSizeOp,
         GetBlockLiveMarkerOp,
         SetBlockLiveMarkerOp,
+        ReadBytesOp,
+        WriteBytesOp,
         GetFreshBlockIDOp,
     ],
     [
         MemoryType,
         BlockIDType,
         MemoryBlockType,
+        BytesType,
         ByteType,
     ],
 )

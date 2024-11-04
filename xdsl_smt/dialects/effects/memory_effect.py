@@ -7,6 +7,7 @@ from xdsl.irdl import (
     result_def,
     IRDLOperation,
 )
+from xdsl.utils.isattr import isattr
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.effects.effect import StateType
@@ -89,7 +90,7 @@ class WriteOp(IRDLOperation):
 
     name = "mem_effect.write"
 
-    value = operand_def(BitVectorType)
+    value = operand_def(PairType[BitVectorType, BoolType])
     state = operand_def(StateType())
     pointer = operand_def(PointerType())
 
@@ -100,8 +101,8 @@ class WriteOp(IRDLOperation):
     traits = frozenset([Pure()])
 
     def verify_(self):
-        assert isinstance(self.value.type, BitVectorType)
-        if self.value.type.width.data % 8 != 0:
+        assert isattr(self.value.type, PairType[BitVectorType, BoolType])
+        if self.value.type.first.width.data % 8 != 0:
             raise VerifyException("written size must be a multiple of 8")
 
     def __init__(self, value: SSAValue, state: SSAValue, pointer: SSAValue):

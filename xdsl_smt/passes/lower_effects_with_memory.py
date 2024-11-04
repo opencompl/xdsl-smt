@@ -72,6 +72,28 @@ def create_pointer(
     return pointer.res
 
 
+def check_bounds(
+    offset: SSAValue,
+    block: SSAValue,
+    rewriter: PatternRewriter,
+) -> SSAValue:
+    """Check if a pointer access is within the bounds of the memory."""
+
+    # Get the block size
+    block_size_op = mem.GetBlockSizeOp(block)
+    rewriter.insert_op_before_matched_op([block_size_op])
+    block_size = block_size_op.res
+    block_size.name_hint = "block_size"
+
+    # Check that the offset of the end bit is within the bounds
+    offset_end_op = smt_bv.AddOp(offset, block_size_op.res)
+    offset_in_bounds_op = smt_bv.UleOp(offset_end_op.res, block_size)
+    rewriter.insert_op_before_matched_op([offset_end_op, offset_in_bounds_op])
+    offset_in_bounds_op.res.name_hint = "offset_in_bounds"
+
+    return offset_in_bounds_op.res
+
+
 def recursively_convert_attr(attr: Attribute) -> Attribute:
     """
     Recursively convert an attribute to replace all references to the effect state
@@ -142,7 +164,7 @@ class LowerAlloc(RewritePattern):
         )
 
         # Put it back to the memory
-        new_memory_op = mem.SetBlockOp(memory, id_op.res, block)
+        new_memory_op = mem.SetBlockOp(block, memory, id_op.res)
         rewriter.insert_op_before_matched_op([new_memory_op])
 
         # Get a pointer to the block
@@ -177,6 +199,74 @@ class LowerPointerOffset(RewritePattern):
         rewriter.replace_matched_op([], [new_pointer])
 
 
+class LowerRead(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem_effect.ReadOp, rewriter: PatternRewriter):
+        # Unwrap the pointer and the state
+        block_id, offset = get_block_id_and_offset_from_pointer(op.pointer, rewriter)
+        memory, ub = get_ub_and_memory_from_state(op.state, rewriter)
+
+        # Get the memory block and bytes
+        get_block_op = mem.GetBlockOp(memory, block_id)
+        block = get_block_op.res
+        get_block_bytes_op = mem.GetBlockBytesOp(block)
+        bytes = get_block_bytes_op.res
+        rewriter.insert_op_before_matched_op([get_block_op, get_block_bytes_op])
+
+        # Check that the offset is within bounds, and update the ub flag
+        offset_in_bounds = check_bounds(offset, block, rewriter)
+        new_ub_op = smt.OrOp(ub, offset_in_bounds)
+        rewriter.insert_op_before_matched_op([new_ub_op])
+        ub = new_ub_op.res
+
+        # Read the value in memory
+        read_op = mem.ReadBytesOp(bytes, offset, op.res.type)
+        rewriter.insert_op_before_matched_op([read_op])
+
+        # Wrap the new state
+        new_state = create_state(memory, ub, rewriter)
+
+        # Replace the matched operation
+        rewriter.replace_matched_op([], [new_state, read_op.res])
+
+
+class LowerWrite(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem_effect.WriteOp, rewriter: PatternRewriter):
+        # Unwrap the pointer and the state
+        block_id, offset = get_block_id_and_offset_from_pointer(op.pointer, rewriter)
+        memory, ub = get_ub_and_memory_from_state(op.state, rewriter)
+
+        # Get the memory block and bytes
+        get_block_op = mem.GetBlockOp(memory, block_id)
+        block = get_block_op.res
+        get_block_bytes_op = mem.GetBlockBytesOp(block)
+        bytes = get_block_bytes_op.res
+        rewriter.insert_op_before_matched_op([get_block_op, get_block_bytes_op])
+
+        # Check that the offset is within bounds, and update the ub flag
+        offset_in_bounds = check_bounds(offset, block, rewriter)
+        new_ub_op = smt.OrOp(ub, offset_in_bounds)
+        rewriter.insert_op_before_matched_op([new_ub_op])
+        ub = new_ub_op.res
+
+        # Write the value in memory
+        write_op = mem.WriteBytesOp(op.value, bytes, offset)
+        rewriter.insert_op_before_matched_op([write_op])
+
+        # Update the bytes in the block and memory
+        set_block_bytes_op = mem.SetBlockBytesOp(block, bytes)
+        set_block_op = mem.SetBlockOp(set_block_bytes_op.res, memory, block_id)
+        memory = set_block_op.res
+        rewriter.insert_op_before_matched_op([set_block_bytes_op, set_block_op])
+
+        # Wrap the new state
+        new_state = create_state(memory, ub, rewriter)
+
+        # Replace the matched operation
+        rewriter.replace_matched_op([], [new_state])
+
+
 @dataclass(frozen=True)
 class LowerEffectWithMemoryPass(ModulePass):
     name = "lower-effects-with-memory"
@@ -190,6 +280,8 @@ class LowerEffectWithMemoryPass(ModulePass):
                     LowerGenericOp(),
                     LowerAlloc(),
                     LowerPointerOffset(),
+                    LowerRead(),
+                    LowerWrite(),
                 ]
             )
         )
