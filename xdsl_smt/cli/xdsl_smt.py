@@ -15,6 +15,7 @@ from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
+from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
@@ -95,6 +96,7 @@ class OptMain(xDSLOptMain):
     def register_all_passes(self):
         super().register_all_passes()
         self.register_pass(LowerToSMTPass.name, lambda: LowerToSMTPass)
+        self.register_pass(LoadIntSemanticsPass.name, lambda: LoadIntSemanticsPass)
         self.register_pass(DeadCodeElimination.name, lambda: DeadCodeElimination)
         self.register_pass(LowerPairs.name, lambda: LowerPairs)
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
