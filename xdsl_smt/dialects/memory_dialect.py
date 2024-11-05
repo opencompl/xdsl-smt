@@ -42,13 +42,6 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     name = "memory.bytes"
 
 
-@irdl_attr_definition
-class ByteType(ParametrizedAttribute, TypeAttribute):
-    """Type of a memory byte."""
-
-    name = "memory.byte"
-
-
 @irdl_op_definition
 class GetBlockOp(IRDLOperation):
     """Get a memory block from a memory state."""
@@ -296,6 +289,5 @@ MemoryDialect = Dialect(
         BlockIDType,
         MemoryBlockType,
         BytesType,
-        ByteType,
     ],
 )
