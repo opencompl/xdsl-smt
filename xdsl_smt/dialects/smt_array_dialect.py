@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Generic, TypeVar, IO, overload
+from typing import Annotated, Generic, TypeVar, IO
 
 from xdsl.ir import (
     Attribute,
@@ -9,10 +9,8 @@ from xdsl.ir import (
     ParametrizedAttribute,
     SSAValue,
     TypeAttribute,
-    VerifyException,
 )
 from xdsl.irdl import (
-    attr_def,
     operand_def,
     result_def,
     Operand,
