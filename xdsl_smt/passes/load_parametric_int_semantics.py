@@ -5,15 +5,13 @@ from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects import arith
 from xdsl.dialects.builtin import IntegerType
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.semantics.arith_int_semantics import (
     IntIntegerTypeSemantics,
     IntConstantSemantics,
-    IntAddiSemantics,
-    IntSubiSemantics,
-    IntMuliSemantics,
     IntCmpiSemantics,
-    IntDivUISemantics,
-    IntRemUISemantics,
+    get_binary_ef_semantics,
+    get_div_semantics,
 )
 
 
@@ -24,12 +22,12 @@ class LoadIntSemanticsPass(ModulePass):
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         semantics = {
             arith.Constant: IntConstantSemantics(),
-            arith.Addi: IntAddiSemantics(),
-            arith.Subi: IntSubiSemantics(),
-            arith.Muli: IntMuliSemantics(),
+            arith.Addi: get_binary_ef_semantics(smt_int.AddOp)(),
+            arith.Subi: get_binary_ef_semantics(smt_int.SubOp)(),
+            arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(),
             arith.Cmpi: IntCmpiSemantics(),
-            arith.DivUI: IntDivUISemantics(),
-            arith.RemUI: IntRemUISemantics(),
+            arith.DivUI: get_div_semantics(smt_int.DivOp)(),
+            arith.RemUI: get_div_semantics(smt_int.ModOp)(),
         }
         SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
         types = {

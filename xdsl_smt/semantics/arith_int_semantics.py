@@ -11,35 +11,6 @@ from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
 
 
-def get_is_equal(lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-    leop = smt_int.LeOp(lhs, rhs)
-    geop = smt_int.GeOp(lhs, rhs)
-    andop = smt.AndOp(leop.res, geop.res)
-    rewriter.insert_op_before_matched_op([leop, geop, andop])
-    return andop.res
-
-
-def get_is_not_equal(
-    lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
-) -> SSAValue:
-    ltop = smt_int.LtOp(lhs, rhs)
-    gtop = smt_int.GtOp(lhs, rhs)
-    orop = smt.OrOp(ltop.res, gtop.res)
-    rewriter.insert_op_before_matched_op([ltop, gtop, orop])
-    return orop.res
-
-
-def get_int_max(width: int, rewriter: PatternRewriter) -> SSAValue:
-    # 2 ^ width
-    two = smt_int.ConstantOp(2)
-    times: list[smt_int.ConstantOp | smt_int.MulOp] = [two]
-    for _ in range(width - 1):
-        ntimes = smt_int.MulOp(times[-1].res, two.res)
-        times.append(ntimes)
-    rewriter.insert_op_before_matched_op(times)
-    return times[-1].res
-
-
 class IntIntegerTypeSemantics(TypeSemantics):
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, IntegerType)
@@ -63,18 +34,22 @@ class IntConstantSemantics(OperationSemantics):
         assert isa(results[0], IntegerType)
         literal = smt_int.ConstantOp(value_value.value.data)
         rewriter.insert_op_before_matched_op([literal])
-        int_max = get_int_max(results[0].width.data, rewriter)
-        modulo = smt_int.ModOp(literal.res, int_max)
+        int_max = smt_int.ConstantOp(2 ** results[0].width.data)
+        modulo = smt_int.ModOp(literal.res, int_max.res)
         no_poison = smt.ConstantBoolOp.from_bool(False)
         inner_pair = smt_utils.PairOp(modulo.res, no_poison.res)
-        outer_pair = smt_utils.PairOp(inner_pair.res, int_max)
+        outer_pair = smt_utils.PairOp(inner_pair.res, int_max.res)
         rewriter.insert_op_before_matched_op(
-            [modulo, no_poison, inner_pair, outer_pair]
+            [int_max, modulo, no_poison, inner_pair, outer_pair]
         )
         return ((outer_pair.res,), effect_state)
 
 
-class AbsIntBinarySemantics(OperationSemantics, ABC):
+class GenericIntBinarySemantics(OperationSemantics, ABC):
+    """
+    Generic semantics of binary operations on parametric integers.
+    """
+
     def get_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -90,9 +65,6 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         rhs_get_inner_pair = smt_utils.FirstOp(rhs)
         lhs_get_int_max = smt_utils.SecondOp(lhs)
         rhs_get_int_max = smt_utils.SecondOp(rhs)
-        # Check the int_max
-        eq_op = smt.EqOp(lhs_get_int_max.res, rhs_get_int_max.res)
-        assert_op = smt.AssertOp(eq_op.res)
         # Compute the payload
         lhs_get_payload = smt_utils.FirstOp(lhs_get_inner_pair.res)
         rhs_get_payload = smt_utils.FirstOp(rhs_get_inner_pair.res)
@@ -102,8 +74,6 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
                 rhs_get_inner_pair,
                 lhs_get_int_max,
                 rhs_get_int_max,
-                eq_op,
-                assert_op,
                 lhs_get_payload,
                 rhs_get_payload,
             ]
@@ -137,17 +107,6 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
         return ((outer_pair.res,), effect_state)
 
-    @abstractmethod
-    def get_ub(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        effect_state: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        ...
-
-    @abstractmethod
     def get_poison(
         self,
         poison0: SSAValue,
@@ -155,6 +114,18 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         lhs: SSAValue,
         rhs: SSAValue,
         res: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        or_poison = smt.OrOp(poison0, poison1)
+        rewriter.insert_op_before_matched_op([or_poison])
+        return or_poison.res
+
+    @abstractmethod
+    def get_ub(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        effect_state: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         ...
@@ -171,25 +142,12 @@ class AbsIntBinarySemantics(OperationSemantics, ABC):
         ...
 
 
-class IntDivBasedSemantics(AbsIntBinarySemantics):
+class IntDivBasedSemantics(GenericIntBinarySemantics):
     @abstractmethod
     def _get_payload_semantics(
         self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
     ) -> SSAValue:
         ...
-
-    def get_poison(
-        self,
-        poison0: SSAValue,
-        poison1: SSAValue,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        res: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        or_poison = smt.OrOp(poison0, poison1)
-        rewriter.insert_op_before_matched_op([or_poison])
-        return or_poison.res
 
     def get_ub(
         self,
@@ -200,10 +158,10 @@ class IntDivBasedSemantics(AbsIntBinarySemantics):
     ) -> SSAValue:
         zero_op = smt_int.ConstantOp(0)
         rewriter.insert_op_before_matched_op([zero_op])
-        is_div_by_zero = get_is_equal(rhs, zero_op.res, rewriter)
+        is_div_by_zero = smt.EqOp(rhs, zero_op.res)
         trigger_ub = smt_ub.TriggerOp(effect_state)
-        new_state = smt.IteOp(is_div_by_zero, trigger_ub.res, effect_state)
-        rewriter.insert_op_before_matched_op([trigger_ub, new_state])
+        new_state = smt.IteOp(is_div_by_zero.res, trigger_ub.res, effect_state)
+        rewriter.insert_op_before_matched_op([is_div_by_zero, trigger_ub, new_state])
         return effect_state
 
     def get_payload_semantics(
@@ -217,7 +175,12 @@ class IntDivBasedSemantics(AbsIntBinarySemantics):
         return self._get_payload_semantics(lhs, rhs, rewriter)
 
 
-class IntBinaryEFSemantics(AbsIntBinarySemantics):
+class IntBinaryEFSemantics(GenericIntBinarySemantics):
+    """
+    Semantics of binary operations on parametric integers which can not have an effect
+    (Effect-Free).
+    """
+
     def get_ub(
         self,
         lhs: SSAValue,
@@ -232,19 +195,6 @@ class IntBinaryEFSemantics(AbsIntBinarySemantics):
         self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
     ) -> SSAValue:
         ...
-
-    def get_poison(
-        self,
-        poison0: SSAValue,
-        poison1: SSAValue,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        res: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        or_poison = smt.OrOp(poison0, poison1)
-        rewriter.insert_op_before_matched_op([or_poison])
-        return or_poison.res
 
     def get_payload_semantics(
         self,
@@ -260,7 +210,7 @@ class IntBinaryEFSemantics(AbsIntBinarySemantics):
         return modulo.res
 
 
-class IntCmpiSemantics(AbsIntBinarySemantics):
+class IntCmpiSemantics(GenericIntBinarySemantics):
     def get_ub(
         self,
         lhs: SSAValue,
@@ -269,19 +219,6 @@ class IntCmpiSemantics(AbsIntBinarySemantics):
         rewriter: PatternRewriter,
     ):
         return effect_state
-
-    def get_poison(
-        self,
-        poison0: SSAValue,
-        poison1: SSAValue,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        res: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        or_poison = smt.OrOp(poison0, poison1)
-        rewriter.insert_op_before_matched_op([or_poison])
-        return or_poison.res
 
     def get_payload_semantics(
         self,
@@ -294,93 +231,64 @@ class IntCmpiSemantics(AbsIntBinarySemantics):
         integer_attr = cast(IntegerAttr[IntegerType], attributes["predicate"])
         match integer_attr.value.data:
             case 0:
-                payload = get_is_equal(lhs, rhs, rewriter)
+                payload_op = smt.EqOp(lhs, rhs)
             case 1:
-                payload = get_is_not_equal(lhs, rhs, rewriter)
+                payload_op = smt.DistinctOp(lhs, rhs)
             case 2:
-                assert False
+                raise NotImplementedError()
             case 3:
-                assert False
+                raise NotImplementedError()
             case 4:
-                assert False
+                raise NotImplementedError()
             case 5:
-                assert False
+                raise NotImplementedError()
             case 6:
                 payload_op = smt_int.LtOp(lhs, rhs)
-                rewriter.insert_op_before_matched_op([payload_op])
-                payload = payload_op.res
             case 7:
                 payload_op = smt_int.LeOp(lhs, rhs)
-                rewriter.insert_op_before_matched_op([payload_op])
-                payload = payload_op.res
             case 8:
                 payload_op = smt_int.GtOp(lhs, rhs)
-                rewriter.insert_op_before_matched_op([payload_op])
-                payload = payload_op.res
             case 9:
                 payload_op = smt_int.GeOp(lhs, rhs)
-                rewriter.insert_op_before_matched_op([payload_op])
-                payload = payload_op.res
             case _:
                 assert False
+
+        rewriter.insert_op_before_matched_op([payload_op])
+        payload = payload_op.res
+
         return payload
 
 
-class IntAddiSemantics(IntBinaryEFSemantics):
-    def _get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        payload_op = smt_int.AddOp(lhs, rhs)
-        rewriter.insert_op_before_matched_op([payload_op])
-        return payload_op.res
+def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
+    class OpSemantics(IntBinaryEFSemantics):
+        def _get_payload_semantics(
+            self,
+            lhs: SSAValue,
+            rhs: SSAValue,
+            rewriter: PatternRewriter,
+        ) -> SSAValue:
+            payload_op = new_operation(lhs, rhs)
+            assert not isinstance(payload_op, smt_int.DivOp)
+            assert not isinstance(payload_op, smt_int.ModOp)
+            rewriter.insert_op_before_matched_op([payload_op])
+            return payload_op.res
+
+    return OpSemantics
 
 
-class IntSubiSemantics(IntBinaryEFSemantics):
-    def _get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        payload_op = smt_int.SubOp(lhs, rhs)
-        rewriter.insert_op_before_matched_op([payload_op])
-        return payload_op.res
+def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
+    class OpSemantics(IntDivBasedSemantics):
+        def _get_payload_semantics(
+            self,
+            lhs: SSAValue,
+            rhs: SSAValue,
+            rewriter: PatternRewriter,
+        ) -> SSAValue:
+            payload_op = new_operation(lhs, rhs)
+            assert isinstance(payload_op, smt_int.DivOp) or isinstance(
+                payload_op, smt_int.ModOp
+            )
+            rewriter.insert_op_before_matched_op([payload_op])
+            return payload_op.res
 
-
-class IntMuliSemantics(IntBinaryEFSemantics):
-    def _get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        payload_op = smt_int.MulOp(lhs, rhs)
-        rewriter.insert_op_before_matched_op([payload_op])
-        return payload_op.res
-
-
-class IntDivUISemantics(IntDivBasedSemantics):
-    def _get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        payload_op = smt_int.DivOp(lhs, rhs)
-        rewriter.insert_op_before_matched_op([payload_op])
-        return payload_op.res
-
-
-class IntRemUISemantics(IntDivBasedSemantics):
-    def _get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        payload_op = smt_int.ModOp(lhs, rhs)
-        rewriter.insert_op_before_matched_op([payload_op])
-        return payload_op.res
+    return OpSemantics
