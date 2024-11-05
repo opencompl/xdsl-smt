@@ -47,7 +47,7 @@ class ArrayType(
         self.range.print_sort_to_smtlib(stream)
         print(")", file=stream)
 
-    def __init__(self, domain: Attribute, range: Attribute):
+    def __init__(self, domain: DomainT, range: RangeT):
         super().__init__([domain, range])
 
 

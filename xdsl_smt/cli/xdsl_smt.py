@@ -15,11 +15,13 @@ from xdsl_smt.dialects.smt_int_dialect import SMTIntDialect
 from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
+from xdsl_smt.dialects.memory_dialect import MemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
+from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.semantics.memref_semantics import memref_semantics
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import (
@@ -81,6 +83,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
         self.ctx.register_dialect(MemoryEffectDialect.name, lambda: MemoryEffectDialect)
+        self.ctx.register_dialect(MemoryDialect.name, lambda: MemoryDialect)
         self.ctx.register_dialect(Transfer.name, lambda: Transfer)
         self.ctx.register_dialect(TVDialect.name, lambda: TVDialect)
         self.ctx.register_dialect(Hoare.name, lambda: Hoare)
@@ -109,6 +112,7 @@ class OptMain(xDSLOptMain):
         )
         self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
+        self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)
 
     def register_all_targets(self):
         super().register_all_targets()

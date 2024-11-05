@@ -1,4 +1,5 @@
 // RUN: xdsl-smt "%s" | xdsl-smt | filecheck "%s"
+// RUN: xdsl-smt -t=smt "%s" | z3 -in
 
 builtin.module {
     %array = "smt.declare_const"() : () -> !smt.array.array<!smt.int.int, !smt.bool>
