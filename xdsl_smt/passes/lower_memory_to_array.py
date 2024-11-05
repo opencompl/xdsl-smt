@@ -28,8 +28,8 @@ memory_type = smt_array.ArrayType(block_id_type, memory_block_type)
 
 def recursively_convert_attr(attr: Attribute) -> Attribute:
     """
-    Recursively convert an attribute to replace all references to the effect state
-    into a pair between the ub flag and the memory.
+    Recursively convert an attribute to replace all references to the memory types into
+    the corresponding smt types.
     """
     if isinstance(attr, mem.MemoryType):
         return memory_type
@@ -45,7 +45,7 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
 class LowerGenericOp(RewritePattern):
     """
     Recursively lower all result types, attributes, and properties that reference
-    effect states.
+    memory types.
     """
 
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
