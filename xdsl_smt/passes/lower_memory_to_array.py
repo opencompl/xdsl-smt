@@ -11,6 +11,7 @@ from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     op_type_rewrite_pattern,
 )
+from xdsl.utils.isattr import isattr
 
 from xdsl_smt.dialects import (
     smt_dialect as smt,
@@ -23,7 +24,7 @@ from xdsl_smt.dialects import (
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 
 byte_type = smt_utils.PairType(BitVectorType(8), smt.BoolType())
-bytes_type = smt_array.ArrayType(smt_int.SMTIntType(), byte_type)
+bytes_type = smt_array.ArrayType(smt_bv.BitVectorType(64), byte_type)
 memory_block_type = smt_utils.PairType(
     bytes_type, smt_utils.PairType(smt_bv.BitVectorType(64), smt.BoolType())
 )
@@ -175,6 +176,36 @@ class SetBlockIsLivePattern(RewritePattern):
         rewriter.replace_matched_op([], [block])
 
 
+class ReadBytesPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.ReadBytesOp, rewriter: PatternRewriter):
+        assert isattr(
+            res_type := op.res.type, smt_utils.PairType[BitVectorType, smt.BoolType]
+        )
+        if res_type.first.width.data != 8:
+            raise NotImplementedError(
+                f"Only 8-bit reads are supported for {mem.ReadBytesOp.name} in "
+                "its lowering to SMT arrays"
+            )
+        select_op = smt_array.SelectOp(op.bytes, op.index)
+        rewriter.replace_matched_op(select_op)
+
+
+class WriteBytesPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.WriteBytesOp, rewriter: PatternRewriter):
+        assert isattr(
+            val_type := op.value.type, smt_utils.PairType[BitVectorType, smt.BoolType]
+        )
+        if val_type.first.width.data != 8:
+            raise NotImplementedError(
+                f"Only 8-bit writes are supported for {mem.WriteBytesOp.name} in "
+                "its lowering to SMT arrays"
+            )
+        store_op = smt_array.StoreOp(op.bytes, op.index, op.value)
+        rewriter.replace_matched_op(store_op)
+
+
 class LowerMemoryToArrayPass(ModulePass):
     name = "lower-memory-to-array"
 
@@ -191,6 +222,8 @@ class LowerMemoryToArrayPass(ModulePass):
                     SetBlockSizePattern(),
                     GetBlockIsLivePattern(),
                     SetBlockIsLivePattern(),
+                    ReadBytesPattern(),
+                    WriteBytesPattern(),
                 ]
             )
         )

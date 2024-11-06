@@ -16,12 +16,12 @@
 
 "test.op"(%bytes, %live_marker, %size, %new_block3) : (!memory.bytes, !smt.bool, !smt.bv.bv<64>, !memory.block) -> ()
 
-// CHECK:      %block_first = "smt.declare_const"() : () -> !smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>
+// CHECK:      %block_first = "smt.declare_const"() : () -> !smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>
 // CHECK-NEXT: %block_second_first = "smt.declare_const"() : () -> !smt.bv.bv<64>
 // CHECK-NEXT: %block_second_second = "smt.declare_const"() : () -> !smt.bool
-// CHECK-NEXT: %new_bytes = "smt.declare_const"() : () -> !smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>
+// CHECK-NEXT: %new_bytes = "smt.declare_const"() : () -> !smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>
 // CHECK-NEXT: %new_live_marker = "smt.declare_const"() : () -> !smt.bool
 // CHECK-NEXT: %new_size = "smt.declare_const"() : () -> !smt.bv.bv<64>
 // CHECK-NEXT: %0 = "smt.utils.pair"(%new_size, %new_live_marker) : (!smt.bv.bv<64>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>
-// CHECK-NEXT: %new_block3 = "smt.utils.pair"(%new_bytes, %0) : (!smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>) -> !smt.utils.pair<!smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>>
-// CHECK-NEXT: "test.op"(%block_first, %block_second_second, %block_second_first, %new_block3) : (!smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.bool, !smt.bv.bv<64>, !smt.utils.pair<!smt.array.array<!smt.int.int, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>>) -> ()
+// CHECK-NEXT: %new_block3 = "smt.utils.pair"(%new_bytes, %0) : (!smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>) -> !smt.utils.pair<!smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>>
+// CHECK-NEXT: "test.op"(%block_first, %block_second_second, %block_second_first, %new_block3) : (!smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.bool, !smt.bv.bv<64>, !smt.utils.pair<!smt.array.array<!smt.bv.bv<64>, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>>, !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>>) -> ()
