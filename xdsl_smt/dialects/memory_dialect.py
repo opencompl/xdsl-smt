@@ -251,8 +251,8 @@ class WriteBytesOp(IRDLOperation):
 @irdl_op_definition
 class GetFreshBlockIDOp(IRDLOperation):
     """
-    Allocate a fresh block ID.
-    The block ID is different than any block that is currently live.
+    Allocate a fresh block ID, and set the block live.
+    The block ID is different than any block that is already live.
     In particular, it may reuse block IDs of blocks that are no longer live.
     """
 
@@ -261,11 +261,12 @@ class GetFreshBlockIDOp(IRDLOperation):
     memory = operand_def(MemoryType())
 
     res = result_def(BlockIDType())
+    new_memory = result_def(MemoryType())
 
     assembly_format = "$memory attr-dict"
 
     def __init__(self, memory: SSAValue):
-        super().__init__(operands=[memory], result_types=[BlockIDType()])
+        super().__init__(operands=[memory], result_types=[BlockIDType(), MemoryType()])
         self.res.name_hint = "bid"
 
 

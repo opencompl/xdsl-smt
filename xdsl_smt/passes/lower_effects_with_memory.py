@@ -150,6 +150,7 @@ class LowerAlloc(RewritePattern):
         # Get a fresh block ID
         id_op = mem.GetFreshBlockIDOp(memory)
         rewriter.insert_op_before_matched_op([id_op])
+        memory = id_op.new_memory
 
         # Get the given block and set it as live with the given size
         get_block_op = mem.GetBlockOp(memory, id_op.res)

@@ -7,12 +7,12 @@
 // CHECK:         %state_first = "smt.declare_const"() : () -> !memory.memory
 // CHECK-NEXT:    %state_second = "smt.declare_const"() : () -> !smt.bool
 // CHECK-NEXT:    %size = "smt.declare_const"() : () -> !smt.bv.bv<64>
-// CHECK-NEXT:    %bid = memory.get_fresh_block_id %state_first
-// CHECK-NEXT:    %block = memory.get_block %state_first[%bid]
-// CHECK-NEXT:    %0 = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
-// CHECK-NEXT:    %block_1 = memory.set_block_live_marker %block, %0
+// CHECK-NEXT:    %bid, %0 = memory.get_fresh_block_id %state_first
+// CHECK-NEXT:    %block = memory.get_block %0[%bid]
+// CHECK-NEXT:    %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:    %block_1 = memory.set_block_live_marker %block, %1
 // CHECK-NEXT:    %block_2 = memory.set_block_size %block_1, %size
-// CHECK-NEXT:    %memory = memory.set_block %block_2, %state_first[%bid]
+// CHECK-NEXT:    %memory = memory.set_block %block_2, %0[%bid]
 
 // -----
 
@@ -71,7 +71,7 @@
 // CHECK-NEXT:    %offset_in_bounds = "smt.bv.ule"(%0, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bool
 // CHECK-NEXT:    %1 = "smt.or"(%state_second, %offset_in_bounds) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %bytes = memory.write_bytes %value, %block_bytes[%ptr_second] : !smt.utils.pair<!smt.bv.bv<16>, !smt.bool>
-// CHECK-NEXT:    %block_1 = memory.set_block_bytes %block_bytes, %block
+// CHECK-NEXT:    %block_1 = memory.set_block_bytes %block, %block_bytes
 // CHECK-NEXT:    %memory = memory.set_block %block_1, %state_first[%ptr_first]
 // CHECK-NEXT:    %state = "smt.utils.pair"(%memory, %1) : (!memory.memory, !smt.bool) -> !smt.utils.pair<!memory.memory, !smt.bool>
 // CHECK-NEXT:    "test.op"(%state) : (!smt.utils.pair<!memory.memory, !smt.bool>) -> ()

@@ -206,10 +206,32 @@ class WriteBytesPattern(RewritePattern):
         rewriter.replace_matched_op(store_op)
 
 
+@dataclass
+class GetFreshBlockIDPattern(RewritePattern):
+    counter: int = 0
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.GetFreshBlockIDOp, rewriter: PatternRewriter):
+        # Get a new fresh value for the block ID
+        fresh_id_op = smt_int.ConstantOp(self.counter)
+        rewriter.insert_op_before_matched_op([fresh_id_op])
+        self.counter += 1
+
+        # Replace the original operation
+        rewriter.replace_matched_op([], [fresh_id_op.res, op.memory])
+
+
 class LowerMemoryToArrayPass(ModulePass):
     name = "lower-memory-to-array"
 
     def apply(self, ctx: MLContext, op: ModuleOp):
+        for sub_op in op.body.ops:
+            if isinstance(sub_op, smt.DefineFunOp):
+                raise Exception(
+                    "Cannot lower memory operations when functions are present. "
+                    "Please run the 'inline-functions' pass first."
+                )
+
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
@@ -224,6 +246,7 @@ class LowerMemoryToArrayPass(ModulePass):
                     SetBlockIsLivePattern(),
                     ReadBytesPattern(),
                     WriteBytesPattern(),
+                    GetFreshBlockIDPattern(),
                 ]
             )
         )
