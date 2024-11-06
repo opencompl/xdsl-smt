@@ -109,11 +109,11 @@ class SetBlockBytesOp(IRDLOperation):
 
     res = result_def(MemoryBlockType())
 
-    assembly_format = "$bytes `,` $memory_block attr-dict"
+    assembly_format = "$memory_block `,` $bytes attr-dict"
 
-    def __init__(self, bytes: SSAValue, memory_block: SSAValue):
+    def __init__(self, memory_block: SSAValue, bytes: SSAValue):
         super().__init__(
-            operands=[bytes, memory_block], result_types=[MemoryBlockType()]
+            operands=[memory_block, bytes], result_types=[MemoryBlockType()]
         )
         self.res.name_hint = "block"
 
@@ -162,7 +162,7 @@ class GetBlockLiveMarkerOp(IRDLOperation):
     A block is live if it is reachable from the memory state.
     """
 
-    name = "memory.get_live_marker"
+    name = "memory.get_block_live_marker"
 
     memory_block = operand_def(MemoryBlockType())
 

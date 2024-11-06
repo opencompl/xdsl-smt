@@ -1,13 +1,15 @@
+from dataclasses import dataclass
 from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 
-from xdsl.ir import Attribute, Operation
+from xdsl.ir import Attribute, Operation, SSAValue
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.pattern_rewriter import (
     RewritePattern,
     PatternRewriter,
     PatternRewriteWalker,
     GreedyRewritePatternApplier,
+    op_type_rewrite_pattern,
 )
 
 from xdsl_smt.dialects import (
@@ -16,14 +18,49 @@ from xdsl_smt.dialects import (
     smt_int_dialect as smt_int,
     memory_dialect as mem,
     smt_array_dialect as smt_array,
+    smt_bitvector_dialect as smt_bv,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 
 byte_type = smt_utils.PairType(BitVectorType(8), smt.BoolType())
 bytes_type = smt_array.ArrayType(smt_int.SMTIntType(), byte_type)
-memory_block_type = smt_utils.PairType(bytes_type, smt.BoolType())
+memory_block_type = smt_utils.PairType(
+    bytes_type, smt_utils.PairType(smt_bv.BitVectorType(64), smt.BoolType())
+)
 block_id_type = smt_int.SMTIntType()
 memory_type = smt_array.ArrayType(block_id_type, memory_block_type)
+
+
+@dataclass
+class MemoryBlockValueAdaptor:
+    """
+    Adaptor for a memory block value.
+    Contains accessors for the memory block's components.
+    """
+
+    bytes: SSAValue
+    size: SSAValue
+    live_marker: SSAValue
+
+    @staticmethod
+    def from_value(value: SSAValue, rewriter: PatternRewriter):
+        access_bytes = smt_utils.FirstOp(value)
+        access_others = smt_utils.SecondOp(value)
+        access_size = smt_utils.FirstOp(access_others.res)
+        access_live_marker = smt_utils.SecondOp(access_others.res)
+
+        rewriter.insert_op_before_matched_op(
+            [access_bytes, access_others, access_size, access_live_marker]
+        )
+        return MemoryBlockValueAdaptor(
+            access_bytes.res, access_size.res, access_live_marker.res
+        )
+
+    def merge_into_pairs(self, rewriter: PatternRewriter):
+        other_pairs = smt_utils.PairOp(self.size, self.live_marker)
+        top_pairs = smt_utils.PairOp(self.bytes, other_pairs.res)
+        rewriter.insert_op_before_matched_op([other_pairs, top_pairs])
+        return top_pairs.res
 
 
 def recursively_convert_attr(attr: Attribute) -> Attribute:
@@ -72,6 +109,72 @@ class LowerGenericOp(RewritePattern):
             rewriter.handle_operation_modification(op)
 
 
+class GetBlockPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.GetBlockOp, rewriter: PatternRewriter):
+        select_op = smt_array.SelectOp(op.memory, op.block_id)
+        rewriter.replace_matched_op(select_op)
+
+
+class SetBlockPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.SetBlockOp, rewriter: PatternRewriter):
+        store_op = smt_array.StoreOp(op.memory, op.block_id, op.block)
+        rewriter.replace_matched_op(store_op)
+
+
+class GetBlockBytesPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.GetBlockBytesOp, rewriter: PatternRewriter):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        rewriter.replace_matched_op([], [block_adaptor.bytes])
+
+
+class SetBlockBytesPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.SetBlockBytesOp, rewriter: PatternRewriter):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        block_adaptor.bytes = op.bytes
+        block = block_adaptor.merge_into_pairs(rewriter)
+        rewriter.replace_matched_op([], [block])
+
+
+class GetBlockSizePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.GetBlockSizeOp, rewriter: PatternRewriter):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        rewriter.replace_matched_op([], [block_adaptor.size])
+
+
+class SetBlockSizePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.SetBlockSizeOp, rewriter: PatternRewriter):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        block_adaptor.size = op.size
+        block = block_adaptor.merge_into_pairs(rewriter)
+        rewriter.replace_matched_op([], [block])
+
+
+class GetBlockIsLivePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: mem.GetBlockLiveMarkerOp, rewriter: PatternRewriter
+    ):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        rewriter.replace_matched_op([], [block_adaptor.live_marker])
+
+
+class SetBlockIsLivePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: mem.SetBlockLiveMarkerOp, rewriter: PatternRewriter
+    ):
+        block_adaptor = MemoryBlockValueAdaptor.from_value(op.memory_block, rewriter)
+        block_adaptor.live_marker = op.live
+        block = block_adaptor.merge_into_pairs(rewriter)
+        rewriter.replace_matched_op([], [block])
+
+
 class LowerMemoryToArrayPass(ModulePass):
     name = "lower-memory-to-array"
 
@@ -80,6 +183,14 @@ class LowerMemoryToArrayPass(ModulePass):
             GreedyRewritePatternApplier(
                 [
                     LowerGenericOp(),
+                    GetBlockPattern(),
+                    SetBlockPattern(),
+                    GetBlockBytesPattern(),
+                    SetBlockBytesPattern(),
+                    GetBlockSizePattern(),
+                    SetBlockSizePattern(),
+                    GetBlockIsLivePattern(),
+                    SetBlockIsLivePattern(),
                 ]
             )
         )
