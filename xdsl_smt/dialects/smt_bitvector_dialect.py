@@ -415,33 +415,81 @@ class BinaryPredBVOp(IRDLOperation, Pure):
             raise VerifyException("Operands must have the same type")
 
 
+class UleCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            UleCanonicalizationPattern,
+        )
+
+        return (UleCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class UleOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ule"
 
+    traits = frozenset([traits.Pure(), UleCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvule"
+
+
+class UltCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            UltCanonicalizationPattern,
+        )
+
+        return (UltCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class UltOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ult"
 
+    traits = frozenset([traits.Pure(), UltCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvult"
+
+
+class UgeCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            UgeCanonicalizationPattern,
+        )
+
+        return (UgeCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class UgeOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.uge"
 
+    traits = frozenset([traits.Pure(), UgeCanonicalizationPatterns()])
+
     def op_name(self) -> str:
         return "bvuge"
+
+
+class UgtCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            UgtCanonicalizationPattern,
+        )
+
+        return (UgtCanonicalizationPattern(),)
 
 
 @irdl_op_definition
 class UgtOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ugt"
+
+    traits = frozenset([traits.Pure(), UgtCanonicalizationPatterns()])
 
     def op_name(self) -> str:
         return "bvugt"

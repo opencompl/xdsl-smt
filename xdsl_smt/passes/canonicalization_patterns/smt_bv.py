@@ -110,3 +110,42 @@ SleCanonicalizationPattern = signed_comparison_folding_canonicalization_pattern(
 SltCanonicalizationPattern = signed_comparison_folding_canonicalization_pattern(
     smt_bv.SltOp, lambda operands: operands[0] < operands[1]
 )
+
+
+def unsigned_comparison_folding_canonicalization_pattern(
+    op_type: type[Operation], operator: Callable[[Sequence[int]], bool]
+) -> type[RewritePattern]:
+    class CanonicalizationPattern(RewritePattern):
+        def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+            # Check if the operation is of the correct type
+            if not isinstance(op, op_type):
+                return
+
+            # Check if all operands are constants
+            operand_cst = [get_bv_constant(operand) for operand in op.operands]
+            if None in operand_cst:
+                return
+            operand_cst = cast(list[int], operand_cst)
+
+            # Perform the computation
+            value = operator(operand_cst)
+            rewriter.replace_matched_op(smt.ConstantBoolOp(value))
+
+    return CanonicalizationPattern
+
+
+UgeCanonicalizationPattern = unsigned_comparison_folding_canonicalization_pattern(
+    smt_bv.UgeOp, lambda operands: operands[0] >= operands[1]
+)
+
+UgtCanonicalizationPattern = unsigned_comparison_folding_canonicalization_pattern(
+    smt_bv.UgtOp, lambda operands: operands[0] > operands[1]
+)
+
+UleCanonicalizationPattern = unsigned_comparison_folding_canonicalization_pattern(
+    smt_bv.UleOp, lambda operands: operands[0] <= operands[1]
+)
+
+UltCanonicalizationPattern = unsigned_comparison_folding_canonicalization_pattern(
+    smt_bv.UltOp, lambda operands: operands[0] < operands[1]
+)

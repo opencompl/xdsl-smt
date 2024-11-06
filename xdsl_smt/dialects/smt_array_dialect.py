@@ -20,10 +20,11 @@ from xdsl.irdl import (
     IRDLOperation,
     ConstraintVar,
 )
+from xdsl.pattern_rewriter import RewritePattern
+from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
 from xdsl.utils.isattr import isattr
 
 from xdsl_smt.traits.smt_printer import SMTLibSort, SimpleSMTLibOp
-from xdsl_smt.traits.effects import Pure
 
 
 DomainT = TypeVar("DomainT", bound=Attribute, covariant=True)
@@ -54,9 +55,21 @@ class ArrayType(
 AnyArrayType = ArrayType[Attribute, Attribute]
 
 
+class SelectCanonPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_array import (
+            SelectStorePattern,
+        )
+
+        return (SelectStorePattern(),)
+
+
 @irdl_op_definition
-class SelectOp(IRDLOperation, SimpleSMTLibOp, Pure):
+class SelectOp(IRDLOperation, SimpleSMTLibOp):
     name = "smt.array.select"
+
+    traits = frozenset([Pure(), SelectCanonPatterns()])
 
     _Domain = Annotated[Attribute, ConstraintVar("Domain")]
     _Range = Annotated[Attribute, ConstraintVar("Range")]
@@ -84,8 +97,10 @@ class SelectOp(IRDLOperation, SimpleSMTLibOp, Pure):
 
 
 @irdl_op_definition
-class StoreOp(IRDLOperation, SimpleSMTLibOp, Pure):
+class StoreOp(IRDLOperation, SimpleSMTLibOp):
     name = "smt.array.store"
+
+    traits = frozenset([Pure()])
 
     _Domain = Annotated[Attribute, ConstraintVar("Domain")]
     _Range = Annotated[Attribute, ConstraintVar("Range")]
