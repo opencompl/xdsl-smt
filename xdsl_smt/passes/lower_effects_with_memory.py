@@ -13,7 +13,7 @@ from xdsl.pattern_rewriter import (
 )
 
 from xdsl.dialects.builtin import ModuleOp, AnyArrayAttr
-from xdsl_smt.dialects.effects import memory_effect as mem_effect
+from xdsl_smt.dialects.effects import memory_effect as mem_effect, ub_effect
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects.effects import effect, memory_effect as mem_effect
@@ -24,13 +24,11 @@ from xdsl_smt.dialects import (
     smt_bitvector_dialect as smt_bv,
 )
 
-from xdsl_smt.passes.lower_effects import LowerTriggerOp, LowerToBoolOp
-
 new_state_type = smt_utils.PairType(mem.MemoryType(), BoolType())
 new_pointer_type = smt_utils.PairType(mem.BlockIDType(), BitVectorType(64))
 
 
-def get_ub_and_memory_from_state(
+def get_memory_and_ub_from_state(
     state: SSAValue, rewriter: PatternRewriter
 ) -> tuple[SSAValue, SSAValue]:
     """Get the ub flag and memory from a state value."""
@@ -112,6 +110,23 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
     return attr
 
 
+class LowerTriggerOp(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: ub_effect.TriggerOp, rewriter: PatternRewriter):
+        memory, _ = get_memory_and_ub_from_state(op.state, rewriter)
+        new_ub = smt.ConstantBoolOp(True)
+        rewriter.insert_op_before_matched_op([new_ub])
+        new_state = create_state(memory, new_ub.res, rewriter)
+        rewriter.replace_matched_op([], [new_state])
+
+
+class LowerToBoolOp(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: ub_effect.ToBoolOp, rewriter: PatternRewriter):
+        _, ub = get_memory_and_ub_from_state(op.state, rewriter)
+        rewriter.replace_matched_op([], new_results=[ub])
+
+
 class LowerGenericOp(RewritePattern):
     """
     Recursively lower all result types, attributes, and properties that reference
@@ -145,7 +160,7 @@ class LowerGenericOp(RewritePattern):
 class LowerAlloc(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: mem_effect.AllocOp, rewriter: PatternRewriter):
-        memory, ub = get_ub_and_memory_from_state(op.state, rewriter)
+        memory, ub = get_memory_and_ub_from_state(op.state, rewriter)
 
         # Get a fresh block ID
         id_op = mem.GetFreshBlockIDOp(memory)
@@ -205,7 +220,7 @@ class LowerRead(RewritePattern):
     def match_and_rewrite(self, op: mem_effect.ReadOp, rewriter: PatternRewriter):
         # Unwrap the pointer and the state
         block_id, offset = get_block_id_and_offset_from_pointer(op.pointer, rewriter)
-        memory, ub = get_ub_and_memory_from_state(op.state, rewriter)
+        memory, ub = get_memory_and_ub_from_state(op.state, rewriter)
 
         # Get the memory block and bytes
         get_block_op = mem.GetBlockOp(memory, block_id)
@@ -236,7 +251,7 @@ class LowerWrite(RewritePattern):
     def match_and_rewrite(self, op: mem_effect.WriteOp, rewriter: PatternRewriter):
         # Unwrap the pointer and the state
         block_id, offset = get_block_id_and_offset_from_pointer(op.pointer, rewriter)
-        memory, ub = get_ub_and_memory_from_state(op.state, rewriter)
+        memory, ub = get_memory_and_ub_from_state(op.state, rewriter)
 
         # Get the memory block and bytes
         get_block_op = mem.GetBlockOp(memory, block_id)
@@ -253,6 +268,7 @@ class LowerWrite(RewritePattern):
 
         # Write the value in memory
         write_op = mem.WriteBytesOp(op.value, bytes, offset)
+        bytes = write_op.res
         rewriter.insert_op_before_matched_op([write_op])
 
         # Update the bytes in the block and memory
