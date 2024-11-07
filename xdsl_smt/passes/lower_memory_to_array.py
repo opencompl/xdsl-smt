@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 
-from xdsl.ir import Attribute, Operation, SSAValue
+from xdsl.ir import Attribute, Operation, SSAValue, ParametrizedAttribute
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -77,6 +77,11 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
         return memory_block_type
     elif isinstance(attr, mem.BytesType):
         return bytes_type
+
+    if isinstance(attr, ParametrizedAttribute):
+        return attr.new(
+            [recursively_convert_attr(sub_attr) for sub_attr in attr.parameters]
+        )
     return attr
 
 
