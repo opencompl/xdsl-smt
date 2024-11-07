@@ -1,0 +1,8 @@
+// This file is used by `remove-alloc.mlir`
+
+builtin.module {
+    func.func private @foo() -> i8 {
+        %val = arith.constant 5 : i8
+        func.return %val : i8
+    }
+}

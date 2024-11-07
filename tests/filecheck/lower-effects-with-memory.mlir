@@ -71,7 +71,7 @@
 // CHECK-NEXT:    %offset_in_bounds = "smt.bv.ule"(%0, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bool
 // CHECK-NEXT:    %1 = "smt.or"(%state_second, %offset_in_bounds) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %bytes = memory.write_bytes %value, %block_bytes[%ptr_second] : !smt.utils.pair<!smt.bv.bv<16>, !smt.bool>
-// CHECK-NEXT:    %block_1 = memory.set_block_bytes %block, %block_bytes
+// CHECK-NEXT:    %block_1 = memory.set_block_bytes %block, %bytes
 // CHECK-NEXT:    %memory = memory.set_block %block_1, %state_first[%ptr_first]
 // CHECK-NEXT:    %state = "smt.utils.pair"(%memory, %1) : (!memory.memory, !smt.bool) -> !smt.utils.pair<!memory.memory, !smt.bool>
 // CHECK-NEXT:    "test.op"(%state) : (!smt.utils.pair<!memory.memory, !smt.bool>) -> ()
