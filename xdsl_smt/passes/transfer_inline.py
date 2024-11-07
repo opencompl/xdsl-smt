@@ -53,15 +53,16 @@ class SMTCallInlinePattern(RewritePattern):
             value_map[callee.body.block.args[i]] = arg
         for op in callee.body.ops:
             if isinstance(op, ReturnOp):
-                callOp.results[0].replace_by(value_map[op.ret[0]])
+                for call_res, ret in zip(callOp.results, op.ret):
+                    call_res.replace_by(value_map[ret])
                 rewriter.erase_matched_op()
                 return
             else:
                 newOp = op.clone()
                 for i, arg in enumerate(op.operands):
                     newOp.operands[i] = value_map[arg]
-                if len(op.results) != 0:
-                    value_map[op.results[0]] = newOp.results[0]
+                for op_res, newOp_res in zip(op.results, newOp.results):
+                    value_map[op_res] = newOp_res
                 rewriter.insert_op_before_matched_op(newOp)
 
 
