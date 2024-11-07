@@ -60,6 +60,8 @@ AnyPairType: TypeAlias = PairType[Attribute, Attribute]
 class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
     name = "smt.utils.pair"
 
+    traits = frozenset([traits.Pure()])
+
     res: OpResult = result_def(AnyPairType)
     first: Operand = operand_def()
     second: Operand = operand_def()
