@@ -6,6 +6,8 @@ from xdsl.irdl import (
     result_def,
     irdl_op_definition,
 )
+from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
+from xdsl.pattern_rewriter import RewritePattern
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.isattr import isattr
 
@@ -42,6 +44,16 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     name = "memory.bytes"
 
 
+class GetSetBlockOpPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetBlockPattern,
+        )
+
+        return (GetSetBlockPattern(),)
+
+
 @irdl_op_definition
 class GetBlockOp(IRDLOperation):
     """Get a memory block from a memory state."""
@@ -55,9 +67,21 @@ class GetBlockOp(IRDLOperation):
 
     assembly_format = "$memory `[` $block_id `]` attr-dict"
 
+    traits = frozenset([Pure(), GetSetBlockOpPattern()])
+
     def __init__(self, memory: SSAValue, block_id: SSAValue):
         super().__init__(operands=[memory, block_id], result_types=[MemoryBlockType()])
         self.res.name_hint = "block"
+
+
+class SetSetBlockOpPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            SetSetBlockPattern,
+        )
+
+        return (SetSetBlockPattern(),)
 
 
 @irdl_op_definition
@@ -74,11 +98,23 @@ class SetBlockOp(IRDLOperation):
 
     assembly_format = "$block `,` $memory `[` $block_id `]` attr-dict"
 
+    traits = frozenset([Pure(), SetSetBlockOpPattern()])
+
     def __init__(self, block: SSAValue, memory: SSAValue, block_id: SSAValue):
         super().__init__(
             operands=[block, memory, block_id], result_types=[MemoryType()]
         )
         self.res.name_hint = "memory"
+
+
+class GetSetBlockBytesPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetBlockBytesPattern,
+        )
+
+        return (GetSetBlockBytesPattern(),)
 
 
 @irdl_op_definition
@@ -92,6 +128,8 @@ class GetBlockBytesOp(IRDLOperation):
     res = result_def(BytesType())
 
     assembly_format = "$memory_block attr-dict"
+
+    traits = frozenset([Pure(), GetSetBlockBytesPattern()])
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BytesType()])
@@ -118,6 +156,16 @@ class SetBlockBytesOp(IRDLOperation):
         self.res.name_hint = "block"
 
 
+class GetSetBlockSizePattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetBlockSizePattern,
+        )
+
+        return (GetSetBlockSizePattern(),)
+
+
 @irdl_op_definition
 class GetBlockSizeOp(IRDLOperation):
     """Get the size of a memory block in bytes."""
@@ -129,6 +177,8 @@ class GetBlockSizeOp(IRDLOperation):
     res = result_def(BitVectorType(64))
 
     assembly_format = "$memory_block attr-dict"
+
+    traits = frozenset([Pure(), GetSetBlockSizePattern()])
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BitVectorType(64)])
@@ -155,6 +205,16 @@ class SetBlockSizeOp(IRDLOperation):
         self.res.name_hint = "block"
 
 
+class GetSetBlockLiveMarkerPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetBlockLiveMarkerPattern,
+        )
+
+        return (GetSetBlockLiveMarkerPattern(),)
+
+
 @irdl_op_definition
 class GetBlockLiveMarkerOp(IRDLOperation):
     """
@@ -169,6 +229,8 @@ class GetBlockLiveMarkerOp(IRDLOperation):
     res = result_def(BoolType())
 
     assembly_format = "$memory_block attr-dict"
+
+    traits = frozenset([Pure(), GetSetBlockLiveMarkerPattern()])
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BoolType()])
