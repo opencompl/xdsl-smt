@@ -242,7 +242,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
     ret: OpResult = result_def(FunctionType)
 
     def __init__(
-        self, func_type: FuncType, name: str | StringAttr | None = None
+        self, func_type: FunctionType, name: str | StringAttr | None = None
     ) -> None:
         if isinstance(name, str):
             name = StringAttr(name)
@@ -272,10 +272,9 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
         print(f"{name} ", file=stream, end="")
 
         # Print the function arguments
-        for idx, typ in enumerate(self.ret.type.inputs):
+        for idx, typ in enumerate(self.func_type.inputs):
             if idx != 0:
                 print(" ", file=stream, end="")
-            arg_name = ctx.get_fresh_name(None)
             if not isinstance(typ, SMTLibSort):
                 raise Exception(f"Type {typ} is not an SMTLib type")
             print(f"(", file=stream, end="")
