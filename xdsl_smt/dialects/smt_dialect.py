@@ -227,6 +227,70 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
 
 
 @irdl_op_definition
+class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
+    """
+    Declare an uninterpreted function.
+    Unlike SMT-LIB, to ease the manipulation of functions, functions may have more
+    than one return value.
+    Functions with more than one return value should be converted to multiple
+    functions or to a function with a tuple return type before conversion to SMT-LIB.
+    """
+
+    name = "smt.declare_fun"
+
+    fun_name: StringAttr | None = opt_attr_def(StringAttr)
+    ret: OpResult = result_def(FunctionType)
+
+    def __init__(
+        self, func_type: FuncType, name: str | StringAttr | None = None
+    ) -> None:
+        if isinstance(name, str):
+            name = StringAttr(name)
+        attributes = {"fun_name": name} if name is not None else {}
+        super().__init__(
+            attributes=attributes,
+            result_types=[func_type],
+        )
+
+    @property
+    def func_type(self) -> FunctionType:
+        """Get the function type of this operation."""
+        if not isinstance(self.ret.type, FunctionType):
+            raise VerifyException("Incorrect return type")
+        return self.ret.type
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        print("(declare-fun ", file=stream, end="")
+
+        # Print the function name
+        name: str
+        if self.fun_name is not None:
+            name = ctx.get_fresh_name(self.fun_name.data)
+            ctx.value_to_name[self.ret] = name
+        else:
+            name = ctx.get_fresh_name(self.ret)
+        print(f"{name} ", file=stream, end="")
+
+        # Print the function arguments
+        for idx, typ in enumerate(self.ret.type.inputs):
+            if idx != 0:
+                print(" ", file=stream, end="")
+            arg_name = ctx.get_fresh_name(None)
+            if not isinstance(typ, SMTLibSort):
+                raise Exception(f"Type {typ} is not an SMTLib type")
+            print(f"(", file=stream, end="")
+            typ.print_sort_to_smtlib(stream)
+            print(")", file=stream, end="")
+
+        # Print the function return type
+        assert len(self.func_type.outputs.data) == 1
+        ret_type = self.func_type.outputs.data[0]
+        assert isinstance(ret_type, SMTLibSort)
+        ret_type.print_sort_to_smtlib(stream)
+        print(")", file=stream)
+
+
+@irdl_op_definition
 class DefineFunOp(IRDLOperation, SMTLibScriptOp):
     """
     Define a function.
@@ -715,6 +779,7 @@ SMTDialect = Dialect(
         DefineFunOp,
         ReturnOp,
         DeclareConstOp,
+        DeclareFunOp,
         AssertOp,
         CheckSatOp,
         ConstantBoolOp,
