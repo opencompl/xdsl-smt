@@ -91,8 +91,8 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(SMTIntType)
     value: IntegerAttr[IntegerType] = attr_def(IntegerAttr)
 
-    def __init__(self, value: int):
-        value_type = IntegerType(64)
+    def __init__(self, value: int, value_type: TypeAttribute):
+        assert isinstance(value_type, IntegerType)
         super().__init__(
             result_types=[SMTIntType()],
             attributes={"value": IntegerAttr(value, value_type)},

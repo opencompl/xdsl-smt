@@ -5,21 +5,116 @@ from xdsl.ir import SSAValue, Attribute
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
 from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
+from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, IndexType
+from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
+from xdsl_smt.semantics.semantics import AttributeSemantics, RefinementSemantics
+from xdsl_smt.dialects.effects import ub_effect
+from xdsl.dialects.builtin import Signedness
+
+LARGE_ENOUGH_INT_TYPE = IntegerType(128, Signedness.UNSIGNED)
+GENERIC_INT_WIDTH = 64
 
 
-class IntIntegerTypeSemantics(TypeSemantics):
-    def get_semantics(self, type: Attribute) -> Attribute:
-        assert isinstance(type, IntegerType)
+class IntAccessor(ABC):
+    @abstractmethod
+    def get_int_type(self):
+        ...
+
+    @abstractmethod
+    def get_int_max(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        ...
+
+    @abstractmethod
+    def get_payload(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        ...
+
+    @abstractmethod
+    def get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        ...
+
+    @abstractmethod
+    def get_packed_integer(
+        self,
+        payload: SSAValue,
+        poison: SSAValue,
+        int_max: SSAValue,
+        rewriter: PatternRewriter,
+    ):
+        ...
+
+
+class FixedWidthIntAccessor(IntAccessor):
+    def get_int_type(self):
         inner_pair_type = smt_utils.PairType(smt_int.SMTIntType(), smt.BoolType())
         outer_pair_type = smt_utils.PairType(inner_pair_type, smt_int.SMTIntType())
         return outer_pair_type
 
+    def get_int_max(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        get_int_max_op = smt_utils.SecondOp(smt_integer)
+        rewriter.insert_op_before_matched_op([get_int_max_op])
+        return get_int_max_op.res
 
-class IntConstantSemantics(OperationSemantics):
+    def get_payload(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        get_inner_pair_op = smt_utils.FirstOp(smt_integer)
+        get_payload_op = smt_utils.FirstOp(get_inner_pair_op.res)
+        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_payload_op])
+        return get_payload_op.res
+
+    def get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter):
+        get_inner_pair_op = smt_utils.FirstOp(smt_integer)
+        get_poison_op = smt_utils.SecondOp(get_inner_pair_op.res)
+        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_poison_op])
+        return get_poison_op.res
+
+    def get_packed_integer(
+        self,
+        payload: SSAValue,
+        poison: SSAValue,
+        int_max: SSAValue,
+        rewriter: PatternRewriter,
+    ):
+        inner_pair = smt_utils.PairOp(payload, poison)
+        outer_pair = smt_utils.PairOp(inner_pair.res, int_max)
+        rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
+        return outer_pair.res
+
+
+class IntIntegerAttrSemantics(AttributeSemantics):
+    def get_semantics(
+        self, attribute: Attribute, rewriter: PatternRewriter
+    ) -> SSAValue:
+        if not isa(attribute, IntegerAttr[IntegerType]):
+            raise Exception(f"Cannot handle semantics of {attribute}")
+        op = smt_int.ConstantOp(
+            attribute.value.data, IntegerType(attribute.type.width.data)
+        )
+        rewriter.insert_op_before_matched_op(op)
+        return op.res
+
+
+class IntIntegerTypeSemantics(TypeSemantics):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
+    def get_semantics(self, type: Attribute) -> Attribute:
+        assert isinstance(type, IntegerType)
+        int_type = self.accessor.get_int_type()
+        return int_type
+
+
+class GenericIntSemantics(OperationSemantics):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
+
+class IntConstantSemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     def get_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -29,26 +124,43 @@ class IntConstantSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
-        assert isa(value_value, AnyIntegerAttr)
-        assert len(results) == 1
-        assert isa(results[0], IntegerType)
-        literal = smt_int.ConstantOp(value_value.value.data)
-        rewriter.insert_op_before_matched_op([literal])
-        int_max = smt_int.ConstantOp(2 ** results[0].width.data)
-        modulo = smt_int.ModOp(literal.res, int_max.res)
+
+        if isinstance(value_value, Attribute):
+            assert isa(value_value, AnyIntegerAttr)
+            literal = smt_int.ConstantOp(
+                value_value.value.data, IntegerType(value_value.type.width.data)
+            )
+            int_max_op = smt_int.ConstantOp(
+                2 ** results[0].width.data, LARGE_ENOUGH_INT_TYPE
+            )
+            int_max = int_max_op.res
+            modulo = smt_int.ModOp(literal.res, int_max_op.res)
+            rewriter.insert_op_before_matched_op([literal, int_max_op, modulo])
+            ssa_attr = modulo.res
+        else:
+            int_max_op = smt_int.ConstantOp(
+                2**GENERIC_INT_WIDTH, LARGE_ENOUGH_INT_TYPE
+            )
+            int_max = int_max_op.res
+            rewriter.insert_op_before_matched_op([int_max_op])
+            ssa_attr = value_value
+
         no_poison = smt.ConstantBoolOp.from_bool(False)
-        inner_pair = smt_utils.PairOp(modulo.res, no_poison.res)
-        outer_pair = smt_utils.PairOp(inner_pair.res, int_max.res)
-        rewriter.insert_op_before_matched_op(
-            [int_max, modulo, no_poison, inner_pair, outer_pair]
-        )
-        return ((outer_pair.res,), effect_state)
+        inner_pair = smt_utils.PairOp(ssa_attr, no_poison.res)
+        outer_pair = smt_utils.PairOp(inner_pair.res, int_max)
+        rewriter.insert_op_before_matched_op([no_poison, inner_pair, outer_pair])
+        result = outer_pair.res
+
+        return ((result,), effect_state)
 
 
-class GenericIntBinarySemantics(OperationSemantics, ABC):
+class GenericIntBinarySemantics(GenericIntSemantics, ABC):
     """
     Generic semantics of binary operations on parametric integers.
     """
+
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
 
     def get_semantics(
         self,
@@ -61,51 +173,36 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
         lhs = operands[0]
         rhs = operands[1]
         # Unpack
-        lhs_get_inner_pair = smt_utils.FirstOp(lhs)
-        rhs_get_inner_pair = smt_utils.FirstOp(rhs)
-        lhs_get_int_max = smt_utils.SecondOp(lhs)
-        rhs_get_int_max = smt_utils.SecondOp(rhs)
+        lhs_int_max = self.accessor.get_int_max(lhs, rewriter)
+        rhs_int_max = self.accessor.get_int_max(rhs, rewriter)
         # Compute the payload
-        lhs_get_payload = smt_utils.FirstOp(lhs_get_inner_pair.res)
-        rhs_get_payload = smt_utils.FirstOp(rhs_get_inner_pair.res)
-        rewriter.insert_op_before_matched_op(
-            [
-                lhs_get_inner_pair,
-                rhs_get_inner_pair,
-                lhs_get_int_max,
-                rhs_get_int_max,
-                lhs_get_payload,
-                rhs_get_payload,
-            ]
-        )
+        lhs_payload = self.accessor.get_payload(lhs, rewriter)
+        rhs_payload = self.accessor.get_payload(rhs, rewriter)
         assert effect_state
-        effect_state = self.get_ub(
-            lhs_get_payload.res, rhs_get_payload.res, effect_state, rewriter
-        )
+        effect_state = self.get_ub(lhs_payload, rhs_payload, effect_state, rewriter)
         payload = self.get_payload_semantics(
-            lhs_get_payload.res,
-            rhs_get_payload.res,
-            lhs_get_int_max.res,
+            lhs_payload,
+            rhs_payload,
+            lhs_int_max,
             attributes,
             rewriter,
         )
         # Compute the poison
-        lhs_get_poison = smt_utils.SecondOp(lhs_get_inner_pair.res)
-        rhs_get_poison = smt_utils.SecondOp(rhs_get_inner_pair.res)
-        rewriter.insert_op_before_matched_op([lhs_get_poison, rhs_get_poison])
+        lhs_poison = self.accessor.get_poison(lhs, rewriter)
+        rhs_poison = self.accessor.get_poison(rhs, rewriter)
         poison = self.get_poison(
-            lhs_get_poison.res,
-            rhs_get_poison.res,
-            lhs_get_payload.res,
-            rhs_get_payload.res,
+            lhs_poison,
+            rhs_poison,
+            lhs_payload,
+            rhs_payload,
             payload,
             rewriter,
         )
         # Pack
-        inner_pair = smt_utils.PairOp(payload, poison)
-        outer_pair = smt_utils.PairOp(inner_pair.res, lhs_get_int_max.res)
-        rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
-        return ((outer_pair.res,), effect_state)
+        packed_integer = self.accessor.get_packed_integer(
+            payload, poison, lhs_int_max, rewriter
+        )
+        return ((packed_integer,), effect_state)
 
     def get_poison(
         self,
@@ -143,6 +240,9 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
 
 
 class IntDivBasedSemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     @abstractmethod
     def _get_payload_semantics(
         self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
@@ -156,7 +256,7 @@ class IntDivBasedSemantics(GenericIntBinarySemantics):
         effect_state: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        zero_op = smt_int.ConstantOp(0)
+        zero_op = smt_int.ConstantOp(0, LARGE_ENOUGH_INT_TYPE)
         rewriter.insert_op_before_matched_op([zero_op])
         is_div_by_zero = smt.EqOp(rhs, zero_op.res)
         trigger_ub = smt_ub.TriggerOp(effect_state)
@@ -180,6 +280,9 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
     Semantics of binary operations on parametric integers which can not have an effect
     (Effect-Free).
     """
+
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
 
     def get_ub(
         self,
@@ -211,6 +314,9 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
 
 
 class IntCmpiSemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     def get_ub(
         self,
         lhs: SSAValue,
@@ -261,6 +367,9 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
 
 def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
     class OpSemantics(IntBinaryEFSemantics):
+        def __init__(self, accessor: IntAccessor):
+            super().__init__(accessor)
+
         def _get_payload_semantics(
             self,
             lhs: SSAValue,

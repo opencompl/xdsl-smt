@@ -94,6 +94,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
+        self.ctx.load_registered_dialect(Transfer.name)
         self.ctx.load_registered_dialect(SMTIntDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
