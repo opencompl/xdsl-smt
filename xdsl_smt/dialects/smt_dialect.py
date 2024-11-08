@@ -242,7 +242,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
     ret: OpResult = result_def(FunctionType)
 
     def __init__(
-        self, func_type: FuncType, name: str | StringAttr | None = None
+        self, func_type: FunctionType, name: str | StringAttr | None = None
     ) -> None:
         if isinstance(name, str):
             name = StringAttr(name)
