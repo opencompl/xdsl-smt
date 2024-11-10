@@ -280,7 +280,7 @@ class StoreSemantics(OperationSemantics):
             [state_if_poison, not_in_bounds, ub_condition, new_state]
         )
 
-        return (), write_op.new_state
+        return (), new_state.res
 
 
 memref_semantics: dict[type[Operation], OperationSemantics] = {
