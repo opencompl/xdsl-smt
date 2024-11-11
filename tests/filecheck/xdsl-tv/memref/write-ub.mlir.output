@@ -1,0 +1,9 @@
+// This file is used by `write-ub.mlir`
+
+builtin.module {
+    func.func private @foo(%mem: memref<3x42xi8>) {
+        func.return
+    }
+}
+
+// CHECK: unsat

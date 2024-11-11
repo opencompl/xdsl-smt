@@ -2,20 +2,29 @@
 
 import argparse
 import sys
+from typing import Sequence
 
 from xdsl.context import MLContext
 from xdsl.ir import Operation, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter, InsertPoint
 from xdsl.builder import ImplicitBuilder, Builder
+from xdsl.utils.isattr import isattr
 
+from xdsl_smt.dialects.memory_dialect import BlockIDType
+from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_bitvector_dialect import (
+    BitVectorType,
+    SMTBitVectorDialect,
+    UltOp,
+)
 from xdsl_smt.dialects.smt_dialect import (
+    BoolType,
     AndOp,
     CallOp,
     CheckSatOp,
@@ -24,15 +33,25 @@ from xdsl_smt.dialects.smt_dialect import (
     DefineFunOp,
     EqOp,
     AssertOp,
+    ForallOp,
+    ImpliesOp,
+    IteOp,
     NotOp,
     OrOp,
     ReturnOp,
     SMTDialect,
+    YieldOp,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.effect import EffectDialect
-from xdsl_smt.dialects.smt_utils_dialect import FirstOp, SMTUtilsDialect, SecondOp
+from xdsl_smt.dialects.smt_utils_dialect import (
+    FirstOp,
+    SMTUtilsDialect,
+    SecondOp,
+    PairType,
+    AnyPairType,
+)
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl.dialects.builtin import (
@@ -49,6 +68,9 @@ from xdsl.dialects.comb import Comb
 from xdsl.dialects.memref import MemRef
 
 from xdsl.transforms.canonicalize import CanonicalizePass
+from xdsl.transforms.common_subexpression_elimination import (
+    CommonSubexpressionElimination,
+)
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
@@ -80,6 +102,145 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "pairs and applying constant folding.",
         action="store_true",
     )
+
+
+def integer_value_refinement(
+    value: SSAValue, value_after: SSAValue, insert_point: InsertPoint
+) -> SSAValue:
+    with ImplicitBuilder(Builder(insert_point)):
+        not_after_poison = NotOp.get(SecondOp(value_after).res).res
+        value_eq = EqOp.get(FirstOp(value).res, FirstOp(value_after).res).res
+        value_refinement = AndOp.get(not_after_poison, value_eq).res
+        refinement = OrOp.get(value_refinement, SecondOp(value).res).res
+    return refinement
+
+
+def get_block_ids_from_value(
+    val: SSAValue, insert_point: InsertPoint
+) -> list[SSAValue]:
+    """Get all block ids that are used in the value."""
+    if isinstance(val.type, BlockIDType):
+        return [val]
+    if isattr(val.type, AnyPairType):
+        with ImplicitBuilder(Builder(insert_point)):
+            first = FirstOp(val).res
+            second = SecondOp(val).res
+        return get_block_ids_from_value(first, insert_point) + get_block_ids_from_value(
+            second, insert_point
+        )
+    return []
+
+
+def get_mapped_block_id(
+    output_blockids: Sequence[SSAValue],
+    output_blockids_after: Sequence[SSAValue],
+    value: SSAValue,
+    insert_point: InsertPoint,
+):
+    """
+    Get the corresponding output block id from an input memory block id.
+    """
+    # Default case: The block id is one from the input, so it is
+    # mapped to itself (input block id's do not change between before and after
+    # in functions).
+    result_value = value
+
+    # Check for each output value its equality, and if equal, replace the
+    # result value with the corresponding output value after.
+    with ImplicitBuilder(Builder(insert_point)):
+        for output, output_after in zip(output_blockids, output_blockids_after):
+            is_eq = EqOp.get(value, output).res
+            result_value = IteOp(is_eq, output_after, result_value).res
+
+    return result_value
+
+
+def memory_block_refinement(
+    block: SSAValue,
+    block_after: SSAValue,
+    insert_point: InsertPoint,
+) -> SSAValue:
+    """
+    Check refinement of two memory blocks.
+    """
+
+    with ImplicitBuilder(Builder(insert_point)):
+        size = mem.GetBlockSizeOp(block).res
+        size_after = mem.GetBlockSizeOp(block_after).res
+        live = mem.GetBlockLiveMarkerOp(block).res
+        live_after = mem.GetBlockLiveMarkerOp(block_after).res
+        bytes = mem.GetBlockBytesOp(block).res
+        bytes_after = mem.GetBlockBytesOp(block_after).res
+
+        # Forall index, bytes[index] >= bytes_after[index]
+        forall = ForallOp.from_variables([BitVectorType(64)])
+
+        forall_block = forall.body.block
+
+    with ImplicitBuilder(Builder(InsertPoint.at_end(forall_block))):
+        in_bounds = UltOp(forall_block.args[0], size).res
+        value = mem.ReadBytesOp(
+            bytes, forall_block.args[0], PairType(BitVectorType(8), BoolType())
+        ).res
+        value_after = mem.ReadBytesOp(
+            bytes_after, forall_block.args[0], PairType(BitVectorType(8), BoolType())
+        ).res
+    value_refinement = integer_value_refinement(
+        value, value_after, InsertPoint.at_end(forall_block)
+    )
+    with ImplicitBuilder(Builder(InsertPoint.at_end(forall_block))):
+        block_refinement = ImpliesOp(in_bounds, value_refinement).res
+        YieldOp(block_refinement)
+
+    with ImplicitBuilder(Builder(insert_point)):
+        size_refinement = EqOp(size, size_after).res
+        live_refinement = EqOp(live, live_after).res
+        block_properties_refinement = AndOp(size_refinement, live_refinement).res
+        block_refinement = AndOp(block_properties_refinement, forall.res).res
+
+    return block_refinement
+
+
+def memory_refinement(
+    func_call: CallOp,
+    func_call_after: CallOp,
+    insert_point: InsertPoint,
+) -> SSAValue:
+    """Check refinement of two memory states."""
+
+    # Get references to input and output block ids
+    with ImplicitBuilder(Builder(insert_point)):
+        memory = FirstOp(func_call.res[-1]).res
+        memory_after = FirstOp(func_call_after.res[-1]).res
+
+    input_block_ids = list[SSAValue]()
+    ret_block_ids_before = list[SSAValue]()
+    ret_block_ids_after = list[SSAValue]()
+
+    for arg in func_call.args[:-1]:
+        input_block_ids += get_block_ids_from_value(arg, insert_point)
+    for ret, ret_after in zip(func_call.res[:-1], func_call_after.res[:-1]):
+        ret_block_ids_before += get_block_ids_from_value(ret, insert_point)
+        ret_block_ids_after += get_block_ids_from_value(ret_after, insert_point)
+
+    accessible_block_ids = set(input_block_ids + ret_block_ids_before)
+
+    with ImplicitBuilder(Builder(insert_point)):
+        refinement = ConstantBoolOp(True).res
+
+    for block_id in accessible_block_ids:
+        block_id_after = get_mapped_block_id(
+            ret_block_ids_before, ret_block_ids_after, block_id, insert_point
+        )
+        with ImplicitBuilder(Builder(insert_point)):
+            block = mem.GetBlockOp(memory, block_id).res
+            block_after = mem.GetBlockOp(memory_after, block_id_after).res
+
+        block_refinement = memory_block_refinement(block, block_after, insert_point)
+        with ImplicitBuilder(Builder(insert_point)):
+            refinement = AndOp(refinement, block_refinement).res
+
+    return refinement
 
 
 def add_function_refinement(
@@ -122,15 +283,29 @@ def add_function_refinement(
             return_values_refinement = AndOp.get(
                 return_values_refinement, refinement.res
             ).res
+        return_values_refinement.name_hint = "return_values_refinement"
 
+    # Refinement of memory
+    mem_refinement = memory_refinement(func_call, func_call_after, insert_point)
+    mem_refinement.name_hint = "memory_refinement"
+
+    with ImplicitBuilder(builder):
         # Get ub results
         res_ub = SecondOp(func_call.res[-1]).res
         res_ub_after = SecondOp(func_call_after.res[-1]).res
 
+        res_ub.name_hint = "ub"
+        res_ub_after.name_hint = "ub_after"
+
         # Compute refinement with UB
         refinement = OrOp(
-            AndOp(NotOp(res_ub_after).res, return_values_refinement).res, res_ub
+            AndOp(
+                NotOp(res_ub_after).res,
+                AndOp(return_values_refinement, mem_refinement).res,
+            ).res,
+            res_ub,
         ).res
+        refinement.name_hint = "function_refinement"
 
         not_refinement = NotOp(refinement).res
         AssertOp(not_refinement)
@@ -228,10 +403,21 @@ def main() -> None:
     func_after.detach()
     block.add_op(func_after)
 
+    # Optionally simplify the module
+    if args.opt:
+        CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+        # Remove this once we update to latest xdsl
+        DeadCodeElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+
     LowerEffectWithMemoryPass().apply(ctx, new_module)
 
     # Optionally simplify the module
     if args.opt:
+        CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
         # Remove this once we update to latest xdsl
         DeadCodeElimination().apply(ctx, new_module)
@@ -251,8 +437,12 @@ def main() -> None:
     LowerMemoryToArrayPass().apply(ctx, new_module)
 
     if args.opt:
+        CanonicalizePass().apply(ctx, new_module)
         LowerPairs().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+
     print_to_smtlib(new_module, sys.stdout)
 
 

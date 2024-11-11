@@ -1,0 +1,9 @@
+// RUN: xdsl-tv %s %S/remove-write.mlir.output | z3 -in | filecheck %s
+
+// This file uses `remove-write.mlir.output`
+
+builtin.module {
+    func.func private @foo(%mem: memref<3x42xi8>) {
+        func.return
+    }
+}
