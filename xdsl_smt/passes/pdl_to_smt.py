@@ -15,7 +15,8 @@ from xdsl.dialects.pdl import (
 )
 from xdsl.utils.hints import isa
 from xdsl.rewriter import InsertPoint, Rewriter
-
+from xdsl_smt.dialects import smt_int_dialect as smt_int
+from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
 from xdsl_smt.semantics.semantics import RefinementSemantics
@@ -24,6 +25,8 @@ from ..dialects import pdl_dataflow as pdl_dataflow
 from ..dialects import smt_bitvector_dialect as smt_bv
 from ..dialects import smt_utils_dialect as smt_utils
 
+from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.dialects.builtin import Signedness
 from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
 from xdsl.context import MLContext
 
@@ -47,6 +50,16 @@ from ..dialects.smt_dialect import (
     OrOp,
 )
 from xdsl_smt.passes.lower_to_smt import SMTLowerer, LowerToSMTPass
+from xdsl_smt.semantics.arith_int_semantics import (
+    IntIntegerTypeRefinementSemantics,
+    load_int_semantics,
+    trigger_parametric_int,
+    insert_and_constraint_pow2,
+)
+from xdsl_smt.semantics.arith_int_semantics import PowEnabledIntAccessor
+from xdsl_smt.semantics.arith_int_semantics import IntAccessor
+
+# from xdsl_smt.semantics.arith_int_semantics import FullIntAccessor as IntAccessor
 
 
 class StaticallyUnmatchedConstraintError(Exception):
@@ -146,6 +159,31 @@ class AttributeRewrite(RewritePattern):
         raise Exception("Cannot handle unbounded and untyped attributes")
 
 
+class IntAttributeRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
+        if op.value is not None:
+            value = SMTLowerer.attribute_semantics[type(op.value)].get_semantics(
+                op.value, rewriter
+            )
+            rewriter.replace_matched_op([], [value])
+            return
+
+        if op.value_type is not None:
+            value_type = _get_type_of_erased_type_value(op.value_type)
+            if not isinstance(value_type, IntegerType):
+                raise Exception(
+                    "Cannot handle quantification of attributes with non-integer types"
+                )
+            declare_op = DeclareConstOp(smt_int.SMTIntType())
+            rewriter.replace_matched_op(declare_op)
+            return
+
+        raise Exception("Cannot handle unbounded and untyped attributes")
+
+
 class OperandRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: OperandOp, rewriter: PatternRewriter):
@@ -153,7 +191,45 @@ class OperandRewrite(RewritePattern):
             raise Exception("Cannot handle non-typed operands")
         type = _get_type_of_erased_type_value(op.value_type)
         smt_type = SMTLowerer.lower_type(type)
-        rewriter.replace_matched_op(DeclareConstOp(smt_type))
+        declare_const_op = DeclareConstOp(smt_type)
+        rewriter.replace_matched_op(declare_const_op)
+
+
+class IntOperandRewrite(RewritePattern):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: OperandOp, rewriter: PatternRewriter):
+        if op.value_type is None:
+            raise Exception("Cannot handle non-typed operands")
+        type = _get_type_of_erased_type_value(op.value_type)
+        smt_type = SMTLowerer.lower_type(type)
+        declare_const_op = DeclareConstOp(smt_type)
+        rewriter.replace_matched_op(declare_const_op)
+        if isinstance(type, IntegerType):
+            return
+        # Constraints on the operand
+        rewriter = PatternRewriter(current_operation=declare_const_op)
+        x = self.accessor.get_payload(declare_const_op.res, rewriter)
+        zero_op = smt_int.ConstantOp(0, IntegerType(32, Signedness.UNSIGNED))
+        rewriter.insert_op_after_matched_op([zero_op])
+        # Needs to be greater or equal than zero
+        x_ge_zero_op = smt_int.GeOp(x, zero_op.res)
+        assert0_op = smt.AssertOp(x_ge_zero_op.res)
+        rewriter.insert_op_after_matched_op([x_ge_zero_op, assert0_op])
+        # Needs to be less or equal thant the maximum value
+        int_max = self.accessor.get_int_max(
+            declare_const_op.res, smt_int.SMTIntType(), rewriter
+        )
+        x_le_int_max_op = smt_int.LeOp(x, int_max)
+        assert1_op = smt.AssertOp(x_le_int_max_op.res)
+        rewriter.insert_op_after_matched_op([x_le_int_max_op, assert1_op])
+        # The width needs to be greater than zero
+        width = self.accessor.get_width(declare_const_op.res, rewriter)
+        width_gt_zero_op = smt_int.GtOp(width, zero_op.res)
+        assert2_op = smt.AssertOp(width_gt_zero_op.res)
+        rewriter.insert_op_after_matched_op([width_gt_zero_op, assert2_op])
 
 
 @dataclass
@@ -177,10 +253,12 @@ class OperationRewrite(RewritePattern):
                 for name, attr in zip(op.attributeValueNames, op.attribute_values)
             }
 
-            # If we are manipulating a created operation, we use the effect states of the rewriting part.
-            # Otherwise, either we are manipulating an operation that is only in the matching part, or we are
-            # manipulating an operation that is in both the matching and rewriting part, in which case both
-            # effect states are the same.
+            # If we are manipulating a created operation, we use the
+            # effect states of the rewriting part. Otherwise, either
+            # we are manipulating an operation that is only in the
+            # matching part, or we are manipulating an operation that
+            # is in both the matching and rewriting part, in which
+            # case both effect states are the same.
             is_created = "is_created" in op.attributes
             is_deleted = "is_deleted" in op.attributes
             if is_created:
@@ -245,6 +323,7 @@ class ReplaceRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
         assert isinstance(op.op_value, ErasedSSAValue)
+
         replaced_values = self.rewrite_context.pdl_op_to_values[op.op_value.old_value]
         if len(replaced_values) != 1:
             raise Exception("Cannot handle operations with multiple results")
@@ -535,6 +614,19 @@ class PDLToSMTLowerer:
         # This helps other rewrite patterns to know which effects an operation should modify.
         self.mark_pdl_operations(pattern)
 
+        if trigger_parametric_int(op):
+            del SMTLowerer.rewrite_patterns[smt.CallOp]
+            insert_point = InsertPoint.at_start(pattern.body.blocks[0])
+            declare_pow_op = insert_and_constraint_pow2(insert_point)
+            accessor = PowEnabledIntAccessor(declare_pow_op.ret)
+            load_int_semantics(accessor)
+            self.refinement = IntIntegerTypeRefinementSemantics(accessor)
+            operand_rewrite = IntOperandRewrite(accessor)
+            attribute_rewrite = IntAttributeRewrite()
+        else:
+            operand_rewrite = OperandRewrite()
+            attribute_rewrite = AttributeRewrite()
+
         # Set the input effect states
         insert_point = InsertPoint.at_start(pattern.body.blocks[0])
         new_state_op = DeclareConstOp(StateType())
@@ -546,8 +638,8 @@ class PDLToSMTLowerer:
                 [
                     RewriteRewrite(),
                     TypeRewrite(rewrite_context),
-                    AttributeRewrite(),
-                    OperandRewrite(),
+                    attribute_rewrite,
+                    operand_rewrite,
                     GetOpRewrite(rewrite_context),
                     OperationRewrite(ctx, rewrite_context),
                     ReplaceRewrite(rewrite_context, self.refinement),
