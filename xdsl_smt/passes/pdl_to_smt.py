@@ -616,9 +616,7 @@ class PDLToSMTLowerer:
 
         if trigger_parametric_int(op):
             del SMTLowerer.rewrite_patterns[smt.CallOp]
-            insert_point = InsertPoint.at_start(pattern.body.blocks[0])
-            declare_pow_op = insert_and_constraint_pow2(insert_point)
-            accessor = PowEnabledIntAccessor(declare_pow_op.ret)
+            accessor = PowEnabledIntAccessor()
             load_int_semantics(accessor)
             self.refinement = IntIntegerTypeRefinementSemantics(accessor)
             operand_rewrite = IntOperandRewrite(accessor)
