@@ -100,23 +100,36 @@ class FullIntAccessor(IntAccessor):
 
 
 class PowEnabledIntAccessor(FullIntAccessor):
-    def __init__(self, pow2_fun: SSAValue):
+    def __init__(self, pow2_fun: SSAValue | None = None):
         self.pow2_fun = pow2_fun
+
+    def pow2_of(self, exp: SSAValue, rewriter: PatternRewriter):
+        if self.pow2_fun is None:
+            owner = exp.owner
+            if isinstance(owner, Block):
+                block = owner
+            else:
+                block = owner.parent
+            assert isinstance(block, Block)
+            insert_point = InsertPoint.at_start(block)
+            pow2_fun_op = insert_and_constraint_pow2(insert_point)
+            self.pow2_fun = pow2_fun_op.ret
+        result_op = smt.CallOp(self.pow2_fun, [exp])
+        rewriter.insert_op_before_matched_op([result_op])
+        return result_op.res[0]
 
     def get_int_max(
         self, smt_integer: SSAValue, typ: Attribute, rewriter: PatternRewriter
     ) -> SSAValue:
-        if isinstance(typ, transfer.TransIntegerType) or isinstance(
-            typ, smt_int.SMTIntType
-        ):
-            width = self.get_width(smt_integer, rewriter)
-            int_max_op = smt.CallOp(self.pow2_fun, [width])
-            rewriter.insert_op_before_matched_op([int_max_op])
-            int_max = int_max_op.res[0]
-        elif isinstance(typ, IntegerType):
+        if isinstance(typ, IntegerType):
             int_max_op = smt_int.ConstantOp(2**typ.width.data, LARGE_ENOUGH_INT_TYPE)
             rewriter.insert_op_before_matched_op([int_max_op])
             int_max = int_max_op.res
+        elif isinstance(typ, transfer.TransIntegerType) or isinstance(
+            typ, smt_int.SMTIntType
+        ):
+            width = self.get_width(smt_integer, rewriter)
+            int_max = self.pow2_of(width, rewriter)
         else:
             assert False
         return int_max

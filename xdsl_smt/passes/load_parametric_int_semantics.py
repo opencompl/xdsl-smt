@@ -3,7 +3,7 @@ from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 from xdsl.dialects.builtin import ModuleOp
 
-from xdsl_smt.semantics.arith_int_semantics import FullIntAccessor as IntAccessor
+from xdsl_smt.semantics.arith_int_semantics import PowEnabledIntAccessor as IntAccessor
 from xdsl_smt.semantics.arith_int_semantics import (
     load_int_semantics,
 )
