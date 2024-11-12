@@ -152,15 +152,14 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         before_int_max = self.accessor.get_int_max(
             val_before, before_val.type, rewriter
         )
-        # after_int_max = self.accessor.get_int_max(val_after, after_val.type, rewriter)
         int_max = before_int_max
 
-        before_val_modulo_op = smt_int.ModOp(before_val, int_max)
-        after_val_modulo_op = smt_int.ModOp(after_val, int_max)
-        refinement = smt.EqOp(before_val_modulo_op.res, after_val_modulo_op.res)
+        after_val_norm_op = smt_int.AddOp(after_val, int_max)
+        after_val_modulo_op = smt_int.ModOp(after_val_norm_op.res, int_max)
+        refinement = smt.EqOp(before_val, after_val_modulo_op.res)
         rewriter.insert_op_before_matched_op(
             [
-                before_val_modulo_op,
+                after_val_norm_op,
                 after_val_modulo_op,
                 refinement,
             ]
