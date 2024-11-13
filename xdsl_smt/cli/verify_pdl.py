@@ -66,7 +66,6 @@ def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
-
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -101,7 +100,6 @@ def iterate_on_all_integers(
 
     # The initial types are all 1
     bitwidths = [1 for _ in type_ops]
-
     while True:
         # Assign the types in the pattern:
         for type_op, bitwidth in zip(type_ops, bitwidths):
@@ -188,27 +186,29 @@ class OptMain(xDSLOptMain):
             chunk.close()
 
         is_one_unsound = False
-
-        for pattern in module.walk():
+        for i, pattern in enumerate(module.walk()):
             if isinstance(pattern, PatternOp):
-                if pattern.sym_name:
-                    print(f"Verifying pattern {pattern.sym_name.data}:")
-                else:
-                    print(f"Verifying pattern:")
-                for specialized_pattern, types in iterate_on_all_integers(
-                    pattern, self.args.max_bitwidth
+                if not verify_pattern(
+                    self.ctx, ModuleOp([pattern.clone()]), self.args.opt
                 ):
-                    if verify_pattern(
-                        self.ctx, ModuleOp([specialized_pattern]), self.args.opt
-                    ):
-                        print(f"with types {types}: SOUND")
-                    else:
-                        print(f"with types {types}: UNSOUND")
-                        is_one_unsound = True
+                    print(f"The pattern {i} is unsound")
+                    is_one_unsound = True
+                # if pattern.sym_name:
+                #     print(f"Verifying pattern {pattern.sym_name.data}:")
+                # else:
+                #     print(f"Verifying pattern:")
+                # for specialized_pattern, types in iterate_on_all_integers(
+                #     pattern, self.args.max_bitwidth
+                # ):
+                #     if verify_pattern(
+                #         self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                #     ):
+                #         print(f"with types {types}: SOUND")
+                #     else:
+                #         print(f"with types {types}: UNSOUND")
+                #         is_one_unsound = True
 
-        if is_one_unsound:
-            print("At least one pattern is unsound")
-        else:
+        if not is_one_unsound:
             print("All patterns are sound")
 
 
