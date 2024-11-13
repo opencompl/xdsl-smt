@@ -221,6 +221,43 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
         print(")", file=stream, end="")
 
 
+@irdl_op_definition
+class RecCallOp(IRDLOperation, Pure, SMTLibOp):
+    """Recursive call to an SMT function."""
+
+    name = "smt.rec_call"
+
+    res = var_result_def()
+    args = var_operand_def()
+
+    def __init__(
+        self, result_types: Sequence[Attribute], args: Sequence[Operand | Operation]
+    ):
+        super().__init__(
+            operands=[args],
+            result_types=result_types,
+        )
+
+    def verify_(self) -> None:
+        ...
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        # In the case there are no arguments, we do not print the outer parentheses
+        if not self.args:
+            ctx.print_expr_to_smtlib(self.func, stream)
+            return
+
+        fun_op = self.parent_op()
+        assert isinstance(fun_op, DefineRecFunOp)
+        fun_name = str(fun_op.fun_name).replace('"', "")
+        print(f"({fun_name} ", file=stream, end="")
+        for idx, operand in enumerate(self.operands):
+            if idx != 0:
+                print(" ", file=stream, end="")
+            ctx.print_expr_to_smtlib(operand, stream)
+        print(")", file=stream, end="")
+
+
 ################################################################################
 #                             Script operations                                #
 ################################################################################
@@ -371,7 +408,123 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
             )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        print("(define-fun ", file=stream, end="")
+        print(f"(define-fun ", file=stream, end="")
+
+        # Print the function name
+        name: str
+        if self.fun_name is not None:
+            name = ctx.get_fresh_name(self.fun_name.data)
+            ctx.value_to_name[self.ret] = name
+        else:
+            name = ctx.get_fresh_name(self.ret)
+        print(f"{name} ", file=stream, end="")
+
+        # Print the function arguments
+        print("(", file=stream, end="")
+        for idx, arg in enumerate(self.body.blocks[0].args):
+            if idx != 0:
+                print(" ", file=stream, end="")
+            arg_name = ctx.get_fresh_name(arg)
+            typ = arg.type
+            if not isinstance(typ, SMTLibSort):
+                raise Exception(f"Type {typ} is not an SMTLib type")
+            print(f"({arg_name} ", file=stream, end="")
+            typ.print_sort_to_smtlib(stream)
+            print(")", file=stream, end="")
+        print(") ", file=stream, end="")
+
+        # Print the function return type
+        assert len(self.func_type.outputs.data) == 1
+        ret_type = self.func_type.outputs.data[0]
+        assert isinstance(ret_type, SMTLibSort)
+        ret_type.print_sort_to_smtlib(stream)
+        print("", file=stream)
+
+        # Print the function body
+        print("  ", file=stream, end="")
+        if len(self.return_values) != 1:
+            raise Exception(
+                "Functions with multiple return values cannot be converted to SMT-LIB"
+            )
+        ctx.print_expr_to_smtlib(self.return_values[0], stream, identation="  ")
+        print(")", file=stream)
+
+
+@irdl_op_definition
+class DefineRecFunOp(IRDLOperation, SMTLibScriptOp):
+    name = "smt.define_rec_fun"
+
+    fun_name: StringAttr = attr_def(StringAttr)
+    ret: OpResult = result_def(FunctionType)
+    body: Region = region_def("single_block")
+
+    def __init__(self, region: Region, name: str | StringAttr) -> None:
+        """
+        Create a new function given its body and name.
+        The body is expected to have a single block terminated by an `smt.return`.
+        """
+        operand_types = region.block.arg_types
+        if not isinstance(terminator := region.block.last_op, ReturnOp):
+            raise Exception(f"In {self.name} constructor: Region must end in a return")
+        result_types = tuple(res.type for res in terminator.ret)
+        if isinstance(name, str):
+            name = StringAttr(name)
+        attributes = {"fun_name": name}
+        super().__init__(
+            attributes=attributes,
+            result_types=[FunctionType.from_lists(operand_types, result_types)],
+            regions=[region],
+        )
+
+    def verify_(self) -> None:
+        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, ReturnOp):
+            raise VerifyException("Region does not end in return")
+        if len(self.body.blocks[0].args) != len(self.func_type.inputs.data):
+            raise VerifyException("Incorrect number of arguments")
+        for arg, arg_type in zip(self.body.blocks[0].args, self.func_type.inputs.data):
+            if arg.type != arg_type:
+                raise VerifyException("Incorrect argument type")
+        for arg, arg_type in zip(self.body.blocks[0].args, self.func_type.inputs.data):
+            if arg.type != arg_type:
+                raise VerifyException("Incorrect argument type")
+        for ret, ret_type in zip(self.return_values, self.func_type.outputs.data):
+            if ret.type != ret_type:
+                raise VerifyException("Incorrect return type")
+
+    @property
+    def func_type(self) -> FunctionType:
+        """Get the function type of this operation."""
+        if not isinstance(self.ret.type, FunctionType):
+            raise VerifyException("Incorrect return type")
+        return self.ret.type
+
+    @property
+    def return_values(self) -> Sequence[SSAValue]:
+        """Get the return values of this operation."""
+        ret_op = self.body.block.last_op
+        if not isinstance(ret_op, ReturnOp):
+            raise ValueError("Region does not end in a return")
+        return ret_op.ret
+
+    @staticmethod
+    def from_function_type(
+        func_type: FunctionType, name: str | StringAttr | None = None
+    ):
+        block = Block(arg_types=func_type.inputs.data)
+        region = Region([block])
+        if isinstance(name, str):
+            name = StringAttr(name)
+        if name is None:
+            return DefineFunOp.create(result_types=[func_type], regions=[region])
+        else:
+            return DefineFunOp.build(
+                result_types=[func_type],
+                attributes={"fun_name": name},
+                regions=[region],
+            )
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        print(f"(define-fun-rec ", file=stream, end="")
 
         # Print the function name
         name: str
@@ -427,8 +580,12 @@ class ReturnOp(IRDLOperation):
 
     def verify_(self):
         parent = self.parent_op()
-        if not isinstance(parent, DefineFunOp):
-            raise VerifyException("ReturnOp must be nested inside a DefineFunOp")
+        if not isinstance(parent, DefineFunOp) and not isinstance(
+            parent, DefineRecFunOp
+        ):
+            raise VerifyException(
+                "ReturnOp must be nested inside a DefineFunOp or a DefineRecFuncOp"
+            )
         for ret, ret_type in zip(self.ret, parent.func_type.outputs.data):
             if ret.type != ret_type:
                 raise VerifyException("Incorrect return type")
@@ -775,7 +932,9 @@ SMTDialect = Dialect(
         ForallOp,
         ExistsOp,
         CallOp,
+        RecCallOp,
         DefineFunOp,
+        DefineRecFunOp,
         ReturnOp,
         DeclareConstOp,
         DeclareFunOp,

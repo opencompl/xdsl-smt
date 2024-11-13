@@ -17,6 +17,7 @@ from xdsl.utils.hints import isa
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
+from xdsl_smt.dialects import transfer
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
 from xdsl_smt.semantics.semantics import RefinementSemantics
@@ -58,8 +59,11 @@ from xdsl_smt.semantics.arith_int_semantics import (
 )
 from xdsl_smt.semantics.arith_int_semantics import PowEnabledIntAccessor
 from xdsl_smt.semantics.arith_int_semantics import IntAccessor
-
-# from xdsl_smt.semantics.arith_int_semantics import FullIntAccessor as IntAccessor
+from xdsl_smt.pdl_constraints.parametric_integer_constraints import (
+    integer_arith_native_rewrites,
+    integer_arith_native_constraints,
+    integer_arith_native_static_constraints,
+)
 
 
 class StaticallyUnmatchedConstraintError(Exception):
@@ -173,7 +177,9 @@ class IntAttributeRewrite(RewritePattern):
 
         if op.value_type is not None:
             value_type = _get_type_of_erased_type_value(op.value_type)
-            if not isinstance(value_type, IntegerType):
+            if not isinstance(value_type, IntegerType) and not isinstance(
+                value_type, transfer.TransIntegerType
+            ):
                 raise Exception(
                     "Cannot handle quantification of attributes with non-integer types"
                 )
@@ -615,10 +621,24 @@ class PDLToSMTLowerer:
         self.mark_pdl_operations(pattern)
 
         if trigger_parametric_int(op):
-            del SMTLowerer.rewrite_patterns[smt.CallOp]
+            # TODO: understand this thing
+            if smt.CallOp in SMTLowerer.rewrite_patterns:
+                del SMTLowerer.rewrite_patterns[smt.CallOp]
             accessor = PowEnabledIntAccessor()
             load_int_semantics(accessor)
             self.refinement = IntIntegerTypeRefinementSemantics(accessor)
+            self.native_rewrites = {
+                **self.native_rewrites,
+                **integer_arith_native_rewrites,
+            }
+            self.native_constraints = {
+                **self.native_constraints,
+                **integer_arith_native_constraints,
+            }
+            self.native_static_constraints = {
+                **self.native_static_constraints,
+                **integer_arith_native_static_constraints,
+            }
             operand_rewrite = IntOperandRewrite(accessor)
             attribute_rewrite = IntAttributeRewrite()
         else:
