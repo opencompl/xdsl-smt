@@ -17,7 +17,8 @@ def get_bv_constant(value: SSAValue) -> int | None:
 
 def wrap_value(value: int, width: int) -> int:
     """Wrap the value around the given width."""
-    return (value % (1 << width)) + (1 << width) if value < 0 else value
+    max_value = 1 << width
+    return ((value % max_value) + max_value) % max_value
 
 
 def unsigned_to_signed(value: int, width: int) -> int:
