@@ -16,151 +16,10 @@ from xdsl.dialects.builtin import Signedness
 from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith, pdl, comb
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.semantics.accessor import IntAccessor
+from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
 
-LARGE_ENOUGH_INT_TYPE = IntegerType(128, Signedness.UNSIGNED)
 GENERIC_INT_WIDTH = 64
-
-
-class IntAccessor(ABC):
-    @abstractmethod
-    def get_int_type(self, typ: Attribute) -> Attribute:
-        ...
-
-    @abstractmethod
-    def get_payload(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        ...
-
-    @abstractmethod
-    def get_width(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        ...
-
-    @abstractmethod
-    def get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        ...
-
-    @abstractmethod
-    def get_int_max(
-        self, smt_integer: SSAValue, typ: Attribute, rewriter: PatternRewriter
-    ) -> SSAValue:
-        ...
-
-    @abstractmethod
-    def get_packed_integer(
-        self,
-        payload: SSAValue,
-        poison: SSAValue,
-        width: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        ...
-
-
-class FullIntAccessor(IntAccessor):
-    def get_int_type(self, typ: Attribute) -> Attribute:
-        inner_pair_type = smt_utils.PairType(smt_int.SMTIntType(), smt.BoolType())
-        outer_pair_type = smt_utils.PairType(inner_pair_type, smt_int.SMTIntType())
-        return outer_pair_type
-
-    def get_payload(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        get_inner_pair_op = smt_utils.FirstOp(smt_integer)
-        get_payload_op = smt_utils.FirstOp(get_inner_pair_op.res)
-        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_payload_op])
-        return get_payload_op.res
-
-    def get_width(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        get_width_op = smt_utils.SecondOp(smt_integer)
-        rewriter.insert_op_before_matched_op([get_width_op])
-        return get_width_op.res
-
-    def get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
-        get_inner_pair_op = smt_utils.FirstOp(smt_integer)
-        get_poison_op = smt_utils.SecondOp(get_inner_pair_op.res)
-        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_poison_op])
-        return get_poison_op.res
-
-    def get_int_max(
-        self, smt_integer: SSAValue, typ: Attribute, rewriter: PatternRewriter
-    ) -> SSAValue:
-        assert isinstance(typ, IntegerType)
-        int_max_op = smt_int.ConstantOp(2**typ.width.data, LARGE_ENOUGH_INT_TYPE)
-        rewriter.insert_op_before_matched_op([int_max_op])
-        return int_max_op.res
-
-    def get_packed_integer(
-        self,
-        payload: SSAValue,
-        poison: SSAValue,
-        width: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        inner_pair = smt_utils.PairOp(payload, poison)
-        outer_pair = smt_utils.PairOp(inner_pair.res, width)
-        rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
-        return outer_pair.res
-
-
-class PowEnabledIntAccessor(FullIntAccessor):
-    def __init__(self):
-        self.pow2_fun = None
-        self.andi_fun = None
-        self.xori_fun = None
-
-    def _get_insert_point_above(self, var: SSAValue):
-        owner = var.owner
-        if isinstance(owner, Block):
-            block = owner
-        else:
-            block = owner.parent
-        assert isinstance(block, Block)
-        insert_point = InsertPoint.at_start(block)
-        return insert_point
-
-    def andi(
-        self, width: SSAValue, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
-    ):
-        if self.andi_fun is None:
-            insert_point = self._get_insert_point_above(lhs)
-            andi_fun_op = insert_bitwise(insert_point, integer_andi, "andi")
-            self.andi_fun = andi_fun_op.ret
-        result_op = smt.CallOp(self.andi_fun, [width, lhs, rhs])
-        rewriter.insert_op_before_matched_op([result_op])
-        return result_op.res[0]
-
-    def xori(
-        self, width: SSAValue, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
-    ):
-        if self.xori_fun is None:
-            insert_point = self._get_insert_point_above(lhs)
-            andi_fun_op = insert_bitwise(insert_point, integer_xori, "xori")
-            self.xori_fun = andi_fun_op.ret
-        result_op = smt.CallOp(self.xori_fun, [width, lhs, rhs])
-        rewriter.insert_op_before_matched_op([result_op])
-        return result_op.res[0]
-
-    def pow2_of(self, exp: SSAValue, rewriter: PatternRewriter):
-        if self.pow2_fun is None:
-            insert_point = self._get_insert_point_above(exp)
-            pow2_fun_op = insert_and_constraint_pow2(insert_point)
-            self.pow2_fun = pow2_fun_op.ret
-        result_op = smt.CallOp(self.pow2_fun, [exp])
-        rewriter.insert_op_before_matched_op([result_op])
-        return result_op.res[0]
-
-    def get_int_max(
-        self, smt_integer: SSAValue, typ: Attribute, rewriter: PatternRewriter
-    ) -> SSAValue:
-        if isinstance(typ, IntegerType):
-            int_max_op = smt_int.ConstantOp(2**typ.width.data, LARGE_ENOUGH_INT_TYPE)
-            rewriter.insert_op_before_matched_op([int_max_op])
-            int_max = int_max_op.res
-        elif isinstance(typ, transfer.TransIntegerType) or isinstance(
-            typ, smt_int.SMTIntType
-        ):
-            width = self.get_width(smt_integer, rewriter)
-            int_max = self.pow2_of(width, rewriter)
-        else:
-            assert False
-        return int_max
 
 
 class IntIntegerTypeRefinementSemantics(RefinementSemantics):
@@ -208,9 +67,7 @@ class IntIntegerAttrSemantics(AttributeSemantics):
     ) -> SSAValue:
         if not isa(attribute, IntegerAttr[IntegerType]):
             raise Exception(f"Cannot handle semantics of {attribute}")
-        op = smt_int.ConstantOp(
-            attribute.value.data, IntegerType(attribute.type.width.data)
-        )
+        op = smt_int.ConstantOp(attribute.value.data)
         rewriter.insert_op_before_matched_op(op)
         return op.res
 
@@ -230,6 +87,30 @@ class IntIntegerTypeSemantics(TypeSemantics):
 class GenericIntSemantics(OperationSemantics):
     def __init__(self, accessor: IntAccessor):
         self.accessor = accessor
+
+
+class IntExtUISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        width = self.context.pdl_types_to_width[pdl_type]
+        packed_integer = self.accessor.get_packed_integer(
+            payload, poison, width, rewriter
+        )
+        return ((packed_integer,), effect_state)
 
 
 class IntConstantSemantics(GenericIntSemantics):
@@ -255,11 +136,9 @@ class IntConstantSemantics(GenericIntSemantics):
             )
             assert isinstance(results[0], IntegerType)
             assert isinstance(results[0].width.data, int)
-            width_op = smt_int.ConstantOp(results[0].width.data, LARGE_ENOUGH_INT_TYPE)
+            width_op = smt_int.ConstantOp(results[0].width.data)
             width = width_op.res
-            int_max_op = smt_int.ConstantOp(
-                2 ** results[0].width.data, LARGE_ENOUGH_INT_TYPE
-            )
+            int_max_op = smt_int.ConstantOp(2 ** results[0].width.data)
             int_max = int_max_op.res
             modulo = smt_int.ModOp(literal.res, int_max_op.res)
             rewriter.insert_op_before_matched_op(
@@ -267,11 +146,9 @@ class IntConstantSemantics(GenericIntSemantics):
             )
             ssa_attr = modulo.res
         else:
-            width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH, LARGE_ENOUGH_INT_TYPE)
+            width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH)
             width = width_op.res
-            int_max_op = smt_int.ConstantOp(
-                2**GENERIC_INT_WIDTH, LARGE_ENOUGH_INT_TYPE
-            )
+            int_max_op = smt_int.ConstantOp(2**GENERIC_INT_WIDTH)
             int_max = int_max_op.res
             rewriter.insert_op_before_matched_op([width_op, int_max_op])
             ssa_attr = value_value
@@ -395,7 +272,7 @@ class IntDivBasedSemantics(GenericIntBinarySemantics):
         effect_state: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        zero_op = smt_int.ConstantOp(0, LARGE_ENOUGH_INT_TYPE)
+        zero_op = smt_int.ConstantOp(0)
         rewriter.insert_op_before_matched_op([zero_op])
         is_div_by_zero = smt.EqOp(rhs, zero_op.res)
         trigger_ub = smt_ub.TriggerOp(effect_state)
@@ -585,171 +462,21 @@ def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
     return OpSemantics
 
 
-def load_int_semantics(accessor: IntAccessor):
-    semantics = {
-        arith.Constant: IntConstantSemantics(accessor),
-        arith.Addi: get_binary_ef_semantics(smt_int.AddOp)(accessor),
-        arith.Subi: get_binary_ef_semantics(smt_int.SubOp)(accessor),
-        arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(accessor),
-        arith.Cmpi: IntCmpiSemantics(accessor),
-        arith.AndI: IntAndISemantics(accessor),
-        arith.OrI: IntOrISemantics(accessor),
-        arith.XOrI: IntXOrISemantics(accessor),
-        arith.DivUI: get_div_semantics(smt_int.DivOp)(accessor),
-        arith.RemUI: get_div_semantics(smt_int.ModOp)(accessor),
-    }
-    SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
-    types = {
-        transfer.TransIntegerType: IntIntegerTypeSemantics(accessor),
-        IntegerType: IntIntegerTypeSemantics(accessor),
-    }
-    SMTLowerer.type_lowerers = {**SMTLowerer.type_lowerers, **types}
-    attribute_semantics: dict[type[Attribute], AttributeSemantics] = {
-        IntegerAttr: IntIntegerAttrSemantics()
-    }
-    SMTLowerer.attribute_semantics = {
-        **SMTLowerer.attribute_semantics,
-        **attribute_semantics,
-    }
-
-
-def integer_andi(x_bit: SSAValue, y_bit: SSAValue) -> Sequence[Operation]:
-    andi_op = smt_int.MulOp(x_bit, y_bit)
-    return [andi_op]
-
-
-def integer_xori(x_bit: SSAValue, y_bit: SSAValue) -> Sequence[Operation]:
-    two_op = smt_int.ConstantOp(2, IntegerType(32))
-    add_op = smt_int.AddOp(x_bit, y_bit)
-    xori_op = smt_int.ModOp(add_op.res, two_op.res)
-    return [two_op, add_op, xori_op]
-
-
-def insert_bitwise(insert_point: InsertPoint, combine_bits, name):
-    # Full implementation
-    block = Block(
-        arg_types=[smt_int.SMTIntType(), smt_int.SMTIntType(), smt_int.SMTIntType()]
-    )
-    k = block.args[0]
-    x = block.args[1]
-    y = block.args[2]
-    # Constants
-    one_op = smt_int.ConstantOp(1, IntegerType(32))
-    two_op = smt_int.ConstantOp(2, IntegerType(32))
-    block.add_ops([one_op, two_op])
-    # Combine bits
-    x_bit_op = smt_int.ModOp(x, two_op.res)
-    y_bit_op = smt_int.ModOp(y, two_op.res)
-    block.add_ops([x_bit_op, y_bit_op])
-    bits_ops = combine_bits(x, y)
-    assert bits_ops
-    block.add_ops(bits_ops)
-    # Recursive call
-    new_x_op = smt_int.DivOp(x, two_op.res)
-    new_y_op = smt_int.DivOp(y, two_op.res)
-    k_minus_one = smt_int.SubOp(k, one_op.res)
-    rec_call_op = smt.RecCallOp(
-        args=[k_minus_one.res, new_x_op.res, new_y_op.res],
-        result_types=[smt_int.SMTIntType()],
-    )
-    mul_op = smt_int.MulOp(two_op.res, rec_call_op.res[0])
-    # Result
-    res_op = smt_int.AddOp(bits_ops[-1].res, mul_op.res)
-    return_op = smt.ReturnOp(res_op.res)
-    # Build the function
-    block.add_ops(
-        [
-            new_x_op,
-            new_y_op,
-            k_minus_one,
-            rec_call_op,
-            mul_op,
-            res_op,
-            return_op,
-        ]
-    )
-    region = Region([block])
-    define_fun_op = smt.DefineRecFunOp(region, name)
-    Rewriter.insert_op(define_fun_op, insert_point)
-    return define_fun_op
-
-
-def insert_and_constraint_pow2(insert_point: InsertPoint):
-    # Full implementation
-    # block = Block(arg_types=[smt_int.SMTIntType()])
-    # var = block.args[0]
-    # zero_op = smt_int.ConstantOp(0,IntegerType(32))
-    # eq_zero_op = smt.EqOp(var,zero_op.res)
-    # one_op = smt_int.ConstantOp(1,IntegerType(32))
-    # minus_one = smt_int.SubOp(var,one_op.res)
-    # rec_call_op = smt.RecCallOp(args=[minus_one.res],result_types=[smt_int.SMTIntType()])
-    # two_op = smt_int.ConstantOp(2,IntegerType(32))
-    # mul_op = smt_int.MulOp(two_op.res,rec_call_op.res[0])
-    # ite_op = smt.IteOp(eq_zero_op.res,one_op.res,mul_op.res)
-    # return_op = smt.ReturnOp(ite_op.res)
-    # block.add_ops([
-    #     zero_op,
-    #     eq_zero_op,
-    #     one_op,
-    #     minus_one,
-    #     rec_call_op,
-    #     two_op,
-    #     mul_op,
-    #     ite_op,
-    #     return_op
-    # ])
-    # region = Region([block])
-    # declare_pow_op = smt.DefineRecFunOp(region,"pow2")
-    # Rewriter.insert_op(declare_pow_op, insert_point)
-    declare_pow_op = smt.DeclareFunOp(
-        name="pow2",
-        func_type=FunctionType.from_lists(
-            inputs=[smt_int.SMTIntType()],
-            outputs=[smt_int.SMTIntType()],
-        ),
-    )
-    Rewriter.insert_op(declare_pow_op, insert_point)
-    pow_in_type = smt_int.SMTIntType()
-    # Forall x,y, x > y => pow2(x) > pow2(y)
-    body = Region([Block(arg_types=[pow_in_type, pow_in_type])])
-    assert isinstance(body.first_block, Block)
-    x = body.first_block.args[0]
-    y = body.first_block.args[1]
-    x_gt_y_op = smt_int.GtOp(x, y)
-    pow_x_op = smt.CallOp(declare_pow_op.ret, [x])
-    pow_y_op = smt.CallOp(declare_pow_op.ret, [y])
-    pow_x_gt_y_op = smt_int.GtOp(pow_x_op.res[0], pow_y_op.res[0])
-    implies_op = smt.ImpliesOp(
-        x_gt_y_op.res,
-        pow_x_gt_y_op.res,
-    )
-    yield_op = smt.YieldOp(implies_op.res)
-    assert isinstance(body.first_block, Block)
-    body.first_block.add_ops(
-        [x_gt_y_op, pow_x_op, pow_y_op, pow_x_gt_y_op, implies_op, yield_op]
-    )
-    forall_op0 = smt.ForallOp.create(result_types=[BoolType()], regions=[body])
-    assert_op0 = smt.AssertOp(forall_op0.res)
-    Rewriter.insert_op(forall_op0, insert_point)
-    Rewriter.insert_op(assert_op0, insert_point)
-    return declare_pow_op
-
-
 def trigger_parametric_int(
     module_op: Operation,
 ):
-    forbidden_ops = [arith.ShLI.name, arith.DivSI.name]
+    forbidden_ops = [arith.OrI.name, arith.XOrI.name, arith.ShLI.name, arith.DivSI.name]
     forbidden_ops += [o.name for o in comb.Comb.operations]
     use_parametric_int = True
-    # for inner_op in module_op.walk():
-    #     if isinstance(inner_op, pdl.OperationOp):
-    #         op_name = str(inner_op.opName).replace('"', "")
-    #         if op_name in forbidden_ops:
-    #             use_parametric_int = False
-    #             break
-    #     if isinstance(inner_op, pdl.ApplyNativeRewriteOp) or isinstance(
-    #         inner_op, pdl.ApplyNativeConstraintOp
-    #     ):
-    #         use_parametric_int = False
-    #         break
+    for inner_op in module_op.walk():
+        if isinstance(inner_op, pdl.OperationOp):
+            op_name = str(inner_op.opName).replace('"', "")
+            if op_name in forbidden_ops:
+                use_parametric_int = False
+                break
+        # if isinstance(inner_op, pdl.ApplyNativeRewriteOp) or isinstance(
+        #     inner_op, pdl.ApplyNativeConstraintOp
+        # ):
+        #     use_parametric_int = False
+        #     break
     return use_parametric_int

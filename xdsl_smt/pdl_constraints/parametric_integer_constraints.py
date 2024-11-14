@@ -23,15 +23,9 @@ import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
 from dataclasses import dataclass, field
 from typing import Callable, ClassVar, Sequence
-
-
-@dataclass
-class PDLToSMTRewriteContext:
-    matching_effect_state: SSAValue
-    rewriting_effect_state: SSAValue
-    pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
-    pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
-    preconditions: list[SSAValue] = field(default_factory=list)
+from xdsl_smt.passes.pdl_to_smt_context import (
+    PDLToSMTRewriteContext as PDLToSMTRewriteContext,
+)
 
 
 def get_bv_type_from_optional_poison(
@@ -494,24 +488,24 @@ def get_minimum_signed_value(
 
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
 ) -> bool:
     (lhs_value, rhs_value) = op.args
     assert isinstance(lhs_value, ErasedSSAValue)
     assert isinstance(rhs_value, ErasedSSAValue)
-    lhs_type = context.pdl_types_to_types[lhs_value.old_value]
-    rhs_type = context.pdl_types_to_types[rhs_value.old_value]
 
-    lhs_type = get_bv_type_from_optional_poison(lhs_type, "is_greater_integer_type")
-    rhs_type = get_bv_type_from_optional_poison(rhs_type, "is_greater_integer_type")
+    lhs_width = context.pdl_types_to_width[lhs_value.old_value]
+    rhs_width = context.pdl_types_to_width[rhs_value.old_value]
 
-    lhs_width = lhs_type.width.data
-    rhs_width = rhs_type.width.data
+    gt_op = smt_int.GtOp(lhs_width, rhs_width)
+    assert_op = smt.AssertOp(gt_op.res)
+    rewriter.replace_matched_op([gt_op, assert_op])
 
-    return lhs_width > rhs_width
+    return gt_op.res
 
 
-integer_arith_native_rewrites: dict[
+parametric_integer_arith_native_rewrites: dict[
     str,
     Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
 ] = {
@@ -534,9 +528,10 @@ integer_arith_native_rewrites: dict[
     # Integer to type conversion
     "get_width": get_width,
     "integer_type_from_width": integer_type_from_width,
+    #
 }
 
-integer_arith_native_constraints = {
+parametric_integer_arith_native_constraints = {
     # Equality to constants
     "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
@@ -550,8 +545,8 @@ integer_arith_native_constraints = {
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
     # Integer type equality
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
-}
-
-integer_arith_native_static_constraints = {
+    #
     "is_greater_integer_type": is_greater_integer_type,
 }
+
+parametric_integer_arith_native_static_constraints = {}

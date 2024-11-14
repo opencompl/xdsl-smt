@@ -13,6 +13,24 @@ from xdsl.dialects.pdl import (
     TypeOp,
     AttributeOp,
 )
+from xdsl_smt.semantics.builtin_semantics import (
+    IndexTypeSemantics,
+    IntegerAttrSemantics,
+    IntegerTypeSemantics,
+)
+from xdsl_smt.passes.lower_to_smt import (
+    func_to_smt_patterns,
+    transfer_to_smt_patterns,
+)
+from xdsl_smt.pdl_constraints.integer_arith_constraints import (
+    integer_arith_native_rewrites,
+    integer_arith_native_constraints,
+    integer_arith_native_static_constraints,
+)
+from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.comb_semantics import comb_semantics
+from xdsl_smt.semantics.memref_semantics import memref_semantics
+from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType, IndexType
 from xdsl.utils.hints import isa
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl_smt.dialects import smt_int_dialect as smt_int
@@ -51,19 +69,19 @@ from ..dialects.smt_dialect import (
     OrOp,
 )
 from xdsl_smt.passes.lower_to_smt import SMTLowerer, LowerToSMTPass
+from xdsl_smt.semantics.load_int_semantics import load_int_semantics_with_context
 from xdsl_smt.semantics.arith_int_semantics import (
     IntIntegerTypeRefinementSemantics,
-    load_int_semantics,
     trigger_parametric_int,
-    insert_and_constraint_pow2,
 )
-from xdsl_smt.semantics.arith_int_semantics import PowEnabledIntAccessor
-from xdsl_smt.semantics.arith_int_semantics import IntAccessor
+from xdsl_smt.semantics.accessor import PowEnabledIntAccessor
+from xdsl_smt.semantics.accessor import IntAccessor
 from xdsl_smt.pdl_constraints.parametric_integer_constraints import (
-    integer_arith_native_rewrites,
-    integer_arith_native_constraints,
-    integer_arith_native_static_constraints,
+    parametric_integer_arith_native_rewrites,
+    parametric_integer_arith_native_constraints,
+    parametric_integer_arith_native_static_constraints,
 )
+from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
 
 
 class StaticallyUnmatchedConstraintError(Exception):
@@ -76,15 +94,6 @@ class StaticallyUnmatchedConstraintError(Exception):
     """
 
     pass
-
-
-@dataclass
-class PDLToSMTRewriteContext:
-    matching_effect_state: SSAValue
-    rewriting_effect_state: SSAValue
-    pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
-    pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
-    preconditions: list[SSAValue] = field(default_factory=list)
 
 
 def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
@@ -135,6 +144,29 @@ class TypeRewrite(RewritePattern):
         self.rewrite_context.pdl_types_to_types[op.result] = SMTLowerer.lower_type(
             op.constantType
         )
+        rewriter.erase_matched_op(safe_erase=False)
+
+
+@dataclass
+class IntTypeRewrite(RewritePattern):
+    rewrite_context: PDLToSMTRewriteContext
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
+        if op.constantType is None:
+            raise Exception("Cannot handle non-constant types")
+
+        self.rewrite_context.pdl_types_to_types[op.result] = SMTLowerer.lower_type(
+            op.constantType
+        )
+        if isinstance(op.constantType, IntegerType):
+            width_op = smt_int.ConstantOp(op.constantType.width.data)
+        elif isinstance(op.constantType, transfer.TransIntegerType):
+            width_op = DeclareConstOp(smt_int.SMTIntType())
+        else:
+            assert False
+        rewriter.insert_op_before_matched_op(width_op)
+        self.rewrite_context.pdl_types_to_width[op.result] = width_op.res
         rewriter.erase_matched_op(safe_erase=False)
 
 
@@ -201,9 +233,10 @@ class OperandRewrite(RewritePattern):
         rewriter.replace_matched_op(declare_const_op)
 
 
+@dataclass
 class IntOperandRewrite(RewritePattern):
-    def __init__(self, accessor: IntAccessor):
-        self.accessor = accessor
+    rewrite_context: PDLToSMTRewriteContext
+    accessor: IntAccessor
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: OperandOp, rewriter: PatternRewriter):
@@ -211,14 +244,40 @@ class IntOperandRewrite(RewritePattern):
             raise Exception("Cannot handle non-typed operands")
         type = _get_type_of_erased_type_value(op.value_type)
         smt_type = SMTLowerer.lower_type(type)
-        declare_const_op = DeclareConstOp(smt_type)
-        rewriter.replace_matched_op(declare_const_op)
+        #
+        # Payload
+        payload_op = DeclareConstOp(smt_int.SMTIntType())
+        # Poison
+        poison_op = DeclareConstOp(smt.BoolType())
+        # Width
+        rewriter.insert_op_before_matched_op([payload_op, poison_op])
+        if op.value_type.old_value in self.rewrite_context.pdl_types_to_width:
+            width = self.rewrite_context.pdl_types_to_width[op.value_type.old_value]
+        else:
+            if isinstance(type, IntegerType):
+                width_op = smt_int.ConstantOp(type.width.data)
+                rewriter.insert_op_before_matched_op(width_op)
+                width = width_op.res
+                self.rewrite_context.pdl_types_to_width[op.value_type] = width
+            elif isinstance(type, transfer.TransIntegerType):
+                width_op = DeclareConstOp(smt_int.SMTIntType())
+                rewriter.insert_op_before_matched_op(width_op)
+                width = width_op.res
+                self.rewrite_context.pdl_types_to_width[op.value_type] = width
+            else:
+                assert False
+        packed_integer = self.accessor.get_packed_integer(
+            payload_op.res, poison_op.res, width, rewriter
+        )
+
+        packed_integer.owner.detach()
+        rewriter.replace_matched_op(packed_integer.owner)
         if isinstance(type, IntegerType):
             return
         # Constraints on the operand
-        rewriter = PatternRewriter(current_operation=declare_const_op)
-        x = self.accessor.get_payload(declare_const_op.res, rewriter)
-        zero_op = smt_int.ConstantOp(0, IntegerType(32, Signedness.UNSIGNED))
+        rewriter = PatternRewriter(current_operation=packed_integer.owner)
+        x = self.accessor.get_payload(packed_integer, rewriter)
+        zero_op = smt_int.ConstantOp(0)
         rewriter.insert_op_after_matched_op([zero_op])
         # Needs to be greater or equal than zero
         x_ge_zero_op = smt_int.GeOp(x, zero_op.res)
@@ -226,13 +285,13 @@ class IntOperandRewrite(RewritePattern):
         rewriter.insert_op_after_matched_op([x_ge_zero_op, assert0_op])
         # Needs to be less or equal thant the maximum value
         int_max = self.accessor.get_int_max(
-            declare_const_op.res, smt_int.SMTIntType(), rewriter
+            packed_integer, smt_int.SMTIntType(), rewriter
         )
-        x_le_int_max_op = smt_int.LeOp(x, int_max)
+        x_le_int_max_op = smt_int.LtOp(x, int_max)
         assert1_op = smt.AssertOp(x_le_int_max_op.res)
         rewriter.insert_op_after_matched_op([x_le_int_max_op, assert1_op])
         # The width needs to be greater than zero
-        width = self.accessor.get_width(declare_const_op.res, rewriter)
+        width = self.accessor.get_width(packed_integer, rewriter)
         width_gt_zero_op = smt_int.GtOp(width, zero_op.res)
         assert2_op = smt.AssertOp(width_gt_zero_op.res)
         rewriter.insert_op_after_matched_op([width_gt_zero_op, assert2_op])
@@ -372,7 +431,6 @@ class ReplaceRewrite(RewritePattern):
             and_preconditions_op = AndOp(and_preconditions, precondition)
             rewriter.insert_op_before_matched_op(and_preconditions_op)
             and_preconditions = and_preconditions_op.res
-
         replace_correct = AndOp(not_refinement_value, and_preconditions)
         assert_op = AssertOp(replace_correct.res)
         rewriter.replace_matched_op([replace_correct, assert_op])
@@ -620,42 +678,62 @@ class PDLToSMTLowerer:
         # This helps other rewrite patterns to know which effects an operation should modify.
         self.mark_pdl_operations(pattern)
 
-        if trigger_parametric_int(op):
-            # TODO: understand this thing
-            if smt.CallOp in SMTLowerer.rewrite_patterns:
-                del SMTLowerer.rewrite_patterns[smt.CallOp]
-            accessor = PowEnabledIntAccessor()
-            load_int_semantics(accessor)
-            self.refinement = IntIntegerTypeRefinementSemantics(accessor)
-            self.native_rewrites = {
-                **self.native_rewrites,
-                **integer_arith_native_rewrites,
-            }
-            self.native_constraints = {
-                **self.native_constraints,
-                **integer_arith_native_constraints,
-            }
-            self.native_static_constraints = {
-                **self.native_static_constraints,
-                **integer_arith_native_static_constraints,
-            }
-            operand_rewrite = IntOperandRewrite(accessor)
-            attribute_rewrite = IntAttributeRewrite()
-        else:
-            operand_rewrite = OperandRewrite()
-            attribute_rewrite = AttributeRewrite()
-
         # Set the input effect states
         insert_point = InsertPoint.at_start(pattern.body.blocks[0])
         new_state_op = DeclareConstOp(StateType())
         Rewriter.insert_op(new_state_op, insert_point)
         rewrite_context = PDLToSMTRewriteContext(new_state_op.res, new_state_op.res)
 
+        if trigger_parametric_int(op):
+            # TODO: understand this thing
+            if smt.CallOp in SMTLowerer.rewrite_patterns:
+                del SMTLowerer.rewrite_patterns[smt.CallOp]
+            accessor = PowEnabledIntAccessor()
+            load_int_semantics_with_context(accessor, rewrite_context)
+            self.refinement = IntIntegerTypeRefinementSemantics(accessor)
+            self.native_rewrites = {
+                **self.native_rewrites,
+                **parametric_integer_arith_native_rewrites,
+            }
+            self.native_constraints = {
+                **self.native_constraints,
+                **parametric_integer_arith_native_constraints,
+            }
+            self.native_static_constraints = {
+                **self.native_static_constraints,
+                **parametric_integer_arith_native_static_constraints,
+            }
+            operand_rewrite = IntOperandRewrite(rewrite_context, accessor)
+            attribute_rewrite = IntAttributeRewrite()
+            type_rewrite = IntTypeRewrite(rewrite_context)
+        else:
+            SMTLowerer.type_lowerers = {
+                IntegerType: IntegerTypeSemantics(),
+                IndexType: IndexTypeSemantics(),
+            }
+            SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+            SMTLowerer.op_semantics = {
+                **arith_semantics,
+                **comb_semantics,
+                **memref_semantics,
+            }
+            SMTLowerer.rewrite_patterns = {
+                **func_to_smt_patterns,
+                **transfer_to_smt_patterns,
+            }
+
+            self.native_rewrites = integer_arith_native_rewrites
+            self.native_constraints = integer_arith_native_constraints
+            self.native_static_constraints = integer_arith_native_static_constraints
+            operand_rewrite = OperandRewrite()
+            attribute_rewrite = AttributeRewrite()
+            type_rewrite = TypeRewrite(rewrite_context)
+
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
                     RewriteRewrite(),
-                    TypeRewrite(rewrite_context),
+                    type_rewrite,
                     attribute_rewrite,
                     operand_rewrite,
                     GetOpRewrite(rewrite_context),
