@@ -5,6 +5,8 @@ from xdsl_smt.semantics.arith_int_semantics import (
     get_binary_ef_semantics,
     IntCmpiSemantics,
     IntExtUISemantics,
+    IntExtSISemantics,
+    IntTruncISemantics,
     IntAndISemantics,
     IntOrISemantics,
     IntXOrISemantics,
@@ -53,5 +55,7 @@ def load_int_semantics_with_context(
     load_int_semantics(accessor)
     semantics = {
         arith.ExtUIOp: IntExtUISemantics(accessor, context),
+        arith.ExtSIOp: IntExtSISemantics(accessor, context),
+        arith.TruncIOp: IntTruncISemantics(accessor, context),
     }
     SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}

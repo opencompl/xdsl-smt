@@ -36,26 +36,19 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
     ) -> SSAValue:
         before_val = self.accessor.get_payload(val_before, rewriter)
         after_val = self.accessor.get_payload(val_after, rewriter)
-        before_int_max = self.accessor.get_int_max(
-            val_before, before_val.type, rewriter
+        before_width = self.accessor.get_width(val_before, rewriter)
+        after_width = self.accessor.get_width(val_after, rewriter)
+
+        after_val_norm = self.accessor.get_signed_to_unsigned(
+            after_val, after_width, rewriter
         )
-        after_int_max = self.accessor.get_int_max(val_after, after_val.type, rewriter)
+        before_val_norm = self.accessor.get_signed_to_unsigned(
+            before_val, before_width, rewriter
+        )
 
-        after_val_norm_op = smt_int.AddOp(after_val, after_int_max)
-        after_val_modulo_op = smt_int.ModOp(after_val_norm_op.res, after_int_max)
-
-        before_val_norm_op = smt_int.AddOp(before_val, before_int_max)
-        before_val_modulo_op = smt_int.ModOp(before_val_norm_op.res, before_int_max)
-
-        refinement = smt.EqOp(before_val_modulo_op.res, after_val_modulo_op.res)
+        refinement = smt.EqOp(before_val_norm, after_val_norm)
         rewriter.insert_op_before_matched_op(
-            [
-                after_val_norm_op,
-                after_val_modulo_op,
-                before_val_norm_op,
-                before_val_modulo_op,
-                refinement,
-            ]
+            refinement,
         )
 
         return refinement.res
@@ -89,6 +82,37 @@ class GenericIntSemantics(OperationSemantics):
         self.accessor = accessor
 
 
+class IntTruncISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        width = self.context.pdl_types_to_width[pdl_type]
+        int_max = self.accessor.pow2_of(width, rewriter)
+        modulo_op = smt_int.ModOp(payload, int_max)
+        rewriter.insert_op_before_matched_op(
+            [
+                modulo_op,
+            ]
+        )
+        packed_integer = self.accessor.get_packed_integer(
+            modulo_op.res, poison, width, rewriter
+        )
+        return ((packed_integer,), effect_state)
+
+
 class IntExtUISemantics(GenericIntSemantics):
     def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
         self.accessor = accessor
@@ -113,6 +137,37 @@ class IntExtUISemantics(GenericIntSemantics):
         return ((packed_integer,), effect_state)
 
 
+class IntExtSISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        width = self.accessor.get_width(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        new_width = self.context.pdl_types_to_width[pdl_type]
+        #
+        signed_payload = self.accessor.get_unsigned_to_signed(payload, width, rewriter)
+        unsigned_payload = self.accessor.get_signed_to_unsigned(
+            signed_payload, width, rewriter
+        )
+        #
+        packed_integer = self.accessor.get_packed_integer(
+            unsigned_payload, poison, new_width, rewriter
+        )
+        return ((packed_integer,), effect_state)
+
+
 class IntConstantSemantics(GenericIntSemantics):
     def __init__(self, accessor: IntAccessor):
         super().__init__(accessor)
@@ -131,9 +186,7 @@ class IntConstantSemantics(GenericIntSemantics):
             assert isa(value_value, AnyIntegerAttr)
             assert isinstance(value_value.type, IntegerType)
             assert isinstance(value_value.type.width.data, int)
-            literal = smt_int.ConstantOp(
-                value_value.value.data, IntegerType(value_value.type.width.data)
-            )
+            literal = smt_int.ConstantOp(value_value.value.data)
             assert isinstance(results[0], IntegerType)
             assert isinstance(results[0].width.data, int)
             width_op = smt_int.ConstantOp(results[0].width.data)
@@ -315,6 +368,7 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
         rewriter: PatternRewriter,
     ) -> SSAValue:
         payload = self._get_payload_semantics(lhs, rhs, rewriter)
+        payload_norm = self.accessor.get_signed_to_unsigned(payload, width, rewriter)
         # modulo = smt_int.ModOp(payload, int_max)
         # rewriter.insert_op_before_matched_op([modulo])
         # return modulo.res

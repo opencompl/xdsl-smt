@@ -52,6 +52,9 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_constraints,
     integer_arith_native_static_constraints,
 )
+from xdsl_smt.semantics.arith_int_semantics import (
+    trigger_parametric_int,
+)
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
@@ -188,25 +191,27 @@ class OptMain(xDSLOptMain):
         is_one_unsound = False
         for i, pattern in enumerate(module.walk()):
             if isinstance(pattern, PatternOp):
-                if not verify_pattern(
-                    self.ctx, ModuleOp([pattern.clone()]), self.args.opt
-                ):
-                    print(f"The pattern {i} is unsound")
-                    is_one_unsound = True
-                # if pattern.sym_name:
-                #     print(f"Verifying pattern {pattern.sym_name.data}:")
-                # else:
-                #     print(f"Verifying pattern:")
-                # for specialized_pattern, types in iterate_on_all_integers(
-                #     pattern, self.args.max_bitwidth
-                # ):
-                #     if verify_pattern(
-                #         self.ctx, ModuleOp([specialized_pattern]), self.args.opt
-                #     ):
-                #         print(f"with types {types}: SOUND")
-                #     else:
-                #         print(f"with types {types}: UNSOUND")
-                #         is_one_unsound = True
+                if trigger_parametric_int(pattern):
+                    if not verify_pattern(
+                        self.ctx, ModuleOp([pattern.clone()]), self.args.opt
+                    ):
+                        print(f"The pattern {i} is unsound")
+                        is_one_unsound = True
+                else:
+                    # if pattern.sym_name:
+                    #     print(f"Verifying pattern {pattern.sym_name.data}:")
+                    # else:
+                    #     print(f"Verifying pattern:")
+                    for specialized_pattern, types in iterate_on_all_integers(
+                        pattern, self.args.max_bitwidth
+                    ):
+                        if verify_pattern(
+                            self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                        ):
+                            print(f"with types {types}: SOUND")
+                        else:
+                            print(f"with types {types}: UNSOUND")
+                            is_one_unsound = True
 
         if not is_one_unsound:
             print("All patterns are sound")

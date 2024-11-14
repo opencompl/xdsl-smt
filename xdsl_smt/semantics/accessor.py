@@ -160,6 +160,38 @@ class PowEnabledIntAccessor(FullIntAccessor):
             assert False
         return int_max
 
+    def get_signed_to_unsigned(
+        self, payload: SSAValue, width: SSAValue, rewriter: PatternRewriter
+    ):
+        # (x + pow2(k)) mod pow2(k)
+        int_max = self.pow2_of(width, rewriter)
+        payload_norm_op = smt_int.AddOp(payload, int_max)
+        payload_modulo_op = smt_int.ModOp(payload_norm_op.res, int_max)
+        rewriter.insert_op_before_matched_op([payload_norm_op, payload_modulo_op])
+        return payload_modulo_op.res
+
+    def get_unsigned_to_signed(
+        self, payload: SSAValue, width: SSAValue, rewriter: PatternRewriter
+    ):
+        # 2 · (x mod pow2(k − 1)) − x
+        one_op = smt_int.ConstantOp(1)
+        width_minus_one = smt_int.SubOp(width, one_op.res)
+        rewriter.insert_op_before_matched_op(
+            [
+                one_op,
+                width_minus_one,
+            ]
+        )
+        int_max = self.pow2_of(width_minus_one.res, rewriter)
+        modulo_op = smt_int.ModOp(payload, int_max)
+        modulo_minus_payload_op = smt_int.SubOp(modulo_op.res, payload)
+        two_op = smt_int.ConstantOp(2)
+        times_2_op = smt_int.MulOp(modulo_minus_payload_op.res, two_op.res)
+        rewriter.insert_op_before_matched_op(
+            [modulo_op, modulo_minus_payload_op, two_op, times_2_op]
+        )
+        return times_2_op.res
+
 
 def insert_and_constraint_pow2(rewriter):
     declare_pow_op = insert_pow2(rewriter)
