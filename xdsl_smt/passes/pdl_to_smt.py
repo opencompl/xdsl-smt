@@ -707,9 +707,13 @@ class PDLToSMTLowerer:
             attribute_rewrite = IntAttributeRewrite()
             type_rewrite = IntTypeRewrite(rewrite_context)
         else:
-            SMTLowerer.type_lowerers = {
+            types = {
                 IntegerType: IntegerTypeSemantics(),
                 IndexType: IndexTypeSemantics(),
+            }
+            SMTLowerer.type_lowerers = {
+                **SMTLowerer.type_lowerers,
+                **types,
             }
             SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
             SMTLowerer.op_semantics = {
