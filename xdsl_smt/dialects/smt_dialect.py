@@ -309,6 +309,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
         print(f"{name} ", file=stream, end="")
 
         # Print the function arguments
+        print(f"(", file=stream, end="")
         for idx, typ in enumerate(self.func_type.inputs):
             if idx != 0:
                 print(" ", file=stream, end="")
@@ -317,6 +318,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
             print(f"(", file=stream, end="")
             typ.print_sort_to_smtlib(stream)
             print(")", file=stream, end="")
+        print(f")", file=stream, end="")
 
         # Print the function return type
         assert len(self.func_type.outputs.data) == 1

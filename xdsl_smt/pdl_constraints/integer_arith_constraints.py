@@ -20,7 +20,7 @@ from xdsl.dialects.pdl import (
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
-from xdsl_smt.passes.pdl_to_smt import PDLToSMTRewriteContext
+from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
 
 
 def get_bv_type_from_optional_poison(
@@ -541,5 +541,5 @@ integer_arith_native_constraints = {
 }
 
 integer_arith_native_static_constraints = {
-    "is_greater_integer_type": is_greater_integer_type,
+    # "is_greater_integer_type": is_greater_integer_type,
 }
