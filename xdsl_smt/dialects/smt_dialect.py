@@ -178,6 +178,8 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
     func = operand_def(FunctionType)
     args = var_operand_def()
 
+    traits = frozenset([traits.Pure()])
+
     def __init__(self, func: Operand, args: Sequence[Operand | Operation]):
         if not isinstance(func.type, FunctionType):
             raise Exception("Expected function type, got ", func.type)
@@ -441,6 +443,9 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     name = "smt.declare_const"
     res: OpResult = result_def()
 
+    # TODO: This function is not constant if its value is not inhabited
+    traits = frozenset([traits.Pure()])
+
     def __init__(self, type: Attribute):
         super().__init__(result_types=[type])
 
@@ -549,6 +554,8 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
 
     res: OpResult = result_def(BoolType)
     value: BoolAttr = attr_def(BoolAttr)
+
+    traits = frozenset([traits.Pure()])
 
     def __init__(self, value: bool):
         super().__init__(

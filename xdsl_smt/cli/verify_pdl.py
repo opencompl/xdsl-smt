@@ -17,6 +17,9 @@ from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
+from xdsl.transforms.common_subexpression_elimination import (
+    CommonSubexpressionElimination,
+)
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl_smt.passes.lower_effects import LowerEffectPass
@@ -57,6 +60,8 @@ def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     LowerEffectPass().apply(ctx, cloned_op)
     if opt:
         LowerPairs().apply(ctx, cloned_op)
+        CanonicalizePass().apply(ctx, cloned_op)
+        CommonSubexpressionElimination().apply(ctx, cloned_op)
         CanonicalizePass().apply(ctx, cloned_op)
     cloned_op.verify()
     stream = StringIO()
