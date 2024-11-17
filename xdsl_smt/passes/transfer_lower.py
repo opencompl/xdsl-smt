@@ -78,7 +78,7 @@ def addInductionOps(fout):
         fout.write(lowerInductionOps(inductionOp))
 
 
-def addDispatcher(fout, is_forward:bool):
+def addDispatcher(fout, is_forward: bool):
     global needDispatch
     if len(needDispatch) != 0:
         # print(lowerDispatcher(needDispatch))

@@ -126,6 +126,7 @@ class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
 class NegOp(UnaryOp):
     name = "transfer.neg"
 
+
 @irdl_op_definition
 class ReverseBitsOp(UnaryOp):
     name = "transfer.reverse_bits"
@@ -386,6 +387,7 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
             shape = ArrayAttr(shape)
         super().__init__([shape])
 
+
 @irdl_attr_definition
 class TupleType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.tuple"
@@ -625,7 +627,7 @@ Transfer = Dialect(
         IntersectsOp,
         AddPoisonOp,
         RemovePoisonOp,
-        ReverseBitsOp
+        ReverseBitsOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],
 )

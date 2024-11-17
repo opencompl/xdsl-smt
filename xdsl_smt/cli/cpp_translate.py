@@ -32,31 +32,36 @@ def parse_file(ctx, file: str | None) -> Operation:
     module = parser.parse_op()
     return module
 
-def is_transfer_function(func:FuncOp) -> bool:
+
+def is_transfer_function(func: FuncOp) -> bool:
     return "applied_to" in func.attributes
 
-def is_forward(func:FuncOp) -> bool:
+
+def is_forward(func: FuncOp) -> bool:
     if "is_forward" in func.attributes:
-        forward = func.attributes['is_forward']
+        forward = func.attributes["is_forward"]
         assert isinstance(forward, IntegerAttr)
         return forward.value.data == 1
     return False
 
-def getCounterexampleFunc(func:FuncOp) -> str | None:
-    if 'soundness_counterexample' not in func.attributes:
-        return None
-    return func.attributes['soundness_counterexample'].data
 
-def checkFunctionValidity(func:FuncOp) -> bool:
+def getCounterexampleFunc(func: FuncOp) -> str | None:
+    if "soundness_counterexample" not in func.attributes:
+        return None
+    return func.attributes["soundness_counterexample"].data
+
+
+def checkFunctionValidity(func: FuncOp) -> bool:
     if len(func.function_type.inputs) != len(func.args):
         return False
     for func_type_arg, arg in zip(func.function_type.inputs, func.args):
         if func_type_arg != arg.type:
             return False
     return_op = func.body.block.last_op
-    if not( return_op is not None and isinstance(return_op, Return)):
+    if not (return_op is not None and isinstance(return_op, Return)):
         return False
     return return_op.operands[0].type == func.function_type.outputs.data[0]
+
 
 def main() -> None:
     ctx = MLContext()
@@ -75,15 +80,15 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
-    allFuncMapping:dict[str, FuncOp] = {}
-    forward=False
-    counterexampleFuncs:set[str]=set()
+    allFuncMapping: dict[str, FuncOp] = {}
+    forward = False
+    counterexampleFuncs: set[str] = set()
     with open("tmp.cpp", "w") as fout:
         LowerToCpp.fout = fout
         for func in module.ops:
             if isinstance(func, FuncOp) and is_transfer_function(func):
-                forward |= (is_transfer_function(func) and is_forward(func))
-                counterexampleFunc=getCounterexampleFunc(func)
+                forward |= is_transfer_function(func) and is_forward(func)
+                counterexampleFunc = getCounterexampleFunc(func)
                 if counterexampleFunc is not None:
                     counterexampleFuncs.add(counterexampleFunc)
             allFuncMapping[func.sym_name.data] = func
@@ -92,7 +97,6 @@ def main() -> None:
             if not checkFunctionValidity(func):
                 print(func.sym_name)
             # check function validity
-
 
         for counterexample in counterexampleFuncs:
             assert counterexample in allFuncMapping
@@ -105,7 +109,6 @@ def main() -> None:
                     # print(isinstance(op,Call))
 
                 LowerToCpp().apply(ctx, func)
-
 
         addInductionOps(fout)
         addDispatcher(fout, forward)
