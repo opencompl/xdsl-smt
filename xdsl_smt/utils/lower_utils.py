@@ -36,7 +36,9 @@ from ..dialects.transfer import (
     RepeatOp,
     IntersectsOp,
     # FromArithOp,
-    TupleType, AddPoisonOp, RemovePoisonOp,
+    TupleType,
+    AddPoisonOp,
+    RemovePoisonOp,
 )
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.pattern_rewriter import *
@@ -82,7 +84,7 @@ operNameToCpp = {
         ".ugt",
         ".uge",
     ],
-    #"transfer.fromArith": "APInt",
+    # "transfer.fromArith": "APInt",
     "transfer.make": "{{{0}}}",
     "transfer.get": "[{0}]",
     "transfer.shl": ".shl",
@@ -130,7 +132,7 @@ def lowerType(typ, specialOp=None):
         typeName = lowerType(fields[0])
         for i in range(1, len(fields)):
             assert lowerType(fields[i]) == typeName
-        return "std::vector<"+typeName+">"
+        return "std::vector<" + typeName + ">"
     elif isinstance(typ, IntegerType):
         return "int"
     elif isinstance(typ, IndexType):
@@ -166,7 +168,7 @@ def lowerInductionOps(inductionOp: list[FuncOp]):
         return result
 
 
-def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
+def lowerDispatcher(needDispatch: list[FuncOp], is_forward: bool):
     if len(needDispatch) > 0:
         returnedType = needDispatch[0].function_type.outputs.data[0]
         for func in needDispatch:
@@ -197,7 +199,7 @@ def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
         )
         return_inst = indent + indent + "return {0}({1});\n"
 
-        def handleOneTransferFunction(func: FuncOp, operationNo:int) -> str:
+        def handleOneTransferFunction(func: FuncOp, operationNo: int) -> str:
             blockStr = ""
             for cppClass in func.attributes[CPP_CLASS_KEY]:
                 argStr = ""
@@ -210,10 +212,10 @@ def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
                         argStr += ", operands[" + str(i) + "]"
                 ifBody = return_inst.format(func.sym_name.data, argStr)
                 if operationNo == -1:
-                    operationNoStr="true"
+                    operationNoStr = "true"
                 else:
-                    operationNoStr = "operationNo == "+str(operationNo)
-                blockStr += dyn_cast.format(cppClass.data,operationNoStr , ifBody)
+                    operationNoStr = "operationNo == " + str(operationNo)
+                blockStr += dyn_cast.format(cppClass.data, operationNoStr, ifBody)
             return blockStr
 
         funcBody = ""
@@ -380,20 +382,20 @@ def _(op: MakeOp):
     returnedType = lowerType(op.results[0].type, op)
     returnedValue = op.results[0].name_hint
     equals = "="
-    expr=""
+    expr = ""
     if len(op.operands) > 0:
         expr += op.operands[0].name_hint
     for i in range(1, len(op.operands)):
         expr += "," + op.operands[i].name_hint
     return (
-            indent
-            + returnedType
-            + " "
-            + returnedValue
-            + equals
-            + returnedType
-            + operNameToCpp[op.name].format(expr)
-            + ends
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + equals
+        + returnedType
+        + operNameToCpp[op.name].format(expr)
+        + ends
     )
 
 
@@ -430,7 +432,8 @@ def _(op: Return):
     operand = op.arguments[0].name_hint
     return indent + opName + operand + ends
 
-'''
+
+"""
 @lowerOperation.register
 def _(op: FromArithOp):
     opTy = op.op.type
@@ -450,7 +453,8 @@ def _(op: FromArithOp):
         + ")"
         + ends
     )
-'''
+"""
+
 
 @lowerOperation.register
 def _(op: arith.Constant):
@@ -824,6 +828,7 @@ def _(op: RepeatOp):
     forEnd = indent + "}\n"
     return initExpr + forHead + forBody + forEnd
 
+
 @lowerOperation.register
 def _(op: AddPoisonOp):
     returnedType = lowerType(op.results[0].type)
@@ -839,17 +844,18 @@ def _(op: AddPoisonOp):
         + ends
     )
 
+
 @lowerOperation.register
 def _(op: RemovePoisonOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     opName = operNameToCpp[op.name]
     return (
-            indent
-            + returnedType
-            + " "
-            + returnedValue
-            + " = "
-            + op.operands[0].name_hint
-            + ends
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + " = "
+        + op.operands[0].name_hint
+        + ends
     )
