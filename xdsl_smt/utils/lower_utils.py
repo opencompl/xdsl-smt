@@ -35,8 +35,8 @@ from ..dialects.transfer import (
     ConstRangeForOp,
     RepeatOp,
     IntersectsOp,
-    #FromArithOp,
-    TupleType,
+    # FromArithOp,
+    TupleType, AddPoisonOp, RemovePoisonOp,
 )
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.pattern_rewriter import *
@@ -83,8 +83,8 @@ operNameToCpp = {
         ".uge",
     ],
     #"transfer.fromArith": "APInt",
-    "transfer.make": "std::make_tuple",
-    "transfer.get": "std::get<{0}>",
+    "transfer.make": "{{{0}}}",
+    "transfer.get": "[{0}]",
     "transfer.shl": ".shl",
     "transfer.ashr": ".ashr",
     "transfer.lshr": ".lshr",
@@ -100,7 +100,9 @@ operNameToCpp = {
     "arith.cmpi": ["==", "!=", "<", "<=", ">", ">="],
     "transfer.get_all_ones": "APInt::getAllOnes",
     "transfer.select": ["?", ":"],
-    "transfer.reverse_bits": ".reverseBits"
+    "transfer.reverse_bits": ".reverseBits",
+    "transfer.add_poison": " ",
+    "transfer.remove_poison": " ",
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
@@ -124,14 +126,11 @@ def lowerType(typ, specialOp=None):
     if isinstance(typ, TransIntegerType):
         return "APInt"
     elif isinstance(typ, AbstractValueType) or isinstance(typ, TupleType):
-        typeName = "std::tuple<"
         fields = typ.get_fields()
-        typeName += lowerType(fields[0])
+        typeName = lowerType(fields[0])
         for i in range(1, len(fields)):
-            typeName += ","
-            typeName += lowerType(fields[i])
-        typeName += ">"
-        return typeName
+            assert lowerType(fields[i]) == typeName
+        return "std::vector<"+typeName+">"
     elif isinstance(typ, IntegerType):
         return "int"
     elif isinstance(typ, IndexType):
@@ -172,6 +171,8 @@ def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
         returnedType = needDispatch[0].function_type.outputs.data[0]
         for func in needDispatch:
             if func.function_type.outputs.data[0] != returnedType:
+                print(func)
+                print(func.function_type.outputs.data[0])
                 assert (
                     "we assume all transfer functions have the same returned type"
                     and False
@@ -181,9 +182,9 @@ def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
         # we assume all operands have the same type as expr
         # User should tell the generator all operands
         if is_forward:
-            expr = "(Operation* op, AbstractValues operands)"
+            expr = "(Operation* op, std::vector<std::vector<llvm::APInt>> operands)"
         else:
-            expr = "(Operation* op, AbstractValues operands, unsigned operationNo)"
+            expr = "(Operation* op, std::vector<std::vector<llvm::APInt>> operands, unsigned operationNo)"
         functionSignature = (
             "std::optional<" + returnedType + "> " + funcName + expr + "{{\n{0}}}\n\n"
         )
@@ -222,7 +223,6 @@ def lowerDispatcher(needDispatch: list[FuncOp], is_forward:bool):
             else:
                 operationNo = func.attributes[OPERATION_NO]
                 assert isinstance(operationNo, IntegerAttr)
-                print(operationNo.value.data)
                 funcBody += handleOneTransferFunction(func, operationNo.value.data)
         funcBody += indent + "return {};\n"
         return functionSignature.format(funcBody)
@@ -369,17 +369,32 @@ def _(op: GetOp):
         + " "
         + returnedValue
         + equals
-        + operNameToCpp[op.name].format(index)
-        + "("
         + op.operands[0].name_hint
-        + ")"
+        + operNameToCpp[op.name].format(index)
         + ends
     )
 
 
 @lowerOperation.register
 def _(op: MakeOp):
-    return lowerToNonClassMethod(op)
+    returnedType = lowerType(op.results[0].type, op)
+    returnedValue = op.results[0].name_hint
+    equals = "="
+    expr=""
+    if len(op.operands) > 0:
+        expr += op.operands[0].name_hint
+    for i in range(1, len(op.operands)):
+        expr += "," + op.operands[i].name_hint
+    return (
+            indent
+            + returnedType
+            + " "
+            + returnedValue
+            + equals
+            + returnedType
+            + operNameToCpp[op.name].format(expr)
+            + ends
+    )
 
 
 @lowerOperation.register
@@ -808,3 +823,33 @@ def _(op: RepeatOp):
     )
     forEnd = indent + "}\n"
     return initExpr + forHead + forBody + forEnd
+
+@lowerOperation.register
+def _(op: AddPoisonOp):
+    returnedType = lowerType(op.results[0].type)
+    returnedValue = op.results[0].name_hint
+    opName = operNameToCpp[op.name]
+    return (
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + " = "
+        + op.operands[0].name_hint
+        + ends
+    )
+
+@lowerOperation.register
+def _(op: RemovePoisonOp):
+    returnedType = lowerType(op.results[0].type)
+    returnedValue = op.results[0].name_hint
+    opName = operNameToCpp[op.name]
+    return (
+            indent
+            + returnedType
+            + " "
+            + returnedValue
+            + " = "
+            + op.operands[0].name_hint
+            + ends
+    )

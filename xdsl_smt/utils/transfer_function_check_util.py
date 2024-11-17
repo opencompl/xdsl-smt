@@ -2,6 +2,7 @@ from typing import Callable
 
 from filecheck.filecheck import Check
 
+from .transfer_function_util import replaceAbstractValueWidth
 from ..dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
@@ -91,9 +92,28 @@ def valid_abstract_domain_check(transfer_function:SMTTransferFunction,
     return (abs_arg_ops+[constant_bv_0, constant_bv_1] + abs_domain_constraints_ops
             +abs_arg_constraints_ops+[call_abs_func_op]+abs_result_domain_invalid_ops)
 
+def int_attr_check(transfer_function:SMTTransferFunction,
+                            domain_constraint:FunctionCollection,
+                            instance_constraint:FunctionCollection,
+                   int_attr:dict[int,int])->list[Operation]:
+    if transfer_function.int_attr_constraint is not None:
+        int_attr_constraint=transfer_function.int_attr_constraint
+        int_attr_constraint_arg_ops = getArgumentInstances(int_attr_constraint, int_attr)
+        int_attr_constraint_arg=[arg.res for arg in int_attr_constraint_arg_ops]
+
+        constant_bv_1 = ConstantOp(1, 1)
+
+        call_constraint_ops=callFunctionAndAssertResult(int_attr_constraint,int_attr_constraint_arg, constant_bv_1)
+        return int_attr_constraint_arg_ops + [constant_bv_1] +call_constraint_ops +[CheckSatOp()]
+    else:
+        true_op = ConstantBoolOp(True)
+        assert_op=AssertOp(true_op.res)
+        return [true_op, assert_op] +[CheckSatOp()]
+
 def forward_soundness_check(transfer_function:SMTTransferFunction,
                             domain_constraint:FunctionCollection,
-                            instance_constraint:FunctionCollection):
+                            instance_constraint:FunctionCollection,
+                            int_attr:dict[int,int]):
     assert transfer_function.is_forward
     abstract_func=transfer_function.transfer_function
     concrete_func=transfer_function.concrete_function
@@ -101,16 +121,16 @@ def forward_soundness_check(transfer_function:SMTTransferFunction,
     op_constraint=transfer_function.op_constraint
     is_abstract_arg=transfer_function.is_abstract_arg
 
-    abs_arg_ops=getArgumentInstances(abstract_func)
+    abs_arg_ops=getArgumentInstances(abstract_func, int_attr)
     abs_args=[arg.res for arg in abs_arg_ops]
-    crt_arg_ops=getArgumentInstances(concrete_func)
+    crt_arg_ops=getArgumentInstances(concrete_func, int_attr)
     crt_args_with_poison=[arg.res for arg in crt_arg_ops]
     crt_arg_first_ops=[FirstOp(arg) for arg in crt_args_with_poison]
     crt_args=[arg.res for arg in crt_arg_first_ops]
 
     assert len(abs_args) == len(crt_args)
-    arg_widths=getArgumentWidths(abstract_func)
-    result_width=getResultWidth(abstract_func)
+    arg_widths=getArgumentWidths(concrete_func)
+    result_width=getResultWidth(concrete_func)
 
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
@@ -145,7 +165,8 @@ def forward_soundness_check(transfer_function:SMTTransferFunction,
 
 def backward_soundness_check(transfer_function: SMTTransferFunction,
                              domain_constraint:FunctionCollection,
-                            instance_constraint: FunctionCollection):
+                            instance_constraint: FunctionCollection,
+                             int_attr:dict[int,int]):
     assert not transfer_function.is_forward
     operationNo=transfer_function.operationNo
     abstract_func = transfer_function.transfer_function
@@ -154,19 +175,28 @@ def backward_soundness_check(transfer_function: SMTTransferFunction,
     op_constraint = transfer_function.op_constraint
     is_abstract_arg = transfer_function.is_abstract_arg
 
-    abs_arg_ops = getArgumentInstances(abstract_func)
-    abs_args = [arg.res for arg in abs_arg_ops]
+    arg_widths = getArgumentWidths(concrete_func)
+    result_width = getResultWidth(concrete_func)
+
+    #replace the only abstract arg in transfer_function with bv with result_width
     assert (sum(is_abstract_arg) == 1)
-    crt_arg_ops = getArgumentInstances(concrete_func)
+    abs_arg_idx=is_abstract_arg.index(True)
+    old_abs_arg=abstract_func.body.block.args[abs_arg_idx]
+    new_abs_arg_type=replaceAbstractValueWidth(old_abs_arg.type, result_width)
+    new_abs_arg = abstract_func.body.block.insert_arg(new_abs_arg_type,abs_arg_idx)
+    abstract_func.body.block.args[abs_arg_idx+1].replace_by(new_abs_arg)
+    abstract_func.body.block.erase_arg(old_abs_arg)
+
+    abs_arg_ops = getArgumentInstances(abstract_func, int_attr)
+    abs_args = [arg.res for arg in abs_arg_ops]
+
+    crt_arg_ops = getArgumentInstances(concrete_func, int_attr)
     crt_args_with_poison = [arg.res for arg in crt_arg_ops]
     crt_arg_first_ops = [FirstOp(arg) for arg in crt_args_with_poison]
     crt_args = [arg.res for arg in crt_arg_first_ops]
 
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
-
-    arg_widths = getArgumentWidths(concrete_func)
-    result_width = getResultWidth(concrete_func)
 
     call_abs_func_op = callFunction(abstract_func, abs_args)
     call_crt_func_op = callFunction(concrete_func, crt_args_with_poison)
@@ -202,9 +232,9 @@ def backward_precision_check(transfer_function: SMTTransferFunction,
     assert not transfer_function.is_forward
 
 def counterexample_check(counter_func:FuncOp, smt_counter_func:DefineFunOp,
-                         domain_constraint:FunctionCollection):
+                         domain_constraint:FunctionCollection, int_attr:dict[int,int]):
     is_abstract_arg:list[bool] = [isinstance(arg, AbstractValueType) for arg in counter_func.args]
-    arg_ops=getArgumentInstances(smt_counter_func)
+    arg_ops=getArgumentInstances(smt_counter_func, int_attr)
     args=[arg.res for arg in arg_ops]
     arg_widths=getArgumentWidths(smt_counter_func)
 

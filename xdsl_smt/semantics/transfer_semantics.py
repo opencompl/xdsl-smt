@@ -594,7 +594,7 @@ class ExtractOpSemantics(OperationSemantics):
         )
         numBits = numBitsOp.value.value.data
         bitPosition = bitPositionOp.value.value.data
-        extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition, bitPosition)
+        extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition -1, bitPosition)
         rewriter.insert_op_before_matched_op(extractOp)
         return (extractOp.res,)
 

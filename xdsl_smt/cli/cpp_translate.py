@@ -7,7 +7,7 @@ from xdsl.parser import Parser
 
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr
-from xdsl.dialects.func import Func, FuncOp, Call
+from xdsl.dialects.func import Func, FuncOp, Call, Return
 from ..dialects.transfer import Transfer
 from ..dialects.llvm_dialect import LLVM
 from xdsl.printer import Printer
@@ -42,6 +42,22 @@ def is_forward(func:FuncOp) -> bool:
         return forward.value.data == 1
     return False
 
+def getCounterexampleFunc(func:FuncOp) -> str | None:
+    if 'soundness_counterexample' not in func.attributes:
+        return None
+    return func.attributes['soundness_counterexample'].data
+
+def checkFunctionValidity(func:FuncOp) -> bool:
+    if len(func.function_type.inputs) != len(func.args):
+        return False
+    for func_type_arg, arg in zip(func.function_type.inputs, func.args):
+        if func_type_arg != arg.type:
+            return False
+    return_op = func.body.block.last_op
+    if not( return_op is not None and isinstance(return_op, Return)):
+        return False
+    return return_op.operands[0].type == func.function_type.outputs.data[0]
+
 def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
@@ -59,18 +75,37 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
-    allFuncMapping = {}
+    allFuncMapping:dict[str, FuncOp] = {}
     forward=False
+    counterexampleFuncs:set[str]=set()
     with open("tmp.cpp", "w") as fout:
         LowerToCpp.fout = fout
+        for func in module.ops:
+            if isinstance(func, FuncOp) and is_transfer_function(func):
+                forward |= (is_transfer_function(func) and is_forward(func))
+                counterexampleFunc=getCounterexampleFunc(func)
+                if counterexampleFunc is not None:
+                    counterexampleFuncs.add(counterexampleFunc)
+            allFuncMapping[func.sym_name.data] = func
+
+            # check function validity
+            if not checkFunctionValidity(func):
+                print(func.sym_name)
+            # check function validity
+
+
+        for counterexample in counterexampleFuncs:
+            assert counterexample in allFuncMapping
+            allFuncMapping[counterexample].detach()
+            del allFuncMapping[counterexample]
         for func in module.ops:
             if isinstance(func, FuncOp):
                 for op in func.body.blocks[0].ops:
                     pass
                     # print(isinstance(op,Call))
-                allFuncMapping[func.sym_name.data] = func
+
                 LowerToCpp().apply(ctx, func)
-                forward |= (is_transfer_function(func) and is_forward(func))
+
 
         addInductionOps(fout)
         addDispatcher(fout, forward)
