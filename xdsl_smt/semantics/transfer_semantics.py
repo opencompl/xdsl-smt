@@ -30,7 +30,8 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_lzeros,
     count_rzeros,
     count_lones,
-    count_rones, reverse_bits,
+    count_rones,
+    reverse_bits,
 )
 
 
@@ -39,7 +40,9 @@ def abstract_value_type_lowerer(
 ) -> PairType[Attribute, Attribute] | None:
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
-    if isinstance(type, transfer.AbstractValueType) or isinstance(type, transfer.TupleType):
+    if isinstance(type, transfer.AbstractValueType) or isinstance(
+        type, transfer.TupleType
+    ):
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = LowerToSMT.lower_type(curTy)
@@ -594,7 +597,9 @@ class ExtractOpSemantics(OperationSemantics):
         )
         numBits = numBitsOp.value.value.data
         bitPosition = bitPositionOp.value.value.data
-        extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition -1, bitPosition)
+        extractOp = smt_bv.ExtractOp(
+            operands[0], numBits + bitPosition - 1, bitPosition
+        )
         rewriter.insert_op_before_matched_op(extractOp)
         return (extractOp.res,)
 
