@@ -19,6 +19,7 @@ from xdsl.dialects.builtin import ModuleOp, ArrayAttr
 from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl_smt.dialects import smt_dialect
+from xdsl_smt.dialects import smt_bitvector_dialect
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl_smt.semantics.semantics import (
@@ -121,7 +122,10 @@ class SMTLowerer:
                 rewriter.replace_matched_op([], new_res)
             return effect_state
 
-        if type(op) in smt_dialect.SMTDialect.operations:
+        if (
+            type(op) in smt_dialect.SMTDialect.operations
+            or type(op) in smt_bitvector_dialect.SMTBitVectorDialect.operations
+        ):
             return effect_state
 
         raise Exception(f"No SMT lowering defined for the '{op.name}' operation")
