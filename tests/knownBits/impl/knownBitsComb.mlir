@@ -440,9 +440,9 @@
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
     %eqRes = "func.call"(%arg0,%arg1) {callee = @EQImpl} : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[i1, i1]>
-    %eqRes_0 = "transfer.get"(%eqRes) {index=0:index}: (!transfer.abs_value<[i1,i1]>) -> i1
+    %eqRes_0_i1 = "transfer.get"(%eqRes) {index=0:index}: (!transfer.abs_value<[i1,i1]>) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
-    %eqRes_1 = "transfer.get"(%eqRes) {index=1:index}: (!transfer.abs_value<[i1,i1]>) -> i1
+    %eqRes_1_i1 = "transfer.get"(%eqRes) {index=1:index}: (!transfer.abs_value<[i1,i1]>) -> i1
     %eqConst = "func.call"(%eqRes) {callee = @isConstant_i1} : (!transfer.abs_value<[i1,i1]>) -> i1
     %eqRes_0 = "transfer.add_poison"(%eqRes_0_i1):(i1)->i1
     %eqRes_1 = "transfer.add_poison"(%eqRes_1_i1):(i1)->i1
