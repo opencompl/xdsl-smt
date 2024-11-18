@@ -194,23 +194,24 @@ def test_abs_inline_check(
     return arg_constant + [abstract_result]
 
 
-def extra_soundness_counterexample(counter_func:DefineFunOp):
-    #init args
+def extra_soundness_counterexample(counter_func: DefineFunOp):
+    # init args
     constant_bv_1 = ConstantOp(1, 1)
-    args_type=[arg.type for arg in counter_func.body.block.args]
-    args:list[DeclareConstOp] = []
+    args_type = [arg.type for arg in counter_func.body.block.args]
+    args: list[DeclareConstOp] = []
     for ty in args_type:
         args.append(DeclareConstOp(ty))
 
-    #call conter_func
-    callOp=CallOp.get(counter_func.results[0],args)
-    callFirstOp=FirstOp(callOp.res)
+    # call conter_func
+    callOp = CallOp.get(counter_func.results[0], args)
+    callFirstOp = FirstOp(callOp.res)
 
-    #check result
-    resEq=EqOp.get(callFirstOp.res,constant_bv_1.res)
-    assertOp=AssertOp.get(resEq.res)
-    satOp=CheckSatOp()
+    # check result
+    resEq = EqOp.get(callFirstOp.res, constant_bv_1.res)
+    assertOp = AssertOp.get(resEq.res)
+    satOp = CheckSatOp()
     return [constant_bv_1] + args + [callOp, resEq, assertOp, satOp]
+
 
 def soundness_check(
     abstract_func: DefineFunOp,
@@ -231,8 +232,8 @@ def soundness_check(
     assert isa(abstract_return_type, PairType[BitVectorType, Any])
     result_width = abstract_return_type.first.width.data
 
-    #We need result_width because of cmp operation
-    #Cmp operation returns i1, they need different get_instance_constraint
+    # We need result_width because of cmp operation
+    # Cmp operation returns i1, they need different get_instance_constraint
 
     instance_return_type = BitVectorType.from_int(result_width)
 
@@ -299,9 +300,13 @@ def soundness_check(
 
     abs_op_constraint_list = []
     if abs_op_constraint is not None:
-        abs_op_constraint_result = CallOp.get(abs_op_constraint.results[0],arg_constant)
+        abs_op_constraint_result = CallOp.get(
+            abs_op_constraint.results[0], arg_constant
+        )
         abs_op_constraint_result_first = FirstOp(abs_op_constraint_result.res)
-        abs_op_constraint_eq = EqOp(constant_bv_1.res, abs_op_constraint_result_first.res)
+        abs_op_constraint_eq = EqOp(
+            constant_bv_1.res, abs_op_constraint_result_first.res
+        )
         abs_op_constraint_assert = AssertOp(abs_op_constraint_eq.res)
         abs_op_constraint_list = [
             abs_op_constraint_result,

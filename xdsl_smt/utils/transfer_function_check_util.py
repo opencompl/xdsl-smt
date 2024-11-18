@@ -2,7 +2,13 @@ from typing import Callable
 
 from filecheck.filecheck import Check
 
-from .transfer_function_util import replaceAbstractValueWidth
+from .transfer_function_util import (
+    replaceAbstractValueWidth,
+    getArgumentWidthsWithEffect,
+    getArgumentInstancesWithEffect,
+    callFunctionAndAssertResultWithEffect,
+    callFunctionWithEffect,
+)
 from ..dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
@@ -23,37 +29,9 @@ from ..dialects.smt_bitvector_dialect import (
     BitVectorType,
 )
 from ..dialects.smt_utils_dialect import FirstOp, PairOp, PairType
-from ..dialects.index_dialect import Index
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.ir.core import BlockArgument
-from xdsl.dialects.builtin import (
-    Builtin,
-    ModuleOp,
-    IntegerAttr,
-    IntegerType,
-    i1,
-    FunctionType,
-    Region,
-    Block,
-)
 from xdsl.dialects.func import Func, FuncOp, Return, Call
 from ..dialects.transfer import Transfer, AbstractValueType
-from xdsl.dialects.arith import Arith
-import xdsl.dialects.comb as comb
 from xdsl.ir import Operation, SSAValue, Attribute
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
-from ..passes.lower_to_smt import (
-    func_to_smt_patterns,
-)
-from xdsl_smt.semantics import transfer_semantics
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.transfer_semantics import (
-    transfer_semantics,
-    abstract_value_type_lowerer,
-    transfer_integer_type_lowerer,
-)
-from xdsl_smt.semantics.comb_semantics import comb_semantics
-import sys as sys
 from ..utils.transfer_function_util import (
     getArgumentInstances,
     getResultInstance,
@@ -120,19 +98,21 @@ def int_attr_check(
     int_attr: dict[int, int],
 ) -> list[Operation]:
     if transfer_function.int_attr_constraint is not None:
+        effect = ConstantBoolOp(False)
         int_attr_constraint = transfer_function.int_attr_constraint
-        int_attr_constraint_arg_ops = getArgumentInstances(
+        int_attr_constraint_arg_ops = getArgumentInstancesWithEffect(
             int_attr_constraint, int_attr
         )
         int_attr_constraint_arg = [arg.res for arg in int_attr_constraint_arg_ops]
 
         constant_bv_1 = ConstantOp(1, 1)
 
-        call_constraint_ops = callFunctionAndAssertResult(
-            int_attr_constraint, int_attr_constraint_arg, constant_bv_1
+        call_constraint_ops = callFunctionAndAssertResultWithEffect(
+            int_attr_constraint, int_attr_constraint_arg, constant_bv_1, effect.res
         )
         return (
-            int_attr_constraint_arg_ops
+            [effect]
+            + int_attr_constraint_arg_ops
             + [constant_bv_1]
             + call_constraint_ops
             + [CheckSatOp()]
@@ -156,17 +136,18 @@ def forward_soundness_check(
     op_constraint = transfer_function.op_constraint
     is_abstract_arg = transfer_function.is_abstract_arg
 
-    abs_arg_ops = getArgumentInstances(abstract_func, int_attr)
+    abs_arg_ops = getArgumentInstancesWithEffect(abstract_func, int_attr)
     abs_args = [arg.res for arg in abs_arg_ops]
-    crt_arg_ops = getArgumentInstances(concrete_func, int_attr)
+    crt_arg_ops = getArgumentInstancesWithEffect(concrete_func, int_attr)
     crt_args_with_poison = [arg.res for arg in crt_arg_ops]
     crt_arg_first_ops = [FirstOp(arg) for arg in crt_args_with_poison]
     crt_args = [arg.res for arg in crt_arg_first_ops]
 
     assert len(abs_args) == len(crt_args)
-    arg_widths = getArgumentWidths(concrete_func)
+    arg_widths = getArgumentWidthsWithEffect(concrete_func)
     result_width = getResultWidth(concrete_func)
 
+    effect = ConstantBoolOp(False)
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
 
@@ -174,40 +155,50 @@ def forward_soundness_check(
     abs_domain_constraints_ops = []
     for i, (abs_arg, crt_arg) in enumerate(zip(abs_args, crt_args)):
         if is_abstract_arg[i]:
-            abs_arg_include_crt_arg_constraints_ops += callFunctionAndAssertResult(
-                instance_constraint.getFunctionByWidth(arg_widths[i]),
-                [abs_arg, crt_arg],
-                constant_bv_1,
+            abs_arg_include_crt_arg_constraints_ops += (
+                callFunctionAndAssertResultWithEffect(
+                    instance_constraint.getFunctionByWidth(arg_widths[i]),
+                    [abs_arg, crt_arg],
+                    constant_bv_1,
+                    effect.res,
+                )
             )
-            abs_domain_constraints_ops += callFunctionAndAssertResult(
+            abs_domain_constraints_ops += callFunctionAndAssertResultWithEffect(
                 domain_constraint.getFunctionByWidth(arg_widths[i]),
                 [abs_arg],
                 constant_bv_1,
+                effect.res,
             )
 
     abs_arg_constraints_ops = []
     if abs_op_constraint is not None:
-        abs_arg_constraints_ops = callFunctionAndAssertResult(
-            abs_op_constraint, abs_args, constant_bv_1
+        abs_arg_constraints_ops = callFunctionAndAssertResultWithEffect(
+            abs_op_constraint, abs_args, constant_bv_1, effect.res
         )
     crt_args_constraints_ops = []
     if op_constraint is not None:
-        crt_args_constraints_ops = callFunctionAndAssertResult(
-            op_constraint, crt_args, constant_bv_1
+        crt_args_constraints_ops = callFunctionAndAssertResultWithEffect(
+            op_constraint, crt_args, constant_bv_1, effect.res
         )
 
-    call_abs_func_op = callFunction(abstract_func, abs_args)
-    call_crt_func_op = callFunction(concrete_func, crt_args_with_poison)
-    call_crt_first_op = FirstOp(call_crt_func_op.res)
+    call_abs_func_op, call_abs_func_first_op = callFunctionWithEffect(
+        abstract_func, abs_args, effect.res
+    )
+    call_crt_func_op, call_crt_func_first_op = callFunctionWithEffect(
+        concrete_func, crt_args_with_poison, effect.res
+    )
+    call_crt_first_op = FirstOp(call_crt_func_first_op.res)
 
-    abs_result_not_include_crt_result_ops = callFunctionAndAssertResult(
+    abs_result_not_include_crt_result_ops = callFunctionAndAssertResultWithEffect(
         instance_constraint.getFunctionByWidth(result_width),
-        [call_abs_func_op.res, call_crt_first_op.res],
+        [call_abs_func_first_op.res, call_crt_first_op.res],
         constant_bv_0,
+        effect.res,
     )
 
     return (
-        abs_arg_ops
+        [effect]
+        + abs_arg_ops
         + crt_arg_ops
         + crt_arg_first_ops
         + [constant_bv_0, constant_bv_1]
@@ -215,7 +206,13 @@ def forward_soundness_check(
         + abs_arg_include_crt_arg_constraints_ops
         + abs_arg_constraints_ops
         + crt_args_constraints_ops
-        + [call_abs_func_op, call_crt_func_op, call_crt_first_op]
+        + [
+            call_abs_func_op,
+            call_abs_func_first_op,
+            call_crt_func_op,
+            call_crt_func_first_op,
+            call_crt_first_op,
+        ]
         + abs_result_not_include_crt_result_ops
         + [CheckSatOp()]
     )

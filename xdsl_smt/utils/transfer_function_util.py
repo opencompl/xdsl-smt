@@ -1,5 +1,6 @@
 from typing import Callable
 
+from xdsl.context import MLContext
 from ..dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
@@ -13,44 +14,20 @@ from ..dialects.smt_dialect import (
     ForallOp,
     AndOp,
     YieldOp,
+    BoolType,
 )
 from ..dialects.smt_bitvector_dialect import (
     SMTBitVectorDialect,
     ConstantOp,
     BitVectorType,
 )
-from ..dialects.smt_utils_dialect import FirstOp, PairOp, PairType
-from ..dialects.index_dialect import Index
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.ir.core import BlockArgument
-from xdsl.dialects.builtin import (
-    Builtin,
-    ModuleOp,
-    IntegerAttr,
-    IntegerType,
-    i1,
-    FunctionType,
-    Region,
-    Block,
-)
+from ..dialects.smt_utils_dialect import FirstOp, PairOp, PairType, SecondOp
 from xdsl.dialects.func import Func, FuncOp, Return, Call
 from ..dialects.transfer import Transfer, AbstractValueType
-from xdsl.dialects.arith import Arith
-import xdsl.dialects.comb as comb
 from xdsl.ir import Operation, SSAValue, Attribute
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
-from ..passes.lower_to_smt import (
-    func_to_smt_patterns,
+from xdsl.dialects.builtin import (
+    FunctionType,
 )
-from xdsl_smt.semantics import transfer_semantics
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.transfer_semantics import (
-    transfer_semantics,
-    abstract_value_type_lowerer,
-    transfer_integer_type_lowerer,
-)
-from xdsl_smt.semantics.comb_semantics import comb_semantics
-import sys as sys
 
 
 # Given a function and its args, return CallOp(func, args) with type checking
@@ -65,6 +42,27 @@ def callFunction(func: DefineFunOp, args: list[SSAValue]) -> CallOp:
         assert f_arg.type == arg.type
     callOp = CallOp.get(func.results[0], args)
     return callOp
+
+
+# Given a function and its args, return CallOp(func, args) with type checking
+def callFunctionWithEffect(
+    func: DefineFunOp, args: list[SSAValue], effect: SSAValue
+) -> (CallOp, FirstOp):
+    func_args = func.body.block.args
+    new_args = args + [effect]
+    assert len(func_args) == len(new_args)
+    for f_arg, arg in zip(func_args, new_args):
+        if f_arg.type != arg.type:
+            print(func.fun_name)
+            print(func_args)
+            print(new_args)
+        assert f_arg.type == arg.type
+    callOp = CallOp.get(func.results[0], new_args)
+    assert len(callOp.res) == 1
+    callOpFirst = FirstOp(callOp.res[0])
+    callOpSecond = SecondOp(callOp.res[0])
+    assert isinstance(callOpSecond.res.type, BoolType)
+    return callOp, callOpFirst
 
 
 def assertResult(result: SSAValue, bv: ConstantOp) -> list[Operation]:
@@ -82,6 +80,31 @@ def callFunctionAndAssertResult(
     firstOp = FirstOp(callOp.res)
     assertOps = assertResult(firstOp.res, bv)
     return [callOp, firstOp] + assertOps
+
+
+def callFunctionAndAssertResultWithEffect(
+    func: DefineFunOp, args: list[SSAValue], bv: ConstantOp, effect: SSAValue
+) -> list[Operation]:
+    callOp, callFirstOp = callFunctionWithEffect(func, args, effect)
+    firstOp = FirstOp(callFirstOp.res)
+    assertOps = assertResult(firstOp.res, bv)
+    return [callOp, callFirstOp, firstOp] + assertOps
+
+
+# Given a function, return a list of argument instances
+def getArgumentInstancesWithEffect(
+    func: DefineFunOp, int_attr: dict[int, int]
+) -> list[DeclareConstOp | ConstantOp]:
+    result = []
+    # ignore last effect arg
+    assert isinstance(func.body.block.args[-1].type, BoolType)
+    for i, arg in enumerate(func.body.block.args[:-1]):
+        argType = arg.type
+        if i in int_attr:
+            result.append(ConstantOp(int_attr[i], getWdithFromType(argType)))
+        else:
+            result.append(DeclareConstOp(argType))
+    return result
 
 
 # Given a function, return a list of argument instances
@@ -105,7 +128,7 @@ def getResultInstance(func: DefineFunOp) -> list[DeclareConstOp]:
 
 
 def getWdithFromType(ty: Attribute) -> int:
-    if isinstance(ty, PairType):
+    while isinstance(ty, PairType):
         ty = ty.first
     if isinstance(ty, BitVectorType):
         return ty.width.data
@@ -125,6 +148,11 @@ def replaceAbstractValueWidth(abs_val_ty: PairType, new_width: int) -> PairType:
     while len(types) > 0:
         resultType = PairType(types.pop(), resultType)
     return resultType
+
+
+def getArgumentWidthsWithEffect(func: DefineFunOp) -> list[int]:
+    # ignore last effect
+    return [getWdithFromType(arg.type) for arg in func.body.block.args[:-1]]
 
 
 def getArgumentWidths(func: DefineFunOp) -> list[int]:
@@ -154,22 +182,38 @@ def compareDefiningOp(func: DefineFunOp, func1: DefineFunOp) -> bool:
     return func.func_type.outputs.data[0] == func1.func_type.outputs.data[0]
 
 
+def fixDefiningOpReturnType(func: DefineFunOp) -> DefineFunOp:
+    smt_func_type = func.func_type
+    ret_val_type = [ret.type for ret in func.return_values]
+    if smt_func_type != ret_val_type:
+        new_smt_func_type = FunctionType.from_lists(smt_func_type.inputs, ret_val_type)
+        func.ret.type = new_smt_func_type
+    return func
+
+
 # This class maintains a map from width(int) -> a function
 # When the desired function with given width doesn't exist, it generates one
 # and returns it as the result
 class FunctionCollection:
     main_func: FuncOp = None
     smt_funcs: dict[int, DefineFunOp] = {}
-    create_smt: Callable[[FuncOp, int], DefineFunOp] = None
+    create_smt: Callable[[FuncOp, int, MLContext], DefineFunOp] = None
+    ctx: MLContext = None
 
-    def __init__(self, func: FuncOp, create_smt: Callable[[FuncOp, int], DefineFunOp]):
+    def __init__(
+        self,
+        func: FuncOp,
+        create_smt: Callable[[FuncOp, int, MLContext], DefineFunOp],
+        ctx: MLContext,
+    ):
         self.main_func = func
         self.create_smt = create_smt
         self.smt_funcs = {}
+        self.ctx = ctx
 
     def getFunctionByWidth(self, width: int) -> DefineFunOp:
         if width not in self.smt_funcs:
-            self.smt_funcs[width] = self.create_smt(self.main_func, width)
+            self.smt_funcs[width] = self.create_smt(self.main_func, width, self.ctx)
         return self.smt_funcs[width]
 
 

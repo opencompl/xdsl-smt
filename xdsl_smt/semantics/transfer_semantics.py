@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from tornado.curl_httpclient import curl_log
-
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
@@ -42,7 +40,9 @@ class AbstractValueTypeSemantics(TypeSemantics):
     But the last element is useless, this makes GetOp easier"""
 
     def get_semantics(self, type: Attribute) -> Attribute:
-        assert isinstance(type, transfer.AbstractValueType)
+        assert isinstance(type, transfer.AbstractValueType) or isinstance(
+            type, transfer.TupleType
+        )
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = SMTLowerer.lower_type(curTy)
@@ -668,7 +668,7 @@ class ConstRangeForOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> Sequence[SSAValue]:
-        cur_op=rewriter.current_operation
+        cur_op = rewriter.current_operation
         lb = operands[0].owner
         ub = operands[1].owner
         step = operands[2].owner

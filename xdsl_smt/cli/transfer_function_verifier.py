@@ -1,7 +1,7 @@
 import argparse
 import subprocess
 
-from xdsl.ir import MLContext, Attribute
+from xdsl.context import MLContext
 from xdsl.parser import Parser
 
 from io import StringIO
@@ -28,6 +28,12 @@ from ..dialects.smt_bitvector_dialect import (
     ExtractOp,
 )
 from ..dialects.smt_utils_dialect import FirstOp, PairOp, PairType
+from xdsl_smt.dialects.transfer import (
+    AbstractValueType,
+    Transfer,
+    TransIntegerType,
+    TupleType,
+)
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.ir.core import BlockArgument
@@ -44,24 +50,21 @@ from xdsl.dialects.builtin import (
 from xdsl.dialects.func import Func, FuncOp, Return, Call
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
+from ..passes.dead_code_elimination import DeadCodeElimination
+from ..passes.merge_func_results import MergeFuncResultsPass
 from ..passes.transfer_inline import FunctionCallInline
 import xdsl.dialects.comb as comb
 from xdsl.ir import Operation
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMT, integer_poison_type_lowerer
+from ..passes.lower_to_smt.lower_to_smt import LowerToSMTPass, SMTLowerer
+from ..passes.lower_effects import LowerEffectPass
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
 )
 from ..utils.transfer_function_util import (
-    getArgumentInstances,
-    getResultInstance,
-    callFunctionAndAssertResult,
-    callFunction,
-    getArgumentWidths,
-    getResultWidth,
-    compress_and_op,
     SMTTransferFunction,
     FunctionCollection,
     TransferFunction,
+    fixDefiningOpReturnType,
 )
 
 from ..utils.transfer_function_check_util import (
@@ -75,12 +78,13 @@ from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl_smt.passes.canonicalize_smt import CanonicalizeSMT
+from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.semantics.arith_semantics import arith_semantics
+from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
 from xdsl_smt.semantics.transfer_semantics import (
     transfer_semantics,
-    abstract_value_type_lowerer,
-    transfer_integer_type_lowerer,
+    AbstractValueTypeSemantics,
+    TransferIntegerTypeSemantics,
 )
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
@@ -109,9 +113,11 @@ def solveVectorWidth():
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     cloned_op = op.clone()
-    LowerPairs().apply(ctx, cloned_op)
-    CanonicalizeSMT().apply(ctx, cloned_op)
     stream = StringIO()
+    LowerPairs().apply(ctx, cloned_op)
+    CanonicalizePass().apply(ctx, cloned_op)
+    DeadCodeElimination().apply(ctx, cloned_op)
+
     print_to_smtlib(cloned_op, stream)
     # print(stream.getvalue())
     res = subprocess.run(
@@ -150,6 +156,9 @@ def get_dynamic_concrete_function(
         combOp = comb.ExtractOp(
             result.args[0], IntegerAttr.from_int_and_width(low_bit, 64), resultIntTy
         )
+    else:
+        print(concrete_func_name)
+        assert False and "Not supported concrete function yet"
     returnOp = Return(combOp.results[0])
     result.body.block.add_ops([combOp, returnOp])
     assert result is not None and (
@@ -182,13 +191,16 @@ def get_concrete_function(
                 result = FuncOp(func_name, funcTy)
                 func_name += str(extra)
                 combOp = comb.ICmpOp(result.args[0], result.args[1], extra)
+            elif concrete_op_name == "comb.concat":
+                funcTy = FunctionType.from_lists(
+                    [intTy, intTy], [IntegerType(width * 2)]
+                )
+                result = FuncOp(func_name, funcTy)
+                combOp = comb.ConcatOp.from_int_values(result.args)
             else:
                 funcTy = FunctionType.from_lists([intTy, intTy], [intTy])
                 result = FuncOp(func_name, funcTy)
-                if (
-                    issubclass(k, comb.VariadicCombOperation)
-                    or concrete_op_name == "comb.concat"
-                ):
+                if issubclass(k, comb.VariadicCombOperation):
                     combOp = k.create(operands=result.args, result_types=[intTy])
                 else:
                     combOp = k(*result.args)
@@ -201,22 +213,26 @@ def get_concrete_function(
     return result
 
 
-def lowerToSMTModule(module, width, ctx):
+def lowerToSMTModule(module: ModuleOp, width: int, ctx: MLContext):
     # lower to SMT
-    LowerToSMT.rewrite_patterns = [
-        *func_to_smt_patterns,
-    ]
-    LowerToSMT.type_lowerers = [
-        integer_poison_type_lowerer,
-        abstract_value_type_lowerer,
-        lambda type: transfer_integer_type_lowerer(type, width),
-    ]
-    LowerToSMT.operation_semantics = {
+    SMTLowerer.rewrite_patterns = {
+        **func_to_smt_patterns,
+    }
+    SMTLowerer.type_lowerers = {
+        IntegerType: IntegerTypeSemantics(),
+        AbstractValueType: AbstractValueTypeSemantics(),
+        TransIntegerType: TransferIntegerTypeSemantics(width),
+        # tuple and abstract use the same type lowerers
+        TupleType: AbstractValueTypeSemantics(),
+    }
+    SMTLowerer.op_semantics = {
         **arith_semantics,
         **transfer_semantics,
         **comb_semantics,
     }
-    LowerToSMT().apply(ctx, module)
+    LowerToSMTPass().apply(ctx, module)
+    MergeFuncResultsPass().apply(ctx, module)
+    LowerEffectPass().apply(ctx, module)
 
 
 def is_transfer_function(func: FuncOp) -> bool:
@@ -290,7 +306,7 @@ TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext = None
 
 
-def create_smt_function(func: FuncOp, width: int) -> DefineFunOp:
+def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
     global TMP_MODULE
     TMP_MODULE.append(ModuleOp([func.clone()]))
     lowerToSMTModule(TMP_MODULE[-1], width, ctx)
@@ -300,7 +316,7 @@ def create_smt_function(func: FuncOp, width: int) -> DefineFunOp:
 
 
 def get_dynamic_transfer_function(
-    func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int]
+    func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int], ctx: MLContext
 ) -> DefineFunOp:
     module.body.block.add_op(func)
     args: list[BlockArgument] = []
@@ -320,11 +336,7 @@ def get_dynamic_transfer_function(
     lowerToSMTModule(module, width, ctx)
     resultFunc = module.ops.first
     assert isinstance(resultFunc, DefineFunOp)
-    smt_func_type = resultFunc.func_type
-    ret_val_type = resultFunc.return_val.type
-    new_smt_func_type = FunctionType.from_lists(smt_func_type.inputs, [ret_val_type])
-    resultFunc.ret.type = new_smt_func_type
-    return resultFunc
+    return fixDefiningOpReturnType(resultFunc)
 
 
 def verify_smt_transfer_function(
@@ -335,6 +347,7 @@ def verify_smt_transfer_function(
     transfer_function: TransferFunction,
     func_name_to_func: dict[str, FuncOp],
     dynamic_transfer_functions: dict[str, Func],
+    ctx: MLContext,
 ) -> None:
     # Soundness check
     query_module = ModuleOp([])
@@ -350,7 +363,7 @@ def verify_smt_transfer_function(
         )
         query_module.body.block.add_ops(added_ops)
         FunctionCallInline(True, {}).apply(ctx, query_module)
-        LowerToSMT().apply(ctx, query_module)
+        # LowerToSMTPass().apply(ctx, query_module)
         # print(int_attr)
         # we find int_attr is satisfiable
         if not verify_pattern(ctx, query_module):
@@ -389,6 +402,7 @@ def verify_smt_transfer_function(
                     width,
                     dynamic_transfer_function_module,
                     int_attr,
+                    ctx,
                 )
 
             assert smt_transfer_function.transfer_function is not None
@@ -410,7 +424,8 @@ def verify_smt_transfer_function(
                 )
             query_module.body.block.add_ops(added_ops)
             FunctionCallInline(True, {}).apply(ctx, query_module)
-            LowerToSMT().apply(ctx, query_module)
+            # print(query_module)
+            # LowerToSMTPass().apply(ctx, query_module)
             # print_to_smtlib(query_module, sys.stdout)
 
             print("Soundness Check result:", verify_pattern(ctx, query_module))
@@ -428,7 +443,7 @@ def verify_smt_transfer_function(
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
-                LowerToSMT().apply(ctx, query_module)
+                LowerToSMTPass().apply(ctx, query_module)
 
                 print(
                     "Unable to find soundness counterexample: ",
@@ -488,10 +503,10 @@ def main() -> None:
                 )
             if func_name == DOMAIN_CONSTRAINT:
                 assert domain_constraint is None
-                domain_constraint = FunctionCollection(func, create_smt_function)
+                domain_constraint = FunctionCollection(func, create_smt_function, ctx)
             elif func_name == INSTANCE_CONSTRAINT:
                 assert instance_constraint is None
-                instance_constraint = FunctionCollection(func, create_smt_function)
+                instance_constraint = FunctionCollection(func, create_smt_function, ctx)
 
     FunctionCallInline(False, func_name_to_func).apply(ctx, module)
 
@@ -504,6 +519,7 @@ def main() -> None:
         assert isinstance(smt_module, ModuleOp)
         unrollTransferLoop.apply(ctx, smt_module)
         concrete_funcs: list[FuncOp] = []
+        concrete_func_names: set[str] = set()
         transfer_function_name_to_concrete_function_name: dict[str, str] = {}
         dynamic_transfer_functions: dict[str, FuncOp] = {}
 
@@ -525,7 +541,7 @@ def main() -> None:
                     ] = get_dynamic_concrete_function_name(concrete_func_name)
                     continue
 
-                if concrete_func_name not in concrete_funcs:
+                if concrete_func_name not in concrete_func_names:
                     extra = None
                     if len(op.attributes["applied_to"].data) > 1:
                         extra = op.attributes["applied_to"].data[1]
@@ -537,6 +553,7 @@ def main() -> None:
                     concrete_funcs.append(
                         get_concrete_function(concrete_func_name, width, extra)
                     )
+                    concrete_func_names.add(concrete_func_name)
                     transfer_function_name_to_concrete_function_name[
                         func_name
                     ] = concrete_funcs[-1].sym_name.data
@@ -622,4 +639,5 @@ def main() -> None:
                 transfer_function,
                 func_name_to_func,
                 dynamic_transfer_functions,
+                ctx,
             )
