@@ -248,7 +248,7 @@ class ExtractSemantics(SimplePurePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        low_bit = attributes["low_bit"]
+        low_bit = attributes["lowBit"]
         assert isinstance(results[0], IntegerType)
         if isinstance(low_bit, Attribute):
             if not isa(low_bit, IntegerAttr[IntegerType]):
