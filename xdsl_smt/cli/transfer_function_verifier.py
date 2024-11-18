@@ -443,7 +443,7 @@ def verify_smt_transfer_function(
                 )
                 query_module.body.block.add_ops(added_ops)
                 FunctionCallInline(True, {}).apply(ctx, query_module)
-                LowerToSMTPass().apply(ctx, query_module)
+                # LowerToSMTPass().apply(ctx, query_module)
 
                 print(
                     "Unable to find soundness counterexample: ",
@@ -554,9 +554,9 @@ def main() -> None:
                         get_concrete_function(concrete_func_name, width, extra)
                     )
                     concrete_func_names.add(concrete_func_name)
-                    transfer_function_name_to_concrete_function_name[
-                        func_name
-                    ] = concrete_funcs[-1].sym_name.data
+                transfer_function_name_to_concrete_function_name[
+                    func_name
+                ] = concrete_funcs[-1].sym_name.data
 
         smt_module.body.block.add_ops(concrete_funcs)
         lowerToSMTModule(smt_module, width, ctx)
