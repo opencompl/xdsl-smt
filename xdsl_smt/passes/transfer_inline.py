@@ -56,6 +56,7 @@ class SMTCallInlinePattern(RewritePattern):
                 for call_res, ret in zip(callOp.results, op.ret):
                     call_res.replace_by(value_map[ret])
                 rewriter.erase_matched_op()
+                return
             else:
                 newOp = op.clone()
                 for i, arg in enumerate(op.operands):
