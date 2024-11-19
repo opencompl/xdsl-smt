@@ -9,11 +9,16 @@ from xdsl.ir import Operation
 from xdsl.parser import Parser
 
 from xdsl.dialects.arith import Arith
-from xdsl.dialects.builtin import Builtin, ModuleOp
-from xdsl.dialects.func import Func, FuncOp
+from xdsl.dialects.func import Func
 from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
+from xdsl.dialects.func import FuncOp,Return
+from xdsl.dialects.builtin import (
+    Builtin,
+    ModuleOp,
+    IntegerAttr,
+)
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
