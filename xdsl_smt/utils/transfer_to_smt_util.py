@@ -106,13 +106,13 @@ def reverse_bits(bits: SSAValue) -> list[Operation]:
         iteOp = smt.IteOp(eqOp.res, one.res, zero.res)
         return [zero, one, eqOp, iteOp]
     else:
-        bits: list[Operation] = [smt_bv.ExtractOp(bits, i, i) for i in range(n)]
-        cur_bits: SSAValue = bits[0].results[0]
+        bits_ops: list[Operation] = [smt_bv.ExtractOp(bits, i, i) for i in range(n)]
+        cur_bits: SSAValue = bits_ops[0].results[0]
         result: list[smt_bv.ConcatOp] = []
-        for bit in bits[1:]:
+        for bit in bits_ops[1:]:
             result.append(smt_bv.ConcatOp(cur_bits, bit.results[0]))
             cur_bits = result[-1].res
-        return bits + result
+        return bits_ops + result
 
 
 pow2 = [2**i for i in range(0, 9)]

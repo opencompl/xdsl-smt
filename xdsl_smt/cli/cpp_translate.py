@@ -13,11 +13,12 @@ from xdsl.dialects.func import Func
 from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
-from xdsl.dialects.func import FuncOp,Return
+from xdsl.dialects.func import FuncOp, Return
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
     IntegerAttr,
+    StringAttr,
 )
 
 
@@ -54,7 +55,9 @@ def is_forward(func: FuncOp) -> bool:
 def getCounterexampleFunc(func: FuncOp) -> str | None:
     if "soundness_counterexample" not in func.attributes:
         return None
-    return func.attributes["soundness_counterexample"].data
+    attr = func.attributes["soundness_counterexample"]
+    assert isinstance(attr, StringAttr)
+    return attr.data
 
 
 def checkFunctionValidity(func: FuncOp) -> bool:
@@ -92,17 +95,18 @@ def main() -> None:
     with open("tmp.cpp", "w") as fout:
         LowerToCpp.fout = fout
         for func in module.ops:
-            if isinstance(func, FuncOp) and is_transfer_function(func):
-                forward |= is_transfer_function(func) and is_forward(func)
-                counterexampleFunc = getCounterexampleFunc(func)
-                if counterexampleFunc is not None:
-                    counterexampleFuncs.add(counterexampleFunc)
-            allFuncMapping[func.sym_name.data] = func
+            if isinstance(func, FuncOp):
+                if is_transfer_function(func):
+                    forward |= is_transfer_function(func) and is_forward(func)
+                    counterexampleFunc = getCounterexampleFunc(func)
+                    if counterexampleFunc is not None:
+                        counterexampleFuncs.add(counterexampleFunc)
+                allFuncMapping[func.sym_name.data] = func
 
-            # check function validity
-            if not checkFunctionValidity(func):
-                print(func.sym_name)
-            # check function validity
+                # check function validity
+                if not checkFunctionValidity(func):
+                    print(func.sym_name)
+                # check function validity
 
         for counterexample in counterexampleFuncs:
             assert counterexample in allFuncMapping

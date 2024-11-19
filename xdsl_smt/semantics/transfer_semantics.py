@@ -651,7 +651,7 @@ class ReverseBitsOpSemantics(OperationSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         op_ty = operands[0].type
         assert isinstance(op_ty, smt_bv.BitVectorType)
         res = reverse_bits(operands[0])
@@ -667,7 +667,7 @@ class ConstRangeForOpSemantics(OperationSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[SSAValue]:
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         cur_op = rewriter.current_operation
         lb = operands[0].owner
         ub = operands[1].owner
@@ -726,9 +726,7 @@ class ConstRangeForOpSemantics(OperationSemantics):
                         new_value_map[indvar] = cur_ind
                         rewriter.insert_op_before_matched_op(cur_ind.owner)
                         for idx, arg in enumerate(block_iter_args):
-                            new_value_map[block_iter_args[idx]] = value_map[
-                                cur_op.operands[idx]
-                            ]
+                            new_value_map[arg] = value_map[cur_op.operands[idx]]
                         value_map = new_value_map
                     else:
                         make_res = [value_map[arg] for arg in cur_op.arguments]
@@ -737,6 +735,7 @@ class ConstRangeForOpSemantics(OperationSemantics):
                             and "current we only support for one returned value from for"
                         )
                         last_result = make_res[0]
+        assert last_result is not None
         return ((last_result,), effect_state)
 
 

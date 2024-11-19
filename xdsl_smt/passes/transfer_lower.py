@@ -90,7 +90,7 @@ def addDispatcher(fout: TextIO, is_forward: bool):
 @dataclass(frozen=True)
 class LowerToCpp(ModulePass):
     name = "trans_lower"
-    fout = None
+    fout: TextIO = None
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
         walker = PatternRewriteWalker(
