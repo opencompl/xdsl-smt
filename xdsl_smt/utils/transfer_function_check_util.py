@@ -400,7 +400,8 @@ def forward_precision_check(
                 abs_arg_include_crt_arg_call_tmp_eq,
             ) = callFunctionAndEqResultWithEffect(
                 instance_constraint.getFunctionByWidth(arg_widths[i]),
-                [abs_arg, crt_arg],constant_bv_1,
+                [abs_arg, crt_arg],
+                constant_bv_1,
                 effect.res,
             )
 

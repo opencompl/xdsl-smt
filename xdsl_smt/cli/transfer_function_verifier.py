@@ -59,6 +59,7 @@ from ..utils.transfer_function_check_util import (
     backward_soundness_check,
     counterexample_check,
     int_attr_check,
+    forward_precision_check,
 )
 from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
@@ -329,6 +330,88 @@ def get_dynamic_transfer_function(
     return fixDefiningOpReturnType(resultFunc)
 
 
+def soundness_check(
+    smt_transfer_function: SMTTransferFunction,
+    domain_constraint: FunctionCollection,
+    instance_constraint: FunctionCollection,
+    int_attr: dict[int, int],
+    ctx: MLContext,
+):
+    query_module = ModuleOp([])
+    if smt_transfer_function.is_forward:
+        added_ops: list[Operation] = forward_soundness_check(
+            smt_transfer_function,
+            domain_constraint,
+            instance_constraint,
+            int_attr,
+        )
+    else:
+        added_ops: list[Operation] = backward_soundness_check(
+            smt_transfer_function,
+            domain_constraint,
+            instance_constraint,
+            int_attr,
+        )
+    query_module.body.block.add_ops(added_ops)
+    FunctionCallInline(True, {}).apply(ctx, query_module)
+
+    print("Soundness Check result:", verify_pattern(ctx, query_module))
+
+
+def soundness_counterexample_check(
+    smt_transfer_function: SMTTransferFunction,
+    domain_constraint: FunctionCollection,
+    instance_constraint: FunctionCollection,
+    func_name_to_func: dict[str, FuncOp],
+    int_attr: dict[int, int],
+    ctx: MLContext,
+):
+    if smt_transfer_function.soundness_counterexample is not None:
+        query_module = ModuleOp([])
+        soundness_counterexample_func_name = (
+            smt_transfer_function.soundness_counterexample.fun_name
+        )
+        assert soundness_counterexample_func_name is not None
+        counterexample_func_name = soundness_counterexample_func_name.data
+        added_ops = counterexample_check(
+            func_name_to_func[counterexample_func_name],
+            smt_transfer_function.soundness_counterexample,
+            domain_constraint,
+            int_attr,
+        )
+        query_module.body.block.add_ops(added_ops)
+        FunctionCallInline(True, {}).apply(ctx, query_module)
+        # LowerToSMTPass().apply(ctx, query_module)
+
+        print(
+            "Unable to find soundness counterexample: ",
+            verify_pattern(ctx, query_module),
+        )
+
+
+def precision_check(
+    smt_transfer_function: SMTTransferFunction,
+    domain_constraint: FunctionCollection,
+    instance_constraint: FunctionCollection,
+    int_attr: dict[int, int],
+    ctx: MLContext,
+):
+    query_module = ModuleOp([])
+    if smt_transfer_function.is_forward:
+        added_ops: list[Operation] = forward_precision_check(
+            smt_transfer_function,
+            domain_constraint,
+            instance_constraint,
+            int_attr,
+        )
+    else:
+        assert False and "Right now not supported backwards precision check"
+    query_module.body.block.add_ops(added_ops)
+    FunctionCallInline(True, {}).apply(ctx, query_module)
+
+    print("Soundness Check result:", verify_pattern(ctx, query_module))
+
+
 def verify_smt_transfer_function(
     smt_transfer_function: SMTTransferFunction,
     domain_constraint: FunctionCollection,
@@ -397,50 +480,28 @@ def verify_smt_transfer_function(
 
             assert smt_transfer_function.transfer_function is not None
 
-            query_module = ModuleOp([])
-            if smt_transfer_function.is_forward:
-                added_ops: list[Operation] = forward_soundness_check(
-                    smt_transfer_function,
-                    domain_constraint,
-                    instance_constraint,
-                    int_attr,
-                )
-            else:
-                added_ops: list[Operation] = backward_soundness_check(
-                    smt_transfer_function,
-                    domain_constraint,
-                    instance_constraint,
-                    int_attr,
-                )
-            query_module.body.block.add_ops(added_ops)
-            FunctionCallInline(True, {}).apply(ctx, query_module)
-            # print(query_module)
-            # LowerToSMTPass().apply(ctx, query_module)
-            # print_to_smtlib(query_module, sys.stdout)
-
-            print("Soundness Check result:", verify_pattern(ctx, query_module))
-
-            if smt_transfer_function.soundness_counterexample is not None:
-                query_module = ModuleOp([])
-                soundness_counterexample_func_name = (
-                    smt_transfer_function.soundness_counterexample.fun_name
-                )
-                assert soundness_counterexample_func_name is not None
-                counterexample_func_name = soundness_counterexample_func_name.data
-                added_ops = counterexample_check(
-                    func_name_to_func[counterexample_func_name],
-                    smt_transfer_function.soundness_counterexample,
-                    domain_constraint,
-                    int_attr,
-                )
-                query_module.body.block.add_ops(added_ops)
-                FunctionCallInline(True, {}).apply(ctx, query_module)
-                # LowerToSMTPass().apply(ctx, query_module)
-
-                print(
-                    "Unable to find soundness counterexample: ",
-                    verify_pattern(ctx, query_module),
-                )
+            soundness_check(
+                smt_transfer_function,
+                domain_constraint,
+                instance_constraint,
+                int_attr,
+                ctx,
+            )
+            soundness_counterexample_check(
+                smt_transfer_function,
+                domain_constraint,
+                instance_constraint,
+                func_name_to_func,
+                int_attr,
+                ctx,
+            )
+            precision_check(
+                smt_transfer_function,
+                domain_constraint,
+                instance_constraint,
+                int_attr,
+                ctx,
+            )
 
         hasNext = nextIntAttrArg(int_attr, width)
         if not hasNext:
