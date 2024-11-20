@@ -18,7 +18,7 @@ from ..dialects.smt_bitvector_dialect import (
 from ..dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
 from xdsl.dialects.func import FuncOp
 from ..dialects.transfer import AbstractValueType
-from xdsl.ir import Operation, SSAValue, Attribute
+from xdsl.ir import Operation, SSAValue, Attribute, Block
 from xdsl.dialects.builtin import (
     FunctionType,
 )
@@ -77,6 +77,15 @@ def callFunctionAndAssertResult(
     return [callOp, firstOp] + assertOps
 
 
+def callFunctionAndEqResultWithEffect(
+    func: DefineFunOp, args: list[SSAValue], bv: ConstantOp, effect: SSAValue
+) -> tuple[list[Operation], EqOp]:
+    callOp, callFirstOp = callFunctionWithEffect(func, args, effect)
+    firstOp = FirstOp(callFirstOp.res)
+    eqOp = EqOp(firstOp.res, bv.res)
+    return [callOp, callFirstOp, firstOp, eqOp], eqOp
+
+
 def callFunctionAndAssertResultWithEffect(
     func: DefineFunOp, args: list[SSAValue], bv: ConstantOp, effect: SSAValue
 ) -> list[Operation]:
@@ -84,6 +93,25 @@ def callFunctionAndAssertResultWithEffect(
     firstOp = FirstOp(callFirstOp.res)
     assertOps = assertResult(firstOp.res, bv)
     return [callOp, callFirstOp, firstOp] + assertOps
+
+
+def insertArgumentInstancesToBlockWithEffect(
+    func: DefineFunOp, int_attr: dict[int, int], block: Block
+) -> list[SSAValue]:
+    result: list[SSAValue] = []
+    assert isinstance(func.body.block.args[-1].type, BoolType)
+    curLen = len(block.args)
+    for i, arg in enumerate(func.body.block.args[:-1]):
+        argType = arg.type
+        if i in int_attr:
+            constOp = ConstantOp(int_attr[i], getWidthFromType(argType))
+            block.add_op(constOp)
+            result.append(constOp.res)
+        else:
+            block.insert_arg(argType, curLen)
+            curLen += 1
+            result.append(block.args[-1])
+    return result
 
 
 # Given a function, return a list of argument instances
@@ -113,6 +141,13 @@ def getArgumentInstances(
             result.append(ConstantOp(int_attr[i], getWidthFromType(argType)))
         else:
             result.append(DeclareConstOp(argType))
+    return result
+
+
+def insertResultInstancesToBlock(func: DefineFunOp, block: Block) -> list[SSAValue]:
+    return_type = func.func_type.outputs.data[0]
+    block.insert_arg(return_type, 0)
+    result: list[SSAValue] = [block.args[0]]
     return result
 
 
