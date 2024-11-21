@@ -1,25 +1,177 @@
 from abc import abstractmethod, ABC
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from typing import Mapping, Sequence, cast
-from xdsl.ir import SSAValue, Attribute
+from xdsl.ir import SSAValue, Attribute, Operation, Region, Block
+from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
+from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, FunctionType
+from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
+from xdsl_smt.semantics.semantics import AttributeSemantics, RefinementSemantics
+from xdsl.dialects.builtin import Signedness
+from xdsl_smt.dialects import transfer
+from xdsl.dialects import arith, pdl, comb
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.semantics.accessor import IntAccessor
+from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
+
+GENERIC_INT_WIDTH = 64
+
+
+class IntIntegerTypeRefinementSemantics(RefinementSemantics):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
+    def get_semantics(
+        self,
+        val_before: SSAValue,
+        val_after: SSAValue,
+        state_before: SSAValue,
+        state_after: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        before_val = self.accessor.get_payload(val_before, rewriter)
+        after_val = self.accessor.get_payload(val_after, rewriter)
+        before_width = self.accessor.get_width(val_before, rewriter)
+        after_width = self.accessor.get_width(val_after, rewriter)
+
+        after_val_norm = self.accessor.get_signed_to_unsigned(
+            after_val, after_width, rewriter
+        )
+        before_val_norm = self.accessor.get_signed_to_unsigned(
+            before_val, before_width, rewriter
+        )
+
+        refinement = smt.EqOp(before_val_norm, after_val_norm)
+        rewriter.insert_op_before_matched_op(
+            refinement,
+        )
+
+        return refinement.res
+
+
+class IntIntegerAttrSemantics(AttributeSemantics):
+    def get_semantics(
+        self, attribute: Attribute, rewriter: PatternRewriter
+    ) -> SSAValue:
+        if not isa(attribute, IntegerAttr[IntegerType]):
+            raise Exception(f"Cannot handle semantics of {attribute}")
+        op = smt_int.ConstantOp(attribute.value.data)
+        rewriter.insert_op_before_matched_op(op)
+        return op.res
 
 
 class IntIntegerTypeSemantics(TypeSemantics):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
     def get_semantics(self, type: Attribute) -> Attribute:
-        assert isinstance(type, IntegerType)
-        inner_pair_type = smt_utils.PairType(smt_int.SMTIntType(), smt.BoolType())
-        outer_pair_type = smt_utils.PairType(inner_pair_type, smt_int.SMTIntType())
-        return outer_pair_type
+        assert isinstance(type, IntegerType) or isinstance(
+            type, transfer.TransIntegerType
+        )
+        int_type = self.accessor.get_int_type(type)
+        return int_type
 
 
-class IntConstantSemantics(OperationSemantics):
+class GenericIntSemantics(OperationSemantics):
+    def __init__(self, accessor: IntAccessor):
+        self.accessor = accessor
+
+
+class IntTruncISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        width = self.context.pdl_types_to_width[pdl_type]
+        int_max = self.accessor.pow2_of(width, rewriter)
+        modulo_op = smt_int.ModOp(payload, int_max)
+        rewriter.insert_op_before_matched_op(
+            [
+                modulo_op,
+            ]
+        )
+        packed_integer = self.accessor.get_packed_integer(
+            modulo_op.res, poison, width, rewriter
+        )
+        return ((packed_integer,), effect_state)
+
+
+class IntExtUISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        width = self.context.pdl_types_to_width[pdl_type]
+        packed_integer = self.accessor.get_packed_integer(
+            payload, poison, width, rewriter
+        )
+        return ((packed_integer,), effect_state)
+
+
+class IntExtSISemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        payload = self.accessor.get_payload(operand, rewriter)
+        poison = self.accessor.get_poison(operand, rewriter)
+        width = self.accessor.get_width(operand, rewriter)
+        pdl_type = rewriter.current_operation.type_values[0].old_value
+        new_width = self.context.pdl_types_to_width[pdl_type]
+        #
+        signed_payload = self.accessor.get_unsigned_to_signed(payload, width, rewriter)
+        unsigned_payload = self.accessor.get_signed_to_unsigned(
+            signed_payload, width, rewriter
+        )
+        #
+        packed_integer = self.accessor.get_packed_integer(
+            unsigned_payload, poison, new_width, rewriter
+        )
+        return ((packed_integer,), effect_state)
+
+
+class IntConstantSemantics(GenericIntSemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     def get_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -29,26 +181,47 @@ class IntConstantSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
-        assert isa(value_value, AnyIntegerAttr)
-        assert len(results) == 1
-        assert isa(results[0], IntegerType)
-        literal = smt_int.ConstantOp(value_value.value.data)
-        rewriter.insert_op_before_matched_op([literal])
-        int_max = smt_int.ConstantOp(2 ** results[0].width.data)
-        modulo = smt_int.ModOp(literal.res, int_max.res)
+
+        if isinstance(value_value, Attribute):
+            assert isa(value_value, AnyIntegerAttr)
+            assert isinstance(value_value.type, IntegerType)
+            assert isinstance(value_value.type.width.data, int)
+            literal = smt_int.ConstantOp(value_value.value.data)
+            assert isinstance(results[0], IntegerType)
+            assert isinstance(results[0].width.data, int)
+            width_op = smt_int.ConstantOp(results[0].width.data)
+            width = width_op.res
+            int_max_op = smt_int.ConstantOp(2 ** results[0].width.data)
+            int_max = int_max_op.res
+            modulo = smt_int.ModOp(literal.res, int_max_op.res)
+            rewriter.insert_op_before_matched_op(
+                [literal, width_op, int_max_op, modulo]
+            )
+            ssa_attr = modulo.res
+        else:
+            width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH)
+            width = width_op.res
+            int_max_op = smt_int.ConstantOp(2**GENERIC_INT_WIDTH)
+            int_max = int_max_op.res
+            rewriter.insert_op_before_matched_op([width_op, int_max_op])
+            ssa_attr = value_value
+
         no_poison = smt.ConstantBoolOp.from_bool(False)
-        inner_pair = smt_utils.PairOp(modulo.res, no_poison.res)
-        outer_pair = smt_utils.PairOp(inner_pair.res, int_max.res)
-        rewriter.insert_op_before_matched_op(
-            [int_max, modulo, no_poison, inner_pair, outer_pair]
+        rewriter.insert_op_before_matched_op([no_poison])
+        result = self.accessor.get_packed_integer(
+            ssa_attr, no_poison.res, width, rewriter
         )
-        return ((outer_pair.res,), effect_state)
+
+        return ((result,), effect_state)
 
 
-class GenericIntBinarySemantics(OperationSemantics, ABC):
+class GenericIntBinarySemantics(GenericIntSemantics, ABC):
     """
     Generic semantics of binary operations on parametric integers.
     """
+
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
 
     def get_semantics(
         self,
@@ -60,52 +233,46 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         lhs = operands[0]
         rhs = operands[1]
-        # Unpack
-        lhs_get_inner_pair = smt_utils.FirstOp(lhs)
-        rhs_get_inner_pair = smt_utils.FirstOp(rhs)
-        lhs_get_int_max = smt_utils.SecondOp(lhs)
-        rhs_get_int_max = smt_utils.SecondOp(rhs)
+        # Constraint the width
+        lhs_width = self.accessor.get_width(lhs, rewriter)
+        rhs_width = self.accessor.get_width(rhs, rewriter)
+        eq_width_op = smt.EqOp(lhs_width, rhs_width)
+        assert_eq_width_op = smt.AssertOp(eq_width_op.res)
+        rewriter.insert_op_before_matched_op([eq_width_op, assert_eq_width_op])
         # Compute the payload
-        lhs_get_payload = smt_utils.FirstOp(lhs_get_inner_pair.res)
-        rhs_get_payload = smt_utils.FirstOp(rhs_get_inner_pair.res)
-        rewriter.insert_op_before_matched_op(
-            [
-                lhs_get_inner_pair,
-                rhs_get_inner_pair,
-                lhs_get_int_max,
-                rhs_get_int_max,
-                lhs_get_payload,
-                rhs_get_payload,
-            ]
-        )
+        lhs_payload = self.accessor.get_payload(lhs, rewriter)
+        rhs_payload = self.accessor.get_payload(rhs, rewriter)
         assert effect_state
-        effect_state = self.get_ub(
-            lhs_get_payload.res, rhs_get_payload.res, effect_state, rewriter
-        )
+        effect_state = self.get_ub(lhs_payload, rhs_payload, effect_state, rewriter)
         payload = self.get_payload_semantics(
-            lhs_get_payload.res,
-            rhs_get_payload.res,
-            lhs_get_int_max.res,
+            lhs_payload,
+            rhs_payload,
+            lhs_width,
             attributes,
             rewriter,
         )
+        # # Grant the payload
+        # lhs_mod_op = smt_int.ModOp(lhs_payload, lhs_int_max)
+        # rhs_mod_op = smt_int.ModOp(rhs_payload, rhs_int_max)
+        # rewriter.insert_op_before_matched_op([lhs_mod_op, rhs_mod_op])
+        # lhs_payload = lhs_mod_op.res
+        # rhs_payload = rhs_mod_op.res
         # Compute the poison
-        lhs_get_poison = smt_utils.SecondOp(lhs_get_inner_pair.res)
-        rhs_get_poison = smt_utils.SecondOp(rhs_get_inner_pair.res)
-        rewriter.insert_op_before_matched_op([lhs_get_poison, rhs_get_poison])
+        lhs_poison = self.accessor.get_poison(lhs, rewriter)
+        rhs_poison = self.accessor.get_poison(rhs, rewriter)
         poison = self.get_poison(
-            lhs_get_poison.res,
-            rhs_get_poison.res,
-            lhs_get_payload.res,
-            rhs_get_payload.res,
+            lhs_poison,
+            rhs_poison,
+            lhs_payload,
+            rhs_payload,
             payload,
             rewriter,
         )
         # Pack
-        inner_pair = smt_utils.PairOp(payload, poison)
-        outer_pair = smt_utils.PairOp(inner_pair.res, lhs_get_int_max.res)
-        rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
-        return ((outer_pair.res,), effect_state)
+        packed_integer = self.accessor.get_packed_integer(
+            payload, poison, lhs_width, rewriter
+        )
+        return ((packed_integer,), effect_state)
 
     def get_poison(
         self,
@@ -120,7 +287,6 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
         rewriter.insert_op_before_matched_op([or_poison])
         return or_poison.res
 
-    @abstractmethod
     def get_ub(
         self,
         lhs: SSAValue,
@@ -128,7 +294,7 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
         effect_state: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        ...
+        return effect_state
 
     @abstractmethod
     def get_payload_semantics(
@@ -143,6 +309,9 @@ class GenericIntBinarySemantics(OperationSemantics, ABC):
 
 
 class IntDivBasedSemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     @abstractmethod
     def _get_payload_semantics(
         self, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
@@ -168,7 +337,7 @@ class IntDivBasedSemantics(GenericIntBinarySemantics):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
-        int_max: SSAValue,
+        width: SSAValue,
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
@@ -181,14 +350,8 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
     (Effect-Free).
     """
 
-    def get_ub(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        effect_state: SSAValue,
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        return effect_state
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
 
     @abstractmethod
     def _get_payload_semantics(
@@ -200,17 +363,22 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
-        int_max: SSAValue,
+        width: SSAValue,
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
         payload = self._get_payload_semantics(lhs, rhs, rewriter)
-        modulo = smt_int.ModOp(payload, int_max)
-        rewriter.insert_op_before_matched_op([modulo])
-        return modulo.res
+        payload_norm = self.accessor.get_signed_to_unsigned(payload, width, rewriter)
+        # modulo = smt_int.ModOp(payload, int_max)
+        # rewriter.insert_op_before_matched_op([modulo])
+        # return modulo.res
+        return payload
 
 
 class IntCmpiSemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
     def get_ub(
         self,
         lhs: SSAValue,
@@ -224,7 +392,7 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
-        int_max: SSAValue,
+        width: SSAValue,
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
@@ -261,6 +429,9 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
 
 def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
     class OpSemantics(IntBinaryEFSemantics):
+        def __init__(self, accessor: IntAccessor):
+            super().__init__(accessor)
+
         def _get_payload_semantics(
             self,
             lhs: SSAValue,
@@ -274,6 +445,57 @@ def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
             return payload_op.res
 
     return OpSemantics
+
+
+class IntOrISemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
+    def get_payload_semantics(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        width: SSAValue,
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        andi = self.accessor.andi(width, lhs, rhs, rewriter)
+        xori = self.accessor.xori(width, lhs, rhs, rewriter)
+        ori_op = smt_int.AddOp(andi, xori)
+        rewriter.insert_op_before_matched_op([ori_op])
+        return ori_op.res
+
+
+class IntAndISemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
+    def get_payload_semantics(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        width: SSAValue,
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        andi = self.accessor.andi(width, lhs, rhs, rewriter)
+        return andi
+
+
+class IntXOrISemantics(GenericIntBinarySemantics):
+    def __init__(self, accessor: IntAccessor):
+        super().__init__(accessor)
+
+    def get_payload_semantics(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        width: SSAValue,
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        andi = self.accessor.xori(width, lhs, rhs, rewriter)
+        return andi
 
 
 def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
@@ -292,3 +514,23 @@ def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
             return payload_op.res
 
     return OpSemantics
+
+
+def trigger_parametric_int(
+    module_op: Operation,
+):
+    forbidden_ops = [arith.OrI.name, arith.XOrI.name, arith.ShLI.name, arith.DivSI.name]
+    forbidden_ops += [o.name for o in comb.Comb.operations]
+    use_parametric_int = True
+    for inner_op in module_op.walk():
+        if isinstance(inner_op, pdl.OperationOp):
+            op_name = str(inner_op.opName).replace('"', "")
+            if op_name in forbidden_ops:
+                use_parametric_int = False
+                break
+        # if isinstance(inner_op, pdl.ApplyNativeRewriteOp) or isinstance(
+        #     inner_op, pdl.ApplyNativeConstraintOp
+        # ):
+        #     use_parametric_int = False
+        #     break
+    return use_parametric_int

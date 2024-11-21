@@ -52,6 +52,7 @@ from xdsl_smt.dialects.tv_dialect import TVDialect
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
+
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
 
@@ -94,6 +95,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
+        self.ctx.load_registered_dialect(Transfer.name)
         self.ctx.load_registered_dialect(SMTIntDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)

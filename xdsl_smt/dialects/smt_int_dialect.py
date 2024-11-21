@@ -1,5 +1,6 @@
 from typing import TypeVar, IO
 from ..traits.effects import Pure
+from xdsl.dialects.builtin import Signedness
 from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
@@ -30,6 +31,8 @@ from ..traits.smt_printer import (
 from .smt_dialect import BoolType
 
 _OpT = TypeVar("_OpT", bound=Operation)
+
+LARGE_ENOUGH_INT_TYPE = IntegerType(128, Signedness.UNSIGNED)
 
 
 @irdl_attr_definition
@@ -92,10 +95,9 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     value: IntegerAttr[IntegerType] = attr_def(IntegerAttr)
 
     def __init__(self, value: int):
-        value_type = IntegerType(64)
         super().__init__(
             result_types=[SMTIntType()],
-            attributes={"value": IntegerAttr(value, value_type)},
+            attributes={"value": IntegerAttr(value, LARGE_ENOUGH_INT_TYPE)},
         )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):

@@ -133,7 +133,6 @@ class SMTLowerer:
     @staticmethod
     def lower_type(type_: Attribute) -> Attribute:
         """Convert a type to an SMT sort"""
-
         # Do not lower effect states to SMT, these are done in separate passes.
         if isinstance(type_, StateType):
             return type_

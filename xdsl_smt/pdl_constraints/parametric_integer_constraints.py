@@ -18,9 +18,14 @@ from xdsl.dialects.pdl import (
     TypeOp,
 )
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
+import xdsl_smt.dialects.smt_int_dialect as smt_int
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.smt_dialect as smt
-from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
+from dataclasses import dataclass, field
+from typing import Callable, ClassVar, Sequence
+from xdsl_smt.passes.pdl_to_smt_context import (
+    PDLToSMTRewriteContext as PDLToSMTRewriteContext,
+)
 
 
 def get_bv_type_from_optional_poison(
@@ -46,12 +51,12 @@ def single_op_rewrite(
     ],
 ) -> None:
     lhs, rhs = op.args
-    if isinstance(lhs.owner, smt_bv.ConstantOp) and isinstance(
-        rhs.owner, smt_bv.ConstantOp
+    if isinstance(lhs.owner, smt_int.ConstantOp) and isinstance(
+        rhs.owner, smt_int.ConstantOp
     ):
         lhs = lhs.owner.value
         rhs = rhs.owner.value
-        rewriter.replace_matched_op([smt_bv.ConstantOp(fold(lhs, rhs))])
+        rewriter.replace_matched_op([smt_int.ConstantOp(fold(lhs, rhs))])
         return
     new_op = op_type.create(operands=[lhs, rhs], result_types=[lhs.type])
     rewriter.replace_matched_op(new_op)
@@ -60,12 +65,12 @@ def single_op_rewrite(
 def addi_rewrite(
     op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
 ) -> None:
-    def fold_addi(
-        lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
-    ) -> smt_bv.BitVectorValue:
+    def fold_addi(lhs, rhs):
+        # TODO
+        assert False
         return smt_bv.BitVectorValue(lhs.value.data + rhs.value.data, lhs.width)
 
-    return single_op_rewrite(op, rewriter, smt_bv.AddOp, fold_addi)
+    return single_op_rewrite(op, rewriter, smt_int.AddOp, fold_addi)
 
 
 def subi_rewrite(
@@ -74,9 +79,11 @@ def subi_rewrite(
     def fold_subi(
         lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
     ) -> smt_bv.BitVectorValue:
+        # TODO
+        assert False
         return smt_bv.BitVectorValue(lhs.value.data - rhs.value.data, lhs.width)
 
-    return single_op_rewrite(op, rewriter, smt_bv.SubOp, fold_subi)
+    return single_op_rewrite(op, rewriter, smt_int.SubOp, fold_subi)
 
 
 def muli_rewrite(
@@ -85,9 +92,11 @@ def muli_rewrite(
     def fold_muli(
         lhs: smt_bv.BitVectorValue, rhs: smt_bv.BitVectorValue
     ) -> smt_bv.BitVectorValue:
+        # TODO
+        assert False
         return smt_bv.BitVectorValue(lhs.value.data * rhs.value.data, lhs.width)
 
-    return single_op_rewrite(op, rewriter, smt_bv.MulOp, fold_muli)
+    return single_op_rewrite(op, rewriter, smt_int.MulOp, fold_muli)
 
 
 def andi_rewrite(
@@ -288,15 +297,12 @@ def is_constant_factory(constant: int):
     ) -> SSAValue:
         (value,) = op.args
 
-        if not isinstance(value.type, smt_bv.BitVectorType):
+        if not isinstance(value.type, smt_int.SMTIntType):
             raise Exception(
-                "the constraint expects the input to be lowered to a `!smt.bv<...>`"
+                "the constraint expects the input to be lowered to a `!smt.int.int`"
             )
 
-        width = value.type.width.data
-        minus_one = smt_bv.ConstantOp(
-            ((constant % 2**width) + 2**width) % 2**width, width
-        )
+        minus_one = smt_int.ConstantOp(-1, IntegerType(32))
         eq_minus_one = smt.EqOp(value, minus_one.res)
         rewriter.replace_matched_op([minus_one, eq_minus_one], [])
         return eq_minus_one.res
@@ -482,24 +488,24 @@ def get_minimum_signed_value(
 
 def is_greater_integer_type(
     op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
     context: PDLToSMTRewriteContext,
 ) -> bool:
     (lhs_value, rhs_value) = op.args
     assert isinstance(lhs_value, ErasedSSAValue)
     assert isinstance(rhs_value, ErasedSSAValue)
-    lhs_type = context.pdl_types_to_types[lhs_value.old_value]
-    rhs_type = context.pdl_types_to_types[rhs_value.old_value]
 
-    lhs_type = get_bv_type_from_optional_poison(lhs_type, "is_greater_integer_type")
-    rhs_type = get_bv_type_from_optional_poison(rhs_type, "is_greater_integer_type")
+    lhs_width = context.pdl_types_to_width[lhs_value.old_value]
+    rhs_width = context.pdl_types_to_width[rhs_value.old_value]
 
-    lhs_width = lhs_type.width.data
-    rhs_width = rhs_type.width.data
+    gt_op = smt_int.GtOp(lhs_width, rhs_width)
+    assert_op = smt.AssertOp(gt_op.res)
+    rewriter.replace_matched_op([gt_op, assert_op])
 
-    return lhs_width > rhs_width
+    return gt_op.res
 
 
-integer_arith_native_rewrites: dict[
+parametric_integer_arith_native_rewrites: dict[
     str,
     Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
 ] = {
@@ -522,9 +528,10 @@ integer_arith_native_rewrites: dict[
     # Integer to type conversion
     "get_width": get_width,
     "integer_type_from_width": integer_type_from_width,
+    #
 }
 
-integer_arith_native_constraints = {
+parametric_integer_arith_native_constraints = {
     # Equality to constants
     "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
@@ -538,8 +545,8 @@ integer_arith_native_constraints = {
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
     # Integer type equality
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
+    #
+    "is_greater_integer_type": is_greater_integer_type,
 }
 
-integer_arith_native_static_constraints = {
-    # "is_greater_integer_type": is_greater_integer_type,
-}
+parametric_integer_arith_native_static_constraints = {}
