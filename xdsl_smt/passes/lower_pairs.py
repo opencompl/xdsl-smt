@@ -19,7 +19,13 @@ from xdsl.rewriter import Rewriter, InsertPoint
 from xdsl.passes import ModulePass
 from xdsl.utils.hints import isa
 
-from ..dialects.smt_dialect import CallOp, DeclareConstOp, DefineFunOp, ReturnOp
+from ..dialects.smt_dialect import (
+    CallOp,
+    DeclareConstOp,
+    DefineFunOp,
+    ReturnOp,
+    ForallOp,
+)
 from ..dialects.smt_utils_dialect import (
     AnyPairType,
     FirstOp,
@@ -160,6 +166,21 @@ def remove_pairs_from_function_return(module: ModuleOp):
                 Rewriter.replace_op(call, [callFirst, callSecond, mergeCalls])
 
 
+class LowerForallArgsPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, forall: ForallOp, rewriter: PatternRewriter):
+        forall_block = forall.body.block
+
+        for i, arg in enumerate(forall_block.args):
+            if isa(arg.type, AnyPairType):
+                second_arg = forall_block.insert_arg(arg.type.second, i)
+                first_arg = forall_block.insert_arg(arg.type.first, i)
+                pair_op = PairOp(first_arg, second_arg)
+                forall_block.insert_op_before(pair_op,forall_block.ops.first)
+                arg.replace_by(pair_op.res)
+                forall_block.erase_arg(arg)
+                break
+
 class LowerDeclareConstPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: DeclareConstOp, rewriter: PatternRewriter):
@@ -183,6 +204,7 @@ class LowerPairs(ModulePass):
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
+                    LowerForallArgsPattern(),
                     RemovePairArgsFunction(),
                     RemovePairArgsCall(),
                     LowerDeclareConstPattern(),

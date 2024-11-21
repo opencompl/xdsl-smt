@@ -360,16 +360,9 @@ def get_forall_abs_res_prime_constraint(
     assert len(abs_args) == len(crt_args)
 
     abs_arg_include_crt_arg_constraints_ops: list[Operation] = []
-    abs_domain_constraints_ops: list[Operation] = []
     forall_abs_res_prime_antecedent_ops: list[Operation] = []
     for i, (abs_arg, crt_arg) in enumerate(zip(abs_args, crt_args)):
         if is_abstract_arg[i]:
-            abs_domain_constraints_ops += callFunctionAndAssertResultWithEffect(
-                domain_constraint.getFunctionByWidth(arg_widths[i]),
-                [abs_arg],
-                constant_bv_1,
-                effect.res,
-            )
 
             (
                 abs_arg_include_crt_arg_call_tmp,
@@ -422,7 +415,6 @@ def get_forall_abs_res_prime_constraint(
     forall_abs_res_prime_constraint_block.add_ops(
         crt_arg_first_ops
         + abs_arg_include_crt_arg_constraints_ops
-        + abs_domain_constraints_ops
         + op_constraint_ops
         + forall_abs_res_prime_antecedent_and_ops
         + [crt_res_op, crt_res_first_op, crt_res_first_first_op]
@@ -543,6 +535,16 @@ def forward_precision_check(
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
 
+    abs_domain_constraints_ops: list[Operation] = []
+    for i, abs_arg in enumerate(abs_args):
+        if is_abstract_arg[i]:
+            abs_domain_constraints_ops += callFunctionAndAssertResultWithEffect(
+                domain_constraint.getFunctionByWidth(arg_widths[i]),
+                [abs_arg],
+                constant_bv_1,
+                effect.res,
+            )
+
     abs_arg_constraints_ops: list[Operation] = []
     if abs_op_constraint is not None:
         abs_arg_constraints_ops = callFunctionAndAssertResultWithEffect(
@@ -598,14 +600,14 @@ def forward_precision_check(
 
     abs_res_prime_not_include_abs_res_ele_ops = callFunctionAndAssertResultWithEffect(
         instance_constraint.getFunctionByWidth(result_width),
-        [call_abs_func_first_op.res, abs_res_ele],
+        [abs_res_prime, abs_res_ele],
         constant_bv_0,
         effect.res,
     )
 
     abs_res_include_abs_res_ele_ops = callFunctionAndAssertResultWithEffect(
         instance_constraint.getFunctionByWidth(result_width),
-        [abs_res_prime, abs_res_ele],
+        [call_abs_func_first_op.res, abs_res_ele],
         constant_bv_1,
         effect.res,
     )
@@ -614,6 +616,7 @@ def forward_precision_check(
         [effect]
         + abs_arg_ops
         + [constant_bv_0, constant_bv_1]
+        + abs_domain_constraints_ops
         + abs_arg_constraints_ops
         + abs_res_prime_ops
         + abs_res_prime_domain_constraints_ops
