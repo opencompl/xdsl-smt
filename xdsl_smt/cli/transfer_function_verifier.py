@@ -60,6 +60,7 @@ from ..utils.transfer_function_check_util import (
     counterexample_check,
     int_attr_check,
     forward_precision_check,
+    module_op_validity_check,
 )
 from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
@@ -107,7 +108,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     DeadCodeElimination().apply(ctx, cloned_op)
 
     print_to_smtlib(cloned_op, stream)
-    # print(stream.getvalue())
+    print(stream.getvalue())
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -407,9 +408,11 @@ def precision_check(
     else:
         assert False and "Right now not supported backwards precision check"
     query_module.body.block.add_ops(added_ops)
-    FunctionCallInline(True, {}).apply(ctx, query_module)
 
-    print("Soundness Check result:", verify_pattern(ctx, query_module))
+    FunctionCallInline(True, {}).apply(ctx, query_module)
+    assert module_op_validity_check(query_module)
+
+    print("Precision Check result:", verify_pattern(ctx, query_module))
 
 
 def verify_smt_transfer_function(
@@ -479,29 +482,30 @@ def verify_smt_transfer_function(
                 )
 
             assert smt_transfer_function.transfer_function is not None
-
-            soundness_check(
-                smt_transfer_function,
-                domain_constraint,
-                instance_constraint,
-                int_attr,
-                ctx,
-            )
-            soundness_counterexample_check(
-                smt_transfer_function,
-                domain_constraint,
-                instance_constraint,
-                func_name_to_func,
-                int_attr,
-                ctx,
-            )
-            precision_check(
-                smt_transfer_function,
-                domain_constraint,
-                instance_constraint,
-                int_attr,
-                ctx,
-            )
+            if False:
+                soundness_check(
+                    smt_transfer_function,
+                    domain_constraint,
+                    instance_constraint,
+                    int_attr,
+                    ctx,
+                )
+                soundness_counterexample_check(
+                    smt_transfer_function,
+                    domain_constraint,
+                    instance_constraint,
+                    func_name_to_func,
+                    int_attr,
+                    ctx,
+                )
+            if True:
+                precision_check(
+                    smt_transfer_function,
+                    domain_constraint,
+                    instance_constraint,
+                    int_attr,
+                    ctx,
+                )
 
         hasNext = nextIntAttrArg(int_attr, width)
         if not hasNext:

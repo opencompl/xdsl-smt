@@ -144,11 +144,32 @@ def getArgumentInstances(
     return result
 
 
+def insertResultInstancesToBlockWithEffect(
+    func: DefineFunOp, block: Block
+) -> list[SSAValue]:
+    return_type = func.func_type.outputs.data[0]
+    assert isa(return_type, AnyPairType)
+    real_return_type = return_type.first
+    effect_type = return_type.second
+    assert isinstance(effect_type, BoolType)
+    block.insert_arg(real_return_type, 0)
+    result: list[SSAValue] = [block.args[0]]
+    return result
+
+
 def insertResultInstancesToBlock(func: DefineFunOp, block: Block) -> list[SSAValue]:
     return_type = func.func_type.outputs.data[0]
     block.insert_arg(return_type, 0)
     result: list[SSAValue] = [block.args[0]]
     return result
+
+
+def getResultInstanceWithEffect(func: DefineFunOp) -> tuple[list[Operation], SSAValue]:
+    return_type = func.func_type.outputs.data[0]
+    assert isinstance(return_type, PairType)
+    declConstOp = DeclareConstOp(return_type.first)
+    assert isinstance(return_type.second, BoolType)
+    return [declConstOp], declConstOp.res
 
 
 # Given a function, return an instance of its return value
