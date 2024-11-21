@@ -8,7 +8,7 @@ builtin.module {
     %operand = pdl.operand : %type
     %low_bit_attr = pdl.attribute = 2 : i32
 
-    %extract = pdl.operation "comb.extract"(%operand : !pdl.value) { "low_bit" = %low_bit_attr} -> (%extract_type : !pdl.type)
+    %extract = pdl.operation "comb.extract"(%operand : !pdl.value) { "lowBit" = %low_bit_attr} -> (%extract_type : !pdl.type)
 
     pdl.rewrite %extract {
       %shift_cst_attr = pdl.attribute = 2 : i8
@@ -18,7 +18,7 @@ builtin.module {
       %shift_res = pdl.result 0 of %shift_op
 
       %new_extract_cst = pdl.attribute = 0 : i32
-      %new_extract_op = pdl.operation "comb.extract"(%shift_res : !pdl.value) { "low_bit" = %new_extract_cst } -> (%extract_type : !pdl.type)
+      %new_extract_op = pdl.operation "comb.extract"(%shift_res : !pdl.value) { "lowBit" = %new_extract_cst } -> (%extract_type : !pdl.type)
 
       pdl.replace %extract with %new_extract_op
     }

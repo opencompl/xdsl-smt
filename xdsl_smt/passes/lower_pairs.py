@@ -19,7 +19,13 @@ from xdsl.rewriter import Rewriter, InsertPoint
 from xdsl.passes import ModulePass
 from xdsl.utils.hints import isa
 
-from ..dialects.smt_dialect import CallOp, DeclareConstOp, DefineFunOp, ReturnOp, ForallOp
+from ..dialects.smt_dialect import (
+    CallOp,
+    DeclareConstOp,
+    DefineFunOp,
+    ReturnOp,
+    ForallOp,
+)
 from ..dialects.smt_utils_dialect import (
     AnyPairType,
     FirstOp,
@@ -170,6 +176,7 @@ class LowerForallArgsPattern(RewritePattern):
                 second_arg = forall_block.insert_arg(arg.type.second, i)
                 first_arg = forall_block.insert_arg(arg.type.first, i)
                 pair_op = PairOp(first_arg, second_arg)
+                assert forall_block.ops.first is not None
                 forall_block.insert_op_before(pair_op, forall_block.ops.first)
                 arg.replace_by(pair_op.res)
                 forall_block.erase_arg(arg)
