@@ -176,7 +176,7 @@ class LowerForallArgsPattern(RewritePattern):
                 second_arg = forall_block.insert_arg(arg.type.second, i)
                 first_arg = forall_block.insert_arg(arg.type.first, i)
                 pair_op = PairOp(first_arg, second_arg)
-                forall_block.insert_op_before(pair_op,forall_block.ops.first)
+                forall_block.insert_op_before(pair_op, forall_block.ops.first)
                 arg.replace_by(pair_op.res)
                 forall_block.erase_arg(arg)
                 break

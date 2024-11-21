@@ -363,7 +363,6 @@ def get_forall_abs_res_prime_constraint(
     forall_abs_res_prime_antecedent_ops: list[Operation] = []
     for i, (abs_arg, crt_arg) in enumerate(zip(abs_args, crt_args)):
         if is_abstract_arg[i]:
-
             (
                 abs_arg_include_crt_arg_call_tmp,
                 abs_arg_include_crt_arg_call_tmp_eq,
