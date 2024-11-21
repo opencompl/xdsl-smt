@@ -179,7 +179,9 @@ class LowerForallArgsPattern(RewritePattern):
                 forall_block.insert_op_before(pair_op, forall_block.ops.first)
                 arg.replace_by(pair_op.res)
                 forall_block.erase_arg(arg)
+                rewriter.has_done_action = True
                 break
+
 
 class LowerDeclareConstPattern(RewritePattern):
     @op_type_rewrite_pattern
@@ -223,6 +225,5 @@ class LowerPairs(ModulePass):
             )
         )
         walker.rewrite_module(op)
-
         # Apply DCE pass
         DeadCodeElimination().apply(ctx, op)
