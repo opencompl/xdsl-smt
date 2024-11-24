@@ -95,6 +95,26 @@ def count_ones(b: SSAValue) -> list[Operation]:
     return bits + [zero] + bvs + nb
 
 
+def reverse_bits(bits: SSAValue) -> list[Operation]:
+    assert isinstance(bits.type, smt_bv.BitVectorType)
+    n = bits.type.width.data
+    if n == 1:
+        # If width is only one, no need to reverse bit, but just a comparision
+        zero = smt_bv.ConstantOp(0, 1)
+        one = smt_bv.ConstantOp(1, 1)
+        eqOp = smt.EqOp(bits, one.res)
+        iteOp = smt.IteOp(eqOp.res, one.res, zero.res)
+        return [zero, one, eqOp, iteOp]
+    else:
+        bits_ops: list[Operation] = [smt_bv.ExtractOp(bits, i, i) for i in range(n)]
+        cur_bits: SSAValue = bits_ops[0].results[0]
+        result: list[smt_bv.ConcatOp] = []
+        for bit in bits_ops[1:]:
+            result.append(smt_bv.ConcatOp(cur_bits, bit.results[0]))
+            cur_bits = result[-1].res
+        return bits_ops + result
+
+
 pow2 = [2**i for i in range(0, 9)]
 
 
