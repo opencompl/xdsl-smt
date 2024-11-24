@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
@@ -30,6 +31,7 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_rzeros,
     count_lones,
     count_rones,
+    reverse_bits,
 )
 
 
@@ -38,7 +40,9 @@ class AbstractValueTypeSemantics(TypeSemantics):
     But the last element is useless, this makes GetOp easier"""
 
     def get_semantics(self, type: Attribute) -> Attribute:
-        assert isinstance(type, transfer.AbstractValueType)
+        assert isinstance(type, transfer.AbstractValueType) or isinstance(
+            type, transfer.TupleType
+        )
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = SMTLowerer.lower_type(curTy)
@@ -598,7 +602,9 @@ class ExtractOpSemantics(OperationSemantics):
         )
         numBits = numBitsOp.value.value.data
         bitPosition = bitPositionOp.value.value.data
-        extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition, bitPosition)
+        extractOp = smt_bv.ExtractOp(
+            operands[0], numBits + bitPosition - 1, bitPosition
+        )
         rewriter.insert_op_before_matched_op(extractOp)
         return ((extractOp.res,), effect_state)
 
@@ -637,6 +643,102 @@ class RemovePoisonOpSemantics(OperationSemantics):
         return ((res.res,), effect_state)
 
 
+class ReverseBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        op_ty = operands[0].type
+        assert isinstance(op_ty, smt_bv.BitVectorType)
+        res = reverse_bits(operands[0])
+        rewriter.insert_op_before_matched_op(res)
+        return ((res[-1].results[0],), effect_state)
+
+
+class ConstRangeForOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        cur_op = rewriter.current_operation
+        lb = operands[0].owner
+        ub = operands[1].owner
+        step = operands[2].owner
+        assert (
+            isinstance(lb, smt_bv.ConstantOp)
+            and "loop lower bound has to be a constant"
+        )
+        assert (
+            isinstance(ub, smt_bv.ConstantOp)
+            and "loop upper bound has to be a constant"
+        )
+        assert isinstance(step, smt_bv.ConstantOp) and "loop step has to be a constant"
+        lb_int = lb.value.value.data
+        ub_int = ub.value.value.data
+        step_int = step.value.value.data
+
+        assert step_int != 0 and "step size should not be zero"
+        if step_int > 0:
+            assert (
+                ub_int > lb_int
+                and "the upper bound should be larger than the lower bound"
+            )
+        else:
+            assert (
+                ub_int < lb_int
+                and "the upper bound should be smaller than the lower bound"
+            )
+
+        iter_args = operands[3:]
+        iter_args_num = len(iter_args)
+
+        indvar, *block_iter_args = cur_op.regions[0].block.args
+
+        value_map: dict[SSAValue, SSAValue] = {}
+
+        value_map[indvar] = operands[0]
+        for i in range(iter_args_num):
+            value_map[block_iter_args[i]] = iter_args[i]
+        last_result = None
+        for i in range(lb_int, ub_int, step_int):
+            for cur_op in cur_op.regions[0].block.ops:
+                if not isinstance(cur_op, transfer.NextLoopOp):
+                    clone_op = cur_op.clone()
+                    for idx in range(len(clone_op.operands)):
+                        if cur_op.operands[idx] in value_map:
+                            clone_op.operands[idx] = value_map[cur_op.operands[idx]]
+                    if len(cur_op.results) != 0:
+                        value_map[cur_op.results[0]] = clone_op.results[0]
+                    rewriter.insert_op_before_matched_op(clone_op)
+                    continue
+                if isinstance(cur_op, transfer.NextLoopOp):
+                    if i + step_int < ub_int:
+                        new_value_map: dict[SSAValue, SSAValue] = {}
+                        cur_ind = transfer.Constant(operands[1], i + step_int).result
+                        new_value_map[indvar] = cur_ind
+                        rewriter.insert_op_before_matched_op(cur_ind.owner)
+                        for idx, arg in enumerate(block_iter_args):
+                            new_value_map[arg] = value_map[cur_op.operands[idx]]
+                        value_map = new_value_map
+                    else:
+                        make_res = [value_map[arg] for arg in cur_op.arguments]
+                        assert (
+                            len(make_res) == 1
+                            and "current we only support for one returned value from for"
+                        )
+                        last_result = make_res[0]
+        assert last_result is not None
+        return ((last_result,), effect_state)
+
+
 transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.Constant: ConstantOpSemantics(),
     transfer.AddOp: TrivialOpSemantics(transfer.AddOp, smt_bv.AddOp),
@@ -673,4 +775,5 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.IntersectsOp: IntersectsOpSemantics(),
     transfer.AddPoisonOp: AddPoisonOpSemantics(),
     transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
+    transfer.ReverseBitsOp: ReverseBitsOpSemantics(),
 }

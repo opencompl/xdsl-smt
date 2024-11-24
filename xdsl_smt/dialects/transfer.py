@@ -134,6 +134,11 @@ class NegOp(UnaryOp):
     name = "transfer.neg"
 
 
+@irdl_op_definition
+class ReverseBitsOp(UnaryOp):
+    name = "transfer.reverse_bits"
+
+
 class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
     T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
 
@@ -439,6 +444,23 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
         super().__init__([shape])
 
 
+@irdl_attr_definition
+class TupleType(ParametrizedAttribute, TypeAttribute):
+    name = "transfer.tuple"
+    fields: ParameterDef[ArrayAttr[Attribute]]
+
+    def get_num_fields(self) -> int:
+        return len(self.fields.data)
+
+    def get_fields(self):
+        return [i for i in self.fields.data]
+
+    def __init__(self, shape: list[Attribute] | ArrayAttr[Attribute]) -> None:
+        if isinstance(shape, list):
+            shape = ArrayAttr(shape)
+        super().__init__([shape])
+
+
 @irdl_op_definition
 class GetOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.get"
@@ -653,6 +675,7 @@ Transfer = Dialect(
         IntersectsOp,
         AddPoisonOp,
         RemovePoisonOp,
+        ReverseBitsOp,
     ],
-    [TransIntegerType, AbstractValueType],
+    [TransIntegerType, AbstractValueType, TupleType],
 )
