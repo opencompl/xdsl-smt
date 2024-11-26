@@ -1,4 +1,5 @@
 from xdsl.ir import Operation, SSAValue
+from xdsl.pattern_rewriter import PatternRewriter
 
 from ..dialects import smt_bitvector_dialect as smt_bv
 from ..dialects import smt_dialect as smt
@@ -95,12 +96,12 @@ def count_ones(b: SSAValue) -> list[Operation]:
     return bits + [zero] + bvs + nb
 
 
-def reverse_bits(bits: SSAValue) -> list[Operation]:
+def reverse_bits(bits: SSAValue, rewriter: PatternRewriter) -> SSAValue:
     assert isinstance(bits.type, smt_bv.BitVectorType)
     n = bits.type.width.data
     if n == 1:
         # If width is only one, no need to reverse bit
-        return []
+        return bits
     else:
         bits_ops: list[Operation] = [smt_bv.ExtractOp(bits, i, i) for i in range(n)]
         cur_bits: SSAValue = bits_ops[0].results[0]
@@ -108,7 +109,8 @@ def reverse_bits(bits: SSAValue) -> list[Operation]:
         for bit in bits_ops[1:]:
             result.append(smt_bv.ConcatOp(cur_bits, bit.results[0]))
             cur_bits = result[-1].res
-        return bits_ops + result
+        rewriter.insert_op_before_matched_op(bits_ops + result)
+        return result[-1].res
 
 
 pow2 = [2**i for i in range(0, 9)]

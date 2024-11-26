@@ -653,11 +653,8 @@ class ReverseBitsOpSemantics(OperationSemantics):
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         op_ty = operands[0].type
         assert isinstance(op_ty, smt_bv.BitVectorType)
-        res = reverse_bits(operands[0])
-        rewriter.insert_op_before_matched_op(res)
-        if len(res) == 0:
-            return ((operands[0],), effect_state)
-        return ((res[-1].results[0],), effect_state)
+        res = reverse_bits(operands[0], rewriter)
+        return ((res,), effect_state)
 
 
 """
