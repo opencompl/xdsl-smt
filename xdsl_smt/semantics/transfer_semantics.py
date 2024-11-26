@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
@@ -656,9 +655,12 @@ class ReverseBitsOpSemantics(OperationSemantics):
         assert isinstance(op_ty, smt_bv.BitVectorType)
         res = reverse_bits(operands[0])
         rewriter.insert_op_before_matched_op(res)
+        if len(res) == 0:
+            return ((operands[0],), effect_state)
         return ((res[-1].results[0],), effect_state)
 
 
+"""
 class ConstRangeForOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -737,6 +739,7 @@ class ConstRangeForOpSemantics(OperationSemantics):
                         last_result = make_res[0]
         assert last_result is not None
         return ((last_result,), effect_state)
+"""
 
 
 transfer_semantics: dict[type[Operation], OperationSemantics] = {

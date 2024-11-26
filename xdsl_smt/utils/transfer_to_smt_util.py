@@ -99,12 +99,8 @@ def reverse_bits(bits: SSAValue) -> list[Operation]:
     assert isinstance(bits.type, smt_bv.BitVectorType)
     n = bits.type.width.data
     if n == 1:
-        # If width is only one, no need to reverse bit, but just a comparision
-        zero = smt_bv.ConstantOp(0, 1)
-        one = smt_bv.ConstantOp(1, 1)
-        eqOp = smt.EqOp(bits, one.res)
-        iteOp = smt.IteOp(eqOp.res, one.res, zero.res)
-        return [zero, one, eqOp, iteOp]
+        # If width is only one, no need to reverse bit
+        return []
     else:
         bits_ops: list[Operation] = [smt_bv.ExtractOp(bits, i, i) for i in range(n)]
         cur_bits: SSAValue = bits_ops[0].results[0]
