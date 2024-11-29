@@ -171,6 +171,239 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
     return module
 
 
+def get_int_val_from_smt_return(result_str: str) -> str:
+    lines = result_str.split("\n")
+    for line in lines:
+        if line.startswith("#x"):
+            int_val = int(line.replace("#", "0"), 16)
+            return str(int_val)
+    assert False
+
+
+class OperationProperties:
+    operation: Operation
+    commutativity: bool
+    associativity: bool
+    involution: bool
+    idempotence: bool
+    absorbing_elements: list[list[str]]
+    identity_elements: list[list[str]]
+    self_annihilation_elements: list[str]
+    distribution_operations: list[Operation]
+
+    def __init__(self, operation: Operation):
+        self.operation = operation
+        self.absorbing_elements = []
+        self.self_annihilation_elements = []
+        self.identity_elements = []
+
+
+class PropertyPrinter:
+    operation: OperationProperties
+    indent: str
+    constant_cnt: int
+
+    def __init__(self, operation: OperationProperties):
+        self.constant_cnt = 0
+        self.operation = operation
+        self.indent = ""
+
+    def get_constant_name(self) -> str:
+        result = "const" + str(self.constant_cnt)
+        self.constant_cnt += 1
+        return result
+
+    def get_nth_operand(self, idx: int) -> str:
+        nth_operand = "op.getOperand({idx})"
+        return nth_operand.format(idx=idx)
+
+    def get_constant(self, val: str) -> tuple[str, str]:
+        width = (
+            self.indent
+            + "unsigned width = op.getOperand(0).getType().getIntOrFloatBitWidth();\n"
+        )
+        result = self.indent + "llvm::APInt result(width, {val});\n"
+        return width + result.format(val=val), "result"
+
+    def match_constant(self, val: str, const_name: str) -> str:
+        return "matchPattern({val}, m_ConstantInt(&{const_name}))".format(
+            val=val, const_name=const_name
+        )
+
+    def match_constant_block(
+        self,
+    ) -> tuple[str, str]:
+        constant_name = self.get_constant_name()
+        apint_decl = self.indent + "llvm::APInt " + constant_name + ";\n"
+        if_block = self.indent + ("if({cond}){{\n" "{content}" + self.indent + "}}\n")
+        return apint_decl + if_block, constant_name
+
+    def get_op_name(self) -> str:
+        return self.operation.operation.name.replace(".", "_")
+
+    def get_op_cpp_class(self) -> str:
+        assert "CPPCLASS" in self.operation.operation.attributes
+        cpp_class = self.operation.operation.attributes["CPPCLASS"].data[0]
+        return cpp_class.data
+
+    def push_indent(self):
+        self.indent += "\t"
+
+    def pop_indent(self):
+        self.indent = self.indent[:-1]
+
+    def generate_isa_cpp_class(self) -> str:
+        if_block = self.indent + ("if({cond}){{\n" "{content}" + self.indent + "}}\n")
+        cond = "llvm::isa<{cpp_class}>(op)"
+        self.push_indent()
+        content = ""
+        content += self.generate_idempotence()
+        content += self.generate_self_annihilation()
+        content += self.generate_absorbing_elements()
+        content += self.generate_identity_elements()
+        self.pop_indent()
+        return if_block.format(
+            cond=cond.format(cpp_class=self.get_op_cpp_class()), content=content
+        )
+
+    def generate_idempotence(self) -> str:
+        idempotence = self.operation.idempotence
+        result = ""
+        if idempotence:
+            firstOperand: str = self.get_nth_operand(0)
+            secondOperand: str = self.get_nth_operand(1)
+            if_block = (
+                self.indent + "if({cond}){{\n" "{return_val}" + self.indent + "}}\n"
+            )
+            self.push_indent()
+            return_val = (self.indent + "return {constant_name};\n").format(
+                constant_name=firstOperand
+            )
+            self.pop_indent()
+            cond = "{firstOperand} == {secondOperand}"
+
+            result += if_block.format(
+                cond=cond.format(
+                    firstOperand=firstOperand, secondOperand=secondOperand
+                ),
+                return_val=return_val,
+            )
+
+        return result
+
+    def generate_self_annihilation(self) -> str:
+        self_annihilation_elements = self.operation.self_annihilation_elements
+        if len(self_annihilation_elements) != 0:
+            result = ""
+            for ele in self_annihilation_elements:
+                firstOperand: str = self.get_nth_operand(0)
+                secondOperand: str = self.get_nth_operand(1)
+                if_block = (
+                    self.indent + "if({cond}){{\n"
+                    "{constant}\n"
+                    "{return_val}" + self.indent + "}}\n"
+                )
+                self.push_indent()
+                constant, constant_name = self.get_constant(ele)
+                return_val = (
+                    self.indent + "return getIntAttr({constant_name}, context);\n"
+                ).format(constant_name=constant_name)
+                self.pop_indent()
+                cond = "{firstOperand} == {secondOperand}"
+
+                result += if_block.format(
+                    cond=cond.format(
+                        firstOperand=firstOperand, secondOperand=secondOperand
+                    ),
+                    constant=constant,
+                    return_val=return_val,
+                )
+            return result
+        return ""
+
+    def generate_absorbing_elements(self) -> str:
+        absorbing_element = self.operation.absorbing_elements
+        result = ""
+        for i in range(len(absorbing_element)):
+            for ele in absorbing_element[i]:
+                constant_if_block, apint_name = self.match_constant_block()
+                first_operand = self.get_nth_operand(i)
+                first_cond = self.match_constant(first_operand, apint_name)
+                self.push_indent()
+                absorbing_str, absorbing_element = self.get_constant(ele)
+                if_block = (
+                    self.indent + "if({cond}){{\n" "{content}" + self.indent + "}}\n"
+                )
+                self.push_indent()
+                return_val = (
+                    self.indent
+                    + "return getIntAttr("
+                    + absorbing_element
+                    + ", context);\n"
+                )
+                self.pop_indent()
+                first_content = absorbing_str + if_block.format(
+                    cond=apint_name + " == " + absorbing_element, content=return_val
+                )
+                self.pop_indent()
+                result += constant_if_block.format(
+                    cond=first_cond, content=first_content
+                )
+        return result
+
+    def generate_identity_elements(self) -> str:
+        identity_elements = self.operation.identity_elements
+        result = ""
+        for i in range(len(identity_elements)):
+            for ele in identity_elements[i]:
+                constant_if_block, apint_name = self.match_constant_block()
+                first_operand = self.get_nth_operand(i)
+                first_cond = self.match_constant(first_operand, apint_name)
+                self.push_indent()
+                identity_str, identity_elements = self.get_constant(ele)
+                if_block = (
+                    self.indent + "if({cond}){{\n" "{content}" + self.indent + "}}\n"
+                )
+                self.push_indent()
+                return_val = self.indent + "return " + first_operand + ";\n"
+                self.pop_indent()
+                first_content = identity_str + if_block.format(
+                    cond=apint_name + " == " + identity_elements, content=return_val
+                )
+                self.pop_indent()
+                result += constant_if_block.format(
+                    cond=first_cond, content=first_content
+                )
+        return result
+
+    def generate_interface(self):
+        op_name = self.get_op_name()
+        head = (
+            "static mlir::OpFoldResult "
+            + op_name
+            + "Simplify(mlir::Operation op, mlir::MLIRContext* context){\n"
+        )
+        self.push_indent()
+        mid = self.generate_isa_cpp_class()
+        end = self.indent + "return {};\n"
+        self.pop_indent()
+        end += self.indent + "}\n"
+        return head + mid + end
+
+
+"""
+opp=OperationProperties()
+opp.self_annihilation_elements=["0"]
+opp.absorbing_elements=["0"]
+opp.identity_elements=["0"]
+printer=PropertyPrinter()
+printer.operation=opp
+printer.indent=""
+print(printer.generate_interface())
+exit(0)
+"""
+
+
 def check_commutativity(func: DefineFunOp, ctx: MLContext) -> bool:
     if len(func.body.block.args) == 3:
         query_module = ModuleOp([])
@@ -382,7 +615,10 @@ def get_forall_absorbing_property(
 
 # Forall([x], op(x,ele)==ele)
 # Forall([x], op(ele,x)==ele)
-def check_absorbing_element(func: DefineFunOp, ctx: MLContext, commutativity: bool):
+def check_absorbing_element(
+    func: DefineFunOp, ctx: MLContext, commutativity: bool
+) -> list[list[str]]:
+    result_lst: list[list[str]] = []
     if len(func.body.block.args) == 3:
         operand_order = [True]
         if not commutativity:
@@ -390,6 +626,7 @@ def check_absorbing_element(func: DefineFunOp, ctx: MLContext, commutativity: bo
 
         final_result = False
         for op_order in operand_order:
+            result_lst.append([])
             query_module = ModuleOp([])
             # getInstance x, y
             effect = ConstantBoolOp(False)
@@ -412,16 +649,13 @@ def check_absorbing_element(func: DefineFunOp, ctx: MLContext, commutativity: bo
                 result: bool, func_name: str, s: str, is_first_operand: bool
             ) -> str:
                 if result:
-                    lines = s.split("\n")
-                    for line in lines:
-                        if line.startswith("#x"):
-                            int_val = int(line.replace("#", "0"), 16)
-                            return "{func_name}({first_op}, {second_op}) == {int_val}".format(
-                                func_name=func_name,
-                                first_op=(int_val if is_first_operand else "x"),
-                                second_op=(int_val if not is_first_operand else "x"),
-                                int_val=int_val,
-                            )
+                    int_val = get_int_val_from_smt_return(s)
+                    return "{func_name}({first_op}, {second_op}) == {int_val}".format(
+                        func_name=func_name,
+                        first_op=(int_val if is_first_operand else "x"),
+                        second_op=(int_val if not is_first_operand else "x"),
+                        int_val=int_val,
+                    )
 
                 return "N/A"
 
@@ -432,8 +666,10 @@ def check_absorbing_element(func: DefineFunOp, ctx: MLContext, commutativity: bo
                 ),
             )
             final_result |= result
-        return final_result
-    return False
+            if result:
+                result_lst[-1].append(get_int_val_from_smt_return(result_str))
+
+    return result_lst
 
 
 # Forall([x], op(x,ele)==x)
@@ -478,7 +714,10 @@ def get_forall_identity_property(
 
 # Forall([x], op(x,ele)==x)
 # Forall([x], op(ele,x)==x)
-def check_identity_element(func: DefineFunOp, ctx: MLContext, commutativity: bool):
+def check_identity_element(
+    func: DefineFunOp, ctx: MLContext, commutativity: bool
+) -> list[list[str]]:
+    result_lst: list[list[str]] = []
     if len(func.body.block.args) == 3:
         operand_order = [True]
         if not commutativity:
@@ -486,6 +725,7 @@ def check_identity_element(func: DefineFunOp, ctx: MLContext, commutativity: boo
 
         final_result = False
         for op_order in operand_order:
+            result_lst.append([])
             query_module = ModuleOp([])
             # getInstance x, y
             effect = ConstantBoolOp(False)
@@ -508,15 +748,12 @@ def check_identity_element(func: DefineFunOp, ctx: MLContext, commutativity: boo
                 result: bool, func_name: str, s: str, is_first_operand: bool
             ) -> str:
                 if result:
-                    lines = s.split("\n")
-                    for line in lines:
-                        if line.startswith("#x"):
-                            int_val = int(line.replace("#", "0"), 16)
-                            return "{func_name}({first_op}, {second_op}) == x".format(
-                                func_name=func_name,
-                                first_op=(int_val if is_first_operand else "x"),
-                                second_op=(int_val if not is_first_operand else "x"),
-                            )
+                    int_val = get_int_val_from_smt_return(s)
+                    return "{func_name}({first_op}, {second_op}) == x".format(
+                        func_name=func_name,
+                        first_op=(int_val if is_first_operand else "x"),
+                        second_op=(int_val if not is_first_operand else "x"),
+                    )
 
                 return "N/A"
 
@@ -525,8 +762,9 @@ def check_identity_element(func: DefineFunOp, ctx: MLContext, commutativity: boo
                 print_zero_element(result, func.fun_name.data, result_str, op_order),
             )
             final_result |= result
-        return final_result
-    return False
+            if result:
+                result_lst[-1].append(get_int_val_from_smt_return(result_str))
+    return result_lst
 
 
 # Forall([x], op(x,x)==ele)
@@ -563,7 +801,8 @@ def get_forall_self_annihilation_property(
     return forall_op
 
 
-def check_self_annihilation(func: DefineFunOp, ctx: MLContext):
+def check_self_annihilation(func: DefineFunOp, ctx: MLContext) -> list[str]:
+    result_lst: list[str] = []
     if len(func.body.block.args) == 3:
         query_module = ModuleOp([])
         # getInstance x, y
@@ -587,33 +826,38 @@ def check_self_annihilation(func: DefineFunOp, ctx: MLContext):
             result: bool, func_name: str, s: str
         ) -> str:
             if result:
-                lines = s.split("\n")
-                for line in lines:
-                    if line.startswith("#x"):
-                        int_val = int(line.replace("#", "0"), 16)
-                        return "{func_name}(x, x) == {int_val}".format(
-                            func_name=func_name, int_val=int_val
-                        )
+                int_val = get_int_val_from_smt_return(s)
+                return "{func_name}(x, x) == {int_val}".format(
+                    func_name=func_name, int_val=int_val
+                )
             return "N/A"
 
         print(
             "Self Annihilation Element Check result: ",
             print_self_annihilation_element(result, func.fun_name.data, result_str),
         )
-        return result
-    return False
+        if result:
+            result_lst.append(get_int_val_from_smt_return(result_str))
+    return result_lst
 
 
-def check_all_property(func: DefineFunOp, ctx: MLContext):
+def check_all_property(
+    func: DefineFunOp,
+    func_name_to_func: dict[str, FuncOp],
+    ctx: MLContext,
+    properties: list[OperationProperties],
+):
     comm = check_commutativity(func, ctx)
-    check_associativity(func, ctx)
-    check_involution(func, ctx)
-    check_idempotence(func, ctx)
-    check_absorbing_element(func, ctx, comm)
-    check_identity_element(func, ctx, comm)
-    check_self_annihilation(func, ctx)
-
-    pass
+    func_name = func.fun_name.data
+    cur_op = func_name_to_func[func_name].body.block.ops.first
+    opp = OperationProperties(cur_op)
+    opp.associativity = check_associativity(func, ctx)
+    opp.involution = check_involution(func, ctx)
+    opp.idempotence = check_idempotence(func, ctx)
+    opp.absorbing_elements = check_absorbing_element(func, ctx, comm)
+    opp.identity_elements = check_identity_element(func, ctx, comm)
+    opp.self_annihilation_elements = check_self_annihilation(func, ctx)
+    properties.append(opp)
 
 
 def main() -> None:
@@ -639,11 +883,20 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
+    func_name_to_func: dict[str, FuncOp] = {}
+    for op in module.ops:
+        if isinstance(op, FuncOp):
+            func_name_to_func[op.sym_name.data] = op
+
     smt_module = module.clone()
     assert isinstance(smt_module, ModuleOp)
     lowerToSMTModule(smt_module, 8, ctx)
+    operation_properties: list[OperationProperties] = []
     for op in smt_module.ops:
         if isinstance(op, DefineFunOp):
             print("Current check: ", op.fun_name)
-            check_all_property(op, ctx)
+            check_all_property(op, func_name_to_func, ctx, operation_properties)
             print("========")
+    for opp in operation_properties:
+        printer = PropertyPrinter(opp)
+        print(printer.generate_interface())
