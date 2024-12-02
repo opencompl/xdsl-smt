@@ -3,10 +3,8 @@ from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 from xdsl.dialects.builtin import ModuleOp
 
-from xdsl_smt.semantics.accessor import PowEnabledIntAccessor as IntAccessor
-from xdsl_smt.semantics.load_int_semantics import (
-    load_int_semantics,
-)
+from xdsl_smt.semantics.accessor import IntAccessor
+from xdsl_smt.passes.lowerers_loaders import load_int_semantics
 
 
 @dataclass(frozen=True)

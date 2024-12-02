@@ -19,7 +19,7 @@ from xdsl_smt.dialects.memory_dialect import MemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.passes.lowerers import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.semantics.memref_semantics import memref_semantics

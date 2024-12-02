@@ -541,5 +541,5 @@ integer_arith_native_constraints = {
 }
 
 integer_arith_native_static_constraints = {
-    # "is_greater_integer_type": is_greater_integer_type,
+    "is_greater_integer_type": is_greater_integer_type,
 }
