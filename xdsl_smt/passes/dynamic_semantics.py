@@ -3,8 +3,8 @@ from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects import pdl, arith
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
+from xdsl_smt.passes.lowerers import SMTLowerer
 
 
 @dataclass(frozen=True)

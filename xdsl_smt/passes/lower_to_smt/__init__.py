@@ -9,5 +9,8 @@ from .llvm_to_smt import (
 from .transfer_to_smt import (
     transfer_to_smt_patterns as transfer_to_smt_patterns,
 )
+from xdsl_smt.passes.lowerers import (
+    SMTLowerer,
+)
 
 SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}

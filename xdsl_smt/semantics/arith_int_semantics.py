@@ -1,21 +1,16 @@
 from abc import abstractmethod, ABC
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from typing import Mapping, Sequence, cast
-from xdsl.ir import SSAValue, Attribute, Operation, Region, Block
-from xdsl.rewriter import InsertPoint, Rewriter
+from xdsl.ir import SSAValue, Attribute, Operation, ErasedSSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, FunctionType
-from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
-from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
 from xdsl_smt.semantics.semantics import AttributeSemantics, RefinementSemantics
-from xdsl.dialects.builtin import Signedness
 from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith, pdl, comb
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.accessor import IntAccessor
 from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
 
@@ -98,7 +93,10 @@ class IntTruncISemantics(GenericIntSemantics):
         operand = operands[0]
         payload = self.accessor.get_payload(operand, rewriter)
         poison = self.accessor.get_poison(operand, rewriter)
-        pdl_type = rewriter.current_operation.type_values[0].old_value
+        assert isinstance(rewriter.current_operation, pdl.OperationOp)
+        former_result = rewriter.current_operation.type_values[0]
+        assert isinstance(former_result, ErasedSSAValue)
+        pdl_type = former_result.old_value
         width = self.context.pdl_types_to_width[pdl_type]
         int_max = self.accessor.pow2_of(width, rewriter)
         modulo_op = smt_int.ModOp(payload, int_max)
@@ -129,7 +127,10 @@ class IntExtUISemantics(GenericIntSemantics):
         operand = operands[0]
         payload = self.accessor.get_payload(operand, rewriter)
         poison = self.accessor.get_poison(operand, rewriter)
-        pdl_type = rewriter.current_operation.type_values[0].old_value
+        assert isinstance(rewriter.current_operation, pdl.OperationOp)
+        former_result = rewriter.current_operation.type_values[0]
+        assert isinstance(former_result, ErasedSSAValue)
+        pdl_type = former_result.old_value
         width = self.context.pdl_types_to_width[pdl_type]
         packed_integer = self.accessor.get_packed_integer(
             payload, poison, width, rewriter
@@ -154,7 +155,10 @@ class IntExtSISemantics(GenericIntSemantics):
         payload = self.accessor.get_payload(operand, rewriter)
         poison = self.accessor.get_poison(operand, rewriter)
         width = self.accessor.get_width(operand, rewriter)
-        pdl_type = rewriter.current_operation.type_values[0].old_value
+        assert isinstance(rewriter.current_operation, pdl.OperationOp)
+        former_result = rewriter.current_operation.type_values[0]
+        assert isinstance(former_result, ErasedSSAValue)
+        pdl_type = former_result.old_value
         new_width = self.context.pdl_types_to_width[pdl_type]
         #
         signed_payload = self.accessor.get_unsigned_to_signed(payload, width, rewriter)
@@ -192,7 +196,6 @@ class IntConstantSemantics(GenericIntSemantics):
             width_op = smt_int.ConstantOp(results[0].width.data)
             width = width_op.res
             int_max_op = smt_int.ConstantOp(2 ** results[0].width.data)
-            int_max = int_max_op.res
             modulo = smt_int.ModOp(literal.res, int_max_op.res)
             rewriter.insert_op_before_matched_op(
                 [literal, width_op, int_max_op, modulo]
@@ -202,7 +205,6 @@ class IntConstantSemantics(GenericIntSemantics):
             width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH)
             width = width_op.res
             int_max_op = smt_int.ConstantOp(2**GENERIC_INT_WIDTH)
-            int_max = int_max_op.res
             rewriter.insert_op_before_matched_op([width_op, int_max_op])
             ssa_attr = value_value
 
@@ -251,12 +253,6 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
             attributes,
             rewriter,
         )
-        # # Grant the payload
-        # lhs_mod_op = smt_int.ModOp(lhs_payload, lhs_int_max)
-        # rhs_mod_op = smt_int.ModOp(rhs_payload, rhs_int_max)
-        # rewriter.insert_op_before_matched_op([lhs_mod_op, rhs_mod_op])
-        # lhs_payload = lhs_mod_op.res
-        # rhs_payload = rhs_mod_op.res
         # Compute the poison
         lhs_poison = self.accessor.get_poison(lhs, rewriter)
         rhs_poison = self.accessor.get_poison(rhs, rewriter)
@@ -301,7 +297,7 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
-        int_max: SSAValue,
+        width: SSAValue,
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
@@ -368,10 +364,7 @@ class IntBinaryEFSemantics(GenericIntBinarySemantics):
         rewriter: PatternRewriter,
     ) -> SSAValue:
         payload = self._get_payload_semantics(lhs, rhs, rewriter)
-        payload_norm = self.accessor.get_signed_to_unsigned(payload, width, rewriter)
-        # modulo = smt_int.ModOp(payload, int_max)
-        # rewriter.insert_op_before_matched_op([modulo])
-        # return modulo.res
+        self.accessor.get_signed_to_unsigned(payload, width, rewriter)
         return payload
 
 
@@ -459,11 +452,13 @@ class IntOrISemantics(GenericIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        andi = self.accessor.andi(width, lhs, rhs, rewriter)
-        xori = self.accessor.xori(width, lhs, rhs, rewriter)
-        ori_op = smt_int.AddOp(andi, xori)
-        rewriter.insert_op_before_matched_op([ori_op])
-        return ori_op.res
+        # TODO
+        # andi = self.accessor.andi_of(width, lhs, rhs, rewriter)
+        # xori = self.accessor.xori(width, lhs, rhs, rewriter)
+        # ori_op = smt_int.AddOp(andi, xori)
+        # rewriter.insert_op_before_matched_op([ori_op])
+        # return ori_op.res
+        raise NotImplementedError
 
 
 class IntAndISemantics(GenericIntBinarySemantics):
@@ -478,7 +473,7 @@ class IntAndISemantics(GenericIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        andi = self.accessor.andi(width, lhs, rhs, rewriter)
+        andi = self.accessor.andi_of(width, lhs, rhs, rewriter)
         return andi
 
 
@@ -494,8 +489,7 @@ class IntXOrISemantics(GenericIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        andi = self.accessor.xori(width, lhs, rhs, rewriter)
-        return andi
+        raise NotImplementedError()
 
 
 def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):

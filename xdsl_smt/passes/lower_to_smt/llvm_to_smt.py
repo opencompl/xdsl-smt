@@ -16,7 +16,7 @@ from xdsl_smt.semantics.arith_semantics import (
     reduce_poison_values,
     get_int_value_and_poison,
 )
-from xdsl_smt.passes.lower_to_smt import SMTLowerer
+from xdsl_smt.passes.lowerers import SMTLowerer
 
 
 class ReturnPattern(RewritePattern):

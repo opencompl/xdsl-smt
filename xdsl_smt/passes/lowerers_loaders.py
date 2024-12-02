@@ -1,5 +1,7 @@
 from xdsl_smt.semantics.accessor import IntAccessor
-from xdsl.dialects import arith, pdl, comb
+from xdsl.ir import Attribute
+from xdsl_smt.semantics.semantics import AttributeSemantics
+from xdsl.dialects import arith
 from xdsl_smt.semantics.arith_int_semantics import (
     IntConstantSemantics,
     get_binary_ef_semantics,
@@ -15,10 +17,10 @@ from xdsl_smt.semantics.arith_int_semantics import (
     IntIntegerAttrSemantics,
 )
 from xdsl_smt.dialects import smt_int_dialect as smt_int
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.dialects import transfer
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, FunctionType
+from xdsl.dialects.builtin import IntegerType, IntegerAttr
 from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
+from xdsl_smt.passes.lowerers import SMTLowerer
 
 
 def load_int_semantics(accessor: IntAccessor):
