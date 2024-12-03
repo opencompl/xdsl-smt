@@ -101,6 +101,9 @@ class RewriteRewrite(RewritePattern):
 class TypeRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
 
+    def _match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
+        pass
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
         if op.constantType is None:
@@ -109,11 +112,22 @@ class TypeRewrite(RewritePattern):
         self.rewrite_context.pdl_types_to_types[op.result] = SMTLowerer.lower_type(
             op.constantType
         )
+
+        self._match_and_rewrite(op, rewriter)
+
         rewriter.erase_matched_op(safe_erase=False)
 
 
 class AttributeRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
+
+    def declare_of_value_type(self, value_type: Attribute):
+        if not isinstance(value_type, IntegerType):
+            raise Exception(
+                "Cannot handle quantification of attributes with non-integer types"
+            )
+        declare_op = DeclareConstOp(smt_bv.BitVectorType(value_type.width.data))
+        return declare_op
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
@@ -126,11 +140,7 @@ class AttributeRewrite(RewritePattern):
 
         if op.value_type is not None:
             value_type = _get_type_of_erased_type_value(op.value_type)
-            if not isinstance(value_type, IntegerType):
-                raise Exception(
-                    "Cannot handle quantification of attributes with non-integer types"
-                )
-            declare_op = DeclareConstOp(smt_bv.BitVectorType(value_type.width.data))
+            declare_op = self.declare_of_value_type(value_type)
             rewriter.replace_matched_op(declare_op)
             return
 
@@ -462,17 +472,10 @@ class ComputationOpRewrite(RewritePattern):
 
 
 @dataclass
-class IntTypeRewrite(RewritePattern):
+class IntTypeRewrite(TypeRewrite):
     rewrite_context: PDLToSMTRewriteContext
 
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
-        if op.constantType is None:
-            raise Exception("Cannot handle non-constant types")
-
-        self.rewrite_context.pdl_types_to_types[op.result] = SMTLowerer.lower_type(
-            op.constantType
-        )
+    def _match_and_rewrite(self, op: TypeOp, rewriter: PatternRewriter):
         if isinstance(op.constantType, IntegerType):
             width_op = smt_int.ConstantOp(op.constantType.width.data)
         elif isinstance(op.constantType, transfer.TransIntegerType):
@@ -481,38 +484,24 @@ class IntTypeRewrite(RewritePattern):
             assert False
         rewriter.insert_op_before_matched_op(width_op)
         self.rewrite_context.pdl_types_to_width[op.result] = width_op.res
-        rewriter.erase_matched_op(safe_erase=False)
 
 
-class IntAttributeRewrite(RewritePattern):
+class IntAttributeRewrite(AttributeRewrite):
     rewrite_context: PDLToSMTRewriteContext
 
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: AttributeOp, rewriter: PatternRewriter):
-        if op.value is not None:
-            value = SMTLowerer.attribute_semantics[type(op.value)].get_semantics(
-                op.value, rewriter
+    def declare_of_value_type(self, value_type: Attribute):
+        if not isinstance(value_type, IntegerType) and not isinstance(
+            value_type, transfer.TransIntegerType
+        ):
+            raise Exception(
+                "Cannot handle quantification of attributes with non-integer types"
             )
-            rewriter.replace_matched_op([], [value])
-            return
-
-        if op.value_type is not None:
-            value_type = _get_type_of_erased_type_value(op.value_type)
-            if not isinstance(value_type, IntegerType) and not isinstance(
-                value_type, transfer.TransIntegerType
-            ):
-                raise Exception(
-                    "Cannot handle quantification of attributes with non-integer types"
-                )
-            declare_op = DeclareConstOp(smt_int.SMTIntType())
-            rewriter.replace_matched_op(declare_op)
-            return
-
-        raise Exception("Cannot handle unbounded and untyped attributes")
+        declare_op = DeclareConstOp(smt_int.SMTIntType())
+        return declare_op
 
 
 @dataclass
-class IntOperandRewrite(RewritePattern):
+class IntOperandRewrite(OperandRewrite):
     rewrite_context: PDLToSMTRewriteContext
     accessor: IntAccessor
 

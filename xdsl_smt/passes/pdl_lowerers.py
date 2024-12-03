@@ -1,5 +1,6 @@
+from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Tuple
 from xdsl.dialects.pdl import (
     ApplyNativeConstraintOp,
     ApplyNativeRewriteOp,
@@ -17,7 +18,6 @@ from ..dialects.smt_dialect import DeclareConstOp
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.arith_int_semantics import (
     IntIntegerTypeRefinementSemantics,
-    trigger_parametric_int,
 )
 from xdsl.dialects.builtin import IntegerType, UnitAttr
 from xdsl_smt.semantics.builtin_semantics import (
@@ -77,7 +77,7 @@ from xdsl_smt.passes.pdl_to_smt_rewrites import (
 
 
 @dataclass
-class PDLToSMTLowerer:
+class GenericPDLToSMTLowerer(ABC):
     native_rewrites: dict[
         str,
         Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
@@ -129,6 +129,12 @@ class PDLToSMTLowerer:
                     "composed of non-deleted operations, then deleted operations"
                 )
 
+    @abstractmethod
+    def select_integer_semantics(
+        self, rewrite_context: PDLToSMTRewriteContext
+    ) -> Tuple[OperandRewrite, AttributeRewrite, TypeRewrite]:
+        pass
+
     def lower_to_smt(self, op: Operation, ctx: MLContext) -> None:
         patterns = [sub_op for sub_op in op.walk() if isinstance(sub_op, PatternOp)]
         n_patterns = len(patterns)
@@ -150,53 +156,11 @@ class PDLToSMTLowerer:
         Rewriter.insert_op(new_state_op, insert_point)
         rewrite_context = PDLToSMTRewriteContext(new_state_op.res, new_state_op.res)
 
-        if trigger_parametric_int(op):
-            # TODO: understand this thing
-            if smt.CallOp in SMTLowerer.rewrite_patterns:
-                del SMTLowerer.rewrite_patterns[smt.CallOp]
-            accessor = IntAccessor()
-            load_int_semantics_with_context(accessor, rewrite_context)
-            self.refinement = IntIntegerTypeRefinementSemantics(accessor)
-            self.native_rewrites = {
-                **self.native_rewrites,
-                **parametric_integer_arith_native_rewrites,
-            }
-            self.native_constraints = {
-                **self.native_constraints,
-                **parametric_integer_arith_native_constraints,
-            }
-            self.native_static_constraints = (
-                parametric_integer_arith_native_static_constraints
-            )
-            operand_rewrite = IntOperandRewrite(rewrite_context, accessor)
-            attribute_rewrite = IntAttributeRewrite()
-            type_rewrite = IntTypeRewrite(rewrite_context)
-        else:
-            types = {
-                IntegerType: IntegerTypeSemantics(),
-                IndexType: IndexTypeSemantics(),
-            }
-            SMTLowerer.type_lowerers = {
-                **SMTLowerer.type_lowerers,
-                **types,
-            }
-            SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-            SMTLowerer.op_semantics = {
-                **arith_semantics,
-                **comb_semantics,
-                **memref_semantics,
-            }
-            SMTLowerer.rewrite_patterns = {
-                **func_to_smt_patterns,
-                **transfer_to_smt_patterns,
-            }
-
-            self.native_rewrites = integer_arith_native_rewrites
-            self.native_constraints = integer_arith_native_constraints
-            self.native_static_constraints = integer_arith_native_static_constraints
-            operand_rewrite = OperandRewrite()
-            attribute_rewrite = AttributeRewrite()
-            type_rewrite = TypeRewrite(rewrite_context)
+        (
+            operand_rewrite,
+            attribute_rewrite,
+            type_rewrite,
+        ) = self.select_integer_semantics(rewrite_context)
 
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
@@ -226,3 +190,60 @@ class PDLToSMTLowerer:
             PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_op(op)
         else:
             PatternRewriteWalker(PatternRewrite()).rewrite_op(op)
+
+
+class IntPDLToSMTLowerer(GenericPDLToSMTLowerer):
+    def select_integer_semantics(
+        self, rewrite_context: PDLToSMTRewriteContext
+    ) -> Tuple[OperandRewrite, AttributeRewrite, TypeRewrite]:
+        if smt.CallOp in SMTLowerer.rewrite_patterns:
+            del SMTLowerer.rewrite_patterns[smt.CallOp]
+        accessor = IntAccessor()
+        load_int_semantics_with_context(accessor, rewrite_context)
+        self.refinement = IntIntegerTypeRefinementSemantics(accessor)
+        self.native_rewrites = {
+            **self.native_rewrites,
+            **parametric_integer_arith_native_rewrites,
+        }
+        self.native_constraints = {
+            **self.native_constraints,
+            **parametric_integer_arith_native_constraints,
+        }
+        self.native_static_constraints = (
+            parametric_integer_arith_native_static_constraints
+        )
+        operand_rewrite = IntOperandRewrite(rewrite_context, accessor)
+        attribute_rewrite = IntAttributeRewrite()
+        type_rewrite = IntTypeRewrite(rewrite_context)
+        return (operand_rewrite, attribute_rewrite, type_rewrite)
+
+
+class BVPDLToSMTLowerer(GenericPDLToSMTLowerer):
+    def select_integer_semantics(
+        self, rewrite_context: PDLToSMTRewriteContext
+    ) -> Tuple[OperandRewrite, AttributeRewrite, TypeRewrite]:
+        types = {
+            IntegerType: IntegerTypeSemantics(),
+            IndexType: IndexTypeSemantics(),
+        }
+        SMTLowerer.type_lowerers = {
+            **SMTLowerer.type_lowerers,
+            **types,
+        }
+        SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
+        SMTLowerer.op_semantics = {
+            **arith_semantics,
+            **comb_semantics,
+            **memref_semantics,
+        }
+        SMTLowerer.rewrite_patterns = {
+            **func_to_smt_patterns,
+            **transfer_to_smt_patterns,
+        }
+        self.native_rewrites = integer_arith_native_rewrites
+        self.native_constraints = integer_arith_native_constraints
+        self.native_static_constraints = integer_arith_native_static_constraints
+        operand_rewrite = OperandRewrite()
+        attribute_rewrite = AttributeRewrite()
+        type_rewrite = TypeRewrite(rewrite_context)
+        return (operand_rewrite, attribute_rewrite, type_rewrite)

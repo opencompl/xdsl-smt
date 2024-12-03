@@ -131,12 +131,6 @@ def main():
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
 
-    PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
-    PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
-    PDLToSMT.pdl_lowerer.native_static_constraints = (
-        integer_arith_native_static_constraints
-    )
-
     xdsl_main.run()
 
 
