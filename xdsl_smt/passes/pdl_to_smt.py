@@ -7,14 +7,21 @@ from ..dialects import pdl_dataflow as pdl_dataflow
 from xdsl.context import MLContext
 
 from xdsl.passes import ModulePass
-from xdsl_smt.passes.pdl_lowerers import PDLToSMTLowerer
+from xdsl_smt.passes.pdl_lowerers import IntPDLToSMTLowerer, BVPDLToSMTLowerer
+
+from xdsl_smt.semantics.arith_int_semantics import (
+    trigger_parametric_int,
+)
 
 
 @dataclass(frozen=True)
 class PDLToSMT(ModulePass):
     name = "pdl-to-smt"
 
-    pdl_lowerer: ClassVar[PDLToSMTLowerer] = PDLToSMTLowerer({}, {}, {})
-
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
-        self.pdl_lowerer.lower_to_smt(op, ctx)
+        if trigger_parametric_int(op):
+            lowerer = IntPDLToSMTLowerer({}, {}, {})
+        else:
+            lowerer = BVPDLToSMTLowerer({}, {}, {})
+
+        lowerer.lower_to_smt(op, ctx)
