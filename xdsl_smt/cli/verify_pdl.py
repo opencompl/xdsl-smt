@@ -226,12 +226,6 @@ def main() -> None:
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
 
-    PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
-    PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
-    PDLToSMT.pdl_lowerer.native_static_constraints = (
-        integer_arith_native_static_constraints
-    )
-
     OptMain().run()
 
 

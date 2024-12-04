@@ -1,6 +1,5 @@
 from typing import TypeVar, IO, Callable, Sequence
 from ..traits.effects import Pure
-from xdsl.dialects.builtin import Signedness
 from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
@@ -30,10 +29,11 @@ from ..traits.smt_printer import (
 )
 from xdsl.ir import SSAValue, Operation, Region, Block
 from xdsl_smt.dialects import smt_dialect as smt
-
-_OpT = TypeVar("_OpT", bound=Operation)
+from xdsl.dialects.builtin import Signedness
 
 LARGE_ENOUGH_INT_TYPE = IntegerType(128, Signedness.UNSIGNED)
+
+_OpT = TypeVar("_OpT", bound=Operation)
 
 
 @irdl_attr_definition
