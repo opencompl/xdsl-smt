@@ -205,7 +205,6 @@ parametric_integer_arith_native_constraints: dict[
     ],
 ] = {
     # Equality to constants
-    "is_minus_one": is_constant_factory(-1),
     "is_one": is_constant_factory(1),
     "is_zero": is_constant_factory(0),
     # Equality between attributes

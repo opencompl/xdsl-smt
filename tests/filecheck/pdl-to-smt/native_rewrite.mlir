@@ -22,10 +22,15 @@ builtin.module {
         }
     }
 }
-
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (declare-const tmp Bool)
-// CHECK-NEXT:  (declare-const c0 (_ BitVec 32))
-// CHECK-NEXT:  (declare-const c1 (_ BitVec 32))
-// CHECK-NEXT:  (assert (not (or tmp (and (not tmp) (= (bvadd c0 c1) (bvadd c0 c1))))))
+// CHECK-NEXT:  (declare-const c0 Int)
+// CHECK-NEXT:  (declare-const c1 Int)
+// CHECK-NEXT:  (assert (let ((tmp 32))
+// CHECK-NEXT:    (= tmp 32)))
+// CHECK-NEXT:  (declare-fun pow2 ((Int))Int)
+// CHECK-NEXT:  (assert (forall ((tmp Int) (tmp_0 Int)) (=> (> tmp tmp_0) (> (pow2 tmp) (pow2 tmp_0)))))
+// CHECK-NEXT:  (assert (let ((tmp_1 (pow2 32)))
+// CHECK-NEXT:    (let ((tmp_2 32))
+// CHECK-NEXT:    (let ((tmp_3 (pow2 tmp_2)))
+// CHECK-NEXT:    (not (= (mod (+ (+ c0 c1) tmp_3) tmp_3) (mod (+ (+ c0 c1) tmp_1) tmp_1)))))))
 // CHECK-NEXT:  (check-sat)

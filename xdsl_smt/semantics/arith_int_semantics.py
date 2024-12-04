@@ -4,7 +4,7 @@ from typing import Mapping, Sequence, cast
 from xdsl.ir import SSAValue, Attribute, Operation, ErasedSSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
+from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, Signedness
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
@@ -190,22 +190,33 @@ class IntConstantSemantics(GenericIntSemantics):
             assert isa(value_value, AnyIntegerAttr)
             assert isinstance(value_value.type, IntegerType)
             assert isinstance(value_value.type.width.data, int)
-            literal = smt_int.ConstantOp(value_value.value.data)
+            width_attr = value_value.type.width.data
+            literal = smt_int.ConstantOp(
+                value=value_value.value.data,
+            )
             assert isinstance(results[0], IntegerType)
             assert isinstance(results[0].width.data, int)
-            width_op = smt_int.ConstantOp(results[0].width.data)
+            width_res = results[0].width.data
+            assert width_res == width_attr
+            width_op = smt_int.ConstantOp(value=width_res)
             width = width_op.res
-            int_max_op = smt_int.ConstantOp(2 ** results[0].width.data)
+            int_max_op = smt_int.ConstantOp(
+                2 ** results[0].width.data,
+            )
             modulo = smt_int.ModOp(literal.res, int_max_op.res)
             rewriter.insert_op_before_matched_op(
                 [literal, width_op, int_max_op, modulo]
             )
             ssa_attr = modulo.res
         else:
-            width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH)
+            if isinstance(results[0], IntegerType):
+                width_op = smt_int.ConstantOp(results[0].width.data)
+            elif isinstance(results[0], transfer.TransIntegerType):
+                width_op = smt_int.ConstantOp(GENERIC_INT_WIDTH)
+            else:
+                assert False
             width = width_op.res
-            int_max_op = smt_int.ConstantOp(2**GENERIC_INT_WIDTH)
-            rewriter.insert_op_before_matched_op([width_op, int_max_op])
+            rewriter.insert_op_before_matched_op([width_op])
             ssa_attr = value_value
 
         no_poison = smt.ConstantBoolOp.from_bool(False)
@@ -440,27 +451,6 @@ def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
     return OpSemantics
 
 
-class IntOrISemantics(GenericIntBinarySemantics):
-    def __init__(self, accessor: IntAccessor):
-        super().__init__(accessor)
-
-    def get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        width: SSAValue,
-        attributes: Mapping[str, Attribute | SSAValue],
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        # TODO
-        # andi = self.accessor.andi_of(width, lhs, rhs, rewriter)
-        # xori = self.accessor.xori(width, lhs, rhs, rewriter)
-        # ori_op = smt_int.AddOp(andi, xori)
-        # rewriter.insert_op_before_matched_op([ori_op])
-        # return ori_op.res
-        raise NotImplementedError
-
-
 class IntAndISemantics(GenericIntBinarySemantics):
     def __init__(self, accessor: IntAccessor):
         super().__init__(accessor)
@@ -475,21 +465,6 @@ class IntAndISemantics(GenericIntBinarySemantics):
     ) -> SSAValue:
         andi = self.accessor.andi_of(width, lhs, rhs, rewriter)
         return andi
-
-
-class IntXOrISemantics(GenericIntBinarySemantics):
-    def __init__(self, accessor: IntAccessor):
-        super().__init__(accessor)
-
-    def get_payload_semantics(
-        self,
-        lhs: SSAValue,
-        rhs: SSAValue,
-        width: SSAValue,
-        attributes: Mapping[str, Attribute | SSAValue],
-        rewriter: PatternRewriter,
-    ) -> SSAValue:
-        raise NotImplementedError()
 
 
 def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
@@ -522,9 +497,9 @@ def trigger_parametric_int(
             if op_name in forbidden_ops:
                 use_parametric_int = False
                 break
-        # if isinstance(inner_op, pdl.ApplyNativeRewriteOp) or isinstance(
-        #     inner_op, pdl.ApplyNativeConstraintOp
-        # ):
-        #     use_parametric_int = False
-        #     break
+        if isinstance(inner_op, pdl.ApplyNativeConstraintOp):
+            constraint_name = str(inner_op.constraint_name).replace('"', "")
+            if constraint_name == "is_minus_one":
+                use_parametric_int = False
+                break
     return use_parametric_int

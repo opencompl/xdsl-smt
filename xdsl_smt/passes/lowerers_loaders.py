@@ -10,8 +10,6 @@ from xdsl_smt.semantics.arith_int_semantics import (
     IntExtSISemantics,
     IntTruncISemantics,
     IntAndISemantics,
-    IntOrISemantics,
-    IntXOrISemantics,
     get_div_semantics,
     IntIntegerTypeSemantics,
     IntIntegerAttrSemantics,
@@ -31,8 +29,6 @@ def load_int_semantics(accessor: IntAccessor):
         arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(accessor),
         arith.Cmpi: IntCmpiSemantics(accessor),
         arith.AndI: IntAndISemantics(accessor),
-        arith.OrI: IntOrISemantics(accessor),
-        arith.XOrI: IntXOrISemantics(accessor),
         arith.DivUI: get_div_semantics(smt_int.DivOp)(accessor),
         arith.RemUI: get_div_semantics(smt_int.ModOp)(accessor),
     }
