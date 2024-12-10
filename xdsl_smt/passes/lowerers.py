@@ -13,6 +13,7 @@ from xdsl.dialects import pdl
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl.traits import IsTerminator
 
+
 class SMTLoweringRewritePattern(ABC):
     """
     This class represents a rewrite pattern used in an SMT lowering.

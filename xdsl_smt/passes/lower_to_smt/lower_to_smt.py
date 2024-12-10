@@ -16,6 +16,7 @@ from xdsl_smt.passes.lowerers import (
     SMTLowerer,
 )
 
+
 @dataclass(frozen=True)
 class LowerToSMTPass(ModulePass):
     name = "lower-to-smt"
