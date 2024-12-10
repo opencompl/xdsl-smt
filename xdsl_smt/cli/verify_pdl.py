@@ -12,7 +12,7 @@ from typing import Iterable
 from xdsl.ir import Dialect
 from xdsl.context import MLContext
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
@@ -23,11 +23,6 @@ from xdsl.transforms.common_subexpression_elimination import (
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl_smt.passes.lower_effects import LowerEffectPass
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.semantics.comb_semantics import comb_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
-
 
 from ..dialects.hoare_dialect import Hoare
 from ..dialects.pdl_dataflow import PDLDataflowDialect
@@ -42,19 +37,12 @@ from ..dialects.llvm_dialect import LLVM
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
-from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
-from xdsl_smt.passes.lower_to_smt.transfer_to_smt import transfer_to_smt_patterns
 from ..traits.smt_printer import print_to_smtlib
-from xdsl_smt.pdl_constraints.integer_arith_constraints import (
-    integer_arith_native_rewrites,
-    integer_arith_native_constraints,
-    integer_arith_native_static_constraints,
-)
 from xdsl_smt.semantics.arith_int_semantics import (
     trigger_parametric_int,
 )
+from xdsl_smt.passes.lowerers_loaders import load_vanilla_semantics
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
@@ -218,14 +206,7 @@ class OptMain(xDSLOptMain):
 
 
 def main() -> None:
-    SMTLowerer.rewrite_patterns = {
-        **transfer_to_smt_patterns,
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
-    SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
-
+    load_vanilla_semantics()
     OptMain().run()
 
 

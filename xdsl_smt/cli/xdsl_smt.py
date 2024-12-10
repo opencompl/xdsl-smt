@@ -3,7 +3,7 @@
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType, IndexType
+from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
@@ -19,21 +19,8 @@ from xdsl_smt.dialects.memory_dialect import MemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
-from xdsl_smt.passes.lowerers import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
-from xdsl_smt.semantics.memref_semantics import memref_semantics
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import (
-    IndexTypeSemantics,
-    IntegerAttrSemantics,
-    IntegerTypeSemantics,
-)
-
-from xdsl_smt.passes.lower_to_smt import (
-    func_to_smt_patterns,
-    transfer_to_smt_patterns,
-)
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -53,16 +40,11 @@ from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 
-from xdsl_smt.semantics.comb_semantics import comb_semantics
 from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib
 
-from xdsl_smt.pdl_constraints.integer_arith_constraints import (
-    integer_arith_native_rewrites,
-    integer_arith_native_constraints,
-    integer_arith_native_static_constraints,
-)
+from xdsl_smt.passes.lowerers_loaders import load_vanilla_semantics
 
 
 class OptMain(xDSLOptMain):
@@ -123,14 +105,7 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    SMTLowerer.type_lowerers = {
-        IntegerType: IntegerTypeSemantics(),
-        IndexType: IndexTypeSemantics(),
-    }
-    SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
-    SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
-
+    load_vanilla_semantics()
     xdsl_main.run()
 
 
