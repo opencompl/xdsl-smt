@@ -1,10 +1,10 @@
 from abc import abstractmethod, ABC
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
-from typing import Mapping, Sequence, cast
+from typing import Mapping, Sequence
 from xdsl.ir import SSAValue, Attribute, Operation, ErasedSSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr, Signedness
+from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
@@ -49,7 +49,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         not_before_poison = smt.NotOp(before_poison)
         not_after_poison = smt.NotOp(after_poison)
         not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
-        refinement_integer = smt.ImpliesOp(not_before_poison, not_poison_eq.res)
+        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.res)
         rewriter.insert_op_before_matched_op(
             [
                 not_before_poison,
@@ -468,7 +468,7 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
         rewriter: PatternRewriter,
     ) -> SSAValue:
         if isinstance(attributes["predicate"], IntegerAttr):
-            predicate_attr = attributes["predicate"]
+            predicate_attr: IntegerAttr[IntegerType] = attributes["predicate"]
         elif isinstance(attributes["predicate"], OpResult):
             op = attributes["predicate"].op
             assert isinstance(op, smt_int.ConstantOp)
