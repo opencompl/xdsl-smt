@@ -12,7 +12,7 @@ from typing import Iterable
 from xdsl.ir import Dialect
 from xdsl.context import MLContext
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
@@ -23,11 +23,6 @@ from xdsl.transforms.common_subexpression_elimination import (
 from xdsl.xdsl_opt_main import xDSLOptMain
 
 from xdsl_smt.passes.lower_effects import LowerEffectPass
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
-from xdsl_smt.semantics.comb_semantics import comb_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
-
 
 from ..dialects.hoare_dialect import Hoare
 from ..dialects.pdl_dataflow import PDLDataflowDialect
@@ -42,16 +37,12 @@ from ..dialects.llvm_dialect import LLVM
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.pdl_to_smt import PDLToSMT
-from xdsl_smt.passes.lower_to_smt.func_to_smt import func_to_smt_patterns
-from xdsl_smt.passes.lower_to_smt.transfer_to_smt import transfer_to_smt_patterns
 from ..traits.smt_printer import print_to_smtlib
-from xdsl_smt.pdl_constraints.integer_arith_constraints import (
-    integer_arith_native_rewrites,
-    integer_arith_native_constraints,
-    integer_arith_native_static_constraints,
+from xdsl_smt.semantics.arith_int_semantics import (
+    trigger_parametric_int,
 )
+from xdsl_smt.passes.lowerers_loaders import load_vanilla_semantics
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
@@ -66,7 +57,6 @@ def verify_pattern(ctx: MLContext, op: ModuleOp, opt: bool) -> bool:
     cloned_op.verify()
     stream = StringIO()
     print_to_smtlib(cloned_op, stream)
-
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -101,7 +91,6 @@ def iterate_on_all_integers(
 
     # The initial types are all 1
     bitwidths = [1 for _ in type_ops]
-
     while True:
         # Assign the types in the pattern:
         for type_op, bitwidth in zip(type_ops, bitwidths):
@@ -188,45 +177,36 @@ class OptMain(xDSLOptMain):
             chunk.close()
 
         is_one_unsound = False
-
-        for pattern in module.walk():
+        for i, pattern in enumerate(module.walk()):
             if isinstance(pattern, PatternOp):
-                if pattern.sym_name:
-                    print(f"Verifying pattern {pattern.sym_name.data}:")
-                else:
-                    print(f"Verifying pattern:")
-                for specialized_pattern, types in iterate_on_all_integers(
-                    pattern, self.args.max_bitwidth
-                ):
-                    if verify_pattern(
-                        self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                if trigger_parametric_int(pattern):
+                    if not verify_pattern(
+                        self.ctx, ModuleOp([pattern.clone()]), self.args.opt
                     ):
-                        print(f"with types {types}: SOUND")
-                    else:
-                        print(f"with types {types}: UNSOUND")
+                        print(f"The pattern {i} is unsound")
                         is_one_unsound = True
+                else:
+                    # if pattern.sym_name:
+                    #     print(f"Verifying pattern {pattern.sym_name.data}:")
+                    # else:
+                    #     print(f"Verifying pattern:")
+                    for specialized_pattern, types in iterate_on_all_integers(
+                        pattern, self.args.max_bitwidth
+                    ):
+                        if verify_pattern(
+                            self.ctx, ModuleOp([specialized_pattern]), self.args.opt
+                        ):
+                            print(f"with types {types}: SOUND")
+                        else:
+                            print(f"with types {types}: UNSOUND")
+                            is_one_unsound = True
 
-        if is_one_unsound:
-            print("At least one pattern is unsound")
-        else:
+        if not is_one_unsound:
             print("All patterns are sound")
 
 
 def main() -> None:
-    SMTLowerer.rewrite_patterns = {
-        **transfer_to_smt_patterns,
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
-    SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
-
-    PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
-    PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
-    PDLToSMT.pdl_lowerer.native_static_constraints = (
-        integer_arith_native_static_constraints
-    )
-
+    load_vanilla_semantics()
     OptMain().run()
 
 

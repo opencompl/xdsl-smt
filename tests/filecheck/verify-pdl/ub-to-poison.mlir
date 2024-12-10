@@ -48,7 +48,5 @@
   }
 }) : () -> ()
 
-// CHECK:      Verifying pattern PoisonToUB:
 // CHECK-NEXT: with types (): UNSOUND
-// CHECK-NEXT: Verifying pattern UBToPoison:
 // CHECK-NEXT: with types (): SOUND

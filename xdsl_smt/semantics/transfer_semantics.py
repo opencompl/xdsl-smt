@@ -7,7 +7,7 @@ from xdsl.ir import Operation
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.passes.lowerers import SMTLowerer
 from xdsl_smt.dialects.smt_utils_dialect import (
     AnyPairType,
     PairType,
