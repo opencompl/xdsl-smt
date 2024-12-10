@@ -62,6 +62,7 @@ _BPOpT = TypeVar("_BPOpT", bound="BinaryPredIntOp")
 
 
 class BinaryPredIntOp(IRDLOperation, Pure):
+    # res: OpResult = result_def(smt.BoolType)
     res: OpResult = result_def(smt.BoolType)
     lhs: Operand = operand_def(SMTIntType)
     rhs: Operand = operand_def(SMTIntType)

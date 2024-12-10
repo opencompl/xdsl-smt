@@ -5,6 +5,7 @@ from xdsl.dialects import arith
 from xdsl_smt.semantics.arith_int_semantics import (
     IntConstantSemantics,
     get_binary_ef_semantics,
+    IntSelectSemantics,
     IntCmpiSemantics,
     IntExtUISemantics,
     IntExtSISemantics,
@@ -46,6 +47,7 @@ def load_vanilla_semantics():
 def load_int_semantics(accessor: IntAccessor):
     semantics = {
         arith.Constant: IntConstantSemantics(accessor),
+        arith.Select: IntSelectSemantics(accessor),
         arith.Addi: get_binary_ef_semantics(smt_int.AddOp)(accessor),
         arith.Subi: get_binary_ef_semantics(smt_int.SubOp)(accessor),
         arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(accessor),
