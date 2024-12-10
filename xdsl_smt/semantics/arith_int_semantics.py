@@ -13,6 +13,7 @@ from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith, pdl, comb
 from xdsl_smt.semantics.accessor import IntAccessor
 from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
+from xdsl_smt.dialects.effects import ub_effect
 from xdsl.ir import OpResult
 
 
@@ -33,6 +34,8 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
     ) -> SSAValue:
         before_val = self.accessor.get_payload(val_before, rewriter)
         after_val = self.accessor.get_payload(val_after, rewriter)
+        before_poison = self.accessor.get_poison(val_before, rewriter)
+        after_poison = self.accessor.get_poison(val_after, rewriter)
         before_width = self.accessor.get_width(val_before, rewriter)
         after_width = self.accessor.get_width(val_after, rewriter)
 
@@ -42,10 +45,35 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         before_val_norm = self.accessor.get_signed_to_unsigned(
             before_val, before_width, rewriter
         )
-
-        refinement = smt.EqOp(before_val_norm, after_val_norm)
+        eq_vals = smt.EqOp(before_val_norm, after_val_norm)
+        not_before_poison = smt.NotOp(before_poison)
+        not_after_poison = smt.NotOp(after_poison)
+        not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
+        refinement_integer = smt.ImpliesOp(not_before_poison, not_poison_eq.res)
         rewriter.insert_op_before_matched_op(
-            refinement,
+            [
+                not_before_poison,
+                not_after_poison,
+                eq_vals,
+                not_poison_eq,
+                refinement_integer,
+            ]
+        )
+
+        # With UB, our refinement is: ub_before \/ (not ub_after /\ integer_refinement)
+        ub_before_bool = ub_effect.ToBoolOp(state_before)
+        ub_after_bool = ub_effect.ToBoolOp(state_after)
+        not_ub_after = smt.NotOp(ub_after_bool.res)
+        not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.res)
+        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.res)
+        rewriter.insert_op_before_matched_op(
+            [
+                ub_before_bool,
+                ub_after_bool,
+                not_ub_after,
+                not_ub_before_case,
+                refinement,
+            ]
         )
 
         return refinement.res
