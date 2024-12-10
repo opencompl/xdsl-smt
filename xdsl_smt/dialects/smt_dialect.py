@@ -244,10 +244,8 @@ class RecCallOp(IRDLOperation, Pure, SMTLibOp):
         ...
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        # In the case there are no arguments, we do not print the outer parentheses
         if not self.args:
-            ctx.print_expr_to_smtlib(self.func, stream)
-            return
+            raise NotImplementedError()
 
         fun_op = self.parent_op()
         assert isinstance(fun_op, DefineRecFunOp)
@@ -532,11 +530,8 @@ class DefineRecFunOp(IRDLOperation, SMTLibScriptOp):
 
         # Print the function name
         name: str
-        if self.fun_name is not None:
-            name = ctx.get_fresh_name(self.fun_name.data)
-            ctx.value_to_name[self.ret] = name
-        else:
-            name = ctx.get_fresh_name(self.ret)
+        name = ctx.get_fresh_name(self.fun_name.data)
+        ctx.value_to_name[self.ret] = name
         print(f"{name} ", file=stream, end="")
 
         # Print the function arguments

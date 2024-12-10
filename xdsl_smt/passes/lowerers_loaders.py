@@ -44,6 +44,22 @@ def load_vanilla_semantics():
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
 
 
+def load_transfer_semantics(width: int):
+    SMTLowerer.rewrite_patterns = {
+        **func_to_smt_patterns,
+    }
+    SMTLowerer.type_lowerers = {
+        IntegerType: IntegerTypeSemantics(),
+        AbstractValueType: transfer.AbstractValueTypeSemantics(),
+        TransIntegerType: transfer.TransferIntegerTypeSemantics(width),
+    }
+    SMTLowerer.op_semantics = {
+        **arith_semantics,
+        **transfer_semantics,
+        **comb_semantics,
+    }
+
+
 def load_int_semantics(accessor: IntAccessor):
     semantics = {
         arith.Constant: IntConstantSemantics(accessor),
