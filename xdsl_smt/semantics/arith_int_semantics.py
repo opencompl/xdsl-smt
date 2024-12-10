@@ -13,6 +13,8 @@ from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith, pdl, comb
 from xdsl_smt.semantics.accessor import IntAccessor
 from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
+from xdsl.ir import OpResult
+
 
 GENERIC_INT_WIDTH = 64
 
@@ -75,6 +77,43 @@ class IntIntegerTypeSemantics(TypeSemantics):
 class GenericIntSemantics(OperationSemantics):
     def __init__(self, accessor: IntAccessor):
         self.accessor = accessor
+
+
+class IntSelectSemantics(GenericIntSemantics):
+    # select poison a, b -> poison
+    # select true, a, poison -> a
+
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        # Get all values and poisons
+        cond_val = self.accessor.get_payload(operands[0], rewriter)
+        cond_poi = self.accessor.get_poison(operands[0], rewriter)
+        tr_val = self.accessor.get_payload(operands[1], rewriter)
+        tr_poi = self.accessor.get_poison(operands[1], rewriter)
+        fls_val = self.accessor.get_payload(operands[2], rewriter)
+        fls_poi = self.accessor.get_poison(operands[2], rewriter)
+        fls_wid = self.accessor.get_width(operands[2], rewriter)
+
+        # Get the resulting value depending on the condition
+        res_val = smt.IteOp(cond_val, tr_val, fls_val)
+        br_poi = smt.IteOp(cond_val, tr_poi, fls_poi)
+
+        # If the condition is poison, the result is poison
+        res_poi = smt.IteOp(cond_poi, cond_poi, br_poi.res)
+
+        rewriter.insert_op_before_matched_op([res_val, br_poi, res_poi])
+
+        res = self.accessor.get_packed_integer(
+            res_val.res, res_poi.res, fls_wid, rewriter
+        )
+
+        return ((res,), effect_state)
 
 
 class IntTruncISemantics(GenericIntSemantics):
@@ -400,8 +439,21 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        integer_attr = cast(IntegerAttr[IntegerType], attributes["predicate"])
-        match integer_attr.value.data:
+        if isinstance(attributes["predicate"], IntegerAttr):
+            predicate_attr = attributes["predicate"]
+        elif isinstance(attributes["predicate"], OpResult):
+            op = attributes["predicate"].op
+            assert isinstance(op, smt_int.ConstantOp)
+            predicate_attr = op.value
+        else:
+            assert False
+        # Constants definition
+        one_const = smt_int.ConstantOp(1)
+        zero_const = smt_int.ConstantOp(0)
+        rewriter.insert_op_before_matched_op([one_const, zero_const])
+        # Comparison
+        predicate = predicate_attr.value.data
+        match predicate:
             case 0:
                 payload_op = smt.EqOp(lhs, rhs)
             case 1:
@@ -425,10 +477,11 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
             case _:
                 assert False
 
-        rewriter.insert_op_before_matched_op([payload_op])
-        payload = payload_op.res
+        cast_op = smt.IteOp(payload_op.res, one_const.res, zero_const.res)
+        rewriter.insert_op_before_matched_op([payload_op, cast_op])
+        result = cast_op.res
 
-        return payload
+        return result
 
 
 def get_binary_ef_semantics(new_operation: type[smt_int.BinaryIntOp]):
@@ -500,6 +553,11 @@ def trigger_parametric_int(
         if isinstance(inner_op, pdl.ApplyNativeConstraintOp):
             constraint_name = str(inner_op.constraint_name).replace('"', "")
             if constraint_name == "is_minus_one":
+                use_parametric_int = False
+                break
+        if isinstance(inner_op, pdl.ApplyNativeRewriteOp):
+            constraint_name = str(inner_op.constraint_name).replace('"', "")
+            if constraint_name == "get_width":
                 use_parametric_int = False
                 break
     return use_parametric_int

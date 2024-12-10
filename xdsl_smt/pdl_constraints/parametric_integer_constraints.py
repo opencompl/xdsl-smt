@@ -25,6 +25,18 @@ from xdsl_smt.passes.pdl_to_smt_context import (
 )
 
 
+def get_cst_rewrite_factory(constant: int):
+    def get_cst_rewrite(
+        op: ApplyNativeRewriteOp,
+        rewriter: PatternRewriter,
+        context: PDLToSMTRewriteContext,
+    ) -> None:
+        cst = smt_int.ConstantOp(constant)
+        rewriter.replace_matched_op([cst])
+
+    return get_cst_rewrite
+
+
 def get_bv_type_from_optional_poison(
     type: Attribute, origin: str
 ) -> smt_bv.BitVectorType:
@@ -124,23 +136,6 @@ def is_constant_factory(constant: int):
     return is_constant
 
 
-def get_width(
-    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
-) -> None:
-    (type_with_width, expected_type) = op.args
-    assert isinstance(type_with_width, ErasedSSAValue)
-    type_with_width = context.pdl_types_to_types[type_with_width.old_value]
-    type_with_width = get_bv_type_from_optional_poison(type_with_width, "get_width")
-    assert isinstance(expected_type, ErasedSSAValue)
-    expected_type = context.pdl_types_to_types[expected_type.old_value]
-    expected_type = get_bv_type_from_optional_poison(expected_type, "get_width")
-
-    attr_op = AttributeOp(
-        IntegerAttr(type_with_width.width.data, expected_type.width.data)
-    )
-    rewriter.replace_matched_op([attr_op])
-
-
 def is_attr_equal(
     op: ApplyNativeConstraintOp,
     rewriter: PatternRewriter,
@@ -192,8 +187,10 @@ parametric_integer_arith_native_rewrites: dict[
     "addi": addi_rewrite,
     "subi": subi_rewrite,
     "muli": muli_rewrite,
+    # Get constant attributes
+    "get_zero_attr": get_cst_rewrite_factory(0),
+    "get_one_attr": get_cst_rewrite_factory(1),
     # Integer to type conversion
-    "get_width": get_width,
     "integer_type_from_width": integer_type_from_width,
     #
 }
