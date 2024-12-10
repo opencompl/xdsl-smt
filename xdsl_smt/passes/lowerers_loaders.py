@@ -17,7 +17,7 @@ from xdsl_smt.semantics.arith_int_semantics import (
 )
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import transfer
-from xdsl.dialects.builtin import IntegerType, IntegerAttr, IndexType
+from xdsl.dialects.builtin import IntegerType, IntegerAttr, IndexType, MemRefType
 from xdsl_smt.passes.pdl_to_smt_context import PDLToSMTRewriteContext
 from xdsl_smt.passes.lowerers import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import (
@@ -27,7 +27,7 @@ from xdsl_smt.semantics.builtin_semantics import (
 )
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
-from xdsl_smt.semantics.memref_semantics import memref_semantics
+from xdsl_smt.semantics.memref_semantics import memref_semantics, MemrefSemantics
 from xdsl_smt.passes.lower_to_smt import (
     func_to_smt_patterns,
     transfer_to_smt_patterns,
@@ -38,6 +38,7 @@ def load_vanilla_semantics():
     SMTLowerer.type_lowerers = {
         IntegerType: IntegerTypeSemantics(),
         IndexType: IndexTypeSemantics(),
+        MemRefType: MemrefSemantics(),
     }
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
     SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
