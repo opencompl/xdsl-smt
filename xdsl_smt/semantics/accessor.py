@@ -62,8 +62,6 @@ class IntAccessor:
         self, width: SSAValue, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
     ):
         if self.andi_fun is None:
-            pow2 = self.pow2_of
-            insert_point = self._get_insert_point_above(lhs)
             pow2_fun = self.get_constraint_pow2(rewriter)
             andi_fun_op = insert_and_constraint_andi(rewriter, pow2_fun)
             self.andi_fun = andi_fun_op.ret

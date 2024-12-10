@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import ClassVar
 from xdsl.dialects.builtin import ModuleOp
 
 from ..dialects import pdl_dataflow as pdl_dataflow

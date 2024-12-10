@@ -12,7 +12,6 @@ from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.dialects.pdl import (
     ApplyNativeConstraintOp,
     ApplyNativeRewriteOp,
-    AttributeOp,
     TypeOp,
 )
 import xdsl_smt.dialects.smt_bitvector_dialect as smt_bv
