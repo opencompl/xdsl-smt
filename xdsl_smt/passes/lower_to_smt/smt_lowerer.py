@@ -1,4 +1,5 @@
-from abc import ABC, abstractmethod
+from __future__ import annotations
+from functools import reduce
 from xdsl.ir import Attribute, Operation, SSAValue, Region
 from xdsl.pattern_rewriter import PatternRewriter
 from dataclasses import dataclass
@@ -10,26 +11,16 @@ from xdsl_smt.semantics.semantics import (
 )
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl.dialects import pdl
+from xdsl_smt.dialects import smt_dialect, smt_bitvector_dialect
+from xdsl_smt.dialects.smt_utils_dialect import PairType
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl.traits import IsTerminator
+from typing import TYPE_CHECKING
 
-
-class SMTLoweringRewritePattern(ABC):
-    """
-    This class represents a rewrite pattern used in an SMT lowering.
-    The difference with a traditional rewrite pattern is that is needs to pass and
-    return all effect states.
-    """
-
-    @abstractmethod
-    def rewrite(
-        self,
-        op: Operation,
-        effect_state: SSAValue | None,
-        rewriter: PatternRewriter,
-        smt_lowerer,
-    ) -> SSAValue | None:
-        pass
+if TYPE_CHECKING:
+    from xdsl_smt.passes.lower_to_smt.smt_rewrite_patterns import (
+        SMTLoweringRewritePattern,
+    )
 
 
 @dataclass
