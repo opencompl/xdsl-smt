@@ -5,7 +5,7 @@ from xdsl.pattern_rewriter import (
 from xdsl.dialects.func import FuncOp, Return
 
 from xdsl_smt.dialects.effects.effect import StateType
-from xdsl_smt.passes.lower_to_smt import (
+from xdsl_smt.passes.lower_to_smt.smt_lowerer import (
     SMTLowerer,
     SMTLoweringRewritePattern,
 )
