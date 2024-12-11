@@ -1,6 +1,5 @@
 from xdsl.ir import Attribute, Operation
-from xdsl_smt.semantics.semantics import AttributeSemantics, OperationSemantics
-from xdsl.dialects import arith
+from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
