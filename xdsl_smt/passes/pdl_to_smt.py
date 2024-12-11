@@ -46,7 +46,8 @@ from ..dialects.smt_dialect import (
     NotOp,
     OrOp,
 )
-from xdsl_smt.passes.lower_to_smt import SMTLowerer, LowerToSMTPass
+from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
+from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 
 
 class StaticallyUnmatchedConstraintError(Exception):
