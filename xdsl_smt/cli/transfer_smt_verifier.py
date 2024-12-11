@@ -57,7 +57,7 @@ from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
-from xdsl_smt.passes.lowerers_loaders import load_transfer_semantics
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_transfer_semantics
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
