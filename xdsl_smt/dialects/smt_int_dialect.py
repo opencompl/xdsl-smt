@@ -1,4 +1,4 @@
-from typing import TypeVar, IO
+from typing import TypeVar, IO, Callable, Sequence
 from ..traits.effects import Pure
 from xdsl.dialects.builtin import (
     IntegerAttr,
@@ -27,7 +27,11 @@ from ..traits.smt_printer import (
     SMTLibSort,
     SMTConversionCtx,
 )
-from .smt_dialect import BoolType
+from xdsl.ir import SSAValue, Operation, Region, Block
+from xdsl_smt.dialects import smt_dialect as smt
+from xdsl.dialects.builtin import Signedness
+
+LARGE_ENOUGH_INT_TYPE = IntegerType(128, Signedness.UNSIGNED)
 
 _OpT = TypeVar("_OpT", bound=Operation)
 
@@ -58,16 +62,17 @@ _BPOpT = TypeVar("_BPOpT", bound="BinaryPredIntOp")
 
 
 class BinaryPredIntOp(IRDLOperation, Pure):
-    res: OpResult = result_def(BoolType)
+    # res: OpResult = result_def(smt.BoolType)
+    res: OpResult = result_def(smt.BoolType)
     lhs: Operand = operand_def(SMTIntType)
     rhs: Operand = operand_def(SMTIntType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
+        super().__init__(result_types=[smt.BoolType()], operands=[lhs, rhs])
 
     @classmethod
     def get(cls: type[_BPOpT], lhs: SSAValue, rhs: SSAValue) -> _BPOpT:
-        return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
+        return cls.create(result_types=[smt.BoolType()], operands=[lhs, rhs])
 
 
 _UOpT = TypeVar("_UOpT", bound="UnaryIntOp")
@@ -91,11 +96,11 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(SMTIntType)
     value: IntegerAttr[IntegerType] = attr_def(IntegerAttr)
 
-    def __init__(self, value: int):
-        value_type = IntegerType(64)
+    def __init__(self, value: int | IntegerAttr[IntegerType]):
+        assert isinstance(value, int)
         super().__init__(
             result_types=[SMTIntType()],
-            attributes={"value": IntegerAttr(value, value_type)},
+            attributes={"value": IntegerAttr(value, LARGE_ENOUGH_INT_TYPE)},
         )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
@@ -208,3 +213,52 @@ SMTIntDialect = Dialect(
     ],
     [SMTIntType],
 )
+
+
+def bitwise_function(
+    combine_bits: Callable[[SSAValue, SSAValue], Sequence[Operation]], name: str
+):
+    # The body of the function
+    block = Block(arg_types=[SMTIntType(), SMTIntType(), SMTIntType()])
+    k = block.args[0]
+    x = block.args[1]
+    y = block.args[2]
+    # Constants
+    one_op = ConstantOp(1)
+    two_op = ConstantOp(2)
+    block.add_ops([one_op, two_op])
+    # Combine bits
+    x_bit_op = ModOp(x, two_op.res)
+    y_bit_op = ModOp(y, two_op.res)
+    block.add_ops([x_bit_op, y_bit_op])
+    bits_ops = combine_bits(x_bit_op.res, y_bit_op.res)
+    assert bits_ops
+    block.add_ops(bits_ops)
+    # Recursive call
+    new_x_op = DivOp(x, two_op.res)
+    new_y_op = DivOp(y, two_op.res)
+    k_minus_one = SubOp(k, one_op.res)
+    rec_call_op = smt.RecCallOp(
+        args=[k_minus_one.res, new_x_op.res, new_y_op.res],
+        result_types=[SMTIntType()],
+    )
+    mul_op = MulOp(two_op.res, rec_call_op.res[0])
+    # Result
+    assert isinstance(bits_ops[-1], BinaryIntOp)
+    res_op = AddOp(bits_ops[-1].res, mul_op.res)
+    return_op = smt.ReturnOp(res_op.res)
+    # Build the function
+    block.add_ops(
+        [
+            new_x_op,
+            new_y_op,
+            k_minus_one,
+            rec_call_op,
+            mul_op,
+            res_op,
+            return_op,
+        ]
+    )
+    region = Region([block])
+    define_fun_op = smt.DefineRecFunOp(region, name)
+    return define_fun_op

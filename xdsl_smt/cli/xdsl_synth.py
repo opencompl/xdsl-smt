@@ -11,7 +11,6 @@ from xdsl.utils.hints import isa
 from xdsl.rewriter import Rewriter
 
 from xdsl_smt.dialects import synth_dialect
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import (
@@ -37,7 +36,7 @@ from xdsl_smt.dialects.smt_utils_dialect import (
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType, FunctionType
+from xdsl.dialects.builtin import Builtin, ModuleOp, FunctionType
 from xdsl.dialects.func import Func, FuncOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -45,20 +44,14 @@ from xdsl.builder import Builder, ImplicitBuilder
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
-from xdsl_smt.passes.lower_to_smt import (
-    LowerToSMTPass,
-    transfer_to_smt_patterns,
-    func_to_smt_patterns,
-)
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.comb_semantics import comb_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
+from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.dialects import smt_bitvector_dialect
 
 from xdsl_smt.dialects import smt_dialect
 
 from xdsl_smt.dialects import smt_utils_dialect
+from xdsl_smt.passes.lowerers_loaders import load_vanilla_semantics
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -205,12 +198,7 @@ def main() -> None:
     assert isinstance(module, ModuleOp)
     assert isinstance(module_after, ModuleOp)
 
-    SMTLowerer.rewrite_patterns = {
-        **transfer_to_smt_patterns,
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {IntegerType: IntegerTypeSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics}
+    load_vanilla_semantics()
 
     # Move smt.synth.constant to function arguments
     func_after = module_after.ops.first
