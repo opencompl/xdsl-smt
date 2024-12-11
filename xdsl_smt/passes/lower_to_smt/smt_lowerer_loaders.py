@@ -1,4 +1,4 @@
-from xdsl.ir import Attribute, Operation
+from xdsl.ir import Operation
 from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
