@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Type
 from xdsl.ir import SSAValue, Attribute, Operation, ErasedSSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
@@ -144,71 +144,24 @@ class IntSelectSemantics(GenericIntSemantics):
         return ((res,), effect_state)
 
 
-class IntTruncISemantics(GenericIntSemantics):
+class IntWidthManipulationSemantics(GenericIntSemantics, ABC):
     def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
         self.accessor = accessor
         self.context = context
 
-    def get_semantics(
+    @abstractmethod
+    def get_predicate(self) -> Type[smt_int.BinaryPredIntOp]:
+        pass
+
+    @abstractmethod
+    def get_new_payload(
         self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue | None,
+        payload: SSAValue,
+        width: SSAValue,
+        new_width: SSAValue,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        operand = operands[0]
-        payload = self.accessor.get_payload(operand, rewriter)
-        poison = self.accessor.get_poison(operand, rewriter)
-        assert isinstance(rewriter.current_operation, pdl.OperationOp)
-        former_result = rewriter.current_operation.type_values[0]
-        assert isinstance(former_result, ErasedSSAValue)
-        pdl_type = former_result.old_value
-        width = self.context.pdl_types_to_width[pdl_type]
-        int_max = self.accessor.pow2_of(width, rewriter)
-        modulo_op = smt_int.ModOp(payload, int_max)
-        rewriter.insert_op_before_matched_op(
-            [
-                modulo_op,
-            ]
-        )
-        packed_integer = self.accessor.get_packed_integer(
-            modulo_op.res, poison, width, rewriter
-        )
-        return ((packed_integer,), effect_state)
-
-
-class IntExtUISemantics(GenericIntSemantics):
-    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
-        self.accessor = accessor
-        self.context = context
-
-    def get_semantics(
-        self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue | None,
-        rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        operand = operands[0]
-        payload = self.accessor.get_payload(operand, rewriter)
-        poison = self.accessor.get_poison(operand, rewriter)
-        assert isinstance(rewriter.current_operation, pdl.OperationOp)
-        former_result = rewriter.current_operation.type_values[0]
-        assert isinstance(former_result, ErasedSSAValue)
-        pdl_type = former_result.old_value
-        width = self.context.pdl_types_to_width[pdl_type]
-        packed_integer = self.accessor.get_packed_integer(
-            payload, poison, width, rewriter
-        )
-        return ((packed_integer,), effect_state)
-
-
-class IntExtSISemantics(GenericIntSemantics):
-    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
-        self.accessor = accessor
-        self.context = context
+    ) -> SSAValue:
+        pass
 
     def get_semantics(
         self,
@@ -227,16 +180,65 @@ class IntExtSISemantics(GenericIntSemantics):
         assert isinstance(former_result, ErasedSSAValue)
         pdl_type = former_result.old_value
         new_width = self.context.pdl_types_to_width[pdl_type]
-        #
-        signed_payload = self.accessor.get_unsigned_to_signed(payload, width, rewriter)
-        unsigned_payload = self.accessor.get_signed_to_unsigned(
-            signed_payload, width, rewriter
-        )
-        #
+        predicate = self.get_predicate()
+        new_width_xt_old_width_op = predicate(new_width, width)
+        assert_op = smt.AssertOp(new_width_xt_old_width_op.res)
+        rewriter.insert_op_before_matched_op([new_width_xt_old_width_op, assert_op])
+        new_payload = self.get_new_payload(payload, width, new_width, rewriter)
         packed_integer = self.accessor.get_packed_integer(
-            unsigned_payload, poison, new_width, rewriter
+            new_payload, poison, new_width, rewriter
         )
         return ((packed_integer,), effect_state)
+
+
+class IntTruncISemantics(IntWidthManipulationSemantics):
+    def __init__(self, accessor: IntAccessor, context: PDLToSMTRewriteContext):
+        self.accessor = accessor
+        self.context = context
+
+    def get_predicate(self) -> Type[smt_int.BinaryPredIntOp]:
+        return smt_int.LtOp
+
+    def get_new_payload(
+        self,
+        payload: SSAValue,
+        width: SSAValue,
+        new_width: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        int_max = self.accessor.pow2_of(new_width, rewriter)
+        modulo_op = smt_int.ModOp(payload, int_max)
+        rewriter.insert_op_before_matched_op(modulo_op)
+        return modulo_op.res
+
+
+class IntExtUISemantics(IntWidthManipulationSemantics):
+    def get_predicate(self) -> Type[smt_int.BinaryPredIntOp]:
+        return smt_int.GtOp
+
+    def get_new_payload(
+        self,
+        payload: SSAValue,
+        width: SSAValue,
+        new_width: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        return payload
+
+
+class IntExtSISemantics(IntWidthManipulationSemantics):
+    def get_predicate(self) -> Type[smt_int.BinaryPredIntOp]:
+        return smt_int.GtOp
+
+    def get_new_payload(
+        self,
+        payload: SSAValue,
+        width: SSAValue,
+        new_width: SSAValue,
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        signed_payload = self.accessor.get_unsigned_to_signed(payload, width, rewriter)
+        return signed_payload
 
 
 class IntConstantSemantics(GenericIntSemantics):
