@@ -32,7 +32,7 @@ from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.index_dialect import Index
-from xdsl_smt.dialects.transfer import Transfer, AbstractValueType, TransIntegerType
+from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
