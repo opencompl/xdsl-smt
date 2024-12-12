@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
@@ -23,6 +24,11 @@ from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.semantics.memref_semantics import memref_semantics
+from xdsl_smt.semantics.transfer_semantics import (
+    transfer_semantics,
+    AbstractValueTypeSemantics,
+    TransferIntegerTypeSemantics,
+)
 from xdsl_smt.semantics.arith_semantics import arith_semantics
 from xdsl_smt.semantics.builtin_semantics import (
     IndexTypeSemantics,
@@ -44,7 +50,7 @@ from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.index_dialect import Index
-from xdsl_smt.dialects.transfer import Transfer
+from xdsl_smt.dialects.transfer import Transfer, AbstractValueType, TransIntegerType
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
@@ -118,15 +124,33 @@ class OptMain(xDSLOptMain):
         super().register_all_targets()
         self.available_targets["smt"] = print_to_smtlib
 
+    def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
+        super().register_all_arguments(arg_parser)
+        arg_parser.add_argument(
+            "-w",
+            "--width",
+            type=int,
+            required=False,
+            help="width used for transfer integers",
+            default=8,
+        )
+
 
 def main():
     xdsl_main = OptMain()
     SMTLowerer.type_lowerers = {
         IntegerType: IntegerTypeSemantics(),
         IndexType: IndexTypeSemantics(),
+        AbstractValueType: AbstractValueTypeSemantics(),
+        TransIntegerType: TransferIntegerTypeSemantics(xdsl_main.args.width),
     }
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
+    SMTLowerer.op_semantics = {
+        **arith_semantics,
+        **comb_semantics,
+        **memref_semantics,
+        **transfer_semantics,
+    }
     SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
 
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
