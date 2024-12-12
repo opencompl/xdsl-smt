@@ -45,6 +45,16 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     name = "memory.bytes"
 
 
+class GetSetMemoryOpPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetMemoryPattern,
+        )
+
+        return (GetSetMemoryPattern(),)
+
+
 @irdl_op_definition
 class GetMemoryOp(IRDLOperation):
     name = "memory.get_memory"
@@ -55,7 +65,7 @@ class GetMemoryOp(IRDLOperation):
 
     assembly_format = "$state attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = frozenset([Pure(), GetSetMemoryOpPattern()])
 
     def __init__(self, state: SSAValue):
         super().__init__(operands=[state], result_types=[MemoryType()])
