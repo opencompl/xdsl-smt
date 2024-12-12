@@ -19,7 +19,8 @@ from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.dialects.memory_dialect import MemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
-from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
+from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
+from xdsl_smt.passes.lower_effects_with_memory import LowerEffectsWithMemoryPass
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 
@@ -100,8 +101,9 @@ class OptMain(xDSLOptMain):
         self.register_pass(PDLToSMT.name, lambda: PDLToSMT)
         self.register_pass(LowerEffectPass.name, lambda: LowerEffectPass)
         self.register_pass(
-            LowerEffectWithMemoryPass.name, lambda: LowerEffectWithMemoryPass
+            LowerEffectsWithMemoryPass.name, lambda: LowerEffectsWithMemoryPass
         )
+        self.register_pass(LowerMemoryEffectsPass.name, lambda: LowerMemoryEffectsPass)
         self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
         self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)

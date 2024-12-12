@@ -11,6 +11,7 @@ from xdsl.pattern_rewriter import RewritePattern
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.isattr import isattr
 
+from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
@@ -42,6 +43,41 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     """Type of a sequence of memory bytes."""
 
     name = "memory.bytes"
+
+
+@irdl_op_definition
+class GetMemoryOp(IRDLOperation):
+    name = "memory.get_memory"
+
+    state = operand_def(StateType())
+
+    res = result_def(MemoryType())
+
+    assembly_format = "$state attr-dict"
+
+    traits = frozenset([Pure()])
+
+    def __init__(self, state: SSAValue):
+        super().__init__(operands=[state], result_types=[MemoryType()])
+        self.res.name_hint = "memory"
+
+
+@irdl_op_definition
+class SetMemoryOp(IRDLOperation):
+    name = "memory.set_memory"
+
+    state = operand_def(StateType())
+    memory = operand_def(MemoryType())
+
+    res = result_def(StateType())
+
+    assembly_format = "$state `,` $memory attr-dict"
+
+    traits = frozenset([Pure()])
+
+    def __init__(self, state: SSAValue, memory: SSAValue):
+        super().__init__(operands=[state, memory], result_types=[StateType()])
+        self.res.name_hint = "state"
 
 
 class GetSetBlockOpPattern(HasCanonicalizationPatternsTrait):
@@ -335,6 +371,8 @@ class GetFreshBlockIDOp(IRDLOperation):
 MemoryDialect = Dialect(
     "memory",
     [
+        GetMemoryOp,
+        SetMemoryOp,
         GetBlockOp,
         SetBlockOp,
         GetBlockBytesOp,
