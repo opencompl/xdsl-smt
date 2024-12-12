@@ -744,9 +744,10 @@ class IteCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
     def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
         from xdsl_smt.passes.canonicalization_patterns.smt import (
             IteCanonicalizationPattern,
+            ItePairsCanonicalizationPattern,
         )
 
-        return (IteCanonicalizationPattern(),)
+        return (IteCanonicalizationPattern(), ItePairsCanonicalizationPattern())
 
 
 @irdl_op_definition

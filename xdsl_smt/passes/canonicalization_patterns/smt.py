@@ -4,7 +4,11 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
 )
-from xdsl_smt.dialects import smt_dialect as smt, smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import (
+    smt_dialect as smt,
+    smt_bitvector_dialect as smt_bv,
+    smt_utils_dialect as smt_utils,
+)
 
 
 def get_bool_constant(value: SSAValue) -> bool | None:
@@ -223,3 +227,19 @@ class IteCanonicalizationPattern(RewritePattern):
         if op.true_val == op.false_val:
             rewriter.replace_matched_op([], [op.true_val])
             return
+
+
+class ItePairsCanonicalizationPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: smt.IteOp, rewriter: PatternRewriter):
+        # (fst, snd) if c else (fst', snd') -> (fst if c else fst', snd if c else snd')
+        if not (
+            isinstance(fst_op := op.true_val.owner, smt_utils.PairOp)
+            and isinstance(snd_op := op.false_val.owner, smt_utils.PairOp)
+        ):
+            return
+
+        new_fst = smt.IteOp(op.cond, fst_op.first, snd_op.first)
+        new_snd = smt.IteOp(op.cond, fst_op.second, snd_op.second)
+        new_op = smt_utils.PairOp(new_fst.res, new_snd.res)
+        rewriter.replace_matched_op([new_fst, new_snd, new_op])
