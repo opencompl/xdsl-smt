@@ -10,7 +10,8 @@ from ...dialects import smt_bitvector_dialect as smt_bv
 from ...dialects import smt_dialect as smt
 from ...dialects import transfer
 from xdsl.ir import Attribute
-from .lower_to_smt import SMTLowerer, SMTLoweringRewritePattern
+from xdsl_smt.passes.lower_to_smt.smt_rewrite_patterns import SMTLoweringRewritePattern
+from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl.dialects.func import Call
 from ...dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
 from xdsl_smt.dialects.smt_dialect import BoolType, DefineFunOp, CallOp

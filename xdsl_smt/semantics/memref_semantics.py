@@ -20,7 +20,7 @@ import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 import xdsl_smt.dialects.effects.memory_effect as mem_effect
 import xdsl_smt.dialects.smt_dialect as smt
 from xdsl_smt.dialects.smt_utils_dialect import PairType
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
+from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl_smt.semantics.semantics import TypeSemantics, OperationSemantics
 
 

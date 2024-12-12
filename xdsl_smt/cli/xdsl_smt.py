@@ -4,7 +4,7 @@ import argparse
 from xdsl.ir import Dialect
 from xdsl.xdsl_opt_main import xDSLOptMain
 
-from xdsl.dialects.builtin import Builtin, IntegerAttr, IntegerType, IndexType
+from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL
 from xdsl.dialects.arith import Arith
@@ -20,26 +20,8 @@ from xdsl_smt.dialects.memory_dialect import MemoryDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
-from xdsl_smt.semantics.memref_semantics import memref_semantics
-from xdsl_smt.semantics.transfer_semantics import (
-    transfer_semantics,
-    AbstractValueTypeSemantics,
-    TransferIntegerTypeSemantics,
-)
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import (
-    IndexTypeSemantics,
-    IntegerAttrSemantics,
-    IntegerTypeSemantics,
-)
-
-from xdsl_smt.passes.lower_to_smt import (
-    func_to_smt_patterns,
-    transfer_to_smt_patterns,
-)
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -50,7 +32,7 @@ from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.index_dialect import Index
-from xdsl_smt.dialects.transfer import Transfer, AbstractValueType, TransIntegerType
+from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
@@ -58,7 +40,7 @@ from xdsl_smt.dialects.tv_dialect import TVDialect
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
-from xdsl_smt.semantics.comb_semantics import comb_semantics
+
 from ..passes.pdl_to_smt import PDLToSMT
 
 from ..traits.smt_printer import print_to_smtlib
@@ -67,6 +49,9 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_rewrites,
     integer_arith_native_constraints,
     integer_arith_native_static_constraints,
+)
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics_with_transfer,
 )
 
 
@@ -100,6 +85,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.load_registered_dialect(SMTDialect.name)
+        self.ctx.load_registered_dialect(Transfer.name)
         self.ctx.load_registered_dialect(SMTIntDialect.name)
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
@@ -138,27 +124,12 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    SMTLowerer.type_lowerers = {
-        IntegerType: IntegerTypeSemantics(),
-        IndexType: IndexTypeSemantics(),
-        AbstractValueType: AbstractValueTypeSemantics(),
-        TransIntegerType: TransferIntegerTypeSemantics(xdsl_main.args.width),
-    }
-    SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {
-        **arith_semantics,
-        **comb_semantics,
-        **memref_semantics,
-        **transfer_semantics,
-    }
-    SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
-
+    load_vanilla_semantics_with_transfer(xdsl_main.args.width)
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
     PDLToSMT.pdl_lowerer.native_static_constraints = (
         integer_arith_native_static_constraints
     )
-
     xdsl_main.run()
 
 

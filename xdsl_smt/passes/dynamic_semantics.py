@@ -3,8 +3,8 @@ from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects import pdl, arith
-from xdsl_smt.passes.lower_to_smt.lower_to_smt import SMTLowerer
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_dynamic_semantics
 
 
 @dataclass(frozen=True)
@@ -51,5 +51,4 @@ class DynamicSemantics(ModulePass):
                         target_op=match_ops[0], rewrite=rewrites[0]
                     )
         # Update the global semantics
-        SMTLowerer.dynamic_semantics_enabled = True
-        SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
+        load_dynamic_semantics(semantics)

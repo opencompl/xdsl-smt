@@ -44,31 +44,23 @@ from xdsl.dialects.builtin import (
     FunctionType,
 )
 from xdsl.dialects.func import Func, FuncOp, Return
-from xdsl_smt.dialects.transfer import AbstractValueType, Transfer, TransIntegerType
+from xdsl_smt.dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
 import xdsl.dialects.comb as comb
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import (
     LowerToSMTPass,
-    SMTLowerer,
-)
-from xdsl_smt.passes.lower_to_smt import (
-    func_to_smt_patterns,
 )
 from xdsl_smt.passes.transfer_unroll_loop import UnrollTransferLoop
-from xdsl_smt.semantics import transfer_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.transfer_semantics import (
-    transfer_semantics,
-    AbstractValueTypeSemantics,
-    TransferIntegerTypeSemantics,
-)
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics,
+    load_transfer_type_lowerer,
+)
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -649,20 +641,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
 
 
 def lowerToSMTModule(module: ModuleOp, width: int, ctx: MLContext):
-    # lower to SMT
-    SMTLowerer.rewrite_patterns = {
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {
-        IntegerType: IntegerTypeSemantics(),
-        AbstractValueType: AbstractValueTypeSemantics(),
-        TransIntegerType: TransferIntegerTypeSemantics(width),
-    }
-    SMTLowerer.op_semantics = {
-        **arith_semantics,
-        **transfer_semantics,
-        **comb_semantics,
-    }
+    load_transfer_type_lowerer(width)
     LowerToSMTPass().apply(ctx, module)
 
 
@@ -901,4 +880,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_vanilla_semantics()
     main()
