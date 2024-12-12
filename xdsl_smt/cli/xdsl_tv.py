@@ -433,6 +433,16 @@ def main() -> None:
         if isinstance(op, DefineFunOp):
             new_module.body.block.erase_op(op)
 
+    # Optionally simplify the module
+    if args.opt:
+        LowerPairs().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+        # Remove this once we update to latest xdsl
+        DeadCodeElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+
     # Lower memory to arrays
     LowerMemoryToArrayPass().apply(ctx, new_module)
 
