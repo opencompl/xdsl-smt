@@ -30,6 +30,7 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_rzeros,
     count_lones,
     count_rones,
+    reverse_bits,
 )
 
 
@@ -38,7 +39,9 @@ class AbstractValueTypeSemantics(TypeSemantics):
     But the last element is useless, this makes GetOp easier"""
 
     def get_semantics(self, type: Attribute) -> Attribute:
-        assert isinstance(type, transfer.AbstractValueType)
+        assert isinstance(type, transfer.AbstractValueType) or isinstance(
+            type, transfer.TupleType
+        )
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = SMTLowerer.lower_type(curTy)
@@ -598,7 +601,9 @@ class ExtractOpSemantics(OperationSemantics):
         )
         numBits = numBitsOp.value.value.data
         bitPosition = bitPositionOp.value.value.data
-        extractOp = smt_bv.ExtractOp(operands[0], numBits + bitPosition, bitPosition)
+        extractOp = smt_bv.ExtractOp(
+            operands[0], numBits + bitPosition - 1, bitPosition
+        )
         rewriter.insert_op_before_matched_op(extractOp)
         return ((extractOp.res,), effect_state)
 
@@ -637,6 +642,21 @@ class RemovePoisonOpSemantics(OperationSemantics):
         return ((res.res,), effect_state)
 
 
+class ReverseBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        op_ty = operands[0].type
+        assert isinstance(op_ty, smt_bv.BitVectorType)
+        res = reverse_bits(operands[0], rewriter)
+        return ((res,), effect_state)
+
+
 transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.Constant: ConstantOpSemantics(),
     transfer.AddOp: TrivialOpSemantics(transfer.AddOp, smt_bv.AddOp),
@@ -673,4 +693,5 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.IntersectsOp: IntersectsOpSemantics(),
     transfer.AddPoisonOp: AddPoisonOpSemantics(),
     transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
+    transfer.ReverseBitsOp: ReverseBitsOpSemantics(),
 }
