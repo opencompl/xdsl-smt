@@ -50,7 +50,9 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_constraints,
     integer_arith_native_static_constraints,
 )
-from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics_with_transfer,
+)
 
 
 class OptMain(xDSLOptMain):
@@ -122,7 +124,7 @@ class OptMain(xDSLOptMain):
 
 def main():
     xdsl_main = OptMain()
-    load_vanilla_semantics()
+    load_vanilla_semantics_with_transfer(xdsl_main.args.width)
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
     PDLToSMT.pdl_lowerer.native_static_constraints = (

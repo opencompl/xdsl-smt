@@ -25,33 +25,38 @@ from xdsl_smt.passes.lower_to_smt import (
 )
 
 
+def load_vanilla_semantics_with_transfer(transfer_width: int):
+    load_vanilla_semantics()
+    load_transfer_type_lowerer(transfer_width)
+
+
 def load_vanilla_semantics():
     SMTLowerer.type_lowerers = {
         IntegerType: IntegerTypeSemantics(),
         IndexType: IndexTypeSemantics(),
         MemRefType: MemrefSemantics(),
+        AbstractValueType: AbstractValueTypeSemantics(),
     }
     SMTLowerer.attribute_semantics = {IntegerAttr: IntegerAttrSemantics()}
-    SMTLowerer.op_semantics = {**arith_semantics, **comb_semantics, **memref_semantics}
-    SMTLowerer.rewrite_patterns = {**func_to_smt_patterns, **transfer_to_smt_patterns}
+    SMTLowerer.op_semantics = {
+        **arith_semantics,
+        **comb_semantics,
+        **memref_semantics,
+        **transfer_semantics,
+    }
+    SMTLowerer.rewrite_patterns = {
+        **func_to_smt_patterns,
+        **transfer_to_smt_patterns,
+    }
+
+
+def load_transfer_type_lowerer(transfer_width: int):
+    SMTLowerer.type_lowerers = {
+        **SMTLowerer.type_lowerers,
+        **{TransIntegerType: TransferIntegerTypeSemantics(transfer_width)},
+    }
 
 
 def load_dynamic_semantics(semantics: dict[type[Operation], OperationSemantics]):
     SMTLowerer.dynamic_semantics_enabled = True
     SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
-
-
-def load_transfer_semantics(width: int):
-    SMTLowerer.rewrite_patterns = {
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {
-        IntegerType: IntegerTypeSemantics(),
-        AbstractValueType: AbstractValueTypeSemantics(),
-        TransIntegerType: TransferIntegerTypeSemantics(width),
-    }
-    SMTLowerer.op_semantics = {
-        **arith_semantics,
-        **transfer_semantics,
-        **comb_semantics,
-    }

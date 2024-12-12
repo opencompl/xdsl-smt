@@ -57,7 +57,10 @@ from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
-from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_transfer_semantics
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics,
+    load_transfer_type_lowerer,
+)
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -638,7 +641,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
 
 
 def lowerToSMTModule(module: ModuleOp, width: int, ctx: MLContext):
-    load_transfer_semantics(width)
+    load_transfer_type_lowerer(width)
     LowerToSMTPass().apply(ctx, module)
 
 
@@ -877,4 +880,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_vanilla_semantics()
     main()
