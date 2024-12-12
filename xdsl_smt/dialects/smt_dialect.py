@@ -745,9 +745,14 @@ class IteCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         from xdsl_smt.passes.canonicalization_patterns.smt import (
             IteCanonicalizationPattern,
             ItePairsCanonicalizationPattern,
+            IteMergePattern,
         )
 
-        return (IteCanonicalizationPattern(), ItePairsCanonicalizationPattern())
+        return (
+            IteCanonicalizationPattern(),
+            ItePairsCanonicalizationPattern(),
+            IteMergePattern(),
+        )
 
 
 @irdl_op_definition
