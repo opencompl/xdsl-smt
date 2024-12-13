@@ -49,10 +49,11 @@
 // CHECK-NEXT:    %block_size = memory.get_block_size %block
 // CHECK-NEXT:    %0 = "smt.bv.add"(%ptr_second, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bv.bv<64>
 // CHECK-NEXT:    %offset_in_bounds = "smt.bv.ule"(%0, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bool
+// CHECK-NEXT:    %offset_not_in_bounds = "smt.not"(%offset_in_bounds) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %read = memory.read_bytes %block_bytes[%ptr_second] : !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>
 // CHECK-NEXT:    %state_1 = memory.set_memory %state, %memory
 // CHECK-NEXT:    %1 = ub_effect.trigger %state
-// CHECK-NEXT:    %state2 = "smt.ite"(%offset_in_bounds, %1, %state_1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
+// CHECK-NEXT:    %state2 = "smt.ite"(%offset_not_in_bounds, %1, %state_1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
 // CHECK-NEXT:    "test.op"(%state2, %read) : (!effect.state, !smt.utils.pair<!smt.bv.bv<8>, !smt.bool>) -> ()
 
 // -----
@@ -75,10 +76,11 @@
 // CHECK-NEXT:    %block_size = memory.get_block_size %block
 // CHECK-NEXT:    %0 = "smt.bv.add"(%ptr_second, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bv.bv<64>
 // CHECK-NEXT:    %offset_in_bounds = "smt.bv.ule"(%0, %block_size) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bool
+// CHECK-NEXT:    %offset_not_in_bounds = "smt.not"(%offset_in_bounds) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %bytes = memory.write_bytes %value, %block_bytes[%ptr_second] : !smt.utils.pair<!smt.bv.bv<16>, !smt.bool>
 // CHECK-NEXT:    %block_1 = memory.set_block_bytes %block, %bytes
 // CHECK-NEXT:    %memory_1 = memory.set_block %block_1, %memory[%ptr_first]
 // CHECK-NEXT:    %state_1 = memory.set_memory %state, %memory_1
 // CHECK-NEXT:    %1 = ub_effect.trigger %state
-// CHECK-NEXT:    %state2 = "smt.ite"(%offset_in_bounds, %1, %state_1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
+// CHECK-NEXT:    %state2 = "smt.ite"(%offset_not_in_bounds, %1, %state_1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
 // CHECK-NEXT:    "test.op"(%state2) : (!effect.state) -> ()

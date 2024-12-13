@@ -177,13 +177,16 @@ class LowerRead(RewritePattern):
 
         # Check that the offset is within bounds
         offset_in_bounds = check_bounds(offset, block, rewriter)
+        offset_not_in_bounds = smt.NotOp(offset_in_bounds)
+        offset_not_in_bounds.res.name_hint = "offset_not_in_bounds"
+        rewriter.insert_op_before_matched_op([offset_not_in_bounds])
 
         # Read the value in memory
         read_op = mem.ReadBytesOp(bytes, offset, op.res.type)
         rewriter.insert_op_before_matched_op([read_op])
 
         # Create the new state
-        new_state = set_memory(op.state, memory, offset_in_bounds, rewriter)
+        new_state = set_memory(op.state, memory, offset_not_in_bounds.res, rewriter)
 
         # Replace the matched operation
         rewriter.replace_matched_op([], [new_state, read_op.res])
@@ -205,6 +208,9 @@ class LowerWrite(RewritePattern):
 
         # Check that the offset is within bounds, and update the ub flag
         offset_in_bounds = check_bounds(offset, block, rewriter)
+        offset_not_in_bounds = smt.NotOp(offset_in_bounds)
+        offset_not_in_bounds.res.name_hint = "offset_not_in_bounds"
+        rewriter.insert_op_before_matched_op([offset_not_in_bounds])
 
         # Write the value in memory
         write_op = mem.WriteBytesOp(op.value, bytes, offset)
@@ -218,7 +224,7 @@ class LowerWrite(RewritePattern):
         rewriter.insert_op_before_matched_op([set_block_bytes_op, set_block_op])
 
         # Create the new state
-        new_state = set_memory(op.state, memory, offset_in_bounds, rewriter)
+        new_state = set_memory(op.state, memory, offset_not_in_bounds.res, rewriter)
 
         # Replace the matched operation
         rewriter.replace_matched_op([], [new_state])
