@@ -6,9 +6,11 @@ on:
   push:
     branches:
       - main
+      - synth_transfer
   pull_request:
     branches:
       - main
+      - synth_transfer
 
 jobs:
   build:
