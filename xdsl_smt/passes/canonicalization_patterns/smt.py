@@ -269,7 +269,7 @@ class IteMergePattern(RewritePattern):
         if isinstance(false_ite := op.false_val.owner, smt.IteOp):
             # (x if c else (x if c' else y)) -> x if c || c' else y
             if false_ite.true_val == op.true_val:
-                new_cond_op = smt.OrOp.get(op.cond, false_ite.res)
+                new_cond_op = smt.OrOp.get(op.cond, false_ite.cond)
                 new_ite_op = smt.IteOp(
                     new_cond_op.res, op.true_val, false_ite.false_val
                 )

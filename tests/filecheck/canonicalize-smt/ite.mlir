@@ -45,7 +45,7 @@
   %t6 = "smt.ite"(%c2, %x, %y) : (!smt.bool, !smt.bool, !smt.bool) -> !smt.bool
   %ite6 = "smt.ite"(%c, %x, %t6) : (!smt.bool, !smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%ite6) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert (ite (or c (ite c2 x y)) x y))
+  // CHECK-NEXT: (assert (ite (or c c2) x y))
 
   // (x if c else (y if c' else x)) -> x if c || !c' else y
   %t7 = "smt.ite"(%c2, %y, %x) : (!smt.bool, !smt.bool, !smt.bool) -> !smt.bool
