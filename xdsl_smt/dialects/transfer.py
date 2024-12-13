@@ -188,11 +188,9 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
+        properties: dict[str, Attribute] = {},
     ):
-        super().__init__(
-            operands=[lhs, rhs],
-            result_types=[i1],
-        )
+        super().__init__(operands=[lhs, rhs], result_types=[i1], properties=properties)
 
 
 @irdl_op_definition
@@ -425,6 +423,37 @@ class CmpOp(PredicateOp):
     name = "transfer.cmp"
 
     predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
+
+    def __init__(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        arg: int | str,
+    ):
+        if isinstance(arg, str):
+            cmp_comparison_operations = {
+                "eq": 0,
+                "ne": 1,
+                "slt": 2,
+                "sle": 3,
+                "sgt": 4,
+                "sge": 5,
+                "ult": 6,
+                "ule": 7,
+                "ugt": 8,
+                "uge": 9,
+            }
+            assert arg in cmp_comparison_operations
+            pred = cmp_comparison_operations[arg]
+        else:
+            pred = arg
+        assert pred >= 0 and pred <= 9
+
+        super().__init__(
+            lhs,
+            rhs,
+            {"predicate": IntegerAttr.from_int_and_width(pred, 64)},
+        )
 
 
 @irdl_attr_definition
