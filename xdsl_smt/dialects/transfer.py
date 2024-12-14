@@ -201,7 +201,7 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         super().__init__(
             operands=[lhs, rhs],
             result_types=[i1],
-            attributes={"predicate": IntegerAttr(predicate, IndexType())}
+            attributes={"predicate": IntegerAttr(predicate, IndexType())},
         )
 
 
