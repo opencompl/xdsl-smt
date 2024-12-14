@@ -204,6 +204,18 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
             attributes={"predicate": IntegerAttr(predicate, IndexType())},
         )
 
+    def __init__(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        predicate: int,
+    ):
+        super().__init__(
+            operands=[lhs, rhs],
+            result_types=[i1],
+            attributes={"predicate": IntegerAttr(predicate, IndexType())}
+        )
+
 
 @irdl_op_definition
 class AddOp(BinOp):
