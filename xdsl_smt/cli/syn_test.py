@@ -200,27 +200,26 @@ def sample_next(func: FuncOp) -> float:
     """
     ops = list(func.body.block.ops)
 
-    while 1:
-        sample_mode = random.randrange(2)
-        if sample_mode == 0:
-            # replace an operation with a new operation
-            old_op, new_op, ratio = replace_entire_operation(ops)
-            func.body.block.insert_op_before(new_op, old_op)
-            if len(old_op.results) > 0 and len(new_op.results) > 0:
-                old_op.results[0].replace_by(new_op.results[0])
-            func.body.block.detach_op(old_op)
 
-        elif sample_mode == 1:
-            # replace an operand in an operand
-            ratio = replace_operand(ops)
+    sample_mode = random.randrange(2)
+    if sample_mode == 0:
+        # replace an operation with a new operation
+        old_op, new_op, ratio = replace_entire_operation(ops)
+        func.body.block.insert_op_before(new_op, old_op)
+        if len(old_op.results) > 0 and len(new_op.results) > 0:
+            old_op.results[0].replace_by(new_op.results[0])
+        func.body.block.detach_op(old_op)
 
-        elif sample_mode == 2:
-            # todo: replace NOP with an operations
-            ratio = 1
-        else:
-            # todo: replace an operations with NOP
-            ratio = 1
-        break
+    elif sample_mode == 1:
+        # replace an operand in an operand
+        ratio = replace_operand(ops)
+
+    elif sample_mode == 2:
+        # todo: replace NOP with an operations
+        ratio = 1
+    else:
+        # todo: replace an operations with NOP
+        ratio = 1
 
     return ratio
 
@@ -253,6 +252,7 @@ def construct_init_program(func: FuncOp, length: int):
                 block.add_op(op)
 
     # Part III: Main Body
+    assert isinstance(block.last_op, GetOp)
     tmp_int_ssavalue = block.last_op.results[0]
     tmp_bool_ssavalue = true.results[0]
     for i in range(length // 2):
@@ -264,10 +264,10 @@ def construct_init_program(func: FuncOp, length: int):
         block.add_op(nop_int)
 
     # Part IV: MakeOp
-    return_val = []
+    return_val: list[Operation] = []
     for output in func.function_type.outputs:
         assert isinstance(output, AbstractValueType)
-        operands = []
+        operands: list[OpResult] = []
         for i, field_type in enumerate(output.get_fields()):
             assert isinstance(field_type, TransIntegerType)
             operands.append(tmp_int_ssavalue)
