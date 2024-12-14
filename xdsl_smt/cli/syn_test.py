@@ -128,6 +128,8 @@ def replace_entire_operation(
             int_op1 = random.choice(int_operands)
             int_op2 = random.choice(int_operands)
             new_op = CmpOp(int_op1, int_op2, predicate)
+        else:
+            assert False
 
         forward_prob = calculate_operand_prob(old_op)
         backward_prob = calculate_operand_prob(new_op)
@@ -145,9 +147,11 @@ def replace_entire_operation(
             new_op = OrOp(op1, op2)
         elif opcode == XorOp.name:
             new_op = XorOp(op1, op2)
-        else:
+        elif opcode == SelectOp.name:
             cond = random.choice(bool_operands)
             new_op = SelectOp(cond, op1, op2)
+        else:
+            assert False
 
         forward_prob = calculate_operand_prob(old_op)
         backward_prob = calculate_operand_prob(new_op)
@@ -160,7 +164,7 @@ def replace_entire_operation(
     return old_op, new_op, backward_prob / forward_prob
 
 
-def replace_operand(ops: [Operation]) -> float:
+def replace_operand(ops: list[Operation]) -> float:
     modifiable_indices = [
         i
         for i, op in enumerate(ops[6:-1], start=6)
