@@ -452,7 +452,7 @@ class CmpOp(PredicateOp):
         super().__init__(
             lhs,
             rhs,
-            {"predicate": IntegerAttr.from_int_and_width(pred, 64)},
+            {"predicate": IntegerAttr.from_index_int_value(pred)},
         )
 
 
