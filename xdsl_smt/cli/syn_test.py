@@ -200,7 +200,6 @@ def sample_next(func: FuncOp) -> float:
     """
     ops = list(func.body.block.ops)
 
-
     sample_mode = random.randrange(2)
     if sample_mode == 0:
         # replace an operation with a new operation
