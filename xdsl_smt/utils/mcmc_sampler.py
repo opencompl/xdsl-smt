@@ -63,7 +63,6 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 
 class MCMCSampler:
-
     def __init__(self, func: FuncOp, length: int):
         MCMCSampler.construct_init_program(func, length)
         self.func = func
@@ -72,17 +71,23 @@ class MCMCSampler:
         return self.func
 
     @staticmethod
-    def get_valid_bool_operands(ops: list[Operation], x: int) -> tuple[list[OpResult], int]:
+    def get_valid_bool_operands(
+        ops: list[Operation], x: int
+    ) -> tuple[list[OpResult], int]:
         """
         Get operations that before ops[x] so that can serve as operands
         """
-        bool_ops = [result for op in ops[:x] for result in op.results if result.type == i1]
+        bool_ops = [
+            result for op in ops[:x] for result in op.results if result.type == i1
+        ]
         bool_count = len(bool_ops)
         assert bool_count > 0
         return bool_ops, bool_count
 
     @staticmethod
-    def get_valid_int_operands(ops: list[Operation], x: int) -> tuple[list[OpResult], int]:
+    def get_valid_int_operands(
+        ops: list[Operation], x: int
+    ) -> tuple[list[OpResult], int]:
         """
         Get operations that before ops[x] so that can serve as operands
         """
@@ -98,7 +103,7 @@ class MCMCSampler:
 
     @staticmethod
     def replace_entire_operation(
-            ops: list[Operation],
+        ops: list[Operation],
     ) -> tuple[Operation, Operation, float]:
         """
         Random pick an operation and replace it with a new one
@@ -291,6 +296,3 @@ class MCMCSampler:
             ratio = 1
 
         return ratio
-
-
-
