@@ -6,12 +6,6 @@ from xdsl.parser import Parser
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith
-from ..dialects.smt_dialect import (
-    SMTDialect,
-)
-from ..dialects.smt_bitvector_dialect import (
-    SMTBitVectorDialect,
-)
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
@@ -23,19 +17,13 @@ from xdsl_smt.dialects.transfer import (
     CmpOp,
     MakeOp,
 )
-from ..dialects.index_dialect import Index
-from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import (
-    Builtin,
-    ModuleOp,
     IntegerAttr,
     IntegerType,
     i1,
     IndexType,
 )
-from xdsl.dialects.func import Func, FuncOp, Return
-from ..dialects.transfer import Transfer
-from xdsl.dialects.arith import Arith
+from xdsl.dialects.func import FuncOp, Return
 from xdsl.ir import Operation, OpResult
 from xdsl_smt.semantics.transfer_semantics import (
     CmpOpSemantics,
