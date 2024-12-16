@@ -31,10 +31,10 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        before_val, before_poison, before_width = self.integer_proxy.unpack_integer(
+        before_val, before_poison, _ = self.integer_proxy.unpack_integer(
             val_before, rewriter
         )
-        after_val, after_poison, after_width = self.integer_proxy.unpack_integer(
+        after_val, after_poison, _ = self.integer_proxy.unpack_integer(
             val_after, rewriter
         )
 
