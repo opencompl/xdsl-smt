@@ -70,7 +70,8 @@ class IntegerProxy:
         rewriter: PatternRewriter,
     ) -> SSAValue:
         "Build a generic integer starting from its different pieces."
-        inner_pair = smt_utils.PairOp(payload, poison)
+        mod_payload = self.get_signed_to_unsigned(payload, width, rewriter)
+        inner_pair = smt_utils.PairOp(mod_payload, poison)
         outer_pair = smt_utils.PairOp(inner_pair.res, width)
         rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
         return outer_pair.res
@@ -94,10 +95,15 @@ class IntegerProxy:
         rewriter.insert_op_before_matched_op([result_op])
         return result_op.res[0]
 
-    def get_pow2(self, rewriter: PatternRewriter) -> SSAValue:
+    def build_pow2(self, rewriter: PatternRewriter):
         if self.pow2_fun is None:
             pow2_fun_op = insert_and_constraint_pow2(rewriter)
             self.pow2_fun = pow2_fun_op.ret
+        assert self.pow2_fun
+
+    def get_pow2(self, rewriter: PatternRewriter) -> SSAValue:
+        self.build_pow2(rewriter)
+        assert self.pow2_fun
         return self.pow2_fun
 
     def get_int_max(
@@ -155,7 +161,6 @@ def insert_and_constraint_pow2(rewriter: PatternRewriter) -> smt.DeclareFunOp:
             outputs=[smt_int.SMTIntType()],
         ),
     )
-    rewriter.insert_op_before_matched_op(declare_pow_op)
     pow2_fun = declare_pow_op.ret
     # Forall x,y, x > y => pow2(x) > pow2(y)
     body = Region([Block(arg_types=[smt_int.SMTIntType(), smt_int.SMTIntType()])])
@@ -176,7 +181,7 @@ def insert_and_constraint_pow2(rewriter: PatternRewriter) -> smt.DeclareFunOp:
     )
     forall_op0 = smt.ForallOp.create(result_types=[BoolType()], regions=[body])
     assert_op0 = smt.AssertOp(forall_op0.res)
-    rewriter.insert_op_before_matched_op([forall_op0, assert_op0])
+    rewriter.insert_op_before_matched_op([declare_pow_op, forall_op0, assert_op0])
 
     return declare_pow_op
 

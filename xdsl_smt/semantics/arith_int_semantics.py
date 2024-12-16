@@ -38,13 +38,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
             val_after, rewriter
         )
 
-        after_val_norm = self.integer_proxy.get_signed_to_unsigned(
-            after_val, after_width, rewriter
-        )
-        before_val_norm = self.integer_proxy.get_signed_to_unsigned(
-            before_val, before_width, rewriter
-        )
-        eq_vals = smt.EqOp(before_val_norm, after_val_norm)
+        eq_vals = smt.EqOp(before_val, after_val)
         not_before_poison = smt.NotOp(before_poison)
         not_after_poison = smt.NotOp(after_poison)
         not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
@@ -169,14 +163,8 @@ class IntConstantSemantics(GenericIntSemantics):
             assert width_res == width_attr
             width_op = smt_int.ConstantOp(value=width_res)
             width = width_op.res
-            int_max_op = smt_int.ConstantOp(
-                2 ** results[0].width.data,
-            )
-            modulo = smt_int.ModOp(literal.res, int_max_op.res)
-            rewriter.insert_op_before_matched_op(
-                [literal, width_op, int_max_op, modulo]
-            )
-            ssa_attr = modulo.res
+            rewriter.insert_op_before_matched_op([literal, width_op])
+            ssa_attr = literal.res
         else:
             if isinstance(results[0], IntegerType):
                 width_op = smt_int.ConstantOp(results[0].width.data)
