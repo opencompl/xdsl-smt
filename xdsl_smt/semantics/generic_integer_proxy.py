@@ -1,4 +1,6 @@
 from xdsl.ir import SSAValue, Attribute, Region, Block
+from dataclasses import dataclass
+from typing import Tuple
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects import smt_int_dialect as smt_int
@@ -9,10 +11,10 @@ from xdsl.dialects.builtin import IntegerType, FunctionType
 from xdsl_smt.dialects.smt_dialect import BoolType
 
 
+@dataclass
 class IntegerProxy:
-    def __init__(self):
-        self.pow2_fun = None
-        self.andi_fun = None
+    pow2_fun: SSAValue | None = None
+    andi_fun: SSAValue | None = None
 
     def _get_insert_point_above(self, var: SSAValue):
         owner = var.owner
@@ -24,35 +26,50 @@ class IntegerProxy:
         insert_point = InsertPoint.at_start(block)
         return insert_point
 
-    def get_int_type(self, typ: Attribute) -> Attribute:
+    @property
+    def int_type(self) -> Attribute:
+        """Get the representation of an integer in the generic semantics
+        framework."""
         inner_pair_type = smt_utils.PairType(smt_int.SMTIntType(), smt.BoolType())
         outer_pair_type = smt_utils.PairType(inner_pair_type, smt_int.SMTIntType())
         return outer_pair_type
 
-    def get_payload(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+    def unpack_integer(
+        self, smt_integer: SSAValue, rewriter: PatternRewriter
+    ) -> Tuple[SSAValue, SSAValue, SSAValue]:
+        "Extract the different pieces of a generic integer."
+        payload = self._get_payload(smt_integer, rewriter)
+        poison = self._get_poison(smt_integer, rewriter)
+        width = self._get_width(smt_integer, rewriter)
+        return payload, poison, width
+
+    def _get_payload(
+        self, smt_integer: SSAValue, rewriter: PatternRewriter
+    ) -> SSAValue:
         get_inner_pair_op = smt_utils.FirstOp(smt_integer)
         get_payload_op = smt_utils.FirstOp(get_inner_pair_op.res)
         rewriter.insert_op_before_matched_op([get_inner_pair_op, get_payload_op])
         return get_payload_op.res
 
-    def get_width(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+    def _get_width(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
         get_width_op = smt_utils.SecondOp(smt_integer)
         rewriter.insert_op_before_matched_op([get_width_op])
         return get_width_op.res
 
-    def get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+    def _get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
         get_inner_pair_op = smt_utils.FirstOp(smt_integer)
         get_poison_op = smt_utils.SecondOp(get_inner_pair_op.res)
         rewriter.insert_op_before_matched_op([get_inner_pair_op, get_poison_op])
         return get_poison_op.res
 
-    def get_packed_integer(
+    def pack_integer(
         self,
         payload: SSAValue,
         poison: SSAValue,
         width: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
+        "Build a generic integer starting from its different pieces."
         inner_pair = smt_utils.PairOp(payload, poison)
         outer_pair = smt_utils.PairOp(inner_pair.res, width)
         rewriter.insert_op_before_matched_op([inner_pair, outer_pair])
@@ -60,27 +77,28 @@ class IntegerProxy:
 
     def andi_of(
         self, width: SSAValue, lhs: SSAValue, rhs: SSAValue, rewriter: PatternRewriter
-    ):
+    ) -> SSAValue:
+        "Compute the bitwise And of the parameters."
         if self.andi_fun is None:
-            pow2_fun = self.get_constraint_pow2(rewriter)
+            pow2_fun = self.get_pow2(rewriter)
             andi_fun_op = insert_and_constraint_andi(rewriter, pow2_fun)
             self.andi_fun = andi_fun_op.ret
         result_op = smt.CallOp(self.andi_fun, [width, lhs, rhs])
         rewriter.insert_op_before_matched_op([result_op])
         return result_op.res[0]
 
-    def get_constraint_pow2(self, rewriter: PatternRewriter):
-        if self.pow2_fun is None:
-            pow2_fun_op = insert_pow2(rewriter)
-            constraint_pow2(rewriter, pow2_fun_op.ret)
-            self.pow2_fun = pow2_fun_op.ret
-        return self.pow2_fun
-
-    def pow2_of(self, exp: SSAValue, rewriter: PatternRewriter):
-        pow2_fun = self.get_constraint_pow2(rewriter)
+    def pow2_of(self, exp: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+        "Compute the pow2 of the parameter."
+        pow2_fun = self.get_pow2(rewriter)
         result_op = smt.CallOp(pow2_fun, [exp])
         rewriter.insert_op_before_matched_op([result_op])
         return result_op.res[0]
+
+    def get_pow2(self, rewriter: PatternRewriter) -> SSAValue:
+        if self.pow2_fun is None:
+            pow2_fun_op = insert_and_constraint_pow2(rewriter)
+            self.pow2_fun = pow2_fun_op.ret
+        return self.pow2_fun
 
     def get_int_max(
         self, smt_integer: SSAValue, typ: Attribute, rewriter: PatternRewriter
@@ -92,7 +110,7 @@ class IntegerProxy:
         elif isinstance(typ, transfer.TransIntegerType) or isinstance(
             typ, smt_int.SMTIntType
         ):
-            width = self.get_width(smt_integer, rewriter)
+            width = self._get_width(smt_integer, rewriter)
             int_max = self.pow2_of(width, rewriter)
         else:
             assert False
@@ -100,7 +118,7 @@ class IntegerProxy:
 
     def get_signed_to_unsigned(
         self, payload: SSAValue, width: SSAValue, rewriter: PatternRewriter
-    ):
+    ) -> SSAValue:
         # (x + pow2(k)) mod pow2(k)
         int_max = self.pow2_of(width, rewriter)
         payload_norm_op = smt_int.AddOp(payload, int_max)
@@ -110,7 +128,7 @@ class IntegerProxy:
 
     def get_unsigned_to_signed(
         self, payload: SSAValue, width: SSAValue, rewriter: PatternRewriter
-    ):
+    ) -> SSAValue:
         # 2 · (x mod pow2(k − 1)) − x
         one_op = smt_int.ConstantOp(1)
         width_minus_one = smt_int.SubOp(width, one_op.res)
@@ -126,13 +144,10 @@ class IntegerProxy:
         return times_2_op.res
 
 
-def insert_and_constraint_pow2(rewriter: PatternRewriter):
-    declare_pow_op = insert_pow2(rewriter)
-    constraint_pow2(rewriter, declare_pow_op.ret)
-    return declare_pow_op
-
-
-def insert_pow2(rewriter: PatternRewriter):
+def insert_and_constraint_pow2(rewriter: PatternRewriter) -> smt.DeclareFunOp:
+    """Insert an uninterpreted function mimicking pow2
+    and constraint the latter with assertions and quantifiers
+    in order to help the solvers."""
     declare_pow_op = smt.DeclareFunOp(
         name="pow2",
         func_type=FunctionType.from_lists(
@@ -141,10 +156,7 @@ def insert_pow2(rewriter: PatternRewriter):
         ),
     )
     rewriter.insert_op_before_matched_op(declare_pow_op)
-    return declare_pow_op
-
-
-def constraint_pow2(rewriter: PatternRewriter, pow2_fun: SSAValue):
+    pow2_fun = declare_pow_op.ret
     # Forall x,y, x > y => pow2(x) > pow2(y)
     body = Region([Block(arg_types=[smt_int.SMTIntType(), smt_int.SMTIntType()])])
     assert isinstance(body.first_block, Block)
@@ -165,10 +177,14 @@ def constraint_pow2(rewriter: PatternRewriter, pow2_fun: SSAValue):
     forall_op0 = smt.ForallOp.create(result_types=[BoolType()], regions=[body])
     assert_op0 = smt.AssertOp(forall_op0.res)
     rewriter.insert_op_before_matched_op([forall_op0, assert_op0])
-    return assert_op0
+
+    return declare_pow_op
 
 
 def insert_and_constraint_andi(rewriter: PatternRewriter, pow2: SSAValue):
+    """Insert an uninterpreted function mimicking the bitwise
+    And, and constraint the latter with assertions and quantifiers
+    in order to help the solvers."""
     # Declare
     declare_andi_op = smt.DeclareFunOp(
         name="andi",

@@ -1,4 +1,5 @@
 from abc import abstractmethod, ABC
+from dataclasses import dataclass
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from typing import Mapping, Sequence
 from xdsl.ir import SSAValue, Attribute, Operation
@@ -15,7 +16,6 @@ from xdsl_smt.semantics.generic_integer_proxy import IntegerProxy
 from xdsl_smt.dialects.effects import ub_effect
 from xdsl.ir import OpResult
 
-
 GENERIC_INT_WIDTH = 64
 
 
@@ -31,12 +31,12 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        before_val = self.integer_proxy.get_payload(val_before, rewriter)
-        after_val = self.integer_proxy.get_payload(val_after, rewriter)
-        before_poison = self.integer_proxy.get_poison(val_before, rewriter)
-        after_poison = self.integer_proxy.get_poison(val_after, rewriter)
-        before_width = self.integer_proxy.get_width(val_before, rewriter)
-        after_width = self.integer_proxy.get_width(val_after, rewriter)
+        before_val, before_poison, before_width = self.integer_proxy.unpack_integer(
+            val_before, rewriter
+        )
+        after_val, after_poison, after_width = self.integer_proxy.unpack_integer(
+            val_after, rewriter
+        )
 
         after_val_norm = self.integer_proxy.get_signed_to_unsigned(
             after_val, after_width, rewriter
@@ -97,13 +97,13 @@ class IntIntegerTypeSemantics(TypeSemantics):
         assert isinstance(type, IntegerType) or isinstance(
             type, transfer.TransIntegerType
         )
-        int_type = self.integer_proxy.get_int_type(type)
+        int_type = self.integer_proxy.int_type
         return int_type
 
 
+@dataclass
 class GenericIntSemantics(OperationSemantics):
-    def __init__(self, integer_proxy: IntegerProxy):
-        self.integer_proxy = integer_proxy
+    integer_proxy: IntegerProxy
 
 
 class IntSelectSemantics(GenericIntSemantics):
@@ -119,13 +119,11 @@ class IntSelectSemantics(GenericIntSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         # Get all values and poisons
-        cond_val = self.integer_proxy.get_payload(operands[0], rewriter)
-        cond_poi = self.integer_proxy.get_poison(operands[0], rewriter)
-        tr_val = self.integer_proxy.get_payload(operands[1], rewriter)
-        tr_poi = self.integer_proxy.get_poison(operands[1], rewriter)
-        fls_val = self.integer_proxy.get_payload(operands[2], rewriter)
-        fls_poi = self.integer_proxy.get_poison(operands[2], rewriter)
-        fls_wid = self.integer_proxy.get_width(operands[2], rewriter)
+        cond_val, cond_poi, _ = self.integer_proxy.unpack_integer(operands[0], rewriter)
+        tr_val, tr_poi, _ = self.integer_proxy.unpack_integer(operands[1], rewriter)
+        fls_val, fls_poi, fls_wid = self.integer_proxy.unpack_integer(
+            operands[2], rewriter
+        )
 
         # Get the resulting value depending on the condition
         res_val = smt.IteOp(cond_val, tr_val, fls_val)
@@ -136,7 +134,7 @@ class IntSelectSemantics(GenericIntSemantics):
 
         rewriter.insert_op_before_matched_op([res_val, br_poi, res_poi])
 
-        res = self.integer_proxy.get_packed_integer(
+        res = self.integer_proxy.pack_integer(
             res_val.res, res_poi.res, fls_wid, rewriter
         )
 
@@ -192,7 +190,7 @@ class IntConstantSemantics(GenericIntSemantics):
 
         no_poison = smt.ConstantBoolOp.from_bool(False)
         rewriter.insert_op_before_matched_op([no_poison])
-        result = self.integer_proxy.get_packed_integer(
+        result = self.integer_proxy.pack_integer(
             ssa_attr, no_poison.res, width, rewriter
         )
 
@@ -215,17 +213,17 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        lhs = operands[0]
-        rhs = operands[1]
+        lhs_payload, lhs_poison, lhs_width = self.integer_proxy.unpack_integer(
+            operands[0], rewriter
+        )
+        rhs_payload, rhs_poison, rhs_width = self.integer_proxy.unpack_integer(
+            operands[1], rewriter
+        )
         # Constraint the width
-        lhs_width = self.integer_proxy.get_width(lhs, rewriter)
-        rhs_width = self.integer_proxy.get_width(rhs, rewriter)
         eq_width_op = smt.EqOp(lhs_width, rhs_width)
         assert_eq_width_op = smt.AssertOp(eq_width_op.res)
         rewriter.insert_op_before_matched_op([eq_width_op, assert_eq_width_op])
         # Compute the payload
-        lhs_payload = self.integer_proxy.get_payload(lhs, rewriter)
-        rhs_payload = self.integer_proxy.get_payload(rhs, rewriter)
         assert effect_state
         effect_state = self.get_ub(lhs_payload, rhs_payload, effect_state, rewriter)
         payload = self.get_payload_semantics(
@@ -236,8 +234,6 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
             rewriter,
         )
         # Compute the poison
-        lhs_poison = self.integer_proxy.get_poison(lhs, rewriter)
-        rhs_poison = self.integer_proxy.get_poison(rhs, rewriter)
         poison = self.get_poison(
             lhs_poison,
             rhs_poison,
@@ -247,7 +243,7 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
             rewriter,
         )
         # Pack
-        packed_integer = self.integer_proxy.get_packed_integer(
+        packed_integer = self.integer_proxy.pack_integer(
             payload, poison, lhs_width, rewriter
         )
         return ((packed_integer,), effect_state)
@@ -473,6 +469,10 @@ def get_div_semantics(new_operation: type[smt_int.BinaryIntOp]):
 def are_generic_integers_defined_on(
     module_op: Operation,
 ):
+    """
+    Returns False if there is an operation in module_op that is not
+    supported by generic integer semantics. Returns True otherwise.
+    """
     forbidden_ops = [arith.OrI.name, arith.XOrI.name, arith.ShLI.name, arith.DivSI.name]
     forbidden_ops += [o.name for o in comb.Comb.operations]
     use_parametric_int = True
