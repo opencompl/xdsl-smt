@@ -6,10 +6,6 @@
   "smt.assert"(%true) : (!smt.bool) -> ()
   // CHECK:      (assert true)
 
-  %false = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
-  "smt.assert"(%false) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert false)
-
   %x = "smt.declare_const"() : () -> !smt.bool
   %y = "smt.declare_const"() : () -> !smt.bool
   %z = "smt.declare_const"() : () -> !smt.bool
@@ -24,6 +20,15 @@
   %xor = "smt.xor"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%xor) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (xor x y))
+
+  "smt.check_sat"() : () -> ()
+  // CHECK-NEXT: (check-sat)
+
+  "smt.eval"(%or) : (!smt.bool) -> ()
+  // CHECK-NEXT: (eval (or x y))
+
+  "smt.eval"(%xor) : (!smt.bool) -> ()
+  // CHECK-NEXT: (eval (xor x y))
 
   %and = "smt.and"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%and) : (!smt.bool) -> ()
@@ -72,5 +77,10 @@
   // CHECK: (define-fun {{.*}} (({{.*}} Bool)) Bool
   // CHECK-NEXT: {{.*}})
   // CHECK-NEXT: (assert ({{.*}} true))
+  // CHECK-NEXT: {{.*}})
+
+  %false = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+  "smt.assert"(%false) : (!smt.bool) -> ()
+  // CHECK-NEXT: (assert false)
 
 }) : () -> ()
