@@ -781,6 +781,26 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
         return "ite"
 
 
+@irdl_op_definition
+class EvalOp(IRDLOperation, SMTLibScriptOp):
+    """Eval an expression."""
+
+    name = "smt.eval"
+    expr: Operand = operand_def()
+
+    def __init__(self, operand: SSAValue):
+        super().__init__(operands=[operand])
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        print("(eval ", file=stream, end="")
+        ctx.print_expr_to_smtlib(self.expr, stream, identation="  ")
+        print(")", file=stream)
+
+    @staticmethod
+    def get(arg: Operation | SSAValue) -> EvalOp:
+        return EvalOp.build(operands=[arg])
+
+
 SMTDialect = Dialect(
     "smt",
     [
@@ -803,6 +823,7 @@ SMTDialect = Dialect(
         EqOp,
         DistinctOp,
         IteOp,
+        EvalOp,
     ],
     [BoolType, BoolAttr],
 )
