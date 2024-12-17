@@ -33,6 +33,7 @@ transfer-verifier = "xdsl_smt.cli.transfer_smt_verifier:main"
 cpp-translate = "xdsl_smt.cli.cpp_translate:main"
 superoptimize = "xdsl_smt.cli.superoptimize:main"
 syn-test = "xdsl_smt.cli.syn_test:main"
+synth-transfer = "xdsl_smt.cli.synth_transfer:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
