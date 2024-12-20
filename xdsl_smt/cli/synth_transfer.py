@@ -72,7 +72,10 @@ import sys as sys
 
 from ..utils.mcmc_sampler import MCMCSampler
 from ..utils.test_set_generator import generate_test_set, get_transfer_function
-from ..utils.transfer_function_check_util import forward_soundness_check, backward_soundness_check
+from ..utils.transfer_function_check_util import (
+    forward_soundness_check,
+    backward_soundness_check,
+)
 from ..utils.transfer_function_util import (
     getArgumentWidthsWithEffect,
     getResultWidth,
@@ -371,12 +374,14 @@ def soundness_check(
         )
     query_module.body.block.add_ops(added_ops)
     FunctionCallInline(True, {}).apply(ctx, query_module)
+    verify_res = verify_pattern(ctx, query_module)
+    print("Soundness Check result:", verify_res)
+    return verify_res
 
-    print("Soundness Check result:", verify_pattern(ctx, query_module))
 
 SYNTH_WIDTH = 8
-TEST_SET_SIZE = 100
-CONCRETE_VAL_PER_TEST_CASE = 5
+TEST_SET_SIZE = 1000
+CONCRETE_VAL_PER_TEST_CASE = 10
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 TMP_MODULE: list[ModuleOp] = []
@@ -406,24 +411,38 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     assert isinstance(module, ModuleOp)
 
-    smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr=get_transfer_function(module, ctx)
-    test_set = generate_test_set(smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx)
+    (
+        smt_transfer_function_obj,
+        domain_constraint,
+        instance_constraint,
+        int_attr,
+    ) = get_transfer_function(module, ctx)
+    test_set = generate_test_set(
+        smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx
+    )
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
-            func_name=func.sym_name.data
+            func_name = func.sym_name.data
             mcmcSampler = MCMCSampler(func, 8)
-            for i in range(10):
-                print(f"Round {i}:{mcmcSampler.func}")
+            for i in range(50):
+                print(f"Round {i}:")
                 _: float = mcmcSampler.sample_next()
-                tmp_clone_module:ModuleOp=module.clone()
+                tmp_clone_module: ModuleOp = module.clone()
                 lowerToSMTModule(tmp_clone_module, SYNTH_WIDTH, ctx)
                 for smt_func in tmp_clone_module.ops:
-                    if isinstance(smt_func, DefineFunOp) and smt_func.fun_name.data == func_name:
-                        smt_transfer_function_obj.transfer_function=smt_func
-                        soundness_check_res = soundness_check(smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx)
-                        
-
-
-
-
+                    if (
+                        isinstance(smt_func, DefineFunOp)
+                        and smt_func.fun_name.data == func_name
+                    ):
+                        smt_transfer_function_obj.transfer_function = smt_func
+                        soundness_check_res = soundness_check(
+                            smt_transfer_function_obj,
+                            domain_constraint,
+                            instance_constraint,
+                            int_attr,
+                            ctx,
+                        )
+                        if soundness_check_res:
+                            print(mcmcSampler.func)
     print(test_set)
+

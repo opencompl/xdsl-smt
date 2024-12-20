@@ -69,12 +69,21 @@ from xdsl_smt.semantics.transfer_semantics import (
 )
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
-from ..utils.transfer_function_util import getArgumentWidthsWithEffect, getResultWidth, FunctionCollection, \
-    SMTTransferFunction, getArgumentInstancesWithEffect, callFunctionAndAssertResultWithEffect, TransferFunction, \
-    fixDefiningOpReturnType, callFunctionWithEffect
+from ..utils.transfer_function_util import (
+    getArgumentWidthsWithEffect,
+    getResultWidth,
+    FunctionCollection,
+    SMTTransferFunction,
+    getArgumentInstancesWithEffect,
+    callFunctionAndAssertResultWithEffect,
+    TransferFunction,
+    fixDefiningOpReturnType,
+    callFunctionWithEffect,
+)
+
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
-    #cloned_op = op.clone()
+    # cloned_op = op.clone()
     cloned_op = op
     stream = StringIO()
     LowerPairs().apply(ctx, cloned_op)
@@ -103,7 +112,7 @@ def get_model(ctx: MLContext, op: ModuleOp) -> str:
     DeadCodeElimination().apply(ctx, cloned_op)
 
     print_to_smtlib(cloned_op, stream)
-    #print(stream.getvalue())
+    # print(stream.getvalue())
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -214,6 +223,7 @@ def nextIntAttrArg(intAttr: dict[int, int], width: int) -> bool:
             else:
                 hasCarry = False
     return not hasCarry
+
 
 def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
     global TMP_MODULE
@@ -329,49 +339,52 @@ def get_concrete_function(
     return result
 
 
-SYNTH_WIDTH=8
-TEST_SET_SIZE=10
+SYNTH_WIDTH = 8
+TEST_SET_SIZE = 10
 CONCRETE_VAL_PER_TEST_CASE = 2
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
 
-def getTestSetQueryModel(transfer_function:SMTTransferFunction, domain_constraint: FunctionCollection,
+
+def getTestSetQueryModel(
+    transfer_function: SMTTransferFunction,
+    domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
-    int_attr: dict[int, int],) -> ModuleOp:
+    int_attr: dict[int, int],
+) -> ModuleOp:
     abstract_func = transfer_function.transfer_function
     concrete_func = transfer_function.concrete_function
     abs_op_constraint = transfer_function.abstract_constraint
     op_constraint = transfer_function.op_constraint
     is_abstract_arg = transfer_function.is_abstract_arg
 
-    query_model=ModuleOp([])
-    query_module_block=query_model.body.block
+    query_model = ModuleOp([])
+    query_module_block = query_model.body.block
     effect = ConstantBoolOp(False)
     constant_bv_1 = ConstantOp(1, 1)
 
     arg_widths = getArgumentWidthsWithEffect(concrete_func)
     result_width = getResultWidth(concrete_func)
 
-    #We need TEST_SET_SIZE of abstract values
-    #For each abstract values, we need concrete_val_per_test_case
-    abs_arg_ops_collection:list[list[Operation]] = []
-    abs_arg_ssa_values_collection:list[list[SSAValue]] = []
+    # We need TEST_SET_SIZE of abstract values
+    # For each abstract values, we need concrete_val_per_test_case
+    abs_arg_ops_collection: list[list[Operation]] = []
+    abs_arg_ssa_values_collection: list[list[SSAValue]] = []
     abs_domain_constraints_ops_collection: list[list[Operation]] = []
 
     abs_arg_include_crt_arg_constraints_ops_collection: list[list[Operation]] = []
-    abs_args_distinct_ops_constraints_collection:list[list[Operation]] = []
+    abs_args_distinct_ops_constraints_collection: list[list[Operation]] = []
 
-    crt_arg_ops_collection:list[list[Operation]] = []
-    crt_args_first_ops_collection:list[list[Operation]] = []
-    crt_args_ssa_values_collection:list[list[list[SSAValue]]] = []
+    crt_arg_ops_collection: list[list[Operation]] = []
+    crt_args_first_ops_collection: list[list[Operation]] = []
+    crt_args_ssa_values_collection: list[list[list[SSAValue]]] = []
 
-    crt_res_ops_collection:list[list[Operation]] = []
-    crt_res_ssa_values_collection:list[list[SSAValue]] = []
+    crt_res_ops_collection: list[list[Operation]] = []
+    crt_res_ssa_values_collection: list[list[SSAValue]] = []
 
-
-    #Each iteration generates one test case
+    # Each iteration generates one test case
     for i in range(TEST_SET_SIZE):
         abs_arg_ops = getArgumentInstancesWithEffect(abstract_func, int_attr)
         abs_args: list[SSAValue] = [arg.res for arg in abs_arg_ops]
@@ -383,26 +396,30 @@ def getTestSetQueryModel(transfer_function:SMTTransferFunction, domain_constrain
 
         for i, abs_arg in enumerate(abs_args):
             if is_abstract_arg[i]:
-                query_module_block.add_ops(callFunctionAndAssertResultWithEffect(
-                    domain_constraint.getFunctionByWidth(arg_widths[i]),
-                    [abs_arg],
-                    constant_bv_1,
-                    effect.res,
-                ))
-                '''
+                query_module_block.add_ops(
+                    callFunctionAndAssertResultWithEffect(
+                        domain_constraint.getFunctionByWidth(arg_widths[i]),
+                        [abs_arg],
+                        constant_bv_1,
+                        effect.res,
+                    )
+                )
+                """
                 abs_domain_constraints_ops_collection.append(callFunctionAndAssertResultWithEffect(
                     domain_constraint.getFunctionByWidth(arg_widths[i]),
                     [abs_arg],
                     constant_bv_1,
                     effect.res,
                 ))
-                '''
+                """
 
-        #Each iteration generates a set of concrete value LHS, RHS
+        # Each iteration generates a set of concrete value LHS, RHS
         for crt_cnt in range(CONCRETE_VAL_PER_TEST_CASE):
             crt_arg_ops = getArgumentInstancesWithEffect(concrete_func, int_attr)
             crt_args_with_poison: list[SSAValue] = [arg.res for arg in crt_arg_ops]
-            crt_arg_first_ops: list[FirstOp] = [FirstOp(arg) for arg in crt_args_with_poison]
+            crt_arg_first_ops: list[FirstOp] = [
+                FirstOp(arg) for arg in crt_args_with_poison
+            ]
             crt_args: list[SSAValue] = [arg.res for arg in crt_arg_first_ops]
 
             query_module_block.add_ops(crt_arg_ops)
@@ -425,16 +442,17 @@ def getTestSetQueryModel(transfer_function:SMTTransferFunction, domain_constrain
             )
             call_crt_first_op = FirstOp(call_crt_func_first_op.res)
 
-            query_module_block.add_ops([call_crt_func_op, call_crt_func_first_op, call_crt_first_op])
+            query_module_block.add_ops(
+                [call_crt_func_op, call_crt_func_first_op, call_crt_first_op]
+            )
             crt_res_ssa_values_collection[-1].append(call_crt_first_op.res)
 
+    abs_arg_distinct_ops: list[Operation] = []
+    abs_arg_eval_depair_ops: list[Operation] = []
+    abs_arg_eval_ops: list[Operation] = []
 
-    abs_arg_distinct_ops:list[Operation] = []
-    abs_arg_eval_depair_ops:list[Operation] = []
-    abs_arg_eval_ops:list[Operation] = []
-
-    def evalPair(val:SSAValue) -> None:
-        ty:Attribute = val.type
+    def evalPair(val: SSAValue) -> None:
+        ty: Attribute = val.type
         if isa(ty, AnyPairType):
             abs_arg_eval_depair_ops.append(FirstOp(val))
             evalPair(abs_arg_eval_depair_ops[-1].results[0])
@@ -443,27 +461,32 @@ def getTestSetQueryModel(transfer_function:SMTTransferFunction, domain_constrain
         else:
             abs_arg_eval_ops.append(EvalOp(val))
 
-
     assert len(abs_arg_ssa_values_collection) != 0
-    arity=len(abs_arg_ssa_values_collection[0])
+    arity = len(abs_arg_ssa_values_collection[0])
     for ith in range(arity):
         for i in range(TEST_SET_SIZE):
             evalPair(abs_arg_ssa_values_collection[i][ith])
-            for j in range(i+1, TEST_SET_SIZE):
-                distinct_op=DistinctOp(abs_arg_ssa_values_collection[i][ith], abs_arg_ssa_values_collection[j][ith])
+            for j in range(i + 1, TEST_SET_SIZE):
+                distinct_op = DistinctOp(
+                    abs_arg_ssa_values_collection[i][ith],
+                    abs_arg_ssa_values_collection[j][ith],
+                )
                 assert_op = AssertOp(distinct_op.res)
-                abs_arg_distinct_ops+=[distinct_op, assert_op]
+                abs_arg_distinct_ops += [distinct_op, assert_op]
 
-    crt_res_distinct_ops:list[Operation] = []
-    crt_res_eval_ops:list[Operation] = []
+    crt_res_distinct_ops: list[Operation] = []
+    crt_res_eval_ops: list[Operation] = []
     assert len(crt_res_ssa_values_collection) != 0
     for ith in range(TEST_SET_SIZE):
         for i in range(CONCRETE_VAL_PER_TEST_CASE):
             crt_res_eval_ops.append(EvalOp(crt_res_ssa_values_collection[ith][i]))
-            for j in range(i+1, CONCRETE_VAL_PER_TEST_CASE):
-                distinct_op = DistinctOp(crt_res_ssa_values_collection[ith][i], crt_res_ssa_values_collection[ith][j])
+            for j in range(i + 1, CONCRETE_VAL_PER_TEST_CASE):
+                distinct_op = DistinctOp(
+                    crt_res_ssa_values_collection[ith][i],
+                    crt_res_ssa_values_collection[ith][j],
+                )
                 assert_op = AssertOp(distinct_op.res)
-                crt_res_distinct_ops+=[distinct_op, assert_op]
+                crt_res_distinct_ops += [distinct_op, assert_op]
 
     query_module_block.add_ops(crt_res_distinct_ops)
     query_module_block.add_ops(abs_arg_eval_depair_ops)
@@ -476,41 +499,48 @@ def getTestSetQueryModel(transfer_function:SMTTransferFunction, domain_constrain
     return query_model
 
 
-def parse_smt_output_str(s:str,num_per_abs_val:int, arity:int) -> list[tuple[list[list[int]],list[int]]]:
-    lines=s.split("\n")
+def parse_smt_output_str(
+    s: str, num_per_abs_val: int, arity: int
+) -> list[tuple[list[list[int]], list[int]]]:
+    lines = s.split("\n")
     test_set: list[tuple[list[list[int]], list[int]]] = []
-    assert lines[0] == 'sat'
-    abs_val_list:list[list[int]] = []
-    crt_val_list:list[int] = []
-    tmp_list:list[int] = []
-    cur_idx=0
+    assert lines[0] == "sat"
+    abs_val_list: list[list[int]] = []
+    crt_val_list: list[int] = []
+    tmp_list: list[int] = []
+    cur_idx = 0
     for line in lines[1:]:
         cur_idx += 1
         if len(abs_val_list) == arity * TEST_SET_SIZE:
             break
-        if line != 'true' and line != 'false':
-            tmp_list.append(int(line.replace('#','0'), 16))
+        if line != "true" and line != "false":
+            tmp_list.append(int(line.replace("#", "0"), 16))
             pass
         else:
             abs_val_list.append(tmp_list)
-            tmp_list=[]
+            tmp_list = []
 
     for line in lines[cur_idx:-1]:
-        crt_val_list.append(int(line.replace('#','0'), 16))
-    assert len(abs_val_list)%arity == 0 and len(abs_val_list) // arity == TEST_SET_SIZE
+        crt_val_list.append(int(line.replace("#", "0"), 16))
+    assert (
+        len(abs_val_list) % arity == 0 and len(abs_val_list) // arity == TEST_SET_SIZE
+    )
     assert len(crt_val_list) == CONCRETE_VAL_PER_TEST_CASE * TEST_SET_SIZE
-    tmp_val_list:list[list[int]] = []
+    tmp_val_list: list[list[int]] = []
     while len(crt_val_list) != 0:
         for i in range(CONCRETE_VAL_PER_TEST_CASE):
             tmp_list.append(crt_val_list.pop(0))
         for i in range(arity):
             tmp_val_list.append(abs_val_list.pop(0))
         test_set.append((tmp_val_list, tmp_list))
-        tmp_list=[]
-        tmp_val_list=[]
+        tmp_list = []
+        tmp_val_list = []
     return test_set
 
-def get_transfer_function(module:ModuleOp, ctx:MLContext) -> tuple[SMTTransferFunction, FunctionCollection, FunctionCollection, dict[int,int]]:
+
+def get_transfer_function(
+    module: ModuleOp, ctx: MLContext
+) -> tuple[SMTTransferFunction, FunctionCollection, FunctionCollection, dict[int, int]]:
     assert isinstance(module, ModuleOp)
 
     func_name_to_func: dict[str, FuncOp] = {}
@@ -695,15 +725,25 @@ def get_transfer_function(module:ModuleOp, ctx:MLContext) -> tuple[SMTTransferFu
                 int_attr_constraint,
             )
             int_attr = generateIntAttrArg(smt_transfer_function_obj.int_attr_arg)
-            return smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr
+            return (
+                smt_transfer_function_obj,
+                domain_constraint,
+                instance_constraint,
+                int_attr,
+            )
 
 
-def generate_test_set(smt_transfer_function_obj:SMTTransferFunction, domain_constraint:FunctionCollection, instance_constraint:FunctionCollection, int_attr:dict[int,int]) -> list[tuple[list[list[int]],list[int]]]:
-    query_module = getTestSetQueryModel(smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr)
+def generate_test_set(
+    smt_transfer_function_obj: SMTTransferFunction,
+    domain_constraint: FunctionCollection,
+    instance_constraint: FunctionCollection,
+    int_attr: dict[int, int],
+    ctx: MLContext,
+) -> list[tuple[list[list[int]], list[int]]]:
+    query_module = getTestSetQueryModel(
+        smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr
+    )
     FunctionCallInline(True, {}).apply(ctx, query_module)
     res = get_model(ctx, query_module)
     test_set = parse_smt_output_str(res, 2, 2)
     return test_set
-    pass
-
-
