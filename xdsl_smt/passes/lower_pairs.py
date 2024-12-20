@@ -25,6 +25,10 @@ from ..dialects.smt_dialect import (
     DefineFunOp,
     ReturnOp,
     ForallOp,
+    EqOp,
+    DistinctOp,
+    OrOp,
+    AndOp,
 )
 from ..dialects.smt_utils_dialect import (
     AnyPairType,
@@ -199,6 +203,72 @@ class LowerDeclareConstPattern(RewritePattern):
         rewriter.replace_op(op, [first, second, pair])
 
 
+class LowerDistinctPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: DistinctOp, rewriter: PatternRewriter):
+        if not isa(op.lhs.type, AnyPairType):
+            return
+
+        """
+        (distinct (pair lhsFirst lhsSecond) (pair rhsFirst rhsSecond))
+        ->
+        (or (distinct lhsFirst rhsFirst) (distinct lhsSecond rhsSecond))
+        """
+        lhsFirst = FirstOp(op.lhs)
+        lhsSecond = SecondOp(op.lhs)
+        rhsFirst = FirstOp(op.rhs)
+        rhsSecond = SecondOp(op.rhs)
+        firstDistinct = DistinctOp(lhsFirst.res, rhsFirst.res)
+        secondDistinct = DistinctOp(lhsSecond.res, rhsSecond.res)
+        orOp = OrOp(firstDistinct.res, secondDistinct.res)
+
+        rewriter.replace_op(
+            op,
+            [
+                lhsFirst,
+                lhsSecond,
+                rhsFirst,
+                rhsSecond,
+                firstDistinct,
+                secondDistinct,
+                orOp,
+            ],
+        )
+
+
+class LowerEqPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: EqOp, rewriter: PatternRewriter):
+        if not isa(op.lhs.type, AnyPairType):
+            return
+
+        """
+        (= (pair lhsFirst lhsSecond) (pair rhsFirst rhsSecond))
+        ->
+        (and (= lhsFirst rhsFirst) (= lhsSecond rhsSecond))
+        """
+        lhsFirst = FirstOp(op.lhs)
+        lhsSecond = SecondOp(op.lhs)
+        rhsFirst = FirstOp(op.rhs)
+        rhsSecond = SecondOp(op.rhs)
+        firstEq = EqOp(lhsFirst.res, rhsFirst.res)
+        secondEq = EqOp(lhsSecond.res, rhsSecond.res)
+        andOp = AndOp(firstEq.res, secondEq.res)
+
+        rewriter.replace_op(
+            op,
+            [
+                lhsFirst,
+                lhsSecond,
+                rhsFirst,
+                rhsSecond,
+                firstEq,
+                secondEq,
+                andOp,
+            ],
+        )
+
+
 class LowerPairs(ModulePass):
     name = "lower-pairs"
 
@@ -211,6 +281,8 @@ class LowerPairs(ModulePass):
                     RemovePairArgsFunction(),
                     RemovePairArgsCall(),
                     LowerDeclareConstPattern(),
+                    LowerEqPattern(),
+                    LowerDistinctPattern(),
                 ]
             )
         )
