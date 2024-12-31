@@ -99,7 +99,7 @@ class Constant(IRDLOperation, InferResultTypeInterface):
         super().__init__(
             operands=[op],
             result_types=[op.type],
-            properties={"value": IntegerAttr(value, IndexType())},
+            attributes={"value": IntegerAttr(value, IndexType())},
         )
 
 
@@ -188,9 +188,9 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
-        properties: dict[str, Attribute] = {},
+        attributes: dict[str, Attribute] = {},
     ):
-        super().__init__(operands=[lhs, rhs], result_types=[i1], properties=properties)
+        super().__init__(operands=[lhs, rhs], result_types=[i1], attributes=attributes)
 
 
 @irdl_op_definition
@@ -520,6 +520,19 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
         ) != [self.result.type]:
             raise VerifyException("The result type doesn't match the inferred type")
 
+    def __init__(
+        self,
+        op: Operand,
+        index: int,
+    ):
+        assert isinstance(op.type, AbstractValueType) or isinstance(op.type, TupleType)
+        ith_type = op.type.get_fields()[index]
+        super().__init__(
+            operands=[op],
+            result_types=[ith_type],
+            attributes={"index": IntegerAttr(index, IndexType())},
+        )
+
 
 @irdl_op_definition
 class MakeOp(IRDLOperation, InferResultTypeInterface):
@@ -542,6 +555,17 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
             )
         if self.result.type.get_fields() != [arg.type for arg in self.arguments]:
             raise VerifyException("The required field doesn't match the result type")
+
+    def __init__(
+        self,
+        args: Sequence[SSAValue],
+    ):
+        arg_types = [arg.type for arg in args]
+        result_type = AbstractValueType(arg_types)
+        super().__init__(
+            operands=args,
+            result_types=[result_type],
+        )
 
 
 @irdl_op_definition
