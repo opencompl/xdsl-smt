@@ -2,6 +2,8 @@ from xdsl_smt.dialects.smt_dialect import ConstantBoolOp, YieldOp, ForallOp, Eva
 from xdsl.dialects.func import FuncOp
 import argparse
 import subprocess
+import time
+from typing import cast
 
 from xdsl.context import MLContext
 from xdsl.parser import Parser
@@ -28,6 +30,7 @@ from xdsl_smt.dialects.transfer import (
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect, FirstOp, AnyPairType, SecondOp
+from ..eval_engine.eval import eval_transfer_func
 from xdsl.ir import Block, Region, SSAValue, BlockArgument, Attribute
 from xdsl.dialects.builtin import (
     Builtin,
@@ -55,6 +58,7 @@ from ..passes.lower_effects import LowerEffectPass
 from ..passes.lower_to_smt import (
     func_to_smt_patterns,
 )
+from ..passes.transfer_lower import LowerToCpp
 from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
 from ..traits.smt_printer import print_to_smtlib
@@ -378,6 +382,19 @@ def soundness_check(
     print("Soundness Check result:", verify_res)
     return verify_res
 
+def print_crt_func_to_cpp() -> str:
+    return "a + b"
+
+
+def print_to_cpp(module:ModuleOp) -> str:
+    sio = StringIO()
+    for func in module.ops:
+        if isinstance(func, FuncOp):
+            LowerToCpp(sio).apply(ctx, cast(ModuleOp, func))
+
+    return sio.getvalue()
+
+
 
 SYNTH_WIDTH = 8
 TEST_SET_SIZE = 1000
@@ -417,17 +434,31 @@ def main() -> None:
         instance_constraint,
         int_attr,
     ) = get_transfer_function(module, ctx)
+    '''
     test_set = generate_test_set(
         smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx
     )
+    '''
+    print("Round\tsoundness%\tprecision%\tUsed time")
+    possible_solution = set()
+
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             func_name = func.sym_name.data
             mcmcSampler = MCMCSampler(func, 8)
             for i in range(50):
-                print(f"Round {i}:")
+                start = time.time()
                 _: float = mcmcSampler.sample_next()
+                cpp_code=print_to_cpp(module)
+                crt_func=print_crt_func_to_cpp()
+                soundness_percent, precision_percent = eval_transfer_func(func_name, cpp_code, crt_func)
+                end = time.time()
+                used_time = end-start
+                print(f"{i}\t{soundness_percent*100:.2f}%\t{precision_percent*100:.2f}%\t{used_time:.2f}")
+                """
                 tmp_clone_module: ModuleOp = module.clone()
+
+                
                 lowerToSMTModule(tmp_clone_module, SYNTH_WIDTH, ctx)
                 for smt_func in tmp_clone_module.ops:
                     if (
@@ -435,6 +466,7 @@ def main() -> None:
                         and smt_func.fun_name.data == func_name
                     ):
                         smt_transfer_function_obj.transfer_function = smt_func
+                
                         soundness_check_res = soundness_check(
                             smt_transfer_function_obj,
                             domain_constraint,
@@ -444,5 +476,6 @@ def main() -> None:
                         )
                         if soundness_check_res:
                             print(mcmcSampler.func)
-    print(test_set)
-
+                        """
+    for item in possible_solution:
+        print(item)

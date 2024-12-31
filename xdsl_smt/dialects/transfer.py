@@ -35,7 +35,7 @@ from xdsl.irdl import (
     ParameterDef,
     IRDLOperation,
     traits_def,
-    AnyAttr,
+    AnyAttr, prop_def,
 )
 from xdsl.utils.exceptions import VerifyException
 
@@ -422,7 +422,7 @@ class IsAllOnesOp(IRDLOperation):
 class CmpOp(PredicateOp):
     name = "transfer.cmp"
 
-    predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
+    predicate: IntegerAttr[IndexType] = prop_def(IntegerAttr[IndexType])
 
     def __init__(
         self,
