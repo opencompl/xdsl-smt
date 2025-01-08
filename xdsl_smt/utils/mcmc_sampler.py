@@ -217,11 +217,7 @@ class MCMCSampler:
         for arg in block.args:
             if isinstance(arg.type, AbstractValueType):
                 for i, field_type in enumerate(arg.type.get_fields()):
-                    op = GetOp(
-                        operands=[arg],
-                        attributes={"index": IntegerAttr(i, IndexType())},
-                        result_types=[field_type],
-                    )
+                    op = GetOp(arg, i)
                     block.add_op(op)
 
         # Part III: Main Body
@@ -245,12 +241,7 @@ class MCMCSampler:
                 assert isinstance(field_type, TransIntegerType)
                 operands.append(tmp_int_ssavalue)
 
-            op = MakeOp(
-                operands=[operands],
-                result_types=MakeOp.infer_result_type(
-                    [operand.type for operand in operands]
-                ),
-            )
+            op = MakeOp(operands)
             block.add_op(op)
             return_val.append(op)
 
