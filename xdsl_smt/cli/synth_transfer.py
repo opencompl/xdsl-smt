@@ -382,18 +382,18 @@ def soundness_check(
     print("Soundness Check result:", verify_res)
     return verify_res
 
+
 def print_crt_func_to_cpp() -> str:
     return "a + b"
 
 
-def print_to_cpp(module:ModuleOp) -> str:
+def print_to_cpp(module: ModuleOp) -> str:
     sio = StringIO()
     for func in module.ops:
         if isinstance(func, FuncOp):
             LowerToCpp(sio).apply(ctx, cast(ModuleOp, func))
 
     return sio.getvalue()
-
 
 
 SYNTH_WIDTH = 8
@@ -434,11 +434,11 @@ def main() -> None:
         instance_constraint,
         int_attr,
     ) = get_transfer_function(module, ctx)
-    '''
+    """
     test_set = generate_test_set(
         smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx
     )
-    '''
+    """
     print("Round\tsoundness%\tprecision%\tUsed time")
     possible_solution = set()
 
@@ -449,16 +449,20 @@ def main() -> None:
             for i in range(50):
                 start = time.time()
                 _: float = mcmcSampler.sample_next()
-                cpp_code=print_to_cpp(module)
-                crt_func=print_crt_func_to_cpp()
-                soundness_percent, precision_percent = eval_transfer_func(func_name, cpp_code, crt_func)
+                cpp_code = print_to_cpp(module)
+                crt_func = print_crt_func_to_cpp()
+                soundness_percent, precision_percent = eval_transfer_func(
+                    func_name, cpp_code, crt_func
+                )
                 end = time.time()
-                used_time = end-start
-                print(f"{i}\t{soundness_percent*100:.2f}%\t{precision_percent*100:.2f}%\t{used_time:.2f}")
+                used_time = end - start
+                print(
+                    f"{i}\t{soundness_percent*100:.2f}%\t{precision_percent*100:.2f}%\t{used_time:.2f}"
+                )
                 """
                 tmp_clone_module: ModuleOp = module.clone()
 
-                
+
                 lowerToSMTModule(tmp_clone_module, SYNTH_WIDTH, ctx)
                 for smt_func in tmp_clone_module.ops:
                     if (
@@ -466,7 +470,7 @@ def main() -> None:
                         and smt_func.fun_name.data == func_name
                     ):
                         smt_transfer_function_obj.transfer_function = smt_func
-                
+
                         soundness_check_res = soundness_check(
                             smt_transfer_function_obj,
                             domain_constraint,

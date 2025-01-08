@@ -51,7 +51,7 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 
 class MCMCSampler:
-    last_make_op:MakeOp
+    last_make_op: MakeOp
 
     def __init__(self, func: FuncOp, length: int):
         MCMCSampler.construct_init_program(func, length)
@@ -92,7 +92,6 @@ class MCMCSampler:
         int_count = len(int_ops)
         assert int_count > 0
         return int_ops, int_count
-
 
     def replace_entire_operation(
         ops: list[Operation],
@@ -270,7 +269,7 @@ class MCMCSampler:
         new_ssa = None
         if sample_mode == 0:
             # replace an operation with a new operation
-            old_op, new_op, ratio,new_ssa = MCMCSampler.replace_entire_operation(ops)
+            old_op, new_op, ratio, new_ssa = MCMCSampler.replace_entire_operation(ops)
             self.func.body.block.insert_op_before(new_op, old_op)
             if len(old_op.results) > 0 and len(new_op.results) > 0:
                 old_op.results[0].replace_by(new_op.results[0])
