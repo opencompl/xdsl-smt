@@ -21,10 +21,9 @@ from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
     i1,
-    IndexType,
 )
 from xdsl.dialects.func import FuncOp, Return
-from xdsl.ir import Operation, OpResult
+from xdsl.ir import Operation, OpResult, SSAValue
 from xdsl_smt.semantics.transfer_semantics import (
     CmpOpSemantics,
 )
@@ -51,8 +50,14 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 
 class MCMCSampler:
+    last_make_op: MakeOp
+
     def __init__(self, func: FuncOp, length: int):
         MCMCSampler.construct_init_program(func, length)
+        last_op = func.body.block.last_op
+        assert last_op is not None
+        assert isinstance(last_op.operands[0].owner, MakeOp)
+        self.last_make_op = last_op.operands[0].owner
         self.func = func
 
     def get_func(self):
@@ -89,10 +94,10 @@ class MCMCSampler:
         assert int_count > 0
         return int_ops, int_count
 
-    @staticmethod
     def replace_entire_operation(
+        self,
         ops: list[Operation],
-    ) -> tuple[Operation, Operation, float]:
+    ) -> tuple[Operation, Operation, float, SSAValue]:
         """
         Random pick an operation and replace it with a new one
         """
@@ -163,10 +168,9 @@ class MCMCSampler:
                 "Unexpected result type {}".format(old_op.results[0].type)
             )
 
-        return old_op, new_op, backward_prob / forward_prob
+        return old_op, new_op, backward_prob / forward_prob, new_op.results[0]
 
-    @staticmethod
-    def replace_operand(ops: list[Operation]) -> float:
+    def replace_operand(self, ops: list[Operation]) -> tuple[float, SSAValue]:
         modifiable_indices = [
             i
             for i, op in enumerate(ops[6:-1], start=6)
@@ -192,7 +196,7 @@ class MCMCSampler:
         # print(f'old operand: {op.operands[ith]}')
         # print(f'new operand: {new_operand}')
         op.operands[ith] = new_operand
-        return 1
+        return 1, op.results[0]
 
     @staticmethod
     def construct_init_program(func: FuncOp, length: int):
@@ -215,11 +219,7 @@ class MCMCSampler:
         for arg in block.args:
             if isinstance(arg.type, AbstractValueType):
                 for i, field_type in enumerate(arg.type.get_fields()):
-                    op = GetOp(
-                        operands=[arg],
-                        attributes={"index": IntegerAttr(i, IndexType())},
-                        result_types=[field_type],
-                    )
+                    op = GetOp(arg, i)
                     block.add_op(op)
 
         # Part III: Main Body
@@ -230,7 +230,7 @@ class MCMCSampler:
             # nop_bool = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
             # nop_int = transfer.Constant(tmp_int_ssavalue, 0)
             nop_bool = arith.AndI(tmp_bool_ssavalue, tmp_bool_ssavalue)
-            nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_bool_ssavalue)
+            nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
             block.add_op(nop_bool)
             block.add_op(nop_int)
 
@@ -243,12 +243,7 @@ class MCMCSampler:
                 assert isinstance(field_type, TransIntegerType)
                 operands.append(tmp_int_ssavalue)
 
-            op = MakeOp(
-                operands=[operands],
-                result_types=MakeOp.infer_result_type(
-                    [operand.type for operand in operands]
-                ),
-            )
+            op = MakeOp(operands)
             block.add_op(op)
             return_val.append(op)
 
@@ -264,9 +259,10 @@ class MCMCSampler:
         ops = list(self.func.body.block.ops)
 
         sample_mode = random.randrange(2)
+        new_ssa = None
         if sample_mode == 0:
             # replace an operation with a new operation
-            old_op, new_op, ratio = MCMCSampler.replace_entire_operation(ops)
+            old_op, new_op, ratio, new_ssa = self.replace_entire_operation(ops)
             self.func.body.block.insert_op_before(new_op, old_op)
             if len(old_op.results) > 0 and len(new_op.results) > 0:
                 old_op.results[0].replace_by(new_op.results[0])
@@ -274,7 +270,7 @@ class MCMCSampler:
 
         elif sample_mode == 1:
             # replace an operand in an operand
-            ratio = MCMCSampler.replace_operand(ops)
+            ratio, new_ssa = self.replace_operand(ops)
 
         elif sample_mode == 2:
             # todo: replace NOP with an operations
@@ -282,5 +278,9 @@ class MCMCSampler:
         else:
             # todo: replace an operations with NOP
             ratio = 1
+
+        make_op_choice = random.randrange(2)
+        if new_ssa is not None and isinstance(new_ssa.type, TransIntegerType):
+            self.last_make_op.operands[make_op_choice] = new_ssa
 
         return ratio
