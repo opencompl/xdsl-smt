@@ -563,7 +563,7 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
         arg_types = [arg.type for arg in args]
         result_type = AbstractValueType(arg_types)
         super().__init__(
-            operands=args,
+            operands=[args],
             result_types=[result_type],
         )
 
