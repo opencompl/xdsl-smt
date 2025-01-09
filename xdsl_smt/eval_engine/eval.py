@@ -1,4 +1,5 @@
 import os
+from os import path
 from subprocess import run, PIPE
 
 
@@ -66,10 +67,8 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def eval_transfer_func(
-    transfer_func_name: str, transfer_func_src: str, concrete_op_expr: str
-) -> tuple[float, float]:
-    transfer_func_headers = (
+def make_xfer_header(concrete_op_expr: str) -> str:
+    return (
         """
     #include <llvm/ADT/APInt.h>
     #include <llvm/Support/KnownBits.h>
@@ -83,36 +82,50 @@ def eval_transfer_func(
         % concrete_op_expr
     )
 
-    transfer_func_wrapper = (
+
+def make_xfer_wrapper(func_name: str) -> str:
+    return (
         """
     llvm::KnownBits synth_function_wrapper(const llvm::KnownBits &lhs,
                                            const llvm::KnownBits &rhs) {
-      const auto res_vec =
+      const auto [res_zero, res_one] =
           %s({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});
 
       llvm::KnownBits res;
 
-      res.Zero = res_vec[0];
-      res.One = res_vec[1];
+      res.Zero = res_zero;
+      res.One = res_one;
 
       return res;
     }
     """
-        % transfer_func_name
+        % func_name
     )
-    base_dir = "xdsl_smt/eval_engine/"
-    cur_dir = os.getcwd() + "/"
-    with open(cur_dir + base_dir + "src/synth.cpp", "w") as f:
-        f.write(
-            f"{transfer_func_headers}\n{transfer_func_src}\n{transfer_func_wrapper}"
-        )
+
+
+def eval_transfer_func(
+    xfer_names: list[str],
+    xfer_srcs: list[str],
+    concrete_op_expr: str,
+) -> list[tuple[float, float]]:
+    transfer_func_header = make_xfer_header(concrete_op_expr)
+
+    xfer_func_wrappers = "\n".join([make_xfer_wrapper(x) for x in xfer_names])
+    all_xfer_src = "\n".join(xfer_srcs)
+
+    base_dir = path.join("xdsl_smt", "eval_engine")
+    cur_dir = os.getcwd()
+    synth_code_path = path.join(cur_dir, base_dir, "src", "synth.cpp")
+
+    with open(synth_code_path, "w") as f:
+        f.write(f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrappers}")
 
     try:
-        os.mkdir(cur_dir + base_dir + "build")
+        os.mkdir(path.join(cur_dir, base_dir, "build"))
     except FileExistsError:
         pass
 
-    os.chdir(base_dir + "build")
+    os.chdir(path.join(base_dir, "build"))
 
     run(get_build_cmd(), stdout=PIPE)
     eval_output = run(["./EvalEngine"], stdout=PIPE)
@@ -129,7 +142,6 @@ def eval_transfer_func(
     return sound_percent, precise_percent
 
 
-'''
 if __name__ == "__main__":
     concrete_op_expr = "a & b"
     transfer_func_name = "ANDImpl"
@@ -148,9 +160,8 @@ if __name__ == "__main__":
     """
 
     sound_percent, precise_percent = eval_transfer_func(
-        transfer_func_name, transfer_func_src, concrete_op_expr
+        [transfer_func_name], [transfer_func_src], concrete_op_expr
     )
 
     print(f"sound percent:   {sound_percent}")
     print(f"precise percent: {precise_percent}")
-'''
