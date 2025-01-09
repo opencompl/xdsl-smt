@@ -32,7 +32,8 @@ def valid_abstract_domain_check(
     int_attr: dict[int, int],
 ):
     """
-    Given a transfer function, check if its result construct a valid abstract domain
+    Given a transfer function, check if its result construct a valid abstract domain. For example,
+    the upper bound of an integer range mush be larger or equal to its lower bound.
     """
     effect = ConstantBoolOp(False)
     abstract_func = transfer_function.transfer_function
@@ -92,7 +93,7 @@ def int_attr_check(
 ) -> list[Operation]:
     """
     Given the transfer function and a set of integer attributes associated with the function,
-    returns a boolean SSA Value that checks if the operation is valid.
+    returns a list of operations that checks if the operation is valid.
     For example:
     trunc %a from i32 to i64 (invalid)
     trunc %a from i5 to i3 (valid)
@@ -132,7 +133,9 @@ def forward_soundness_check(
     int_attr: dict[int, int],
 ) -> list[Operation]:
     """
-    Returns an SSA value that checks the soundness for a forward transfer function
+    Returns a list of operations that checks the soundness for a forward transfer function.
+    This property checks for all concrete result, they must be included by the abstract value result
+    produced by the transfer function.
     """
     assert transfer_function.is_forward
     abstract_func = transfer_function.transfer_function
@@ -233,7 +236,9 @@ def backward_soundness_check(
     int_attr: dict[int, int],
 ) -> list[Operation]:
     """
-    Return an SSA Value that checks the soundness for a backward transfer function
+    Return a list of operations that checks the soundness for a backward transfer function. First, by applying
+    the backwards transfer function, we can get the abstract domain of i-th operand. Next, we check if the abstract
+    result includes all concrete result.
     """
     assert not transfer_function.is_forward
     operationNo = transfer_function.operationNo
@@ -342,8 +347,9 @@ def counterexample_check(
     int_attr: dict[int, int],
 ):
     """
-    Return an SSA value that check if the transfer function breaks any other constraints. Such constraints
-    are described by the parameter counter_func
+    Return a list of operations that check if the transfer function breaks any other constraints. Such constraints
+    are described by the parameter counter_func. For example, if one bit in demanded bits is zero, it must not change
+    the operation result.
     """
     is_abstract_arg: list[bool] = [
         isinstance(arg, AbstractValueType) for arg in counter_func.args
