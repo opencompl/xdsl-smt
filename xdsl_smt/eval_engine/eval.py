@@ -1,6 +1,7 @@
 import os
 from os import path
 from subprocess import run, PIPE
+from itertools import repeat
 
 
 def get_build_cmd() -> list[str]:
@@ -73,6 +74,7 @@ def make_xfer_header(concrete_op_expr: str) -> str:
     #include <llvm/ADT/APInt.h>
     #include <llvm/Support/KnownBits.h>
     #include <tuple>
+    #include <vector>
     using llvm::APInt;
 
     uint8_t concrete_op(const uint8_t a, const uint8_t b) {
@@ -83,34 +85,39 @@ def make_xfer_header(concrete_op_expr: str) -> str:
     )
 
 
-def make_xfer_wrapper(func_name: str) -> str:
-    return (
-        """
-    llvm::KnownBits synth_function_wrapper(const llvm::KnownBits &lhs,
-                                           const llvm::KnownBits &rhs) {
-      const auto [res_zero, res_one] =
-          %s({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});
+def make_xfer_wrapper(func_names: list[str]) -> str:
+    func_sig = "std::vector<llvm::KnownBits> synth_function_wrapper(const llvm::KnownBits &lhs, const llvm::KnownBits &rhs)"
 
-      llvm::KnownBits res;
+    def make_func_call(x: str) -> str:
+        return (
+            f"const auto [res_z_{x}, res_o_{x}] = {x}"
+            + "({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});"
+        )
 
-      res.Zero = res_zero;
-      res.One = res_one;
+    def make_res(x: str) -> str:
+        return f"llvm::KnownBits res_{x};\nres_{x}.Zero = res_z_{x};\nres_{x}.One = res_o_{x};\n"
 
-      return res;
-    }
-    """
-        % func_name
-    )
+    func_calls = "\n".join([make_func_call(x) for x in func_names])
+    results = "\n".join([make_res(x) for x in func_names])
+    return_elems = ", ".join([f"res_{x}" for x in func_names])
+    return_statment = "return {%s};" % return_elems
+
+    return func_sig + "{" + f"\n{func_calls}\n{results}\n{return_statment}" + "}"
 
 
 def eval_transfer_func(
     xfer_names: list[str],
     xfer_srcs: list[str],
     concrete_op_expr: str,
-) -> list[tuple[float, float]]:
+) -> tuple[list[float], list[float]]:
     transfer_func_header = make_xfer_header(concrete_op_expr)
 
-    xfer_func_wrappers = "\n".join([make_xfer_wrapper(x) for x in xfer_names])
+    xfer_srcs = [
+        src.replace(nm, f"{nm}_{i}")
+        for i, (nm, src) in enumerate(zip(xfer_names, xfer_srcs))
+    ]
+    xfer_names = [f"{nm}_{i}" for i, nm in enumerate(xfer_names)]
+    xfer_func_wrapper = make_xfer_wrapper(xfer_names)
     all_xfer_src = "\n".join(xfer_srcs)
 
     base_dir = path.join("xdsl_smt", "eval_engine")
@@ -118,7 +125,7 @@ def eval_transfer_func(
     synth_code_path = path.join(cur_dir, base_dir, "src", "synth.cpp")
 
     with open(synth_code_path, "w") as f:
-        f.write(f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrappers}")
+        f.write(f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}")
 
     try:
         os.mkdir(path.join(cur_dir, base_dir, "build"))
@@ -130,16 +137,16 @@ def eval_transfer_func(
     run(get_build_cmd(), stdout=PIPE)
     eval_output = run(["./EvalEngine"], stdout=PIPE)
 
-    def get_float(s: str) -> float:
-        return float(s.split(":")[1])
+    def get_floats(s: str) -> list[float]:
+        return eval(s)
 
     os.chdir(cur_dir)
 
     eval_output_lines = eval_output.stdout.decode("utf-8").split("\n")
-    sound_percent = get_float(eval_output_lines[5])
-    precise_percent = get_float(eval_output_lines[6])
+    sounds = get_floats(eval_output_lines[1])
+    precs = get_floats(eval_output_lines[3])
 
-    return sound_percent, precise_percent
+    return sounds, precs
 
 
 if __name__ == "__main__":
@@ -159,9 +166,16 @@ if __name__ == "__main__":
     }
     """
 
-    sound_percent, precise_percent = eval_transfer_func(
-        [transfer_func_name], [transfer_func_src], concrete_op_expr
-    )
+    names = list(repeat(transfer_func_name, 250))
+    srcs = list(repeat(transfer_func_src, 250))
+    sound_percent, precise_percent = eval_transfer_func(names, srcs, concrete_op_expr)
 
     print(f"sound percent:   {sound_percent}")
     print(f"precise percent: {precise_percent}")
+
+# notes
+# 1    =  0.849s
+# 10   =  0.974s
+# 100  =  1.909s
+# 250  =  3.719s
+# 1000 = 12.361s

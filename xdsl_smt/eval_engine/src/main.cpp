@@ -148,31 +148,77 @@ unsigned int compare(std::vector<uint8_t> &approx,
 int main() {
   const size_t bitwidth = 4;
 
-  std::vector<int> cases = {0, 0, 0, 0};
-  long long total_cases = 0;
+  std::vector<std::vector<unsigned int>> all_cases;
+  long long total_abst_combos = 0;
 
   for (auto lhs : enum_abst_vals(bitwidth)) {
     for (auto rhs : enum_abst_vals(bitwidth)) {
-      auto transfer_vals = to_concrete(synth_function_wrapper(lhs, rhs));
+
       auto brute_vals =
           concrete_op_enum(to_concrete(lhs), to_concrete(rhs), concrete_op);
 
-      const unsigned int caseNum = compare(transfer_vals, brute_vals);
-      cases[caseNum]++;
-      total_cases++;
+      std::vector<llvm::KnownBits> synth_kbs(synth_function_wrapper(lhs, rhs));
+      std::vector<std::vector<uint8_t>> all_synth_xfer_vals(synth_kbs.size());
+
+      std::transform(synth_kbs.begin(), synth_kbs.end(),
+                     all_synth_xfer_vals.begin(), to_concrete);
+
+      std::vector<unsigned int> all_results(synth_kbs.size());
+      std::transform(all_synth_xfer_vals.begin(), all_synth_xfer_vals.end(),
+                     all_results.begin(),
+                     [&brute_vals](std::vector<uint8_t> &transfer_vals) {
+                       return compare(transfer_vals, brute_vals);
+                     });
+
+      if (all_cases.size() == 0) {
+        all_cases.resize(all_results.size());
+        std::fill(all_cases.begin(), all_cases.end(),
+                  std::vector<unsigned int>{0, 0, 0, 0});
+      }
+
+      for (int i = 0; i < all_results.size(); ++i) {
+        all_cases[i][all_results[i]]++;
+      }
+
+      total_abst_combos++;
     }
   }
 
-  double percent_sound = (double)(cases[3] + cases[2]) / (double)total_cases;
-  double percent_precise = (double)(cases[3] + cases[1]) / (double)total_cases;
+  std::vector<double> p_sound;
+  std::vector<double> p_precise;
 
-  printf("Not sound or precise: %i\n", cases[0]);
-  printf("Not sound:            %i\n", cases[1]);
-  printf("Not precise:          %i\n", cases[2]);
-  printf("Good:                 %i\n", cases[3]);
-  printf("total tests:          %lld\n", total_cases);
-  printf("sound percent:        %f\n", percent_sound);
-  printf("precise percent:      %f\n", percent_precise);
+  for (int i = 0; i < all_cases.size(); ++i) {
+    p_sound.push_back((double)(all_cases[i][3] + all_cases[i][2]) /
+                      (double)total_abst_combos);
+    p_precise.push_back((double)(all_cases[i][3] + all_cases[i][1]) /
+                        (double)total_abst_combos);
+  }
+
+  // printf("Not sound or precise: %i\n", cases[0]);
+  // printf("Not sound:            %i\n", cases[1]);
+  // printf("Not precise:          %i\n", cases[2]);
+  // printf("Good:                 %i\n", cases[3]);
+  // printf("total tests: %lld\n", total_abst_combos);
+
+  puts("sound:");
+  printf("[");
+  for (int i = 0; i < p_sound.size(); ++i) {
+    if (i == p_sound.size() - 1)
+      printf("%f", p_sound[i]);
+    else
+      printf("%f, ", p_sound[i]);
+  }
+  printf("]\n");
+
+  puts("precise:");
+  printf("[");
+  for (int i = 0; i < p_precise.size(); ++i) {
+    if (i == p_precise.size() - 1)
+      printf("%f", p_precise[i]);
+    else
+      printf("%f, ", p_precise[i]);
+  }
+  printf("]\n");
 
   return 0;
 }
