@@ -436,12 +436,12 @@ def main() -> None:
                 cpp_code = print_to_cpp(module)
                 crt_func = print_crt_func_to_cpp()
                 soundness_percent, precision_percent = eval_transfer_func(
-                    func_name, cpp_code, crt_func
+                    [func_name], [cpp_code], crt_func
                 )
                 end = time.time()
                 used_time = end - start
                 print(
-                    f"{i}\t{soundness_percent*100:.2f}%\t{precision_percent*100:.2f}%\t{used_time:.2f}"
+                    f"{i}\t{soundness_percent[0]*100:.2f}%\t{precision_percent[0]*100:.2f}%\t{used_time:.2f}"
                 )
                 """
                 tmp_clone_module: ModuleOp = module.clone()
