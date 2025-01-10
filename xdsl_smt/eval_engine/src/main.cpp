@@ -155,7 +155,7 @@ int main() {
     for (auto rhs : enum_abst_vals(bitwidth)) {
 
       auto brute_vals =
-          concrete_op_enum(to_concrete(lhs), to_concrete(rhs), concrete_op);
+          concrete_op_enum(to_concrete(lhs), to_concrete(rhs), concrete_op_wrapper);
 
       std::vector<llvm::KnownBits> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<std::vector<uint8_t>> all_synth_xfer_vals(synth_kbs.size());

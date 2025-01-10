@@ -68,21 +68,20 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def make_xfer_header(concrete_op_expr: str) -> str:
-    return (
-        """
+def make_xfer_header(concrete_op: str) -> str:
+    includes = """
     #include <llvm/ADT/APInt.h>
     #include <llvm/Support/KnownBits.h>
     #include <tuple>
     #include <vector>
     using llvm::APInt;
-
-    uint8_t concrete_op(const uint8_t a, const uint8_t b) {
-        return %s;
+    """
+    conc_op_wrapper = """
+    uint8_t concrete_op_wrapper(const uint8_t a, const uint8_t b) {
+      return concrete_op(APInt(8, a), APInt(8, b)).getZExtValue();
     }
     """
-        % concrete_op_expr
-    )
+    return includes + concrete_op + conc_op_wrapper
 
 
 def make_xfer_wrapper(func_names: list[str]) -> str:
@@ -90,12 +89,12 @@ def make_xfer_wrapper(func_names: list[str]) -> str:
 
     def make_func_call(x: str) -> str:
         return (
-            f"const auto [res_z_{x}, res_o_{x}] = {x}"
+            f"const std::vector<llvm::APInt> res_v_{x} = {x}"
             + "({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});"
         )
 
     def make_res(x: str) -> str:
-        return f"llvm::KnownBits res_{x};\nres_{x}.Zero = res_z_{x};\nres_{x}.One = res_o_{x};\n"
+        return f"llvm::KnownBits res_{x};\nres_{x}.Zero = res_v_{x}[0];\nres_{x}.One = res_v_{x}[1];\n"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -150,10 +149,14 @@ def eval_transfer_func(
 
 
 if __name__ == "__main__":
-    concrete_op_expr = "a & b"
+    concrete_op = """
+    APInt concrete_op(APInt a, APInt b) {
+        return a+b;
+    }
+    """
     transfer_func_name = "ANDImpl"
     transfer_func_src = """
-    std::tuple<APInt, APInt> ANDImpl(std::tuple<APInt, APInt> arg0,
+    std::vector<APInt> ANDImpl(std::tuple<APInt, APInt> arg0,
                                      std::tuple<APInt, APInt> arg1) {
       APInt arg0_0 = std::get<0>(arg0);
       APInt arg0_1 = std::get<1>(arg0);
@@ -161,14 +164,13 @@ if __name__ == "__main__":
       APInt arg1_1 = std::get<1>(arg1);
       APInt result_0 = arg0_0 | arg1_0;
       APInt result_1 = arg0_1 & arg1_1;
-      std::tuple<APInt, APInt> result = std::make_tuple(result_0, result_1);
-      return result;
+      return{result_0, result_1};
     }
     """
 
-    names = list(repeat(transfer_func_name, 250))
-    srcs = list(repeat(transfer_func_src, 250))
-    sound_percent, precise_percent = eval_transfer_func(names, srcs, concrete_op_expr)
+    names = list(repeat(transfer_func_name, 10))
+    srcs = list(repeat(transfer_func_src, 10))
+    sound_percent, precise_percent = eval_transfer_func(names, srcs, concrete_op)
 
     print(f"sound percent:   {sound_percent}")
     print(f"precise percent: {precise_percent}")
