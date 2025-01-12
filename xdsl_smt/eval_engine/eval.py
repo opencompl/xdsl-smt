@@ -1,7 +1,6 @@
 import os
 from os import path
 from subprocess import run, PIPE
-from itertools import repeat
 
 
 def get_build_cmd() -> list[str]:
@@ -148,6 +147,7 @@ def eval_transfer_func(
     return sounds, precs
 
 
+'''
 if __name__ == "__main__":
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
@@ -156,12 +156,12 @@ if __name__ == "__main__":
     """
     transfer_func_name = "ANDImpl"
     transfer_func_src = """
-    std::vector<APInt> ANDImpl(std::tuple<APInt, APInt> arg0,
-                                     std::tuple<APInt, APInt> arg1) {
-      APInt arg0_0 = std::get<0>(arg0);
-      APInt arg0_1 = std::get<1>(arg0);
-      APInt arg1_0 = std::get<0>(arg1);
-      APInt arg1_1 = std::get<1>(arg1);
+    std::vector<APInt> ANDImpl(std::vector<APInt> arg0,
+                                     std::vector<APInt> arg1) {
+      APInt arg0_0 = arg0[0];
+      APInt arg0_1 = arg0[1];
+      APInt arg1_0 = arg1[0];
+      APInt arg1_1 = arg1[1];
       APInt result_0 = arg0_0 | arg1_0;
       APInt result_1 = arg0_1 & arg1_1;
       return{result_0, result_1};
@@ -174,6 +174,7 @@ if __name__ == "__main__":
 
     print(f"sound percent:   {sound_percent}")
     print(f"precise percent: {precise_percent}")
+'''
 
 # notes
 # 1    =  0.849s
