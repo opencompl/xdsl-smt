@@ -16,6 +16,8 @@ from xdsl_smt.dialects.transfer import (
     XorOp,
     CmpOp,
     MakeOp,
+    GetAllOnesOp,
+    Constant,
 )
 from xdsl.dialects.builtin import (
     IntegerAttr,
@@ -23,10 +25,7 @@ from xdsl.dialects.builtin import (
     i1,
 )
 from xdsl.dialects.func import FuncOp, Return
-from xdsl.ir import Operation, OpResult, SSAValue
-from xdsl_smt.semantics.transfer_semantics import (
-    CmpOpSemantics,
-)
+from xdsl.ir import Operation, OpResult
 import sys as sys
 import random
 
@@ -51,17 +50,27 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 class MCMCSampler:
     last_make_op: MakeOp
+    current: FuncOp
+    proposed: FuncOp | None
 
     def __init__(self, func: FuncOp, length: int):
         MCMCSampler.construct_init_program(func, length)
-        last_op = func.body.block.last_op
-        assert last_op is not None
-        assert isinstance(last_op.operands[0].owner, MakeOp)
-        self.last_make_op = last_op.operands[0].owner
-        self.func = func
+        self.current = func
+        self.proposed = None
 
-    def get_func(self):
-        return self.func
+    def get_current(self):
+        return self.current
+
+    def get_proposed(self):
+        return self.proposed
+
+    def accept_proposed(self):
+        assert self.proposed is not None
+        self.current = self.proposed
+        self.proposed = None
+
+    def reject_proposed(self):
+        self.proposed = None
 
     @staticmethod
     def get_valid_bool_operands(
@@ -88,24 +97,23 @@ class MCMCSampler:
             result
             for op in ops[:x]
             for result in op.results
-            if isinstance(op.results[0].type, TransIntegerType)
+            if isinstance(result.type, TransIntegerType)
         ]
         int_count = len(int_ops)
         assert int_count > 0
         return int_ops, int_count
 
+    @staticmethod
     def replace_entire_operation(
-        self,
-        ops: list[Operation],
-    ) -> tuple[Operation, Operation, float, SSAValue]:
+        ops: list[Operation], live_op_indices: list[int]
+    ) -> tuple[Operation, Operation, float]:
         """
         Random pick an operation and replace it with a new one
         """
-        modifiable_indices = range(6, len(ops) - 2)
+        # modifiable_indices = range(8, len(ops) - 2)
 
-        idx = random.choice(modifiable_indices)
+        idx = random.choice(live_op_indices)
         old_op = ops[idx]
-        new_op = None
 
         int_operands, num_int_operands = MCMCSampler.get_valid_int_operands(ops, idx)
         bool_operands, num_bool_operands = MCMCSampler.get_valid_bool_operands(ops, idx)
@@ -120,9 +128,10 @@ class MCMCSampler:
             return ret
 
         if old_op.results[0].type == i1:  # bool
-            candidate = [arith.AndI.name, arith.OrI.name, CmpOp.name]
-            if old_op.name in candidate:
-                candidate.remove(old_op.name)
+            # candidate = [arith.AndI.name, arith.OrI.name, CmpOp.name]
+            candidate = [CmpOp.name]
+            # if old_op.name in candidate:
+            #     candidate.remove(old_op.name)
             opcode = random.choice(candidate)
             op1 = random.choice(bool_operands)
             op2 = random.choice(bool_operands)
@@ -131,7 +140,7 @@ class MCMCSampler:
             elif opcode == arith.OrI.name:
                 new_op = arith.OrI(op1, op2)
             elif opcode == CmpOp.name:
-                predicate = random.randrange(len(CmpOpSemantics.new_ops))
+                predicate = random.choice([0, 6, 7])
                 int_op1 = random.choice(int_operands)
                 int_op2 = random.choice(int_operands)
                 new_op = CmpOp(int_op1, int_op2, predicate)
@@ -143,6 +152,7 @@ class MCMCSampler:
 
         elif isinstance(old_op.results[0].type, TransIntegerType):  # integer
             candidate = [AndOp.name, OrOp.name, XorOp.name, SelectOp.name]
+            # candidate = [AndOp.name, OrOp.name, XorOp.name]
             if old_op.name in candidate:
                 candidate.remove(old_op.name)
             opcode = random.choice(candidate)
@@ -168,16 +178,17 @@ class MCMCSampler:
                 "Unexpected result type {}".format(old_op.results[0].type)
             )
 
-        return old_op, new_op, backward_prob / forward_prob, new_op.results[0]
+        return old_op, new_op, backward_prob / forward_prob
 
-    def replace_operand(self, ops: list[Operation]) -> tuple[float, SSAValue]:
-        modifiable_indices = [
-            i
-            for i, op in enumerate(ops[6:-1], start=6)
-            if op.operands and not isinstance(op, transfer.Constant)
-        ]
-        assert modifiable_indices
-        idx = random.choice(modifiable_indices)
+    @staticmethod
+    def replace_operand(ops: list[Operation], live_op_indices: list[int]) -> float:
+        # modifiable_indices = [
+        #     i
+        #     for i, op in enumerate(ops[8:-1], start=8)
+        #     if op.operands and not isinstance(op, transfer.Constant)
+        # ]
+        # assert modifiable_indices
+        idx = random.choice(live_op_indices)
         op = ops[idx]
         int_operands, _ = MCMCSampler.get_valid_int_operands(ops, idx)
         bool_operands, _ = MCMCSampler.get_valid_bool_operands(ops, idx)
@@ -192,11 +203,21 @@ class MCMCSampler:
                 "Unexpected operand type {}".format(op.operands[ith].type)
             )
 
-        # print(f'modifying op: {idx}' )
-        # print(f'old operand: {op.operands[ith]}')
-        # print(f'new operand: {new_operand}')
         op.operands[ith] = new_operand
-        return 1, op.results[0]
+        return 1
+
+    @staticmethod
+    def replace_make_operand(ops: list[Operation], make_op_idx: int) -> float:
+        idx = make_op_idx
+        op = ops[idx]
+        assert isinstance(op, MakeOp)
+
+        int_operands, _ = MCMCSampler.get_valid_int_operands(ops, idx)
+        ith = random.randrange(len(op.operands))
+        assert isinstance(op.operands[ith].type, TransIntegerType)
+        new_operand = random.choice(int_operands)
+        op.operands[ith] = new_operand
+        return 1
 
     @staticmethod
     def construct_init_program(func: FuncOp, length: int):
@@ -205,34 +226,33 @@ class MCMCSampler:
         for op in block.ops:
             block.detach_op(op)
 
-        # Part I: Constants
-        true: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
-        false: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(0, 1), i1)
-        # zero: Constant = Constant(IntegerAttr.from_int_and_width(0, 4), IntegerType(4))
-        # one: Constant = Constant(IntegerAttr.from_int_and_width(1, 4), IntegerType(4))
-        block.add_op(true)
-        block.add_op(false)
-        # block.add_op(zero)
-        # block.add_op(one)
-
-        # Part II: GetOp
+        # Part I: GetOp
         for arg in block.args:
             if isinstance(arg.type, AbstractValueType):
                 for i, field_type in enumerate(arg.type.get_fields()):
                     op = GetOp(arg, i)
                     block.add_op(op)
-
-        # Part III: Main Body
         assert isinstance(block.last_op, GetOp)
         tmp_int_ssavalue = block.last_op.results[0]
+
+        # Part II: Constants
+        true: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
+        false: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(0, 1), i1)
+        one = GetAllOnesOp(tmp_int_ssavalue)
+        zero = Constant(tmp_int_ssavalue, 0)
+        block.add_op(true)
+        block.add_op(false)
+        block.add_op(zero)
+        block.add_op(one)
+
+        # Part III: Main Body
         tmp_bool_ssavalue = true.results[0]
         for i in range(length // 2):
-            # nop_bool = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
-            # nop_int = transfer.Constant(tmp_int_ssavalue, 0)
             nop_bool = arith.AndI(tmp_bool_ssavalue, tmp_bool_ssavalue)
             nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
             block.add_op(nop_bool)
             block.add_op(nop_int)
+        last_int_op = block.last_op
 
         # Part IV: MakeOp
         return_val: list[Operation] = []
@@ -241,7 +261,10 @@ class MCMCSampler:
             operands: list[OpResult] = []
             for i, field_type in enumerate(output.get_fields()):
                 assert isinstance(field_type, TransIntegerType)
-                operands.append(tmp_int_ssavalue)
+                assert last_int_op is not None
+                operands.append(last_int_op.results[0])
+                assert last_int_op.prev_op is not None
+                last_int_op = last_int_op.prev_op.prev_op
 
             op = MakeOp(operands)
             block.add_op(op)
@@ -251,36 +274,73 @@ class MCMCSampler:
         block.add_op(Return(return_val[0]))
         return
 
+    @staticmethod
+    def get_live_operations(func: FuncOp) -> list[tuple[Operation, int]]:
+        ops = list(func.body.block.ops)
+        assert isinstance(ops[-1], Return)
+        assert isinstance(ops[-2], MakeOp)
+        last_make_op = ops[-2]
+
+        live_set = set[Operation]()
+        live_ops = list[tuple[Operation, int]]()
+
+        for operand in last_make_op.operands:
+            assert isinstance(operand.owner, Operation)
+            live_set.add(operand.owner)
+        # live_set.add(last_make_op)
+
+        for idx in range(len(ops) - 2, -1, -1):
+            operation = ops[idx]
+            if operation in live_set:
+                if not (
+                    isinstance(operation, Constant)
+                    or isinstance(operation, arith.Constant)
+                    or isinstance(operation, GetAllOnesOp)
+                    or isinstance(operation, GetOp)
+                ):  # filter out operations not belong to main body
+                    live_ops.append((operation, idx))
+                    for operand in operation.operands:
+                        assert isinstance(operand.owner, Operation)
+                        live_set.add(operand.owner)
+        return live_ops
+
     def sample_next(self) -> float:
         """
         Sample the next program.
         Return the new program with the proposal ratio.
         """
-        ops = list(self.func.body.block.ops)
+        self.proposed = self.current.clone()
 
-        sample_mode = random.randrange(2)
-        new_ssa = None
-        if sample_mode == 0:
+        return_op = self.proposed.body.block.last_op
+        assert isinstance(return_op, Return)
+        last_make_op = return_op.operands[0].owner
+        assert isinstance(last_make_op, MakeOp)
+
+        live_ops = MCMCSampler.get_live_operations(self.proposed)
+        live_op_indices = [_[1] for _ in live_ops]
+
+        ops = list(self.proposed.body.block.ops)
+
+        sample_mode = random.random()
+        if sample_mode < 0.3 and live_op_indices:
             # replace an operation with a new operation
-            old_op, new_op, ratio, new_ssa = self.replace_entire_operation(ops)
-            self.func.body.block.insert_op_before(new_op, old_op)
+            old_op, new_op, ratio = MCMCSampler.replace_entire_operation(
+                ops, live_op_indices
+            )
+            self.proposed.body.block.insert_op_before(new_op, old_op)
             if len(old_op.results) > 0 and len(new_op.results) > 0:
                 old_op.results[0].replace_by(new_op.results[0])
-            self.func.body.block.detach_op(old_op)
+            self.proposed.body.block.detach_op(old_op)
 
-        elif sample_mode == 1:
-            # replace an operand in an operand
-            ratio, new_ssa = self.replace_operand(ops)
+        elif sample_mode < 1 and live_op_indices:
+            # replace an operand in an operation
+            ratio = MCMCSampler.replace_operand(ops, live_op_indices)
 
-        elif sample_mode == 2:
-            # todo: replace NOP with an operations
-            ratio = 1
+        elif sample_mode < 1:
+            # replace an operand in makeOp
+            ratio = MCMCSampler.replace_make_operand(ops, len(ops) - 2)
         else:
             # todo: replace an operations with NOP
             ratio = 1
-
-        make_op_choice = random.randrange(2)
-        if new_ssa is not None and isinstance(new_ssa.type, TransIntegerType):
-            self.last_make_op.operands[make_op_choice] = new_ssa
 
         return ratio

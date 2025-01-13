@@ -1,3 +1,4 @@
+import random
 import argparse
 import subprocess
 import time
@@ -67,6 +68,7 @@ from xdsl_smt.semantics.transfer_semantics import (
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
+from ..utils.cost_model import compute_cost, compute_accept_rate
 from ..utils.mcmc_sampler import MCMCSampler
 from ..utils.transfer_function_check_util import (
     forward_soundness_check,
@@ -378,17 +380,14 @@ def print_crt_func_to_cpp(concrete_func: FuncOp) -> str:
     """
     return """
     APInt concrete_op(APInt arg0, APInt arg1){
-      return arg0 + arg1;
+      return arg0 & arg1;
     }
     """
 
 
-def print_to_cpp(module: ModuleOp) -> str:
+def print_to_cpp(func: FuncOp) -> str:
     sio = StringIO()
-    for func in module.ops:
-        if isinstance(func, FuncOp):
-            LowerToCpp(sio).apply(ctx, cast(ModuleOp, func))
-
+    LowerToCpp(sio).apply(ctx, cast(ModuleOp, func))
     return sio.getvalue()
 
 
@@ -438,6 +437,8 @@ def main() -> None:
     print("Round\tsoundness%\tprecision%\tUsed time")
     possible_solution: set[str] = set()
 
+    random.seed(17)
+
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             concrete_func_name = ""
@@ -448,20 +449,51 @@ def main() -> None:
                 concrete_func_name = applied_to.data[0].data
             concrete_func = get_concrete_function(concrete_func_name, SYNTH_WIDTH, None)
             func_name = func.sym_name.data
-            mcmcSampler = MCMCSampler(func, 8)
-            for i in range(50):
+            mcmc_sampler = MCMCSampler(func, 8)
+
+            current_cost = 20
+            for i in range(10000):
                 start = time.time()
-                _: float = mcmcSampler.sample_next()
-                cpp_code = print_to_cpp(module)
+
+                _: float = mcmc_sampler.sample_next()
+
+                proposed_solution = mcmc_sampler.get_proposed()
+                assert proposed_solution is not None
+                func_to_eval = proposed_solution.clone()
+
+                cpp_code = print_to_cpp(func_to_eval)
                 crt_func = print_crt_func_to_cpp(concrete_func)
                 soundness_percent, precision_percent = eval_transfer_func(
                     [func_name], [cpp_code], crt_func
                 )
+                proposed_cost = compute_cost(soundness_percent[0], precision_percent[0])
+
                 end = time.time()
                 used_time = end - start
-                print(
-                    f"{i}\t{soundness_percent[0]*100:.2f}%\t{precision_percent[0]*100:.2f}%\t{used_time:.2f}"
-                )
+
+                accept_rate = compute_accept_rate(current_cost, proposed_cost)
+
+                decision = True if random.random() < accept_rate else False
+                if decision:
+                    print(
+                        f"{i}\t{soundness_percent[0] * 100:.2f}%\t{precision_percent[0] * 100:.2f}%\t{used_time:.2f}"
+                    )
+
+                    # print(mcmc_sampler.get_current())
+                    # print(mcmc_sampler.get_proposed())
+
+                    mcmc_sampler.accept_proposed()
+                    current_cost = proposed_cost
+                    assert mcmc_sampler.get_proposed() is None
+
+                else:
+                    mcmc_sampler.reject_proposed()
+                    pass
+
+                if soundness_percent[0] == 1 and precision_percent[0] == 1:
+                    print(mcmc_sampler.get_current())
+                    break
+
                 """
                 tmp_clone_module: ModuleOp = module.clone()
 

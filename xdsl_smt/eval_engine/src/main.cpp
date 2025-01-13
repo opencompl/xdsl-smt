@@ -19,7 +19,7 @@ void print_abst_range(const llvm::KnownBits &x) {
   }
 
   if (x.isConstant())
-    printf(" const %lu", x.getConstant().getZExtValue());
+    printf(" const %llu", x.getConstant().getZExtValue());
 
   if (x.isUnknown())
     printf(" (top)");
