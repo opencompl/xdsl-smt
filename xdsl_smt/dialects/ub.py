@@ -46,9 +46,9 @@ class UBOp(IRDLOperation):
 
     name = "ub.ub"
 
-    new_ub = result_def(UBOrType)
+    res = result_def(UBOrType)
 
-    assembly_format = "attr-dict `:` type($new_ub)"
+    assembly_format = "attr-dict `:` type($res)"
 
     def __init__(self, type: Attribute):
         """Create an UB value for the given type."""
@@ -67,9 +67,9 @@ class FromOp(IRDLOperation):
     T = Annotated[Attribute, ConstraintVar("T")]
 
     value = operand_def(T)
-    result = result_def(UBOrType[T])
+    res = result_def(UBOrType[T])
 
-    assembly_format = "$value attr-dict `:` type($result)"
+    assembly_format = "$value attr-dict `:` type($res)"
 
     def __init__(self, value: SSAValue):
         super().__init__(
@@ -105,6 +105,18 @@ class MatchOp(IRDLOperation):
             result_types=[],
             regions=[value_region, ub_region],
         )
+
+    @property
+    def value_terminator(self) -> YieldOp:
+        if not isinstance(self.value_region.block.last_op, YieldOp):
+            raise ValueError("Value case region must have a yield terminator")
+        return self.value_region.block.last_op
+
+    @property
+    def ub_terminator(self) -> YieldOp:
+        if not isinstance(self.ub_region.block.last_op, YieldOp):
+            raise ValueError("UB case region must have a yield terminator")
+        return self.ub_region.block.last_op
 
     def verify_(self):
         assert isattr(self.value.type, UBOrType[Attribute])
