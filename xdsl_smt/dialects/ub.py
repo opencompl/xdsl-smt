@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Annotated, Generic, Iterable, Sequence, TypeVar
+from typing import Annotated, Generic, Sequence, TypeVar
 
 from xdsl.irdl import (
     irdl_attr_definition,
