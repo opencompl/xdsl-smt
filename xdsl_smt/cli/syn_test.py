@@ -4,6 +4,7 @@ from xdsl.context import MLContext
 from xdsl.parser import Parser
 
 from xdsl_smt.utils.mcmc_sampler import MCMCSampler
+from xdsl_smt.utils.synthesizer_context import SynthesizerContext
 from ..dialects.smt_dialect import (
     SMTDialect,
 )
@@ -66,8 +67,9 @@ def main() -> None:
 
     random.seed(47)
     func = module.ops.first
+    context = SynthesizerContext()
 
-    mcmc_sampler = MCMCSampler(func, 4)
+    mcmc_sampler = MCMCSampler(func, 4, context)
     print(mcmc_sampler.get_current())
     for i in range(0):
         _: float = mcmc_sampler.sample_next()

@@ -70,6 +70,7 @@ import sys as sys
 
 from ..utils.cost_model import compute_cost, compute_accept_rate
 from ..utils.mcmc_sampler import MCMCSampler
+from ..utils.synthesizer_context import SynthesizerContext
 from ..utils.transfer_function_check_util import (
     forward_soundness_check,
     backward_soundness_check,
@@ -438,7 +439,8 @@ def main() -> None:
     possible_solution: set[str] = set()
 
     random.seed(17)
-
+    context = SynthesizerContext()
+    context.set_cmp_flags([0, 6, 7])
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             concrete_func_name = ""
@@ -449,7 +451,7 @@ def main() -> None:
                 concrete_func_name = applied_to.data[0].data
             concrete_func = get_concrete_function(concrete_func_name, SYNTH_WIDTH, None)
             func_name = func.sym_name.data
-            mcmc_sampler = MCMCSampler(func, 8)
+            mcmc_sampler = MCMCSampler(func, 8, context)
 
             current_cost = 20
             for i in range(10000):
