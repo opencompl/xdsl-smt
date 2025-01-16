@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated, Generic, Iterable, Sequence, TypeVar
 
 from xdsl.irdl import (
     irdl_attr_definition,
@@ -86,22 +86,25 @@ class MatchOp(IRDLOperation):
 
     T = Annotated[Attribute, ConstraintVar("T")]
 
-    value = operand_def(UBOrType[T])
+    values = var_operand_def(UBOrType[T])
 
     value_region = region_def(single_block="single_block")
     ub_region = region_def(single_block="single_block")
 
     res = var_result_def()
 
-    assembly_format = "$value attr-dict-with-keyword `:` type($value) `->` type($res) $value_region $ub_region"
+    assembly_format = "$values attr-dict-with-keyword `:` `(` type($values) `)` `->` type($res) $value_region $ub_region"
 
-    def __init__(self, value: SSAValue):
-        if not isattr(value.type, UBOrType[Attribute]):
-            raise ValueError(f"Expected a '{UBOrType.name}' type, got {value.type}")
-        value_region = Region(Block((), arg_types=[value.type.type]))
+    def __init__(self, values: Sequence[SSAValue]):
+        value_types = list[UBOrType[Attribute]]()
+        for value in values:
+            if not isattr(value.type, UBOrType[Attribute]):
+                raise ValueError(f"Expected a '{UBOrType.name}' type, got {value.type}")
+            value_types.append(value.type)
+        value_region = Region(Block((), arg_types=value_types))
         ub_region = Region(Block((), arg_types=[]))
         super().__init__(
-            operands=[value],
+            operands=[values],
             result_types=[],
             regions=[value_region, ub_region],
         )
@@ -118,12 +121,20 @@ class MatchOp(IRDLOperation):
             raise ValueError("UB case region must have a yield terminator")
         return self.ub_region.block.last_op
 
+    @property
+    def value_types(self) -> Sequence[UBOrType[Attribute]]:
+        types = list[UBOrType[Attribute]]()
+        for value in self.values:
+            assert isattr(value.type, UBOrType[Attribute])
+            types.append(value.type)
+        return types
+
     def verify_(self):
-        assert isattr(self.value.type, UBOrType[Attribute])
-        if self.value_region.blocks[0].arg_types != (self.value.type.type,):
+        value_type_type = [type.type for type in self.value_types]
+        if list(self.value_region.blocks[0].arg_types) != value_type_type:
             raise ValueError(
                 "Value region must have exactly one argument of type "
-                f"{self.value.type.type}, got {self.value_region.blocks[0].args}"
+                f"{tuple(value_type_type)}, got {tuple(self.value_region.blocks[0].arg_types)}"
             )
         if len(self.ub_region.blocks[0].args) != 0:
             raise ValueError("UB region must have no arguments")

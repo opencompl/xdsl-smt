@@ -91,18 +91,31 @@ class LowerFromOp(RewritePattern):
 class LowerMatchOp(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ub.MatchOp, rewriter: PatternRewriter):
-        value = smt_utils.FirstOp(op.value)
-        poison_flag = smt_utils.SecondOp(op.value)
-        rewriter.insert_op_before_matched_op((value, poison_flag))
+        # Unwrap all value pairs to their value and poison flag
+        values = list[SSAValue]()
+        poison_flags = list[SSAValue]()
+        for value in op.values:
+            value_value = smt_utils.FirstOp(value)
+            poison_flag = smt_utils.SecondOp(value)
+            values.append(value_value.res)
+            poison_flags.append(poison_flag.res)
+            rewriter.insert_op_before_matched_op((value_value, poison_flag))
+
+        # Check if all values are not poison
+        one_is_poison = poison_flags[0]
+        for poison_flag in poison_flags[1:]:
+            or_poison = smt.OrOp(poison_flag, one_is_poison)
+            one_is_poison = or_poison.res
+            rewriter.insert_op_before_matched_op(or_poison)
+
+        # Inline both case regions
         value_terminator = op.value_terminator
         ub_terminator = op.ub_terminator
-        rewriter.inline_block(
-            op.value_region.block, InsertPoint.before(op), (value.res,)
-        )
+        rewriter.inline_block(op.value_region.block, InsertPoint.before(op), values)
         rewriter.inline_block(op.ub_region.block, InsertPoint.before(op), ())
         results = list[SSAValue]()
         for val_val, val_ub in zip(value_terminator.rets, ub_terminator.rets):
-            val = smt.IteOp(poison_flag.res, val_val, val_ub)
+            val = smt.IteOp(one_is_poison, val_ub, val_val)
             results.append(val.res)
             rewriter.insert_op_before_matched_op(val)
 

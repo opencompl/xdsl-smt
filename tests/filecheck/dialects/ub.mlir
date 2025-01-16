@@ -3,8 +3,8 @@
 %value = "smt.declare_const"() : () -> i32
 %ub = ub.ub : !ub.ub_or<i32>
 %non_ub = ub.from %value : !ub.ub_or<i32>
-%res = ub.match %ub : !ub.ub_or<i32> -> i64 {
-^bb0(%val: i32):
+%res = ub.match %ub, %non_ub : (!ub.ub_or<i32>, !ub.ub_or<i32>) -> i64 {
+^bb0(%val1: i32, %val2: i32):
     %x = "smt.declare_const"() : () -> i64
     ub.yield %x : i64
 } {
@@ -17,8 +17,8 @@
 // CHECK-NEXT:    %value = "smt.declare_const"() : () -> i32
 // CHECK-NEXT:    %ub = ub.ub : !ub.ub_or<i32>
 // CHECK-NEXT:    %non_ub = ub.from %value : !ub.ub_or<i32>
-// CHECK-NEXT:    %res = ub.match %ub : !ub.ub_or<i32> -> i64 {
-// CHECK-NEXT:    ^0(%val : i32):
+// CHECK-NEXT:    %res = ub.match %ub, %non_ub : (!ub.ub_or<i32>, !ub.ub_or<i32>) -> i64 {
+// CHECK-NEXT:    ^0(%val1 : i32, %val2 : i32):
 // CHECK-NEXT:      %x = "smt.declare_const"() : () -> i64
 // CHECK-NEXT:      ub.yield %x : i64
 // CHECK-NEXT:    } {
