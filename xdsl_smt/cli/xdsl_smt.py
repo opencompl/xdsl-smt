@@ -37,6 +37,7 @@ from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
+from xdsl_smt.dialects.ub import UBDialect
 
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
@@ -85,6 +86,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(LLVM.name, lambda: LLVM)
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
+        self.ctx.register_dialect(UBDialect.name, lambda: UBDialect)
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(Transfer.name)
         self.ctx.load_registered_dialect(SMTIntDialect.name)
