@@ -106,6 +106,32 @@ class MatchOp(IRDLOperation):
             regions=[value_region, ub_region],
         )
 
+    def verify_(self):
+        assert isattr(self.value.type, UBOrType[Attribute])
+        if self.value_region.blocks[0].arg_types != (self.value.type.type,):
+            raise ValueError(
+                "Value region must have exactly one argument of type "
+                f"{self.value.type.type}, got {self.value_region.blocks[0].args}"
+            )
+        if len(self.ub_region.blocks[0].args) != 0:
+            raise ValueError("UB region must have no arguments")
+        if not isinstance(term_val := self.value_region.blocks[0].last_op, YieldOp):
+            raise ValueError(
+                f"Value region must end with a 'ub.yield' op, got {term_val}"
+            )
+        if not isinstance(term_ub := self.ub_region.blocks[0].last_op, YieldOp):
+            raise ValueError(f"UB region must end with a 'ub.yield' op, got {term_ub}")
+        if self.result_types != term_val.operand_types:
+            raise ValueError(
+                "Yielded types in value region must match the result types, "
+                f"got {term_val.operand_types} and {self.result_types}"
+            )
+        if self.result_types != term_ub.operand_types:
+            raise ValueError(
+                "Yielded types in UB region must match the result types, "
+                f"got {term_ub.operand_types} and {self.result_types}"
+            )
+
 
 @irdl_op_definition
 class YieldOp(IRDLOperation):
