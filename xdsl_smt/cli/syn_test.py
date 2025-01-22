@@ -22,7 +22,7 @@ from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl.ir import Operation
 import sys as sys
-import random
+from ..utils.random import Random
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -65,9 +65,9 @@ def main() -> None:
     assert isinstance(module, ModuleOp)
     assert isinstance(module.ops.first, FuncOp)
 
-    random.seed(47)
+    random = Random(47)
     func = module.ops.first
-    context = SynthesizerContext()
+    context = SynthesizerContext(random)
 
     mcmc_sampler = MCMCSampler(func, 4, context)
     print(mcmc_sampler.get_current())
