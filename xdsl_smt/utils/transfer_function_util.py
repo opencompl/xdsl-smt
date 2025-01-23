@@ -29,13 +29,15 @@ def call_function(func: DefineFunOp, args: list[SSAValue]) -> CallOp:
     Given a function in smt dialect and its args, return CallOp(func, args) with type checking
     """
     func_args = func.body.block.args
-    assert len(func_args) == len(args)
+    if len(func_args) != len(args):
+        raise ValueError(f"Arguments of the call to function {func.fun_name} mismatch")
     for f_arg, arg in zip(func_args, args):
         if f_arg.type != arg.type:
-            print(func.fun_name)
             print(func_args)
             print(args)
-        assert f_arg.type == arg.type
+            raise ValueError(
+                f"Argument of the call to function {func.fun_name} has different type"
+            )
     callOp = CallOp.get(func.results[0], args)
     return callOp
 
@@ -74,7 +76,8 @@ def call_function_and_assert_result(
     equals to the bv
     """
     callOp = call_function(func, args)
-    assert len(callOp.results) == 1
+    if len(callOp.results) != 1:
+        raise ValueError(f"Incorrect returned value {func.fun_name}")
     firstOp = FirstOp(callOp.results[0])
     assertOps = assert_result(firstOp.res, bv)
     return [callOp, firstOp] + assertOps
@@ -104,7 +107,8 @@ def get_argument_instances_with_effect(
     """
     result: list[DeclareConstOp | ConstantOp] = []
     # ignore last effect arg
-    assert isinstance(func.body.block.args[-1].type, BoolType)
+    if not isinstance(func.body.block.args[-1].type, BoolType):
+        raise ValueError(f"Function {func.fun_name} is not ended with effect")
     for i, arg in enumerate(func.body.block.args[:-1]):
         argType = arg.type
         if i in int_attr:
@@ -207,7 +211,7 @@ def compress_and_op(lst: list[Operation]) -> tuple[SSAValue, list[Operation]]:
     result and a list of constructed and operations
     """
     if len(lst) == 0:
-        assert False and "cannot compress lst with size 0 to an AndOp"
+        raise ValueError("cannot compress lst with size 0 to an AndOp")
     elif len(lst) == 1:
         empty_result: list[Operation] = []
         return (lst[0].results[0], empty_result)
