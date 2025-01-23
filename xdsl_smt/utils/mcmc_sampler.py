@@ -48,13 +48,25 @@ class MCMCSampler:
     last_make_op: MakeOp
     current: FuncOp
     proposed: FuncOp | None
+    current_cost: float
+    current_soundness: float
+    current_precision: float
     context: SynthesizerContext
     random: Random
 
-    def __init__(self, func: FuncOp, length: int, context: SynthesizerContext):
-        self.construct_init_program(func, length)
+    def __init__(
+        self,
+        func: FuncOp,
+        context: SynthesizerContext,
+        length: int,
+        init_cost: float,
+        reset: bool = True,
+    ):
+        if reset:
+            self.construct_init_program(func, length)
         self.current = func
         self.proposed = None
+        self.current_cost = init_cost
         self.context = context
         self.random = context.get_random_class()
 
@@ -64,9 +76,14 @@ class MCMCSampler:
     def get_proposed(self):
         return self.proposed
 
-    def accept_proposed(self):
+    def accept_proposed(
+        self, proposed_cost: float, proposed_soundness: float, proposed_precision: float
+    ):
         assert self.proposed is not None
         self.current = self.proposed
+        self.current_cost = proposed_cost
+        self.current_soundness = proposed_soundness
+        self.current_precision = proposed_precision
         self.proposed = None
 
     def reject_proposed(self):
@@ -202,12 +219,14 @@ class MCMCSampler:
         # Part II: Constants
         true: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
         false: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(0, 1), i1)
-        one = GetAllOnesOp(tmp_int_ssavalue)
+        all_ones = GetAllOnesOp(tmp_int_ssavalue)
         zero = Constant(tmp_int_ssavalue, 0)
+        one = Constant(tmp_int_ssavalue, 1)
         block.add_op(true)
         block.add_op(false)
         block.add_op(zero)
         block.add_op(one)
+        block.add_op(all_ones)
 
         # Part III: Main Body
         tmp_bool_ssavalue = true.results[0]

@@ -69,12 +69,12 @@ def main() -> None:
     func = module.ops.first
     context = SynthesizerContext(random)
 
-    mcmc_sampler = MCMCSampler(func, 4, context)
+    mcmc_sampler = MCMCSampler(func, context, 4, 20)
     print(mcmc_sampler.get_current())
     for i in range(0):
         _: float = mcmc_sampler.sample_next()
         print(f"Round {i}:{mcmc_sampler.get_proposed()}")
-        mcmc_sampler.accept_proposed()
+        mcmc_sampler.accept_proposed(0, 0, 0)
 
 
 if __name__ == "__main__":
