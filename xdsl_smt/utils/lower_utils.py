@@ -105,6 +105,22 @@ operNameToCpp = {
     "transfer.reverse_bits": ".reverseBits",
     "transfer.add_poison": " ",
     "transfer.remove_poison": " ",
+    "comb.add": "+",
+    "comb.sub": "-",
+    "comb.mul": "*",
+    "comb.and": "&",
+    "comb.or": "|",
+    "comb.xor": "^",
+    "comb.divs": ".sdiv",
+    "comb.divu": ".udiv",
+    "comb.mods": ".srem",
+    "comb.modu": ".urem",
+    "comb.mux": ["?", ":"],
+    "comb.shrs": ".alhr",
+    "comb.shru": ".lshr",
+    "comb.shl": ".shl",
+    "comb.extract": ".extractBits",
+    "comb.concat": ".concat",
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
@@ -118,6 +134,12 @@ unsignedReturnedType = {
 
 ends = ";\n"
 indent = "\t"
+int_to_apint = False
+
+
+def set_int_to_apint(to_apint: bool):
+    global int_to_apint
+    int_to_apint = to_apint
 
 
 def lowerType(typ, specialOp=None):
@@ -134,7 +156,7 @@ def lowerType(typ, specialOp=None):
             assert lowerType(fields[i]) == typeName
         return "std::vector<" + typeName + ">"
     elif isinstance(typ, IntegerType):
-        return "int"
+        return "int" if not int_to_apint else "APInt"
     elif isinstance(typ, IndexType):
         return "int"
     assert False and "unsupported type"

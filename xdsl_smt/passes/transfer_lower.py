@@ -13,6 +13,7 @@ from ..utils.lower_utils import (
     lowerDispatcher,
     INDUCTION_KEY,
     lowerInductionOps,
+    set_int_to_apint,
 )
 
 from xdsl.pattern_rewriter import (
@@ -50,6 +51,15 @@ def _(op: Operation, fout):
         global autogen
         op.results[0].name_hint = "autogen" + str(autogen)
         autogen += 1
+    if isinstance(op, FuncOp):
+        for arg in op.args:
+            if arg.name_hint is None:
+                arg.name_hint = "autogen" + str(autogen)
+                autogen += 1
+        if CPP_CLASS_KEY in op.attributes:
+            needDispatch.append(op)
+        if INDUCTION_KEY in op.attributes:
+            inductionOp.append(op)
     global funcStr
     funcStr += lowerOperation(op)
     parentOp = op.parent_op()
@@ -57,11 +67,6 @@ def _(op: Operation, fout):
         funcStr += "}\n"
         fout.write(funcStr)
         funcStr = ""
-    if isinstance(op, FuncOp):
-        if CPP_CLASS_KEY in op.attributes:
-            needDispatch.append(op)
-        if INDUCTION_KEY in op.attributes:
-            inductionOp.append(op)
 
 
 @dataclass
@@ -91,8 +96,12 @@ def addDispatcher(fout: TextIO, is_forward: bool):
 class LowerToCpp(ModulePass):
     name = "trans_lower"
     fout: TextIO = None
+    int_to_apint: bool = False
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
+        global autogen
+        autogen = 0
+        set_int_to_apint(self.int_to_apint)
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier([LowerOperation(self.fout)]),
             walk_regions_first=False,

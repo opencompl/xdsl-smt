@@ -1,4 +1,5 @@
 import argparse
+import os.path
 import subprocess
 import time
 from typing import cast
@@ -314,7 +315,8 @@ def get_concrete_function(
             # generate a function with the only comb operation
             # for now, we only handle binary operations and mux
             intTy = IntegerType(width)
-            func_name = concrete_op_name.replace(".", "_")
+            transIntTy = TransIntegerType()
+            func_name = "concrete_op"
 
             if concrete_op_name == "comb.mux":
                 funcTy = FunctionType.from_lists([i1, intTy, intTy], [intTy])
@@ -324,7 +326,6 @@ def get_concrete_function(
                 funcTy = FunctionType.from_lists([intTy, intTy], [i1])
                 result = FuncOp(func_name, funcTy)
                 assert extra is not None
-                func_name += str(extra)
                 combOp = comb.ICmpOp(result.args[0], result.args[1], extra)
             elif concrete_op_name == "comb.concat":
                 funcTy = FunctionType.from_lists(
@@ -333,7 +334,7 @@ def get_concrete_function(
                 result = FuncOp(func_name, funcTy)
                 combOp = comb.ConcatOp.from_int_values(result.args)
             else:
-                funcTy = FunctionType.from_lists([intTy, intTy], [intTy])
+                funcTy = FunctionType.from_lists([transIntTy, transIntTy], [transIntTy])
                 result = FuncOp(func_name, funcTy)
                 if issubclass(k, comb.VariadicCombOperation):
                     combOp = k.create(operands=result.args, result_types=[intTy])
@@ -378,18 +379,10 @@ def soundness_check(
     return verify_res
 
 
-def print_crt_func_to_cpp(concrete_func: FuncOp) -> str:
-    """
+def print_concrete_function_to_cpp(func: FuncOp) -> str:
     sio = StringIO()
-    if isinstance(concrete_func, FuncOp):
-        LowerToCpp(sio).apply(ctx, cast(ModuleOp, concrete_func))
+    LowerToCpp(sio, True).apply(ctx, cast(ModuleOp, func))
     return sio.getvalue()
-    """
-    return """
-    APInt concrete_op(APInt arg0, APInt arg1){
-      return arg0 & arg1;
-    }
-    """
 
 
 def print_to_cpp(func: FuncOp) -> str:
@@ -405,6 +398,8 @@ INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
+
+OUTPUTS_FOLDER = "outputs"
 
 
 def print_func_to_file(sampler: MCMCSampler, rd: int, i: int, path: str):
@@ -437,6 +432,9 @@ def main() -> None:
     random_number_file = args.random_file
     random_seed = args.random_seed
     assert isinstance(module, ModuleOp)
+
+    if not os.path.isdir(OUTPUTS_FOLDER):
+        os.mkdir(OUTPUTS_FOLDER)
 
     """
     (
@@ -501,7 +499,7 @@ def main() -> None:
                     cpp_code = print_to_cpp(func_to_eval)
                     cpp_codes.append(cpp_code)
 
-                crt_func = print_crt_func_to_cpp(concrete_func)
+                crt_func = print_concrete_function_to_cpp(concrete_func)
                 soundness_percent, precision_percent = eval_transfer_func(
                     [func_name] * NUM_PROGRAMS, cpp_codes, crt_func
                 )
@@ -526,7 +524,9 @@ def main() -> None:
                         assert mcmc_samplers[i].get_proposed() is None
 
                         if cost_reduce > 0:
-                            print_func_to_file(mcmc_samplers[i], round, i, "./outputs")
+                            print_func_to_file(
+                                mcmc_samplers[i], round, i, OUTPUTS_FOLDER
+                            )
 
                     else:
                         mcmc_samplers[i].reject_proposed()
