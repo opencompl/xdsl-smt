@@ -42,6 +42,7 @@ from xdsl_smt.dialects.ub import UBDialect
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
+from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
 
 from ..passes.pdl_to_smt import PDLToSMT
 
@@ -109,6 +110,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(DynamicSemantics.name, lambda: DynamicSemantics)
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
         self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)
+        self.register_pass(LowerUBToPairs.name, lambda: LowerUBToPairs)
 
     def register_all_targets(self):
         super().register_all_targets()
