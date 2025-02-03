@@ -14,6 +14,6 @@ def compute_cost(soundness: float, precision: float) -> float:
 def decide(p: float, beta: float, current_cost: float, proposed_cost: float) -> bool:
     # return math.exp(-16 * (proposed_cost - current_cost))
 
-    return True
+    # return True
 
-    # return beta * (current_cost - proposed_cost) > math.log(p)
+    return beta * (current_cost - proposed_cost) > math.log(p)
