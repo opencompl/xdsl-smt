@@ -61,12 +61,16 @@ class MCMCSampler:
         length: int,
         init_cost: float,
         reset: bool = True,
+        init_soundness: float = 0,
+        init_precision: float = 0,
     ):
         if reset:
             self.construct_init_program(func, length)
         self.current = func
         self.proposed = None
         self.current_cost = init_cost
+        self.current_soundness = init_soundness
+        self.current_precision = init_precision
         self.context = context
         self.random = context.get_random_class()
 
@@ -99,7 +103,6 @@ class MCMCSampler:
             result for op in ops[:x] for result in op.results if result.type == i1
         ]
         bool_count = len(bool_ops)
-        assert bool_count > 0
         return bool_ops, bool_count
 
     def get_valid_int_operands(
@@ -115,7 +118,6 @@ class MCMCSampler:
             if isinstance(result.type, TransIntegerType)
         ]
         int_count = len(int_ops)
-        assert int_count > 0
         return int_ops, int_count
 
     def replace_entire_operation(

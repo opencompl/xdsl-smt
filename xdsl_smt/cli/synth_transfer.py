@@ -391,7 +391,7 @@ def print_to_cpp(func: FuncOp) -> str:
     return sio.getvalue()
 
 
-SYNTH_WIDTH = 8
+SYNTH_WIDTH = 4
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
@@ -454,10 +454,10 @@ def main() -> None:
     if random_number_file is not None:
         random.read_from_file(random_number_file)
 
-    PROGRAM_LENGTH = 16
-    NUM_PROGRAMS = 50
-    INIT_COST = 20
-    TOTAL_ROUNDS = 500
+    PROGRAM_LENGTH = 40
+    NUM_PROGRAMS = 100
+    INIT_COST = 1
+    TOTAL_ROUNDS = 1000
 
     # sound_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
     # precision_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
@@ -475,13 +475,23 @@ def main() -> None:
                 )
                 concrete_func_name = applied_to.data[0].data
             concrete_func = get_concrete_function(concrete_func_name, SYNTH_WIDTH, None)
+            crt_func = print_concrete_function_to_cpp(concrete_func)
             func_name = func.sym_name.data
             mcmc_samplers: list[MCMCSampler] = []
+
+            # init_code = print_to_cpp(func.clone())
+            # init_soundness, init_precision = eval_transfer_func(
+            #     [func_name], [init_code], crt_func
+            # )
 
             for _ in range(NUM_PROGRAMS):
                 sampler = MCMCSampler(
                     func, context, PROGRAM_LENGTH, init_cost=INIT_COST
                 )
+                # sampler = MCMCSampler(
+                #     func, context, PROGRAM_LENGTH, init_cost=compute_cost(
+                #         init_soundness[0], init_precision[0]), reset=False, init_soundness=init_soundness[0], init_precision=init_precision[0])
+
                 mcmc_samplers.append(sampler)
 
             for round in range(TOTAL_ROUNDS):
@@ -499,7 +509,6 @@ def main() -> None:
                     cpp_code = print_to_cpp(func_to_eval)
                     cpp_codes.append(cpp_code)
 
-                crt_func = print_concrete_function_to_cpp(concrete_func)
                 soundness_percent, precision_percent = eval_transfer_func(
                     [func_name] * NUM_PROGRAMS, cpp_codes, crt_func
                 )
@@ -511,7 +520,7 @@ def main() -> None:
 
                     p = random.random()
                     decision = decide(
-                        p, 1000, mcmc_samplers[i].current_cost, proposed_cost
+                        p, 30, mcmc_samplers[i].current_cost, proposed_cost
                     )
                     if decision:
                         # print(mcmc_sampler.get_current())
@@ -524,6 +533,7 @@ def main() -> None:
                         assert mcmc_samplers[i].get_proposed() is None
 
                         if cost_reduce > 0:
+                            # if True:
                             print_func_to_file(
                                 mcmc_samplers[i], round, i, OUTPUTS_FOLDER
                             )
