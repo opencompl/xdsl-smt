@@ -64,7 +64,6 @@ class MCMCSampler:
         init_soundness: float = 0,
         init_precision: float = 0,
     ):
-
         self.current = func.clone()
         self.proposed = None
         self.current_cost = init_cost
@@ -131,8 +130,7 @@ class MCMCSampler:
         old_op = ops[idx]
 
         int_operands, num_int_operands = self.get_valid_int_operands(ops, idx)
-        bool_operands, num_bool_operands = self.get_valid_bool_operands(
-            ops, idx)
+        bool_operands, num_bool_operands = self.get_valid_bool_operands(ops, idx)
 
         def calculate_operand_prob(op: Operation) -> int:
             ret = 1
@@ -169,10 +167,7 @@ class MCMCSampler:
 
         return backward_prob / forward_prob
 
-    def replace_operand(
-        self, ops: list[Operation], idx: int
-    ) -> float:
-
+    def replace_operand(self, ops: list[Operation], idx: int) -> float:
         op = ops[idx]
         int_operands, _ = self.get_valid_int_operands(ops, idx)
         bool_operands, _ = self.get_valid_bool_operands(ops, idx)
@@ -218,10 +213,8 @@ class MCMCSampler:
         tmp_int_ssavalue = block.last_op.results[0]
 
         # Part II: Constants
-        true: arith.Constant = arith.Constant(
-            IntegerAttr.from_int_and_width(1, 1), i1)
-        false: arith.Constant = arith.Constant(
-            IntegerAttr.from_int_and_width(0, 1), i1)
+        true: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
+        false: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(0, 1), i1)
         all_ones = GetAllOnesOp(tmp_int_ssavalue)
         zero = Constant(tmp_int_ssavalue, 0)
         one = Constant(tmp_int_ssavalue, 1)
@@ -240,7 +233,7 @@ class MCMCSampler:
             block.add_op(nop_int)
 
         # Part III-2: Random reset main body
-        for i in range(length//2):
+        for i in range(length // 2):
             ops = list(block.ops)
             tmp_ops_len = len(block.ops)
             self.replace_entire_operation(block, ops, tmp_ops_len - 1 - i)
@@ -268,7 +261,9 @@ class MCMCSampler:
         return
 
     @staticmethod
-    def get_modifiable_operations(func: FuncOp, only_live: bool = True) -> list[tuple[Operation, int]]:
+    def get_modifiable_operations(
+        func: FuncOp, only_live: bool = True
+    ) -> list[tuple[Operation, int]]:
         ops = list(func.body.block.ops)
         assert isinstance(ops[-1], Return)
         assert isinstance(ops[-2], MakeOp)
@@ -284,12 +279,14 @@ class MCMCSampler:
 
         def not_in_main_body(op: Operation):
             # filter out operations not belong to main body
-            return (isinstance(operation, Constant)
-                    or isinstance(operation, arith.Constant)
-                    or isinstance(operation, GetAllOnesOp)
-                    or isinstance(operation, GetOp)
-                    or isinstance(operation, MakeOp)
-                    or isinstance(operation, Return))
+            return (
+                isinstance(operation, Constant)
+                or isinstance(operation, arith.Constant)
+                or isinstance(operation, GetAllOnesOp)
+                or isinstance(operation, GetOp)
+                or isinstance(operation, MakeOp)
+                or isinstance(operation, Return)
+            )
 
         for idx in range(len(ops) - 3, -1, -1):
             operation = ops[idx]
@@ -327,8 +324,7 @@ class MCMCSampler:
         if sample_mode < 0.3 and live_op_indices:
             # replace an operation with a new operation
             idx = self.random.choice(live_op_indices)
-            ratio = self.replace_entire_operation(
-                self.proposed.body.block, ops, idx)
+            ratio = self.replace_entire_operation(self.proposed.body.block, ops, idx)
 
         elif sample_mode < 1 and live_op_indices:
             # replace an operand in an operation

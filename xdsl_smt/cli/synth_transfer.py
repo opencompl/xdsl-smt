@@ -404,7 +404,9 @@ OUTPUTS_FOLDER = "outputs"
 
 def print_func_to_file(sampler: MCMCSampler, rd: int, i: int, path: str):
     with open(f"{path}/tf{rd}_{i}.mlir", "w") as file:
-        file.write(f"Cost: {sampler.current_cost}\n")
+        file.write(
+            f"Run: {rd}_{i}\nCost: {sampler.current_cost}\nSoundness: {sampler.current_soundness}\nPrecision: {sampler.current_precision}\n"
+        )
         file.write(str(sampler.get_current()))
 
 
@@ -455,7 +457,7 @@ def main() -> None:
         random.read_from_file(random_number_file)
 
     PROGRAM_LENGTH = 40
-    NUM_PROGRAMS = 100
+    NUM_PROGRAMS = 50
     INIT_COST = 1
     TOTAL_ROUNDS = 1000
 
@@ -520,7 +522,7 @@ def main() -> None:
 
                     p = random.random()
                     decision = decide(
-                        p, 30, mcmc_samplers[i].current_cost, proposed_cost
+                        p, 200, mcmc_samplers[i].current_cost, proposed_cost
                     )
                     if decision:
                         # print(mcmc_sampler.get_current())
