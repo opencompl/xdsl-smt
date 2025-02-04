@@ -107,7 +107,7 @@ def eval_transfer_func(
     xfer_names: list[str],
     xfer_srcs: list[str],
     concrete_op_expr: str,
-) -> tuple[list[float], list[float]]:
+) -> tuple[list[int], list[int], list[int], list[int]]:
     transfer_func_header = make_xfer_header(concrete_op_expr)
 
     xfer_srcs = [
@@ -135,7 +135,7 @@ def eval_transfer_func(
     run(get_build_cmd(), stdout=PIPE)
     eval_output = run(["./EvalEngine"], stdout=PIPE)
 
-    def get_floats(s: str) -> list[float]:
+    def get_floats(s: str) -> list[int]:
         return eval(s)
 
     os.chdir(cur_dir)
@@ -143,8 +143,10 @@ def eval_transfer_func(
     eval_output_lines = eval_output.stdout.decode("utf-8").split("\n")
     sounds = get_floats(eval_output_lines[1])
     precs = get_floats(eval_output_lines[3])
+    exact = get_floats(eval_output_lines[5])
+    num_cases = get_floats(eval_output_lines[7])
 
-    return sounds, precs
+    return sounds, precs, exact, num_cases
 
 
 '''
