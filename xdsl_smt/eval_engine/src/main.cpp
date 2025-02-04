@@ -1,26 +1,23 @@
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 #include <llvm/ADT/APInt.h>
 #include <llvm/Support/KnownBits.h>
-#include "llvm/Support/raw_ostream.h"
 #include <vector>
-#include <array>
-#include <iostream>
 
 #include "synth.cpp"
 
 // TODO switch between signed and unsigned ops when needed
 // enum TransferResult { GOOD, NOT_SOUND, NOT_PREC, NEITHER };
 
-void print_abst_range(const llvm::KnownBits &x)
-{
-  for (uint32_t i = x.Zero.getBitWidth() - 1; i >= 0; --i)
-  {
-    const char bit = x.One[i] ? '1' : x.Zero[i] ? '0'
-                                                : '?';
+void print_abst_range(const llvm::KnownBits &x) {
+  for (uint32_t i = x.Zero.getBitWidth() - 1; i >= 0; --i) {
+    const char bit = x.One[i] ? '1' : x.Zero[i] ? '0' : '?';
     printf("%c", bit);
   }
 
@@ -34,8 +31,7 @@ void print_abst_range(const llvm::KnownBits &x)
 }
 
 // TODO consider printing full/top if it is
-void print_conc_range(const std::vector<uint8_t> &x)
-{
+void print_conc_range(const std::vector<uint8_t> &x) {
   if (x.empty())
     printf("empty");
 
@@ -47,14 +43,11 @@ void print_conc_range(const std::vector<uint8_t> &x)
 
 // TODO there's a faster way to this but this works for now
 // would also be nice if this moved up the lattice as the loops progressed
-std::vector<llvm::KnownBits> const enum_abst_vals(const uint32_t bitwidth)
-{
+std::vector<llvm::KnownBits> const enum_abst_vals(const uint32_t bitwidth) {
   std::vector<llvm::KnownBits> ret;
   const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
-  for (uint64_t i = 0; i <= max.getZExtValue(); ++i)
-  {
-    for (uint64_t j = 0; j <= max.getZExtValue(); ++j)
-    {
+  for (uint64_t i = 0; i <= max.getZExtValue(); ++i) {
+    for (uint64_t j = 0; j <= max.getZExtValue(); ++j) {
       auto x = llvm::KnownBits(bitwidth);
       x.One = i;
       x.Zero = j;
@@ -69,14 +62,12 @@ std::vector<llvm::KnownBits> const enum_abst_vals(const uint32_t bitwidth)
 
 // TODO return a generic container based on what the caller asks for
 // TODO there's a faster way to this but this works for now
-std::vector<uint8_t> const to_concrete(const llvm::KnownBits &x)
-{
+std::vector<uint8_t> const to_concrete(const llvm::KnownBits &x) {
   std::vector<uint8_t> ret;
   const llvm::APInt min = llvm::APInt::getZero(x.Zero.getBitWidth());
   const llvm::APInt max = llvm::APInt::getMaxValue(x.Zero.getBitWidth());
 
-  for (auto i = min;; ++i)
-  {
+  for (auto i = min;; ++i) {
 
     if (!x.Zero.intersects(i) && !x.One.intersects(~i))
       ret.push_back((uint8_t)i.getZExtValue());
@@ -89,12 +80,10 @@ std::vector<uint8_t> const to_concrete(const llvm::KnownBits &x)
 }
 
 llvm::KnownBits const to_abstract(const std::vector<uint8_t> &conc_vals,
-                                  uint8_t bitwidth)
-{
+                                  uint8_t bitwidth) {
   auto ret = llvm::KnownBits::makeConstant(llvm::APInt(bitwidth, conc_vals[0]));
 
-  for (auto x : conc_vals)
-  {
+  for (auto x : conc_vals) {
     ret = ret.intersectWith(
         llvm::KnownBits::makeConstant(llvm::APInt(bitwidth, x)));
   }
@@ -108,8 +97,7 @@ llvm::KnownBits const to_abstract(const std::vector<uint8_t> &conc_vals,
 std::vector<uint8_t> const concrete_op_enum(const std::vector<uint8_t> &lhss,
                                             const std::vector<uint8_t> &rhss,
                                             uint8_t (*op)(const uint8_t,
-                                                          const uint8_t))
-{
+                                                          const uint8_t)) {
   auto ret = std::vector<uint8_t>();
 
   uint8_t mask = 0b00001111;
@@ -128,9 +116,7 @@ std::vector<uint8_t> const concrete_op_enum(const std::vector<uint8_t> &lhss,
 typedef std::array<double, 3> CmpRes;
 
 // TODO make case enum
-CmpRes compare(std::vector<uint8_t> &approx,
-               std::vector<uint8_t> &exact)
-{
+CmpRes compare(std::vector<uint8_t> &approx, std::vector<uint8_t> &exact) {
 
   bool sound = true;
   bool prec = true;
@@ -160,8 +146,7 @@ CmpRes compare(std::vector<uint8_t> &approx,
   // std::clog << "\n";
 
   double diff = 0;
-  if (sound)
-  {
+  if (sound) {
     diff = prec ? 1 : (double)exact.size() / (double)approx.size();
   }
 
@@ -169,7 +154,8 @@ CmpRes compare(std::vector<uint8_t> &approx,
   // auto approx_kb = to_abstract(approx, 4);
   // exact_kb.dump();
   // approx_kb.dump();
-  // std::clog << "sound: " << sound << " prec: " << prec << " diff: " << diff << "\n";
+  // std::clog << "sound: " << sound << " prec: " << prec << " diff: " << diff
+  // << "\n";
 
   // if (!sound && !prec)
   //   return 0;
@@ -185,21 +171,19 @@ CmpRes compare(std::vector<uint8_t> &approx,
   return {(sound ? 1.0 : 0.0), (sound && prec ? 1.0 : 0.0), diff};
 }
 
-int main()
-{
+int main() {
   const size_t bitwidth = 4;
 
   std::vector<CmpRes> all_cases;
   long long total_abst_combos = 0;
 
-  for (auto lhs : enum_abst_vals(bitwidth))
-  {
-    for (auto rhs : enum_abst_vals(bitwidth))
-    {
+  for (auto lhs : enum_abst_vals(bitwidth)) {
+    for (auto rhs : enum_abst_vals(bitwidth)) {
 
-      std::vector<uint8_t> crt_brute_vals =
-          concrete_op_enum(to_concrete(lhs), to_concrete(rhs), concrete_op_wrapper);
-      std::vector<uint8_t> brute_vals = to_concrete(to_abstract(crt_brute_vals, bitwidth));
+      std::vector<uint8_t> crt_brute_vals = concrete_op_enum(
+          to_concrete(lhs), to_concrete(rhs), concrete_op_wrapper);
+      std::vector<uint8_t> brute_vals =
+          to_concrete(to_abstract(crt_brute_vals, bitwidth));
       std::vector<llvm::KnownBits> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<std::vector<uint8_t>> all_synth_xfer_vals(synth_kbs.size());
 
@@ -209,21 +193,17 @@ int main()
       std::vector<CmpRes> all_results(synth_kbs.size());
       std::transform(all_synth_xfer_vals.begin(), all_synth_xfer_vals.end(),
                      all_results.begin(),
-                     [&brute_vals](std::vector<uint8_t> &transfer_vals)
-                     {
+                     [&brute_vals](std::vector<uint8_t> &transfer_vals) {
                        return compare(transfer_vals, brute_vals);
                      });
 
-      if (all_cases.size() == 0)
-      {
+      if (all_cases.size() == 0) {
         all_cases.resize(all_results.size());
-        std::fill(all_cases.begin(), all_cases.end(),
-                  CmpRes{0.0, 0.0, 0.0});
+        std::fill(all_cases.begin(), all_cases.end(), CmpRes{0.0, 0.0, 0.0});
       }
 
       for (int i = 0; i < all_results.size(); ++i)
-        for (int idx = 0; idx < 3; ++idx)
-        {
+        for (int idx = 0; idx < 3; ++idx) {
           all_cases[i][idx] += all_results[i][idx];
         }
 
@@ -235,8 +215,7 @@ int main()
   std::vector<double> p_exact;
   std::vector<double> p_precise;
 
-  for (int i = 0; i < all_cases.size(); ++i)
-  {
+  for (int i = 0; i < all_cases.size(); ++i) {
     // p_sound.push_back((double)(all_cases[i][3] + all_cases[i][2]) /
     //                   (double)total_abst_combos);
     // p_precise.push_back((double)(all_cases[i][3] + all_cases[i][1]) /
@@ -256,8 +235,7 @@ int main()
 
   puts("sound:");
   printf("[");
-  for (int i = 0; i < p_sound.size(); ++i)
-  {
+  for (int i = 0; i < p_sound.size(); ++i) {
     if (i == p_sound.size() - 1)
       printf("%f", p_sound[i]);
     else
@@ -267,8 +245,7 @@ int main()
 
   puts("exact:");
   printf("[");
-  for (int i = 0; i < p_exact.size(); ++i)
-  {
+  for (int i = 0; i < p_exact.size(); ++i) {
     if (i == p_exact.size() - 1)
       printf("%f", p_exact[i]);
     else
@@ -278,8 +255,7 @@ int main()
 
   puts("precise:");
   printf("[");
-  for (int i = 0; i < p_precise.size(); ++i)
-  {
+  for (int i = 0; i < p_precise.size(); ++i) {
     if (i == p_precise.size() - 1)
       printf("%f", p_precise[i]);
     else
