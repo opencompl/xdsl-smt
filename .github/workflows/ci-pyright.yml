@@ -37,7 +37,7 @@ jobs:
         run: |
           pip install .[dev]
       - name: Pyright
-        uses: jakebailey/pyright-action@v1
+        uses: jakebailey/pyright-action@v2
         with:
           version: PATH
           venv-path: venv
