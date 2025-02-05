@@ -225,15 +225,15 @@ class MCMCSampler:
         block.add_op(all_ones)
 
         # Part III: Main Body
-        # tmp_bool_ssavalue = true.results[0]
+        tmp_bool_ssavalue = true.results[0]
         for i in range(length // 2):
-            # nop_bool = arith.AndI(tmp_bool_ssavalue, tmp_bool_ssavalue)
+            nop_bool = arith.AndI(tmp_bool_ssavalue, tmp_bool_ssavalue)
             nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
-            # block.add_op(nop_bool)
+            block.add_op(nop_bool)
             block.add_op(nop_int)
 
         # Part III-2: Random reset main body
-        for i in range(length // 2):
+        for i in range(length):
             ops = list(block.ops)
             tmp_ops_len = len(block.ops)
             self.replace_entire_operation(block, ops, tmp_ops_len - 1 - i)
