@@ -10,11 +10,11 @@
 // CHECK-NEXT:    %memory = memory.get_memory %state
 // CHECK-NEXT:    %bid, %0 = memory.get_fresh_block_id %memory
 // CHECK-NEXT:    %block = memory.get_block %0[%bid]
-// CHECK-NEXT:    %1 = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:    %1 = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
 // CHECK-NEXT:    %block_1 = memory.set_block_live_marker %block, %1
 // CHECK-NEXT:    %block_2 = memory.set_block_size %block_1, %size
 // CHECK-NEXT:    %memory_1 = memory.set_block %block_2, %0[%bid]
-// CHECK-NEXT:    %2 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 64>} : () -> !smt.bv.bv<64>
+// CHECK-NEXT:    %2 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 64>} : () -> !smt.bv.bv<64>
 // CHECK-NEXT:    %ptr = "smt.utils.pair"(%bid, %2) : (!memory.block_id, !smt.bv.bv<64>) -> !smt.utils.pair<!memory.block_id, !smt.bv.bv<64>>
 // CHECK-NEXT:    %state_1 = memory.set_memory %state, %memory_1
 // CHECK-NEXT:    "test.op"(%state_1, %ptr) : (!effect.state, !smt.utils.pair<!memory.block_id, !smt.bv.bv<64>>) -> ()

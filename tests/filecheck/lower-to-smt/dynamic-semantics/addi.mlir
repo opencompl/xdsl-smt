@@ -49,7 +49,7 @@ func.func @f(%x: i32, %y: i32) -> (i32) {
 // CHECK-NEXT:      %7 = "smt.or"(%5, %6) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:      %z = "smt.utils.pair"(%4, %7) : (!smt.bv.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%z, %1) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "f"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
+// CHECK-NEXT:    }) {fun_name = "f"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
 // CHECK-NEXT:    pdl.pattern : benefit(1) {
 // CHECK-NEXT:      %i32_type = pdl.type : i32
 // CHECK-NEXT:      %lhs = pdl.operand

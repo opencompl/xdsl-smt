@@ -1,10 +1,13 @@
 from dataclasses import dataclass
 from xdsl.passes import ModulePass
 from xdsl.context import MLContext
+from xdsl.ir import Operation
+
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects import pdl, arith
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_dynamic_semantics
+from xdsl_smt.semantics.semantics import OperationSemantics
 
 
 @dataclass(frozen=True)
@@ -14,7 +17,7 @@ class DynamicSemantics(ModulePass):
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         pdl_module = op
         patterns = [op for op in pdl_module.walk() if isinstance(op, pdl.PatternOp)]
-        semantics = {}
+        semantics: dict[type[Operation], OperationSemantics] = {}
         for p in patterns:
             match_ops: list[pdl.OperationOp] = []
             rewrites: list[pdl.RewriteOp] = []
@@ -40,7 +43,7 @@ class DynamicSemantics(ModulePass):
             assert len(match_ops) == 1
             assert len(rewrites) == 1
             # Agregates the pairs op,semantics
-            supported_ops = [arith.Addi, arith.Constant]
+            supported_ops = [arith.AddiOp, arith.ConstantOp]
             for supported_op in supported_ops:
                 if (
                     str(match_ops[0].opName) == supported_op.name

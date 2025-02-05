@@ -8,7 +8,7 @@ from xdsl.ir import Operation
 
 from xdsl_smt.dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.func import FuncOp, Call, Return
+from xdsl.dialects import func
 from xdsl.ir import Operation
 from xdsl.context import MLContext
 from xdsl.ir import Operation, SSAValue
@@ -17,11 +17,11 @@ from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, Rewrite
 
 
 class FunctionCallInlinePattern(RewritePattern):
-    def __init__(self, func_name_to_func: dict[str, FuncOp]):
+    def __init__(self, func_name_to_func: dict[str, func.FuncOp]):
         self.func_name_to_func = func_name_to_func
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, callOp: Call, rewriter: PatternRewriter) -> None:
+    def match_and_rewrite(self, callOp: func.CallOp, rewriter: PatternRewriter) -> None:
         callee = callOp.callee.string_value()
         value_map: dict[SSAValue, SSAValue] = {}
         func_name_to_func = self.func_name_to_func
@@ -31,7 +31,7 @@ class FunctionCallInlinePattern(RewritePattern):
             value_map[arg] = callOp.arguments[i]
 
         for op in calleeFunc.body.ops:
-            if isinstance(op, Return):
+            if isinstance(op, func.ReturnOp):
                 callOp.results[0].replace_by(value_map[op.arguments[0]])
                 rewriter.erase_matched_op()
                 return
@@ -71,7 +71,7 @@ class FunctionCallInline(ModulePass):
     name = "callInline"
 
     is_SMT_call: bool
-    func_name_to_func: dict[str, FuncOp]
+    func_name_to_func: dict[str, func.FuncOp]
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         if self.is_SMT_call:

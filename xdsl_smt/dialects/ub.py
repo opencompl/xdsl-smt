@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Annotated, Generic, Sequence, TypeVar
+from typing_extensions import TypeVar
+from typing import Annotated, Generic, Sequence, ClassVar
 
 from xdsl.irdl import (
     irdl_attr_definition,
@@ -12,6 +13,11 @@ from xdsl.irdl import (
     region_def,
     var_result_def,
     var_operand_def,
+    VarConstraint,
+    AnyAttr,
+    ParamAttrConstraint,
+    GenericAttrConstraint,
+    traits_def,
 )
 from xdsl.ir import (
     ParametrizedAttribute,
@@ -25,7 +31,9 @@ from xdsl.ir import (
 from xdsl.traits import IsTerminator
 from xdsl.utils.isattr import isattr
 
-_UBAttrParameter = TypeVar("_UBAttrParameter", bound=Attribute)
+_UBAttrParameter = TypeVar(
+    "_UBAttrParameter", bound=Attribute, covariant=True, default=Attribute
+)
 
 
 @irdl_attr_definition
@@ -38,6 +46,13 @@ class UBOrType(Generic[_UBAttrParameter], ParametrizedAttribute, TypeAttribute):
 
     def __init__(self, type: _UBAttrParameter):
         super().__init__([type])
+
+    @classmethod
+    def constr(
+        cls,
+        type: GenericAttrConstraint[_UBAttrParameter],
+    ) -> GenericAttrConstraint[UBOrType[_UBAttrParameter]]:
+        return ParamAttrConstraint[UBOrType[_UBAttrParameter]](UBOrType, [type])
 
 
 @irdl_op_definition
@@ -64,10 +79,10 @@ class FromOp(IRDLOperation):
 
     name = "ub.from"
 
-    T = Annotated[Attribute, ConstraintVar("T")]
+    T: ClassVar = VarConstraint("T", AnyAttr())
 
     value = operand_def(T)
-    res = result_def(UBOrType[T])
+    res = result_def(UBOrType.constr(T))
 
     assembly_format = "$value attr-dict `:` type($res)"
 
@@ -166,7 +181,7 @@ class YieldOp(IRDLOperation):
 
     assembly_format = "$rets attr-dict `:` type($rets)"
 
-    traits = frozenset([IsTerminator()])
+    traits = traits_def(IsTerminator())
 
     def __init__(self, *rets: SSAValue):
         super().__init__(

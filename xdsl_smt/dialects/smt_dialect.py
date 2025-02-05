@@ -16,6 +16,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     Operand,
     IRDLOperation,
+    traits_def,
 )
 from xdsl.ir import (
     Block,
@@ -60,7 +61,7 @@ class YieldOp(IRDLOperation):
 
     name = "smt.yield"
 
-    traits = frozenset([IsTerminator()])
+    traits = traits_def(IsTerminator())
 
     ret: Operand = operand_def(BoolType)
 
@@ -87,7 +88,7 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BoolType)
     body: Region = region_def("single_block")
 
-    traits = frozenset([traits.Pure(), QuantifierCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), QuantifierCanonicalizationPatterns())
 
     @staticmethod
     def from_variables(
@@ -132,7 +133,7 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BoolType)
     body: Region = region_def("single_block")
 
-    traits = frozenset([traits.Pure(), QuantifierCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), QuantifierCanonicalizationPatterns())
 
     @staticmethod
     def from_variables(
@@ -178,7 +179,7 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
     func = operand_def(FunctionType)
     args = var_operand_def()
 
-    traits = frozenset([traits.Pure()])
+    traits = traits_def(traits.Pure())
 
     def __init__(self, func: Operand, args: Sequence[Operand | Operation]):
         if not isinstance(func.type, FunctionType):
@@ -422,7 +423,7 @@ class ReturnOp(IRDLOperation):
     name = "smt.return"
     ret = var_operand_def()
 
-    traits = frozenset([IsTerminator()])
+    traits = traits_def(IsTerminator())
 
     def __init__(self, operand: SSAValue | Sequence[SSAValue]):
         super().__init__(operands=[operand])
@@ -444,7 +445,7 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     res: OpResult = result_def()
 
     # TODO: This function is not constant if its value is not inhabited
-    traits = frozenset([traits.Pure()])
+    traits = traits_def(traits.Pure())
 
     def __init__(self, type: Attribute):
         super().__init__(result_types=[type])
@@ -555,7 +556,7 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     res: OpResult = result_def(BoolType)
     value: BoolAttr = attr_def(BoolAttr)
 
-    traits = frozenset([traits.Pure()])
+    traits = traits_def(traits.Pure())
 
     def __init__(self, value: bool):
         super().__init__(
@@ -594,7 +595,7 @@ class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
     res: OpResult = result_def(BoolType)
     arg: Operand = operand_def(BoolType)
 
-    traits = frozenset([traits.Pure(), NotCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), NotCanonicalizationPatterns())
 
     def __init__(self, arg: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[arg])
@@ -623,7 +624,7 @@ class ImpliesOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.implies"
 
-    traits = frozenset([traits.Pure(), ImpliesCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), ImpliesCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "=>"
@@ -645,7 +646,7 @@ class AndOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.and"
 
-    traits = frozenset([traits.Pure(), AndCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), AndCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "and"
@@ -667,7 +668,7 @@ class OrOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.or"
 
-    traits = frozenset([traits.Pure(), OrCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), OrCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "or"
@@ -689,7 +690,7 @@ class XorOp(BinaryBoolOp, SimpleSMTLibOp):
 
     name = "smt.xor"
 
-    traits = frozenset([traits.Pure(), XorCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), XorCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "xor"
@@ -711,7 +712,7 @@ class EqOp(BinaryTOp, SimpleSMTLibOp):
 
     name = "smt.eq"
 
-    traits = frozenset([traits.Pure(), EqCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), EqCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "="
@@ -733,7 +734,7 @@ class DistinctOp(BinaryTOp, SimpleSMTLibOp):
 
     name = "smt.distinct"
 
-    traits = frozenset([traits.Pure(), DistinctCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), DistinctCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "distinct"
@@ -766,7 +767,7 @@ class IteOp(IRDLOperation, Pure, SimpleSMTLibOp):
     true_val: Operand = operand_def()
     false_val: Operand = operand_def()
 
-    traits = frozenset([traits.Pure(), IteCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), IteCanonicalizationPatterns())
 
     def __init__(self, cond: SSAValue, true_val: SSAValue, false_val: SSAValue):
         super().__init__(

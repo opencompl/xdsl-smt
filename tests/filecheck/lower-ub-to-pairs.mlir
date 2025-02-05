@@ -15,9 +15,9 @@
 // CHECK:       builtin.module {
 // CHECK-NEXT:    %value = "smt.declare_const"() : () -> i32
 // CHECK-NEXT:    %0 = arith.constant 0 : i32
-// CHECK-NEXT:    %ub = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:    %ub = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
 // CHECK-NEXT:    %ub_1 = "smt.utils.pair"(%0, %ub) : (i32, !smt.bool) -> !smt.utils.pair<i32, !smt.bool>
-// CHECK-NEXT:    %non_ub = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:    %non_ub = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
 // CHECK-NEXT:    %non_ub_1 = "smt.utils.pair"(%value, %non_ub) : (i32, !smt.bool) -> !smt.utils.pair<i32, !smt.bool>
 // CHECK-NEXT:    %val1 = "smt.utils.first"(%ub_1) : (!smt.utils.pair<i32, !smt.bool>) -> i32
 // CHECK-NEXT:    %1 = "smt.utils.second"(%ub_1) : (!smt.utils.pair<i32, !smt.bool>) -> !smt.bool

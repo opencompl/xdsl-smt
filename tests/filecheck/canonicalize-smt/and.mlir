@@ -1,8 +1,8 @@
 // RUN: xdsl-smt "%s" -p=canonicalize,dce -t=smt | filecheck "%s"
 
 "builtin.module"() ({
-  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
-  %false = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+  %true = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+  %false = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
 
   %x = "smt.declare_const"() : () -> !smt.bool
 

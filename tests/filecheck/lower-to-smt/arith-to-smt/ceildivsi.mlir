@@ -17,13 +17,13 @@
 // CHECK-NEXT:      %4 = "smt.utils.first"(%y) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bv.bv<32>
 // CHECK-NEXT:      %5 = "smt.utils.second"(%y) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:      %6 = "smt.or"(%3, %5) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:      %7 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<2147483648: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:      %8 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:      %9 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<1: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:      %7 = "smt.bv.constant"() {value = #smt.bv.bv_val<2147483648: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:      %8 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:      %9 = "smt.bv.constant"() {value = #smt.bv.bv_val<1: 32>} : () -> !smt.bv.bv<32>
 // CHECK-NEXT:      %10 = "smt.eq"(%2, %7) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %11 = "smt.eq"(%4, %8) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %12 = "smt.and"(%10, %11) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:      %13 = "smt.bv.constant"() {"value" = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:      %13 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
 // CHECK-NEXT:      %14 = "smt.eq"(%13, %4) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %15 = "smt.or"(%12, %14) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:      %16 = "smt.bv.slt"(%2, %13) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
@@ -44,5 +44,5 @@
 // CHECK-NEXT:      %31 = "smt.or"(%15, %6) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:      %r = "smt.utils.pair"(%30, %31) : (!smt.bv.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%r, %1) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
+// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
 // CHECK-NEXT:  }
