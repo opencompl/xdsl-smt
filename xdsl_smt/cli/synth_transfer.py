@@ -391,11 +391,20 @@ def print_to_cpp(func: FuncOp) -> str:
     return sio.getvalue()
 
 
-SYNTH_WIDTH = 4
+def get_default_op_constraint():
+    return """
+    int op_constraint(APInt arg0,APInt arg1){
+	return true;
+    }
+    """
+
+
+SYNTH_WIDTH = 8
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
+OP_CONSTRAINT = "op_constraint"
 TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
 
@@ -468,6 +477,20 @@ def main() -> None:
     context = SynthesizerContext(random)
     context.set_cmp_flags([0, 6, 7])
 
+    domain_constraint_func = ""
+    instance_constraint_func = ""
+    op_constraint_func = get_default_op_constraint()
+    # Handle helper funcitons
+    for func in module.ops:
+        if isinstance(func, FuncOp):
+            func_name = func.sym_name.data
+            if func_name == DOMAIN_CONSTRAINT:
+                domain_constraint_func = print_to_cpp(func)
+            elif func_name == INSTANCE_CONSTRAINT:
+                instance_constraint_func = print_to_cpp(func)
+            elif func_name == OP_CONSTRAINT:
+                op_constraint_func = print_to_cpp(func)
+
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             concrete_func_name = ""
@@ -511,9 +534,23 @@ def main() -> None:
                     cpp_code = print_to_cpp(func_to_eval)
                     cpp_codes.append(cpp_code)
 
-                soundness_percent, precision_percent = eval_transfer_func(
-                    [func_name] * NUM_PROGRAMS, cpp_codes, crt_func
+                num_unsound, _imprecision, num_exact, num_cases = eval_transfer_func(
+                    [func_name] * NUM_PROGRAMS,
+                    cpp_codes,
+                    crt_func
+                    + "\n"
+                    + instance_constraint_func
+                    + "\n"
+                    + domain_constraint_func
+                    + "\n"
+                    + op_constraint_func,
                 )
+
+                _imprecision = 0  # Skip imprecision measurement right now
+                soundness_percent = [
+                    1 - (a / b) for a, b in zip(num_unsound, num_cases)
+                ]
+                precision_percent = [a / b for a, b in zip(num_exact, num_cases)]
 
                 for i in range(NUM_PROGRAMS):
                     proposed_cost = compute_cost(
@@ -535,7 +572,6 @@ def main() -> None:
                         assert mcmc_samplers[i].get_proposed() is None
 
                         if cost_reduce > 0:
-                            # if True:
                             print_func_to_file(
                                 mcmc_samplers[i], round, i, OUTPUTS_FOLDER
                             )
