@@ -149,6 +149,13 @@ def eval_transfer_func(
     return sounds, precs, exact, num_cases
 
 
+# cost function on `synth_transfer` branch as of feb 05
+# git commit 9df592f15b23e1759365d20790760ff192d232d7
+def compute_cost(soundness: float, precision: float) -> float:
+    a: float = 1
+    b: float = 4
+    return (a * (1 - soundness) + b * (1 - precision)) / (a + b)
+
 '''
 if __name__ == "__main__":
     concrete_op = """
@@ -156,31 +163,47 @@ if __name__ == "__main__":
         return a+b;
     }
     """
-    transfer_func_name = "ANDImpl"
+    transfer_func_name = "llm_wrapper"
     transfer_func_src = """
-    std::vector<APInt> ANDImpl(std::vector<APInt> arg0,
-                                     std::vector<APInt> arg1) {
-      APInt arg0_0 = arg0[0];
-      APInt arg0_1 = arg0[1];
-      APInt arg1_0 = arg1[0];
-      APInt arg1_1 = arg1[1];
-      APInt result_0 = arg0_0 | arg1_0;
-      APInt result_1 = arg0_1 & arg1_1;
-      return{result_0, result_1};
-    }
+        #include <llvm/ADT/APInt.h>
+        #include <tuple>
+        #include <vector>
+
+        using llvm::APInt;
+
+        std::tuple<int, int> abstract_udiv(std::tuple<int, int> &lhs, std::tuple<int, int> &rhs) {
+          return std::make_tuple(0, 0);
+        }
+
+        std::vector<APInt> llm_wrapper(std::vector<APInt> arg0,
+                                       std::vector<APInt> arg1) {
+          auto lhs = std::tuple(static_cast<int>(arg0[0].getZExtValue()),
+                                static_cast<int>(arg0[1].getZExtValue()));
+          auto rhs = std::tuple(static_cast<int>(arg1[0].getZExtValue()),
+                                static_cast<int>(arg1[1].getZExtValue()));
+          auto res = abstract_udiv(lhs, rhs);
+
+          APInt res_0 = APInt(4, static_cast<uint64_t>(std::get<0>(res)));
+          APInt res_1 = APInt(4, static_cast<uint64_t>(std::get<1>(res)));
+
+          return {res_0, res_1};
+        }
     """
 
-    names = list(repeat(transfer_func_name, 10))
-    srcs = list(repeat(transfer_func_src, 10))
-    sound_percent, precise_percent = eval_transfer_func(names, srcs, concrete_op)
+    names = [transfer_func_name]
+    srcs = [transfer_func_src]
+    num_unsound, imprecision, num_exact, num_cases = eval_transfer_func(
+        names, srcs, concrete_op
+    )
 
-    print(f"sound percent:   {sound_percent}")
-    print(f"precise percent: {precise_percent}")
+    soundness_percent = 1 - (num_unsound[0] / num_cases[0])
+    precision_percent = num_exact[0] / num_cases[0]
+
+    proposed_cost = compute_cost(soundness_percent, precision_percent)
+
+    print(f"num_unsound:   {num_unsound[0]}")
+    print(f"imprecision:   {imprecision[0]}")
+    print(f"num_exact:     {num_exact[0]}")
+    print(f"num_cases:     {num_cases[0]}")
+    print(f"proposed_cost: {proposed_cost:.04f}")
 '''
-
-# notes
-# 1    =  0.849s
-# 10   =  0.974s
-# 100  =  1.909s
-# 250  =  3.719s
-# 1000 = 12.361s
