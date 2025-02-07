@@ -2,6 +2,8 @@ import os
 from os import path
 from subprocess import run, PIPE
 
+from xdsl_smt.utils.cmp_result import CmpRes
+
 
 def get_build_cmd() -> list[str]:
     has_libclang = (
@@ -83,8 +85,16 @@ def make_xfer_header(concrete_op: str) -> str:
     return includes + concrete_op + conc_op_wrapper
 
 
-def make_xfer_wrapper(func_names: list[str]) -> str:
-    func_sig = "std::vector<llvm::KnownBits> synth_function_wrapper(const llvm::KnownBits &lhs, const llvm::KnownBits &rhs)"
+func_to_eval_wrapper_name = "synth_function"
+ref_func_wrapper_name = "ref_function"
+
+
+def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
+    func_sig = (
+        "std::vector<llvm::KnownBits> "
+        + wrapper_name
+        + "_wrapper(const llvm::KnownBits &lhs, const llvm::KnownBits &rhs)"
+    )
 
     def make_func_call(x: str) -> str:
         return (
@@ -107,23 +117,41 @@ def eval_transfer_func(
     xfer_names: list[str],
     xfer_srcs: list[str],
     concrete_op_expr: str,
-) -> tuple[list[int], list[int], list[int], list[int]]:
+    ref_xfer_names: list[str],
+    ref_xfer_srcs: list[str],
+) -> list[CmpRes]:
     transfer_func_header = make_xfer_header(concrete_op_expr)
 
+    # rename the transfer functions
+    ref_xfer_srcs = [
+        src.replace(nm, f"{nm}_{i}")
+        for i, (nm, src) in enumerate(zip(ref_xfer_names, ref_xfer_srcs))
+    ]
+    ref_xfer_names = [f"{nm}_{i}" for i, nm in enumerate(ref_xfer_names)]
+
+    # create the wrapper
+    ref_xfer_func_wrapper = make_xfer_wrapper(ref_xfer_names, ref_func_wrapper_name)
+
+    # rename the transfer functions
     xfer_srcs = [
         src.replace(nm, f"{nm}_{i}")
         for i, (nm, src) in enumerate(zip(xfer_names, xfer_srcs))
     ]
     xfer_names = [f"{nm}_{i}" for i, nm in enumerate(xfer_names)]
-    xfer_func_wrapper = make_xfer_wrapper(xfer_names)
-    all_xfer_src = "\n".join(xfer_srcs)
+
+    # create the wrapper
+    xfer_func_wrapper = make_xfer_wrapper(xfer_names, func_to_eval_wrapper_name)
+
+    all_xfer_src = "\n".join(xfer_srcs + ref_xfer_srcs)
 
     base_dir = path.join("xdsl_smt", "eval_engine")
     cur_dir = os.getcwd()
     synth_code_path = path.join(cur_dir, base_dir, "src", "synth.cpp")
 
     with open(synth_code_path, "w") as f:
-        f.write(f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}")
+        f.write(
+            f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}\n{ref_xfer_func_wrapper}"
+        )
 
     try:
         os.mkdir(path.join(cur_dir, base_dir, "build"))
@@ -145,8 +173,27 @@ def eval_transfer_func(
     precs = get_floats(eval_output_lines[3])
     exact = get_floats(eval_output_lines[5])
     num_cases = get_floats(eval_output_lines[7])
+    unsolved_sounds = get_floats(eval_output_lines[9])
+    unsolved_precs = get_floats(eval_output_lines[11])
+    unsolved_exact = get_floats(eval_output_lines[13])
+    unsolved_num_cases = get_floats(eval_output_lines[15])
 
-    return sounds, precs, exact, num_cases
+    cmp_results: list[CmpRes] = [
+        CmpRes(
+            num_cases[i],
+            sounds[i],
+            exact[i],
+            precs[i],
+            unsolved_num_cases[i],
+            unsolved_sounds[i],
+            unsolved_exact[i],
+            unsolved_precs[i],
+        )
+        for i in range(len(sounds))
+    ]
+
+    # return sounds, precs, exact, num_cases, unsolved_sounds, unsolved_precs, unsolved_exact, unsolved_num_cases
+    return cmp_results
 
 
 '''
