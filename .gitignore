@@ -128,3 +128,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# ignore synthesised cpp testing harness
+*synth.cpp
