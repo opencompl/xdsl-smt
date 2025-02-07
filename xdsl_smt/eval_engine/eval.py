@@ -70,7 +70,6 @@ def get_build_cmd() -> list[str]:
 def make_xfer_header(concrete_op: str) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
-    #include <llvm/Support/KnownBits.h>
     #include <tuple>
     #include <vector>
     using llvm::APInt;
@@ -84,16 +83,13 @@ def make_xfer_header(concrete_op: str) -> str:
 
 
 def make_xfer_wrapper(func_names: list[str]) -> str:
-    func_sig = "std::vector<llvm::KnownBits> synth_function_wrapper(const llvm::KnownBits &lhs, const llvm::KnownBits &rhs)"
+    func_sig = "std::vector<AbstVal> synth_function_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
 
     def make_func_call(x: str) -> str:
-        return (
-            f"const std::vector<llvm::APInt> res_v_{x} = {x}"
-            + "({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});"
-        )
+        return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"llvm::KnownBits res_{x};\nres_{x}.Zero = res_v_{x}[0];\nres_{x}.One = res_v_{x}[1];\n"
+        return f"AbstVal res_{x}(lhs.domain, res_v_{x});"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -155,6 +151,7 @@ def compute_cost(soundness: float, precision: float) -> float:
     a: float = 1
     b: float = 4
     return (a * (1 - soundness) + b * (1 - precision)) / (a + b)
+
 
 '''
 if __name__ == "__main__":

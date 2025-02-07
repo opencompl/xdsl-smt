@@ -3,115 +3,104 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <llvm/ADT/APInt.h>
-#include <llvm/Support/KnownBits.h>
 #include <vector>
 
+#include <llvm/ADT/APInt.h>
+
+#include "AbstVal.cpp"
 #include "synth.cpp"
 
-// TODO switch between signed and unsigned ops when needed
-// enum TransferResult { GOOD, NOT_SOUND, NOT_PREC, NEITHER };
-
-void print_abst_range(const llvm::KnownBits &x) {
-  for (uint32_t i = x.Zero.getBitWidth() - 1; i >= 0; --i) {
-    const char bit = x.One[i] ? '1' : x.Zero[i] ? '0' : '?';
-    printf("%c", bit);
-  }
-
-  if (x.isConstant())
-    printf(" const %lu", x.getConstant().getZExtValue());
-
-  if (x.isUnknown())
-    printf(" (top)");
-
-  printf("\n");
-}
-
 // TODO consider printing full/top if it is
-void print_conc_range(const std::vector<uint8_t> &x) {
+void printConcRange(const std::vector<uint8_t> &x) {
   if (x.empty())
     printf("empty");
 
   for (auto i : x)
     printf("%hhu ", i);
 
-  puts("");
+  printf("\n");
 }
 
 // TODO there's a faster way to this but this works for now
 // would also be nice if this moved up the lattice as the loops progressed
-std::vector<llvm::KnownBits> const enum_abst_vals(const uint32_t bitwidth) {
-  std::vector<llvm::KnownBits> ret;
-  const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
-  for (uint64_t i = 0; i <= max.getZExtValue(); ++i) {
-    for (uint64_t j = 0; j <= max.getZExtValue(); ++j) {
-      auto x = llvm::KnownBits(bitwidth);
-      x.One = i;
-      x.Zero = j;
+// TODO x2 need to exclude certain abstract vals as needed
+std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
+                                        const Domain d) {
+  if (d == KNOWN_BITS) {
+    std::vector<AbstVal> ret;
+    const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
+    for (uint64_t i = 0; i <= max.getZExtValue(); ++i) {
+      for (uint64_t j = 0; j <= max.getZExtValue(); ++j) {
+        llvm::APInt zero = llvm::APInt(bitwidth, i);
+        llvm::APInt one = llvm::APInt(bitwidth, j);
+        AbstVal x(KNOWN_BITS, {zero, one});
 
-      if (!x.hasConflict())
-        ret.push_back(x);
+        if (!x.hasConflict())
+          ret.push_back(x);
+      }
     }
+    return ret;
+  } else if (d == CONSTANT_RANGE) {
+    std::vector<AbstVal> ret;
+    const llvm::APInt min = llvm::APInt::getMinValue(bitwidth);
+    const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
+
+    for (llvm::APInt i = min;; ++i) {
+      for (llvm::APInt j = min;; ++j) {
+        if (i == j && !(i.isMaxValue() || i.isMinValue())) {
+          if (j == max)
+            break;
+          else
+            continue;
+        }
+
+        ret.push_back(AbstVal(CONSTANT_RANGE, {i, j}));
+
+        if (j == max)
+          break;
+      }
+      if (i == max)
+        break;
+    }
+
+    return ret;
+  } else {
+    printf("unknown abstract domain\n");
   }
 
-  return ret;
+  return {};
 }
 
-// TODO return a generic container based on what the caller asks for
-// TODO there's a faster way to this but this works for now
-std::vector<uint8_t> const to_concrete(const llvm::KnownBits &x) {
-  std::vector<uint8_t> ret;
-  const llvm::APInt min = llvm::APInt::getZero(x.Zero.getBitWidth());
-  const llvm::APInt max = llvm::APInt::getMaxValue(x.Zero.getBitWidth());
+AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
+                       uint8_t (*op)(const uint8_t, const uint8_t),
+                       uint8_t bitwidth) {
 
-  for (auto i = min;; ++i) {
+  assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
+         "function not implemented for other domains\n");
 
-    if (!x.Zero.intersects(i) && !x.One.intersects(~i))
-      ret.push_back(static_cast<uint8_t>(i.getZExtValue()));
-
-    if (i == max)
-      break;
-  }
-
-  return ret;
-}
-
-llvm::KnownBits const to_abstract(const std::vector<uint8_t> &conc_vals,
-                                  uint8_t bitwidth) {
-  auto ret = llvm::KnownBits::makeConstant(llvm::APInt(bitwidth, conc_vals[0]));
-
-  for (auto x : conc_vals) {
-    ret = ret.intersectWith(
-        llvm::KnownBits::makeConstant(llvm::APInt(bitwidth, x)));
-  }
-
-  return ret;
-}
-
-llvm::KnownBits to_best_abstract(const llvm::KnownBits lhs,
-                                 const llvm::KnownBits rhs,
-                                 uint8_t (*op)(const uint8_t, const uint8_t),
-                                 uint8_t bitwidth) {
-  bool hasInit = false;
-  llvm::KnownBits result(bitwidth);
+  // TODO generate this bit mask automaticlly
   uint8_t mask = 0b00001111;
-  for (auto lhs_val : to_concrete(lhs)) {
-    for (auto rhs_val : to_concrete(rhs)) {
+  // really incredibly stupid but idk how to use unique ptrs
+  std::vector<AbstVal> res;
+
+  for (auto lhs_val : lhs.toConcrete()) {
+    for (auto rhs_val : rhs.toConcrete()) {
       // stubbed out op_constraint for now
       // if (op_constraint(APInt(bitwidth, lhs_val), APInt(bitwidth, rhs_val)))
       if (true) {
-        auto crt_res = llvm::KnownBits::makeConstant(
-            llvm::APInt(bitwidth, op(lhs_val, rhs_val) & mask));
-        if (!hasInit) {
-          result = crt_res;
-          hasInit = true;
+        llvm::APInt v(bitwidth, op(lhs_val, rhs_val) & mask);
+        AbstVal crtVal(KNOWN_BITS, v);
+
+        if (res.size() == 0) {
+          res.push_back(crtVal);
         } else {
-          result = result.intersectWith(crt_res);
+          res[0] = res[0].intersectWith(crtVal);
         }
       }
     }
   }
-  return result;
+
+  return res[0];
 }
 
 // TODO be able to return generic std container
@@ -136,18 +125,21 @@ std::vector<uint8_t> const concrete_op_enum(const std::vector<uint8_t> &lhss,
   return ret;
 }
 
-unsigned int compare_abstract(llvm::KnownBits abs_res,
-                              llvm::KnownBits best_abs_res, bool &isUnsound) {
-  const llvm::APInt min = llvm::APInt::getZero(abs_res.Zero.getBitWidth());
-  const llvm::APInt max = llvm::APInt::getMaxValue(abs_res.Zero.getBitWidth());
+unsigned int compare_abstract(AbstVal abs_res, AbstVal best_abs_res,
+                              bool &isUnsound, uint32_t bitwidth) {
+  assert(abs_res.domain == KNOWN_BITS && best_abs_res.domain == KNOWN_BITS &&
+         "function not implemented for other domains\n");
+
+  const llvm::APInt min = llvm::APInt::getMinValue(bitwidth);
+  const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
 
   unsigned result = 0;
 
   for (auto i = min;; ++i) {
     bool in_abs_res =
-        !abs_res.Zero.intersects(i) && !abs_res.One.intersects(~i);
+        !abs_res.v[0].intersects(i) && !abs_res.v[1].intersects(~i);
     bool in_best_abs_res =
-        !best_abs_res.Zero.intersects(i) && !best_abs_res.One.intersects(~i);
+        !best_abs_res.v[0].intersects(i) && !best_abs_res.v[1].intersects(~i);
     if (in_best_abs_res && !in_abs_res) {
       // unsound
       isUnsound = true;
@@ -196,35 +188,49 @@ unsigned int compare(std::vector<uint8_t> &approx,
   return 3;
 }
 
+void printEvalResults(const std::vector<std::vector<unsigned int>> &x) {
+  printf("sound:\n");
+  printf("[");
+  for (uint32_t i = 0; i < x.size(); ++i) {
+    printf("%d, ", x[i][0]);
+  }
+  printf("]\n");
+
+  printf("precise:\n");
+  printf("[");
+  for (uint32_t i = 0; i < x.size(); ++i) {
+    printf("%d, ", x[i][1]);
+  }
+  printf("]\n");
+
+  printf("exact:\n");
+  printf("[");
+  for (uint32_t i = 0; i < x.size(); ++i) {
+    printf("%d, ", x[i][2]);
+  }
+  printf("]\n");
+
+  printf("num_cases:\n");
+  printf("[");
+  for (uint32_t i = 0; i < x.size(); ++i) {
+    printf("%d, ", x[i][3]);
+  }
+  printf("]\n");
+}
+
 int main() {
   const size_t bitwidth = 4;
 
   std::vector<std::vector<unsigned int>> all_cases;
   long long total_abst_combos = 0;
 
-  for (auto lhs : enum_abst_vals(bitwidth)) {
-    for (auto rhs : enum_abst_vals(bitwidth)) {
+  for (auto lhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
+    for (auto rhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
 
-      // auto brute_vals =
-      //     concrete_op_enum(to_concrete(lhs), to_concrete(rhs),
-      //     concrete_op_wrapper);
       auto best_abstract_res =
-          to_best_abstract(lhs, rhs, concrete_op_wrapper, bitwidth);
+          toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth);
 
-      std::vector<llvm::KnownBits> synth_kbs(synth_function_wrapper(lhs, rhs));
-      /*
-      std::vector<std::vector<uint8_t>> all_synth_xfer_vals(synth_kbs.size());
-
-      std::transform(synth_kbs.begin(), synth_kbs.end(),
-                     all_synth_xfer_vals.begin(), to_concrete);
-
-      std::vector<unsigned int> all_results(synth_kbs.size());
-      std::transform(all_synth_xfer_vals.begin(), all_synth_xfer_vals.end(),
-                     all_results.begin(),
-                     [&brute_vals](std::vector<uint8_t> &transfer_vals) {
-                       return compare(transfer_vals, brute_vals);
-                     });
-      */
+      std::vector<AbstVal> synth_kbs(synth_function_wrapper(lhs, rhs));
 
       if (all_cases.size() == 0) {
         all_cases.resize(synth_kbs.size());
@@ -238,8 +244,8 @@ int main() {
         if (synth_kbs[i] == best_abstract_res) {
           all_cases[i][2] += 1;
         } else {
-          auto num_non_precision =
-              compare_abstract(synth_kbs[i], best_abstract_res, isUnsound);
+          auto num_non_precision = compare_abstract(
+              synth_kbs[i], best_abstract_res, isUnsound, bitwidth);
           if (isUnsound) {
             all_cases[i][0] += 1;
           }
@@ -254,39 +260,7 @@ int main() {
     res[3] = static_cast<uint32_t>(total_abst_combos);
   }
 
-  // printf("Not sound or precise: %i\n", cases[0]);
-  // printf("Not sound:            %i\n", cases[1]);
-  // printf("Not precise:          %i\n", cases[2]);
-  // printf("Good:                 %i\n", cases[3]);
-  // printf("total tests: %lld\n", total_abst_combos);
-
-  puts("sound:");
-  printf("[");
-  for (uint32_t i = 0; i < all_cases.size(); ++i) {
-    printf("%d, ", all_cases[i][0]);
-  }
-  printf("]\n");
-
-  puts("precise:");
-  printf("[");
-  for (uint32_t i = 0; i < all_cases.size(); ++i) {
-    printf("%d, ", all_cases[i][1]);
-  }
-  printf("]\n");
-
-  puts("exact:");
-  printf("[");
-  for (uint32_t i = 0; i < all_cases.size(); ++i) {
-    printf("%d, ", all_cases[i][2]);
-  }
-  printf("]\n");
-
-  puts("num_cases:");
-  printf("[");
-  for (uint32_t i = 0; i < all_cases.size(); ++i) {
-    printf("%d, ", all_cases[i][3]);
-  }
-  printf("]\n");
+  printEvalResults(all_cases);
 
   return 0;
 }
