@@ -90,8 +90,8 @@ basic_int_ops: list[type[Operation]] = [
     OrOp,
     XorOp,
     AddOp,
-    SubOp,
-    SelectOp,
+    # SubOp,
+    # SelectOp,
 ]
 
 
@@ -174,7 +174,9 @@ class SynthesizerContext:
             return NegOp(int_vals[0])
         assert result_type is not None
         result = result_type(
-            int_vals[0], int_vals[1]  # pyright: ignore [reportGeneralTypeIssues]
+            # pyright: ignore [reportGeneralTypeIssues]
+            int_vals[0],
+            int_vals[1],
         )
         assert isinstance(result, Operation)
         return result
@@ -196,7 +198,8 @@ class SynthesizerContext:
             )
         assert result_type is not None
         result = result_type(
-            self.random.choice(i1_vals),  # pyright: ignore [reportGeneralTypeIssues]
+            # pyright: ignore [reportGeneralTypeIssues]
+            self.random.choice(i1_vals),
             self.random.choice(i1_vals),
         )
         assert isinstance(result, Operation)
@@ -221,7 +224,8 @@ class SynthesizerContext:
             return NegOp(self.random.choice(int_vals))
         assert result_type is not None
         result = result_type(
-            self.random.choice(int_vals),  # pyright: ignore [reportGeneralTypeIssues]
+            # pyright: ignore [reportGeneralTypeIssues]
+            self.random.choice(int_vals),
             self.random.choice(int_vals),
         )
         assert isinstance(result, Operation)
