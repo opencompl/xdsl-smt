@@ -70,7 +70,7 @@ from xdsl_smt.semantics.transfer_semantics import (
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
-from ..utils.cost_model import compute_cost, decide
+from ..utils.cost_model import decide
 from ..utils.mcmc_sampler import MCMCSampler
 from ..utils.synthesizer_context import SynthesizerContext
 from ..utils.random import Random
@@ -417,7 +417,7 @@ def print_func_to_file(sampler: MCMCSampler, rd: int, i: int, path: str):
     res = sampler.current_cmp
     with open(f"{path}/tf{rd}_{i}.mlir", "w") as file:
         file.write(
-            f"Run: {rd}_{i}\nCost: {res.get_cost()}\nSoundness: {res.get_sound_prop()}\nPrecision: {res.get_unsolved_exact_prop()}\n"
+            f"Run: {rd}_{i}\nCost: {res.get_cost()}\nSound: {res.get_sound_prop()}\nUExact: {res.get_unsolved_exact_prop()}\nUDis: {res.get_unsolved_edit_dis_avg()}\n{res}\n"
         )
         file.write(str(sampler.get_current()))
 
@@ -651,7 +651,7 @@ def main() -> None:
                 for i in range(NUM_PROGRAMS):
                     res = mcmc_samplers[i].current_cmp
                     print(
-                        f"{round}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_cost():.3f}"
+                        f"{round}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
                     )
                     # print(res)
                     cost_data[i].append(res.get_cost())
