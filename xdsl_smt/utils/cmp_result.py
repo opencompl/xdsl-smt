@@ -1,7 +1,7 @@
-from xdsl_smt.utils.cost_model import compute_cost
-
-
 class CmpRes:
+    # todo: get bidwidth from the somewhere else
+    BITWIDTH = 4
+
     all_cases: int
     sounds: int
     exacts: int
@@ -27,8 +27,10 @@ class CmpRes:
 
     def get_cost(self) -> float:
         if self.cost is None:
-            self.cost = compute_cost(
-                self.get_sound_prop(), self.get_unsolved_exact_prop())
+            alpha = 8
+            sound = self.get_sound_prop()
+            dis = self.get_unsolved_edit_dis_avg() / (self.BITWIDTH * 2)
+            self.cost = (1 - sound + alpha * dis) / (1+alpha)
         return self.cost
 
     def get_sound_prop(self) -> float:
@@ -42,3 +44,9 @@ class CmpRes:
 
     def get_unsolved_exact_prop(self) -> float:
         return self.unsolved_exacts / self.unsolved_cases
+
+    def get_edit_dis_avg(self) -> float:
+        return self.edit_dis / self.all_cases
+
+    def get_unsolved_edit_dis_avg(self) -> float:
+        return self.unsolved_edit_dis / self.unsolved_cases
