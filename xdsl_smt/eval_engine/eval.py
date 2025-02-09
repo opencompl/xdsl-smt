@@ -178,6 +178,18 @@ def eval_transfer_func(
     unsolved_exact = get_floats(eval_output_lines[13])
     unsolved_num_cases = get_floats(eval_output_lines[15])
 
+    assert len(sounds) > 0, f"No output from EvalEngine: {eval_output}"
+    assert (
+        len(sounds)
+        == len(precs)
+        == len(exact)
+        == len(num_cases)
+        == len(unsolved_sounds)
+        == len(unsolved_precs)
+        == len(unsolved_exact)
+        == len(unsolved_num_cases)
+    ), f"EvalEngine output mismatch: {eval_output}"
+
     cmp_results: list[CmpRes] = [
         CmpRes(
             num_cases[i],

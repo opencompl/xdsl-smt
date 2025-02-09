@@ -161,6 +161,18 @@ unsigned int compare_abstract(llvm::KnownBits abs_res,
   return result;
 }
 
+// check if res is a superset of best_res
+bool kb_check_include(const llvm::KnownBits &res,
+                      const llvm::KnownBits &best_res) {
+  return res.unionWith(best_res) == best_res;
+}
+
+// compute the edit distance between 2 KnownBits
+int kb_edit_dis(const llvm::KnownBits &res, const llvm::KnownBits &best_res) {
+  return (res.Zero ^ best_res.Zero).popcount() +
+         (res.One ^ best_res.One).popcount();
+}
+
 // TODO make case enum
 unsigned int compare(std::vector<uint8_t> &approx,
                      std::vector<uint8_t> &exact) {
@@ -207,10 +219,6 @@ int main() {
 
   for (auto lhs : enum_abst_vals(bitwidth)) {
     for (auto rhs : enum_abst_vals(bitwidth)) {
-
-      // auto brute_vals =
-      //     concrete_op_enum(to_concrete(lhs), to_concrete(rhs),
-      //     concrete_op_wrapper);
       auto best_abstract_res =
           to_best_abstract(lhs, rhs, concrete_op_wrapper, bitwidth);
 
@@ -220,23 +228,6 @@ int main() {
       llvm::KnownBits cur_kb = llvm::KnownBits(bitwidth);
       for (auto kb : ref_kbs)
         cur_kb = cur_kb.unionWith(kb);
-      // skip inputs
-      // if (cur_kb == best_abstract_res)
-      //   continue;
-
-      /*
-      std::vector<std::vector<uint8_t>> all_synth_xfer_vals(synth_kbs.size());
-
-      std::transform(synth_kbs.begin(), synth_kbs.end(),
-                     all_synth_xfer_vals.begin(), to_concrete);
-
-      std::vector<unsigned int> all_results(synth_kbs.size());
-      std::transform(all_synth_xfer_vals.begin(), all_synth_xfer_vals.end(),
-                     all_results.begin(),
-                     [&brute_vals](std::vector<uint8_t> &transfer_vals) {
-                       return compare(transfer_vals, brute_vals);
-                     });
-      */
 
       if (all_cases.size() == 0) {
         all_cases.resize(synth_kbs.size());
@@ -252,42 +243,31 @@ int main() {
 
       bool solved = cur_kb == best_abstract_res;
 
-      // if (!solved)
-      // {
-      //   std::clog << "lhs: ";
-      //   lhs.print(llvm::dbgs());
-      //   std::clog << ", rhs: ";
-      //   rhs.print(llvm::dbgs());
-      //   std::clog << ", best: ";
-      //   best_abstract_res.print(llvm::dbgs());
-      //   std::clog << ", res: ";
-      //   cur_kb.print(llvm::dbgs());
-      //   std::clog << ", same? " << (solved ? "T" : "F") << "\n";
-      // }
-
       for (int i = 0; i < synth_kbs.size(); ++i) {
         llvm::KnownBits synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
-        // sound non_precision exact num_cases
-        bool isUnsound = false;
-        if (synth_after_meet == best_abstract_res) {
-          all_cases[i][2] += 1;
-          all_cases[i][0] += 1;
-          if (!solved) {
-            unsolved_cases[i][2] += 1;
-            unsolved_cases[i][0] += 1;
-          }
-        } else {
-          auto num_non_precision =
-              compare_abstract(synth_after_meet, best_abstract_res, isUnsound);
-          if (!isUnsound) {
-            all_cases[i][0] += 1;
-            if (!solved)
-              unsolved_cases[i][0] += 1;
-          }
-          all_cases[i][1] += num_non_precision;
-          if (!solved)
-            unsolved_cases[i][1] += num_non_precision;
+        bool sound = kb_check_include(synth_after_meet, best_abstract_res);
+        bool exact = synth_after_meet == best_abstract_res;
+        int dis = kb_edit_dis(synth_after_meet, best_abstract_res);
+
+        all_cases[i][0] += sound;
+        all_cases[i][1] += dis;
+        all_cases[i][2] += exact;
+        if (!solved) {
+          unsolved_cases[i][0] += sound;
+          unsolved_cases[i][1] += dis;
+          unsolved_cases[i][2] += exact;
         }
+
+        // std::clog << "lhs: ";
+        // lhs.print(llvm::dbgs());
+        // std::clog << ", rhs: ";
+        // rhs.print(llvm::dbgs());
+        // std::clog << ", best: ";
+        // best_abstract_res.print(llvm::dbgs());
+        // std::clog << ", res: ";
+        // synth_after_meet.print(llvm::dbgs());
+        // std::clog << ", sound: " << sound << ", exact: " << exact
+        //           << ", dis: " << dis << "\n";
       }
 
       total_abst_combos++;
