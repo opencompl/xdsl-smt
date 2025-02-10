@@ -110,7 +110,7 @@ class MatchOp(IRDLOperation):
 
     assembly_format = "$values attr-dict-with-keyword `:` `(` type($values) `)` `->` type($res) $value_region $ub_region"
 
-    def __init__(self, values: Sequence[SSAValue]):
+    def __init__(self, values: Sequence[SSAValue], result_types: Sequence[Attribute]):
         value_types = list[UBOrType[Attribute]]()
         for value in values:
             if not isattr(value.type, UBOrType[Attribute]):
@@ -120,7 +120,7 @@ class MatchOp(IRDLOperation):
         ub_region = Region(Block((), arg_types=[]))
         super().__init__(
             operands=[values],
-            result_types=[],
+            result_types=[result_types],
             regions=[value_region, ub_region],
         )
 
