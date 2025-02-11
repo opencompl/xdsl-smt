@@ -2,8 +2,8 @@
 
 "builtin.module"() ({
 
-  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
-  %false = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+  %true = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+  %false = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
 
   // not true -> false
   %a = "smt.not"(%true) : (!smt.bool) -> !smt.bool

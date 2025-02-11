@@ -38,7 +38,7 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     StringAttr,
 )
-from xdsl.dialects.func import Func, FuncOp, Return
+from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb

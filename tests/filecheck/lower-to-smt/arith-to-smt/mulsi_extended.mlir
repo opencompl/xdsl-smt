@@ -20,10 +20,10 @@
 // CHECK-NEXT:      %7 = "smt.bv.sign_extend"(%2) : (!smt.bv.bv<32>) -> !smt.bv.bv<64>
 // CHECK-NEXT:      %8 = "smt.bv.sign_extend"(%4) : (!smt.bv.bv<32>) -> !smt.bv.bv<64>
 // CHECK-NEXT:      %9 = "smt.bv.mul"(%7, %8) : (!smt.bv.bv<64>, !smt.bv.bv<64>) -> !smt.bv.bv<64>
-// CHECK-NEXT:      %10 = "smt.bv.extract"(%9) {"start" = #builtin.int<0>, "end" = #builtin.int<31>} : (!smt.bv.bv<64>) -> !smt.bv.bv<32>
-// CHECK-NEXT:      %11 = "smt.bv.extract"(%9) {"start" = #builtin.int<32>, "end" = #builtin.int<63>} : (!smt.bv.bv<64>) -> !smt.bv.bv<32>
+// CHECK-NEXT:      %10 = "smt.bv.extract"(%9) {start = #builtin.int<0>, end = #builtin.int<31>} : (!smt.bv.bv<64>) -> !smt.bv.bv<32>
+// CHECK-NEXT:      %11 = "smt.bv.extract"(%9) {start = #builtin.int<32>, end = #builtin.int<63>} : (!smt.bv.bv<64>) -> !smt.bv.bv<32>
 // CHECK-NEXT:      %low = "smt.utils.pair"(%10, %6) : (!smt.bv.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
 // CHECK-NEXT:      %high = "smt.utils.pair"(%11, %6) : (!smt.bv.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%low, %high, %1) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
+// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state))
 // CHECK-NEXT:  }

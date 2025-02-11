@@ -42,9 +42,9 @@ from xdsl.dialects.llvm import (
     LinkageAttr as LinkageAttr,
     CallingConventionAttr as CallingConventionAttr,
     FastMathAttr as FastMathAttr,
+    ICmpOp as ICmpOp,
 )
 
-from xdsl.dialects.arith import ComparisonOperation, signlessIntegerLike
 from xdsl.dialects import llvm
 from xdsl.parser import Parser
 from xdsl.printer import Printer
@@ -57,7 +57,7 @@ from xdsl.irdl import (
     result_def,
     IRDLOperation,
 )
-from xdsl.dialects.builtin import AnyIntegerAttr, IntegerType, IntegerAttr
+from xdsl.dialects.builtin import IntegerType
 from xdsl.utils.exceptions import VerifyException
 
 CMPI_COMPARISON_OPERATIONS = [
@@ -72,72 +72,6 @@ CMPI_COMPARISON_OPERATIONS = [
     "ugt",
     "uge",
 ]
-
-
-@irdl_op_definition
-class ICmpOp(ComparisonOperation):
-    name = "llvm.icmp"
-    predicate: AnyIntegerAttr = prop_def(AnyIntegerAttr)
-    lhs: Operand = operand_def(signlessIntegerLike)
-    rhs: Operand = operand_def(signlessIntegerLike)
-    result: OpResult = result_def(IntegerType(1))
-
-    def __init__(
-        self,
-        operand1: Operation | SSAValue,
-        operand2: Operation | SSAValue,
-        arg: int | str,
-    ):
-        operand1 = SSAValue.get(operand1)
-        operand2 = SSAValue.get(operand2)
-        ICmpOp._validate_operand_types(operand1, operand2)
-
-        if isinstance(arg, str):
-            cmpi_comparison_operations = {
-                "eq": 0,
-                "ne": 1,
-                "slt": 2,
-                "sle": 3,
-                "sgt": 4,
-                "sge": 5,
-                "ult": 6,
-                "ule": 7,
-                "ugt": 8,
-                "uge": 9,
-            }
-            arg = ICmpOp._get_comparison_predicate(arg, cmpi_comparison_operations)
-
-        return super().__init__(
-            operands=[operand1, operand2],
-            result_types=[IntegerType(1)],
-            properties={"predicate": IntegerAttr.from_int_and_width(arg, 64)},
-        )
-
-    @classmethod
-    def parse(cls, parser: Parser):
-        arg = parser.parse_identifier()
-        parser.parse_punctuation(",")
-        operand1 = parser.parse_unresolved_operand()
-        parser.parse_punctuation(",")
-        operand2 = parser.parse_unresolved_operand()
-        parser.parse_punctuation(":")
-        input_type = parser.parse_type()
-        (operand1, operand2) = parser.resolve_operands(
-            [operand1, operand2], 2 * [input_type], parser.pos
-        )
-
-        return cls(operand1, operand2, arg)
-
-    def print(self, printer: Printer):
-        printer.print(" ")
-
-        printer.print_string(CMPI_COMPARISON_OPERATIONS[self.predicate.value.data])
-        printer.print(", ")
-        printer.print_operand(self.lhs)
-        printer.print(", ")
-        printer.print_operand(self.rhs)
-        printer.print(" : ")
-        printer.print_attribute(self.lhs.type)
 
 
 @irdl_op_definition
@@ -196,6 +130,5 @@ class SelectOp(IRDLOperation):
         printer.print_attribute(self.result.type)
 
 
-llvm.LLVM._operations.append(ICmpOp)  # type: ignore
 llvm.LLVM._operations.append(SelectOp)  # type: ignore
 LLVM: Dialect = llvm.LLVM

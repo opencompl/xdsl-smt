@@ -284,8 +284,8 @@ class StoreSemantics(OperationSemantics):
 
 
 memref_semantics: dict[type[Operation], OperationSemantics] = {
-    memref.Alloc: AllocSemantics(),
-    memref.Dealloc: DeallocSemantics(),
-    memref.Load: LoadSemantics(),
-    memref.Store: StoreSemantics(),
+    memref.AllocOp: AllocSemantics(),
+    memref.DeallocOp: DeallocSemantics(),
+    memref.LoadOp: LoadSemantics(),
+    memref.StoreOp: StoreSemantics(),
 }

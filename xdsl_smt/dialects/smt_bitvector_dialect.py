@@ -22,6 +22,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     irdl_attr_definition,
     IRDLOperation,
+    traits_def,
 )
 from xdsl.parser import AttrParser
 from xdsl.printer import Printer
@@ -109,7 +110,7 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     value: BitVectorValue = attr_def(BitVectorValue)
     res: OpResult = result_def(BitVectorType)
 
-    traits = frozenset([traits.Pure()])
+    traits = traits_def(traits.Pure())
 
     @overload
     def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
@@ -133,12 +134,12 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
             attr = value
         else:
             width = value.type.width.data
-            value = (
+            value_int = (
                 value.value.data + 2**width
                 if value.value.data < 0
                 else value.value.data
             )
-            attr = BitVectorValue(value, width)
+            attr = BitVectorValue(value_int, width)
         super().__init__(result_types=[attr.get_type()], attributes={"value": attr})
 
     @staticmethod
@@ -212,7 +213,7 @@ class AddCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class AddOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.add"
 
-    traits = frozenset([traits.Pure(), AddCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), AddCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvadd"
@@ -232,7 +233,7 @@ class SubCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class SubOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.sub"
 
-    traits = frozenset([traits.Pure(), SubCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), SubCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsub"
@@ -260,7 +261,7 @@ class MulCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class MulOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.mul"
 
-    traits = frozenset([traits.Pure(), MulCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), MulCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvmul"
@@ -429,7 +430,7 @@ class UleCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class UleOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ule"
 
-    traits = frozenset([traits.Pure(), UleCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), UleCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvule"
@@ -449,7 +450,7 @@ class UltCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class UltOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ult"
 
-    traits = frozenset([traits.Pure(), UltCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), UltCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvult"
@@ -469,7 +470,7 @@ class UgeCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class UgeOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.uge"
 
-    traits = frozenset([traits.Pure(), UgeCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), UgeCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvuge"
@@ -489,7 +490,7 @@ class UgtCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class UgtOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ugt"
 
-    traits = frozenset([traits.Pure(), UgtCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), UgtCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvugt"
@@ -509,7 +510,7 @@ class SleCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class SleOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sle"
 
-    traits = frozenset([traits.Pure(), SleCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), SleCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsle"
@@ -529,7 +530,7 @@ class SltCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class SltOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.slt"
 
-    traits = frozenset([traits.Pure(), SltCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), SltCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvslt"
@@ -549,7 +550,7 @@ class SgeCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class SgeOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sge"
 
-    traits = frozenset([traits.Pure(), SgeCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), SgeCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsge"
@@ -569,7 +570,7 @@ class SgtCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.sgt"
 
-    traits = frozenset([traits.Pure(), SgtCanonicalizationPatterns()])
+    traits = traits_def(traits.Pure(), SgtCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsgt"

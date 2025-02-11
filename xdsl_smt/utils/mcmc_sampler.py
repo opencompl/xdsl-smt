@@ -21,7 +21,7 @@ from xdsl.dialects.builtin import (
     IntegerType,
     i1,
 )
-from xdsl.dialects.func import FuncOp, Return
+from xdsl.dialects.func import FuncOp, ReturnOp
 from xdsl.ir import Operation, OpResult, SSAValue
 import sys as sys
 
@@ -217,8 +217,12 @@ class MCMCSampler:
         tmp_int_ssavalue = block.last_op.results[0]
 
         # Part II: Constants
-        true: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(1, 1), i1)
-        false: arith.Constant = arith.Constant(IntegerAttr.from_int_and_width(0, 1), i1)
+        true: arith.ConstantOp = arith.ConstantOp(
+            IntegerAttr.from_int_and_width(1, 1), i1
+        )
+        false: arith.ConstantOp = arith.ConstantOp(
+            IntegerAttr.from_int_and_width(0, 1), i1
+        )
         all_ones = GetAllOnesOp(tmp_int_ssavalue)
         zero = Constant(tmp_int_ssavalue, 0)
         one = Constant(tmp_int_ssavalue, 1)
@@ -231,7 +235,7 @@ class MCMCSampler:
         # Part III: Main Body
         tmp_bool_ssavalue = true.results[0]
         for i in range(length // 2):
-            nop_bool = arith.AndI(tmp_bool_ssavalue, tmp_bool_ssavalue)
+            nop_bool = arith.AndIOp(tmp_bool_ssavalue, tmp_bool_ssavalue)
             nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
             block.add_op(nop_bool)
             block.add_op(nop_int)
@@ -254,13 +258,13 @@ class MCMCSampler:
             return_val.append(op)
 
         # Part V: Return
-        block.add_op(Return(return_val[0]))
+        block.add_op(ReturnOp(return_val[0]))
         return
 
     @staticmethod
     def get_live_operations(func: FuncOp) -> list[tuple[Operation, int]]:
         ops = list(func.body.block.ops)
-        assert isinstance(ops[-1], Return)
+        assert isinstance(ops[-1], ReturnOp)
         assert isinstance(ops[-2], MakeOp)
         last_make_op = ops[-2]
 
@@ -277,7 +281,7 @@ class MCMCSampler:
             if operation in live_set:
                 if not (
                     isinstance(operation, Constant)
-                    or isinstance(operation, arith.Constant)
+                    or isinstance(operation, arith.ConstantOp)
                     or isinstance(operation, GetAllOnesOp)
                     or isinstance(operation, GetOp)
                 ):  # filter out operations not belong to main body
@@ -295,7 +299,7 @@ class MCMCSampler:
         self.proposed = self.current.clone()
 
         return_op = self.proposed.body.block.last_op
-        assert isinstance(return_op, Return)
+        assert isinstance(return_op, ReturnOp)
         last_make_op = return_op.operands[0].owner
         assert isinstance(last_make_op, MakeOp)
 

@@ -5,6 +5,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
     Operand,
+    traits_def,
 )
 from xdsl.utils.exceptions import VerifyException
 
@@ -18,7 +19,7 @@ from .smt_dialect import BoolType
 class YieldOp(IRDLOperation):
     name = "hoare.yield"
 
-    traits = frozenset([IsTerminator()])
+    traits = traits_def(IsTerminator())
 
     def __init__(self, ret: Operand):
         super().__init__(operands=[ret])

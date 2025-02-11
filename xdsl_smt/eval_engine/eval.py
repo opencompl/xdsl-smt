@@ -156,6 +156,7 @@ def compute_cost(soundness: float, precision: float) -> float:
     b: float = 4
     return (a * (1 - soundness) + b * (1 - precision)) / (a + b)
 
+
 '''
 if __name__ == "__main__":
     concrete_op = """

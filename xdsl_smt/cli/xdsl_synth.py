@@ -8,7 +8,7 @@ from xdsl.ir import Attribute, BlockArgument, Operation, SSAValue
 from xdsl.context import MLContext
 from xdsl.parser import Parser
 from xdsl.utils.hints import isa
-from xdsl.rewriter import Rewriter
+from xdsl.rewriter import Rewriter, InsertPoint
 
 from xdsl_smt.dialects import synth_dialect
 
@@ -236,7 +236,7 @@ def main() -> None:
     remove_effect_states(func_after)
 
     # Add refinement operations
-    builder = Builder.at_end(block)
+    builder = Builder(InsertPoint.at_end(block))
     insert_function_refinement(func, func_after, builder)
     block.add_op(CheckSatOp())
 
