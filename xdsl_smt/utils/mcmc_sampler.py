@@ -5,7 +5,7 @@ from xdsl.parser import Parser
 
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects import transfer
-from xdsl_smt.utils.cmp_result import CmpRes
+from xdsl_smt.utils.compare_result import CompareResult
 from xdsl_smt.utils.synthesizer_context import SynthesizerContext
 from xdsl_smt.utils.random import Random
 from xdsl.dialects import arith
@@ -49,7 +49,7 @@ class MCMCSampler:
     last_make_op: MakeOp
     current: FuncOp
     proposed: FuncOp | None
-    current_cmp: CmpRes
+    current_cmp: CompareResult
     context: SynthesizerContext
     random: Random
 
@@ -60,7 +60,7 @@ class MCMCSampler:
         length: int,
         init_cost: float,
         reset: bool = True,
-        init_cmp_res: CmpRes = CmpRes(0, 0, 0, 0, 0, 0, 0, 0),
+        init_cmp_res: CompareResult = CompareResult(0, 0, 0, 0, 0, 0, 0, 0),
     ):
         self.current = func.clone()
         self.proposed = None
@@ -76,7 +76,7 @@ class MCMCSampler:
     def get_proposed(self):
         return self.proposed
 
-    def accept_proposed(self, proposed_cmp: CmpRes):
+    def accept_proposed(self, proposed_cmp: CompareResult):
         assert self.proposed is not None
         self.current = self.proposed
         self.current_cmp = proposed_cmp

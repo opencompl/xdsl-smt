@@ -2,7 +2,7 @@ import os
 from os import path
 from subprocess import run, PIPE
 
-from xdsl_smt.utils.cmp_result import CmpRes
+from xdsl_smt.utils.compare_result import CompareResult
 
 
 def get_build_cmd() -> list[str]:
@@ -119,7 +119,7 @@ def eval_transfer_func(
     concrete_op_expr: str,
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
-) -> list[CmpRes]:
+) -> list[CompareResult]:
     transfer_func_header = make_xfer_header(concrete_op_expr)
 
     # rename the transfer functions
@@ -190,8 +190,8 @@ def eval_transfer_func(
         == len(unsolved_num_cases)
     ), f"EvalEngine output mismatch: {eval_output}"
 
-    cmp_results: list[CmpRes] = [
-        CmpRes(
+    cmp_results: list[CompareResult] = [
+        CompareResult(
             num_cases[i],
             sounds[i],
             exact[i],

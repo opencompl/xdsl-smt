@@ -11,7 +11,7 @@ from io import StringIO
 
 from xdsl.utils.hints import isa
 
-from xdsl_smt.utils.cmp_result import CmpRes
+from xdsl_smt.utils.compare_result import CompareResult
 from ..dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
@@ -570,7 +570,7 @@ def main() -> None:
                 cpp_code = print_to_cpp(func_to_eval)
                 cpp_codes.append(cpp_code)
 
-            cmp_results: list[CmpRes] = eval_transfer_func(
+            cmp_results: list[CompareResult] = eval_transfer_func(
                 [func_name] * NUM_PROGRAMS,
                 cpp_codes,
                 crt_func
@@ -599,7 +599,7 @@ def main() -> None:
                     cpp_code = print_to_cpp(proposed_solution.clone())
                     cpp_codes.append(cpp_code)
 
-                cmp_results: list[CmpRes] = eval_transfer_func(
+                cmp_results: list[CompareResult] = eval_transfer_func(
                     [func_name] * NUM_PROGRAMS,
                     cpp_codes,
                     crt_func

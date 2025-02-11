@@ -1,15 +1,33 @@
-class CmpRes:
+class CompareResult:
+    """The comparison result of a candidate transformer f and the best transformer f_best"""
+
     # todo: get bidwidth from the somewhere else
     BITWIDTH = 4
 
     all_cases: int
+    """The number of inputs"""
+
     sounds: int
+    """The number of inputs on which f gets sound"""
+
     exacts: int
+    """The number of inputs on which f gets exact"""
+
     edit_dis: int
+    """The sum of edit distance between the outputs of f and the f_best """
+
     unsolved_cases: int
+    """The number of unsolved inputs (previous transformers do not get exact)"""
+
     unsolved_sounds: int
+    """The number of unsolved inputs on which f gets sound"""
+
     unsolved_exacts: int
+    """The number of unsolved inputs on which f gets exact"""
+
     unsolved_edit_dis: int
+    """The sum of edit distance between the outputs of f and the f_best on unsolved inputs"""
+
     cost: float | None = None
 
     def __init__(self, all_cases: int, sounds: int, exacts: int, edit_dis: int, unsolved_cases: int, unsolved_sounds: int, unsolved_exacts: int, unsolved_edit_dis: int):
