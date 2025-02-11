@@ -297,7 +297,7 @@ def get_dynamic_concrete_function(
     else:
         print(concrete_func_name)
         assert False and "Not supported concrete function yet"
-    returnOp = Return(combOp.results[0])
+    returnOp = ReturnOp(combOp.results[0])
     result.body.block.add_ops([combOp, returnOp])
     assert result is not None and (
         "Cannot find the concrete function for" + concrete_func_name
@@ -342,7 +342,7 @@ def get_concrete_function(
                     combOp = k(*result.args)
 
             assert isinstance(combOp, Operation)
-            returnOp = Return(combOp.results[0])
+            returnOp = ReturnOp(combOp.results[0])
             result.body.block.add_ops([combOp, returnOp])
     assert result is not None and (
         "Cannot find the concrete function for" + concrete_op_name
