@@ -22,7 +22,7 @@ from xdsl.dialects.builtin import (
     IntegerType,
     i1,
 )
-from xdsl.dialects.func import FuncOp, Return
+from xdsl.dialects.func import FuncOp, ReturnOp
 from xdsl.ir import Operation, OpResult, SSAValue, Block
 import sys as sys
 
@@ -277,11 +277,11 @@ class MCMCSampler:
             # filter out operations not belong to main body
             return (
                 isinstance(operation, Constant)
-                or isinstance(operation, arith.Constant)
+                or isinstance(operation, arith.ConstantOp)
                 or isinstance(operation, GetAllOnesOp)
                 or isinstance(operation, GetOp)
                 or isinstance(operation, MakeOp)
-                or isinstance(operation, Return)
+                or isinstance(operation, ReturnOp)
             )
 
         for idx in range(len(ops) - 3, -1, -1):
