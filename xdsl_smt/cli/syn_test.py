@@ -75,7 +75,7 @@ def main() -> None:
     for i in range(0):
         _: float = mcmc_sampler.sample_next()
         print(f"Round {i}:{mcmc_sampler.get_proposed()}")
-        mcmc_sampler.accept_proposed(CompareResult(0,0,0,0,0,0,0,0))
+        mcmc_sampler.accept_proposed(CompareResult(0, 0, 0, 0, 0, 0, 0, 0))
 
 
 if __name__ == "__main__":
