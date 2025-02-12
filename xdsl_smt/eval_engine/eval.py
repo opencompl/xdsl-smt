@@ -69,19 +69,24 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def make_xfer_header(concrete_op: str) -> str:
+def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
     #include <tuple>
     #include <vector>
+    #include "AbstVal.cpp"
     using llvm::APInt;
     """
+
     conc_op_wrapper = """
     uint8_t concrete_op_wrapper(const uint8_t a, const uint8_t b) {
       return concrete_op(APInt(8, a), APInt(8, b)).getZExtValue();
     }
     """
-    return includes + concrete_op + conc_op_wrapper
+
+    num_funcs_const = f"unsigned int numFuncs = {num_funcs};"
+
+    return includes + concrete_op + conc_op_wrapper + num_funcs_const
 
 
 def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
@@ -114,7 +119,8 @@ def eval_transfer_func(
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
-    transfer_func_header = make_xfer_header(concrete_op_expr)
+
+    transfer_func_header = make_xfer_header(concrete_op_expr, len(xfer_names))
 
     # rename the transfer functions
     ref_xfer_srcs = [
