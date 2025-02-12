@@ -69,41 +69,38 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def make_xfer_header(concrete_op: str) -> str:
+def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
-    #include <llvm/Support/KnownBits.h>
     #include <tuple>
     #include <vector>
+    #include "AbstVal.cpp"
     using llvm::APInt;
     """
+
     conc_op_wrapper = """
     uint8_t concrete_op_wrapper(const uint8_t a, const uint8_t b) {
       return concrete_op(APInt(8, a), APInt(8, b)).getZExtValue();
     }
     """
-    return includes + concrete_op + conc_op_wrapper
 
+    num_funcs_const = f"unsigned int numFuncs = {num_funcs};"
 
-func_to_eval_wrapper_name = "synth_function"
-ref_func_wrapper_name = "ref_function"
+    return includes + concrete_op + conc_op_wrapper + num_funcs_const
 
 
 def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
     func_sig = (
-        "std::vector<llvm::KnownBits> "
+        "std::vector<AbstVal> "
         + wrapper_name
-        + "_wrapper(const llvm::KnownBits &lhs, const llvm::KnownBits &rhs)"
+        + "_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
     )
 
     def make_func_call(x: str) -> str:
-        return (
-            f"const std::vector<llvm::APInt> res_v_{x} = {x}"
-            + "({lhs.Zero, lhs.One}, {rhs.Zero, rhs.One});"
-        )
+        return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"llvm::KnownBits res_{x};\nres_{x}.Zero = res_v_{x}[0];\nres_{x}.One = res_v_{x}[1];\n"
+        return f"AbstVal res_{x}(lhs.domain, res_v_{x});"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -120,7 +117,10 @@ def eval_transfer_func(
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
 ) -> list[CompareResult]:
-    transfer_func_header = make_xfer_header(concrete_op_expr)
+    func_to_eval_wrapper_name = "synth_function"
+    ref_func_wrapper_name = "ref_function"
+
+    transfer_func_header = make_xfer_header(concrete_op_expr, len(xfer_names))
 
     # rename the transfer functions
     ref_xfer_srcs = [
@@ -208,21 +208,13 @@ def eval_transfer_func(
     return cmp_results
 
 
-# cost function on `synth_transfer` branch as of feb 05
-# git commit 9df592f15b23e1759365d20790760ff192d232d7
-def compute_cost(soundness: float, precision: float) -> float:
-    a: float = 1
-    b: float = 4
-    return (a * (1 - soundness) + b * (1 - precision)) / (a + b)
-
-
-'''
-if __name__ == "__main__":
+def main():
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
         return a+b;
     }
     """
+
     transfer_func_name = "llm_wrapper"
     transfer_func_src = """
         #include <llvm/ADT/APInt.h>
@@ -252,18 +244,19 @@ if __name__ == "__main__":
 
     names = [transfer_func_name]
     srcs = [transfer_func_src]
-    num_unsound, imprecision, num_exact, num_cases = eval_transfer_func(
-        names, srcs, concrete_op
-    )
+    ref_names: list[str] = []  # TODO
+    ref_srcs: list[str] = []  # TODO
+    a = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
 
-    soundness_percent = 1 - (num_unsound[0] / num_cases[0])
-    precision_percent = num_exact[0] / num_cases[0]
+    for res in a:
+        print(f"cost:                  {res.get_cost():.04f}")
+        print(f"sound prop:            {res.get_sound_prop():.04f}")
+        print(f"exact prop:            {res.get_exact_prop():.04f}")
+        print(f"edit dis avg:          {res.get_edit_dis_avg():.04f}")
+        print(f"unsolved exact prop:   {res.get_unsolved_exact_prop():.04f}")
+        print(f"unsolved sound prop:   {res.get_unsolved_sound_prop():.04f}")
+        print(f"unsolved edit dis avg: {res.get_unsolved_edit_dis_avg():.04f}")
 
-    proposed_cost = compute_cost(soundness_percent, precision_percent)
 
-    print(f"num_unsound:   {num_unsound[0]}")
-    print(f"imprecision:   {imprecision[0]}")
-    print(f"num_exact:     {num_exact[0]}")
-    print(f"num_cases:     {num_cases[0]}")
-    print(f"proposed_cost: {proposed_cost:.04f}")
-'''
+if __name__ == "__main__":
+    main()
