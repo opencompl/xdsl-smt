@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <numeric>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
@@ -17,15 +18,50 @@ public:
   Domain domain;
   std::vector<llvm::APInt> v;
 
-  // constructor for a bottom val
-  AbstVal(Domain d, unsigned int bitwidth) : domain(d) {
+  AbstVal(Domain d, std::vector<llvm::APInt> v) : domain(d), v(v) {}
+
+  static AbstVal top(Domain d, unsigned int bitwidth) {
     assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
-    v = {llvm::APInt(bitwidth, 0), llvm::APInt(bitwidth, 0)};
+    return AbstVal(d, {llvm::APInt(bitwidth, 0), llvm::APInt(bitwidth, 0)});
   }
 
-  AbstVal(Domain d, std::vector<llvm::APInt> v) : domain(d), v(v) {}
-  AbstVal(Domain d, llvm::APInt v) : domain(d), v({~v, v}) {
-    assert(d == KNOWN_BITS && "constructor doesn't work for other domains\n");
+  // calling this bottom since known 0's and 1's conflict
+  // so no concrete values can be extracted from this
+  static AbstVal bottom(Domain d, unsigned int bitwidth) {
+    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
+    return AbstVal(d, {llvm::APInt::getMaxValue(bitwidth),
+                       llvm::APInt::getMaxValue(bitwidth)});
+  }
+
+  static AbstVal fromUnion(Domain d, unsigned int bitwidth,
+                           const std::vector<AbstVal> &v) {
+    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
+    return std::accumulate(v.begin(), v.end(), AbstVal::top(d, bitwidth),
+                           [](const AbstVal &lhs, const AbstVal &rhs) {
+                             return lhs.unionWith(rhs);
+                           });
+  }
+
+  static AbstVal fromIntersection(Domain d, unsigned int bitwidth,
+                                  const std::vector<AbstVal> &v) {
+    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
+    return std::accumulate(v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
+                           [](const AbstVal &lhs, const AbstVal &rhs) {
+                             return lhs.intersectWith(rhs);
+                           });
+  }
+
+  static AbstVal fromConcrete(Domain d, llvm::APInt v) {
+    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
+    return AbstVal(d, {~v, v});
+  }
+
+  bool isSuperset(const AbstVal &rhs) const {
+    return this->unionWith(rhs) == rhs;
+  }
+
+  unsigned int distance(const AbstVal &rhs) const {
+    return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
   }
 
   bool operator==(const AbstVal &rhs) const {
@@ -74,6 +110,7 @@ public:
 
   // TODO return a generic container based on what the caller asks for
   // TODO there's a faster way to this but this works for now
+  // TODO should this return an APInt??
   std::vector<uint8_t> const toConcrete() const {
     if (domain == KNOWN_BITS) {
       std::vector<uint8_t> ret;

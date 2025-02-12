@@ -61,79 +61,55 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
   return {};
 }
 
+uint64_t makeMask(uint8_t bitwidth) {
+  if (bitwidth == 0)
+    return 0;
+  return (1 << bitwidth) - 1;
+}
+
 AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
                        uint8_t (*op)(const uint8_t, const uint8_t),
-                       uint8_t bitwidth) {
-
+                       uint8_t bitwidth, Domain d) {
   assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
          "function not implemented for other domains\n");
 
-  // TODO generate this bit mask automaticlly
-  uint8_t mask = 0b00001111;
-  // really incredibly stupid but idk how to use unique ptrs
-  // TODO fix this crap
-  std::vector<AbstVal> res;
+  uint64_t mask = makeMask(bitwidth);
+  std::vector<AbstVal> crtVals;
 
-  for (auto lhs_val : lhs.toConcrete()) {
-    for (auto rhs_val : rhs.toConcrete()) {
+  for (auto lhs_v : lhs.toConcrete()) {
+    for (auto rhs_v : rhs.toConcrete()) {
       // stubbed out op_constraint for now
-      // if (op_constraint(APInt(bitwidth, lhs_val), APInt(bitwidth, rhs_val)))
-      if (true) {
-        llvm::APInt v(bitwidth, op(lhs_val, rhs_val) & mask);
-        AbstVal crtVal(KNOWN_BITS, v);
-
-        if (res.size() == 0) {
-          res.push_back(crtVal);
-        } else {
-          res[0] = res[0].intersectWith(crtVal);
-        }
-      }
+      // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
+      llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
+      crtVals.push_back(AbstVal::fromConcrete(d, v));
     }
   }
 
-  return res[0];
-}
-
-// check if res is a superset of best_res
-// TODO probs put in `AbstVal.cpp`
-bool kb_check_include(const AbstVal &res, const AbstVal &best_res) {
-  return res.unionWith(best_res) == best_res;
-}
-
-// compute the edit distance between 2 KnownBits
-// TODO probs put in `AbstVal.cpp`
-unsigned int kb_edit_dis(const AbstVal &res, const AbstVal &best_res) {
-  return (res.v[0] ^ best_res.v[0]).popcount() +
-         (res.v[1] ^ best_res.v[1]).popcount();
+  return AbstVal::fromIntersection(d, bitwidth, crtVals);
 }
 
 int main() {
+  const Domain d = KNOWN_BITS;
   const size_t bitwidth = 4;
   Results r{numFuncs};
 
-  for (auto lhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
-    for (auto rhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
+  for (auto lhs : enumAbstVals(bitwidth, d)) {
+    for (auto rhs : enumAbstVals(bitwidth, d)) {
 
       auto best_abstract_res =
-          toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth);
+          toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth, d);
 
       std::vector<AbstVal> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<AbstVal> ref_kbs(ref_function_wrapper(lhs, rhs));
-
-      // this creates a bottom val for kb
-      AbstVal cur_kb(KNOWN_BITS, bitwidth);
-      // then cur_kb is unioned with all elems in ref_kbs
-      // TODO put a function in `AbstVal.cpp` to do this from a vec of abstvals
-      for (auto kb : ref_kbs)
-        cur_kb = cur_kb.unionWith(kb);
-
+      // union of all kb values in the vec, ref_kbs
+      AbstVal cur_kb = AbstVal::fromUnion(d, bitwidth, ref_kbs);
       bool solved = cur_kb == best_abstract_res;
 
       for (unsigned int i = 0; i < synth_kbs.size(); ++i) {
         AbstVal synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
-        bool sound = kb_check_include(synth_after_meet, best_abstract_res);
+        bool sound = synth_after_meet.isSuperset(best_abstract_res);
         bool exact = synth_after_meet == best_abstract_res;
-        unsigned int dis = kb_edit_dis(synth_after_meet, best_abstract_res);
+        unsigned int dis = synth_after_meet.distance(best_abstract_res);
 
         r.incResult(Result(sound, dis, exact, solved), i);
       }
