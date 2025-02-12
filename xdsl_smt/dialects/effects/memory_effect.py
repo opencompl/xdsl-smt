@@ -6,6 +6,7 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     IRDLOperation,
+    traits_def,
 )
 from xdsl.utils.isattr import isattr
 from xdsl.utils.exceptions import VerifyException
@@ -41,7 +42,7 @@ class OffsetPointerOp(IRDLOperation):
 
     assembly_format = "$pointer `[` $offset `]` attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, pointer: SSAValue, offset: SSAValue):
         super().__init__(
@@ -64,7 +65,7 @@ class ReadOp(IRDLOperation):
 
     assembly_format = "$state `[` $pointer `]` attr-dict `:` type($res)"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def verify_(self):
         assert isa(self.res.type, PairType[BitVectorType, BoolType])
@@ -98,7 +99,7 @@ class WriteOp(IRDLOperation):
 
     assembly_format = "$value `,` $state `[` $pointer `]` attr-dict `:` type($value)"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def verify_(self):
         assert isattr(self.value.type, PairType[BitVectorType, BoolType])
@@ -129,7 +130,7 @@ class AllocOp(IRDLOperation):
 
     assembly_format = "$state `,` $size attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, state: SSAValue, size: SSAValue):
         super().__init__(
@@ -154,7 +155,7 @@ class DeallocOp(IRDLOperation):
 
     assembly_format = "$state `,` $pointer attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, state: SSAValue, pointer: SSAValue):
         super().__init__(

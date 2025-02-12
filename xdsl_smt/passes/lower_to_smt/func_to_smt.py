@@ -2,7 +2,7 @@ from xdsl.ir import Operation, SSAValue
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
-from xdsl.dialects.func import FuncOp, Return
+from xdsl.dialects import func
 
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import (
@@ -20,7 +20,7 @@ class ReturnPattern(SMTLoweringRewritePattern):
         rewriter: PatternRewriter,
         smt_lowerer: SMTLowerer,
     ) -> SSAValue | None:
-        assert isinstance(op, Return)
+        assert isinstance(op, func.ReturnOp)
         assert effect_state is not None
         smt_op = ReturnOp([*op.arguments, effect_state])
         rewriter.replace_matched_op([smt_op])
@@ -42,7 +42,7 @@ class FuncToSMTPattern(SMTLoweringRewritePattern):
         smt_lowerer: SMTLowerer,
     ) -> SSAValue | None:
         """Convert a list of types into a cons-list of SMT pairs"""
-        assert isinstance(op, FuncOp)
+        assert isinstance(op, func.FuncOp)
 
         region = op.detach_region(op.body)
         # Append a block argument for the effect state
@@ -60,6 +60,6 @@ class FuncToSMTPattern(SMTLoweringRewritePattern):
 
 
 func_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {
-    FuncOp: FuncToSMTPattern(),
-    Return: ReturnPattern(),
+    func.FuncOp: FuncToSMTPattern(),
+    func.ReturnOp: ReturnPattern(),
 }

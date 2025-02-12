@@ -40,7 +40,7 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     StringAttr,
 )
-from xdsl.dialects.func import Func, FuncOp, Return
+from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -299,7 +299,7 @@ def get_dynamic_concrete_function(
     else:
         print(concrete_func_name)
         assert False and "Not supported concrete function yet"
-    returnOp = Return(combOp.results[0])
+    returnOp = ReturnOp(combOp.results[0])
     result.body.block.add_ops([combOp, returnOp])
     assert result is not None and (
         "Cannot find the concrete function for" + concrete_func_name
@@ -344,7 +344,7 @@ def get_concrete_function(
                     combOp = k(*result.args)
 
             assert isinstance(combOp, Operation)
-            returnOp = Return(combOp.results[0])
+            returnOp = ReturnOp(combOp.results[0])
             result.body.block.add_ops([combOp, returnOp])
     assert result is not None and (
         "Cannot find the concrete function for" + concrete_op_name

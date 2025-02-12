@@ -21,13 +21,13 @@ class LoadIntSemanticsPass(ModulePass):
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
         semantics = {
-            arith.Constant: IntConstantSemantics(),
-            arith.Addi: get_binary_ef_semantics(smt_int.AddOp)(),
-            arith.Subi: get_binary_ef_semantics(smt_int.SubOp)(),
-            arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(),
-            arith.Cmpi: IntCmpiSemantics(),
-            arith.DivUI: get_div_semantics(smt_int.DivOp)(),
-            arith.RemUI: get_div_semantics(smt_int.ModOp)(),
+            arith.ConstantOp: IntConstantSemantics(),
+            arith.AddiOp: get_binary_ef_semantics(smt_int.AddOp)(),
+            arith.SubiOp: get_binary_ef_semantics(smt_int.SubOp)(),
+            arith.MuliOp: get_binary_ef_semantics(smt_int.MulOp)(),
+            arith.CmpiOp: IntCmpiSemantics(),
+            arith.DivUIOp: get_div_semantics(smt_int.DivOp)(),
+            arith.RemUIOp: get_div_semantics(smt_int.ModOp)(),
         }
         SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
         types = {

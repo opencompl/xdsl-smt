@@ -40,7 +40,7 @@ from ..dialects.transfer import (
     AddPoisonOp,
     RemovePoisonOp,
 )
-from xdsl.dialects.func import FuncOp, Return, Call
+from xdsl.dialects.func import FuncOp, ReturnOp, CallOp
 from xdsl.pattern_rewriter import *
 from functools import singledispatch
 from typing import TypeVar, cast
@@ -449,7 +449,7 @@ def _(op: NegOp):
 
 
 @lowerOperation.register
-def _(op: Return):
+def _(op: ReturnOp):
     opName = operNameToCpp[op.name] + " "
     operand = op.arguments[0].name_hint
     return indent + opName + operand + ends

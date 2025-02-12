@@ -131,5 +131,6 @@ dmypy.json
 
 # Debug outputs
 outputs/
+
 # ignore synthesised cpp testing harness
 *synth.cpp

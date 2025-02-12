@@ -43,7 +43,7 @@ from xdsl.dialects.builtin import (
     i1,
     FunctionType,
 )
-from xdsl.dialects.func import Func, FuncOp, Return
+from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl_smt.dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
@@ -612,7 +612,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
                 funcTy = FunctionType.from_lists([i1, intTy, intTy], [intTy])
                 result = FuncOp("comb_mux", funcTy)
                 combOp = k(*result.args)
-                returnOp = Return(combOp.results[0])
+                returnOp = ReturnOp(combOp.results[0])
                 result.body.block.add_ops([combOp, returnOp])
                 args_width = [1, 0, 0]
                 result_width = 0
@@ -621,7 +621,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
                 result = FuncOp("comb.icmp" + str(extra), funcTy)
                 assert extra is not None
                 cmpOp = comb.ICmpOp(result.args[0], result.args[1], extra)
-                returnOp = Return(cmpOp.results[0])
+                returnOp = ReturnOp(cmpOp.results[0])
                 result.body.block.add_ops([cmpOp, returnOp])
                 args_width = [0, 0]
                 result_width = 1
@@ -632,7 +632,7 @@ def find_concrete_function(func_name: str, width: int, extra: int | None):
                     combOp = k.create(operands=result.args, result_types=[intTy])
                 else:
                     combOp = k(*result.args)
-                returnOp = Return(combOp.results[0])
+                returnOp = ReturnOp(combOp.results[0])
                 args_width = [0, 0]
                 result_width = 0
                 result.body.block.add_ops([combOp, returnOp])

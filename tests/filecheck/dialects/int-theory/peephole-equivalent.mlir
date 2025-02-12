@@ -1,7 +1,7 @@
 // RUN: xdsl-smt "%s" -t=smt | z3 -in | filecheck "%s"
 
 builtin.module {
-  %zero = "smt.int.constant"() {"value" = 0 : i32} : () -> !smt.int.int
+  %zero = "smt.int.constant"() {value = 0 : i32} : () -> !smt.int.int
   // Declaration of pow
   %pow2 = "smt.declare_fun"() {"name" = "pow2"}: () -> ((!smt.int.int) -> (!smt.int.int))
   %verify_get_zero = "smt.forall"() ({

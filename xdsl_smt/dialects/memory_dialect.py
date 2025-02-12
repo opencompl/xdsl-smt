@@ -5,6 +5,7 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     irdl_op_definition,
+    traits_def,
 )
 from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
 from xdsl.pattern_rewriter import RewritePattern
@@ -65,7 +66,7 @@ class GetMemoryOp(IRDLOperation):
 
     assembly_format = "$state attr-dict"
 
-    traits = frozenset([Pure(), GetSetMemoryOpPattern()])
+    traits = traits_def(Pure(), GetSetMemoryOpPattern())
 
     def __init__(self, state: SSAValue):
         super().__init__(operands=[state], result_types=[MemoryType()])
@@ -83,7 +84,7 @@ class SetMemoryOp(IRDLOperation):
 
     assembly_format = "$state `,` $memory attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, state: SSAValue, memory: SSAValue):
         super().__init__(operands=[state, memory], result_types=[StateType()])
@@ -113,7 +114,7 @@ class GetBlockOp(IRDLOperation):
 
     assembly_format = "$memory `[` $block_id `]` attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockOpPattern()])
+    traits = traits_def(Pure(), GetSetBlockOpPattern())
 
     def __init__(self, memory: SSAValue, block_id: SSAValue):
         super().__init__(operands=[memory, block_id], result_types=[MemoryBlockType()])
@@ -144,7 +145,7 @@ class SetBlockOp(IRDLOperation):
 
     assembly_format = "$block `,` $memory `[` $block_id `]` attr-dict"
 
-    traits = frozenset([Pure(), SetSetBlockOpPattern()])
+    traits = traits_def(Pure(), SetSetBlockOpPattern())
 
     def __init__(self, block: SSAValue, memory: SSAValue, block_id: SSAValue):
         super().__init__(
@@ -175,7 +176,7 @@ class GetBlockBytesOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockBytesPattern()])
+    traits = traits_def(Pure(), GetSetBlockBytesPattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BytesType()])
@@ -224,7 +225,7 @@ class GetBlockSizeOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockSizePattern()])
+    traits = traits_def(Pure(), GetSetBlockSizePattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BitVectorType(64)])
@@ -276,7 +277,7 @@ class GetBlockLiveMarkerOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockLiveMarkerPattern()])
+    traits = traits_def(Pure(), GetSetBlockLiveMarkerPattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BoolType()])

@@ -21,7 +21,7 @@ void print_abst_range(const llvm::KnownBits &x) {
   }
 
   if (x.isConstant())
-    printf(" const %llu", x.getConstant().getZExtValue());
+    printf(" const %lu", x.getConstant().getZExtValue());
 
   if (x.isUnknown())
     printf(" (top)");
@@ -69,7 +69,7 @@ std::vector<uint8_t> const to_concrete(const llvm::KnownBits &x) {
   for (auto i = min;; ++i) {
 
     if (!x.Zero.intersects(i) && !x.One.intersects(~i))
-      ret.push_back((uint8_t)i.getZExtValue());
+      ret.push_back(static_cast<uint8_t>(i.getZExtValue()));
 
     if (i == max)
       break;
@@ -99,7 +99,9 @@ llvm::KnownBits to_best_abstract(const llvm::KnownBits lhs,
   uint8_t mask = 0b00001111;
   for (auto lhs_val : to_concrete(lhs)) {
     for (auto rhs_val : to_concrete(rhs)) {
-      if (op_constraint(APInt(bitwidth, lhs_val), APInt(bitwidth, rhs_val))) {
+      // stubbed out op_constraint for now
+      // if (op_constraint(APInt(bitwidth, lhs_val), APInt(bitwidth, rhs_val)))
+      if (true) {
         auto crt_res = llvm::KnownBits::makeConstant(
             llvm::APInt(bitwidth, op(lhs_val, rhs_val) & mask));
         if (!hasInit) {
@@ -277,7 +279,7 @@ int main() {
   }
 
   for (auto &res : all_cases) {
-    res[3] = total_abst_combos;
+    res[3] = static_cast<uint32_t>(total_abst_combos);
   }
 
   for (auto &res : unsolved_cases) {
