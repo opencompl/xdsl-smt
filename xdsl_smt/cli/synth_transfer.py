@@ -10,6 +10,8 @@ from xdsl.parser import Parser
 from io import StringIO
 
 from xdsl.utils.hints import isa
+
+from xdsl_smt.utils.compare_result import CompareResult
 from ..dialects.smt_dialect import (
     SMTDialect,
     DefineFunOp,
@@ -68,7 +70,7 @@ from xdsl_smt.semantics.transfer_semantics import (
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
-from ..utils.cost_model import compute_cost, decide
+from ..utils.cost_model import decide
 from ..utils.mcmc_sampler import MCMCSampler
 from ..utils.synthesizer_context import SynthesizerContext
 from ..utils.random import Random
@@ -412,9 +414,44 @@ OUTPUTS_FOLDER = "outputs"
 
 
 def print_func_to_file(sampler: MCMCSampler, rd: int, i: int, path: str):
+    res = sampler.current_cmp
     with open(f"{path}/tf{rd}_{i}.mlir", "w") as file:
-        file.write(f"Cost: {sampler.current_cost}\n")
+        file.write(
+            f"Run: {rd}_{i}\nCost: {res.get_cost()}\nSound: {res.get_sound_prop()}\nUExact: {res.get_unsolved_exact_prop()}\nUDis: {res.get_unsolved_edit_dis_avg()}\n{res}\n"
+        )
         file.write(str(sampler.get_current()))
+
+
+def is_ref_function(func: FuncOp) -> bool:
+    return func.sym_name.data.startswith("ref_")
+
+
+# def eval_transfer_func_helper(funcs: list[FuncOp], crt_func: str, instance_constraint_func: str, domain_constraint_func: str, op_constraint_func: str, ref_func_names: list[str], ref_func_cpps: list[str]) -> list[CmpRes]:
+
+#     cpp_codes: list[str] = []
+#     func_names: list[str] = []
+
+#     for f in funcs:
+#         func_to_eval = f.clone()
+#         func_names.append(f.sym_name.data)
+#         cpp_code = print_to_cpp(func_to_eval)
+#         cpp_codes.append(cpp_code)
+
+#     cmp_results = eval_transfer_func(
+#         func_names,
+#         cpp_codes,
+#         crt_func
+#         + "\n"
+#         + instance_constraint_func
+#         + "\n"
+#         + domain_constraint_func
+#         + "\n"
+#         + op_constraint_func,
+#         ref_func_names,
+#         ref_func_cpps,
+#     )
+
+#     return cmp_results
 
 
 def main() -> None:
@@ -463,10 +500,10 @@ def main() -> None:
     if random_number_file is not None:
         random.read_from_file(random_number_file)
 
-    PROGRAM_LENGTH = 32
+    PROGRAM_LENGTH = 40
     NUM_PROGRAMS = 100
-    INIT_COST = 20
-    TOTAL_ROUNDS = 1000
+    INIT_COST = 1
+    TOTAL_ROUNDS = 10000
 
     # sound_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
     # precision_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
@@ -489,6 +526,15 @@ def main() -> None:
             elif func_name == OP_CONSTRAINT:
                 op_constraint_func = print_to_cpp(func)
 
+    ref_funcs: list[FuncOp] = []
+    for func in module.ops:
+        if isinstance(func, FuncOp) and is_ref_function(func):
+            ref_funcs.append(func)
+
+    assert len(ref_funcs) > 0
+    ref_func_names = [func.sym_name.data for func in ref_funcs]
+    ref_func_cpps = [print_to_cpp(func) for func in ref_funcs]
+
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             concrete_func_name = ""
@@ -502,28 +548,58 @@ def main() -> None:
             func_name = func.sym_name.data
             mcmc_samplers: list[MCMCSampler] = []
 
+            # init_code = print_to_cpp(func.clone())
+            # init_soundness, init_precision = eval_transfer_func(
+            #     [func_name], [init_code], crt_func
+            # )
+
             for _ in range(NUM_PROGRAMS):
                 sampler = MCMCSampler(
                     func, context, PROGRAM_LENGTH, init_cost=INIT_COST
                 )
+                # sampler = MCMCSampler(
+                #     func, context, PROGRAM_LENGTH, init_cost=compute_cost(
+                #         init_soundness[0], init_precision[0]), reset=False, init_soundness=init_soundness[0], init_precision=init_precision[0])
+
                 mcmc_samplers.append(sampler)
 
+            # Get the cost of initial programs
+            cpp_codes: list[str] = []
+            for i in range(NUM_PROGRAMS):
+                func_to_eval = mcmc_samplers[i].get_current().clone()
+                cpp_code = print_to_cpp(func_to_eval)
+                cpp_codes.append(cpp_code)
+
+            cmp_results: list[CompareResult] = eval_transfer_func(
+                [func_name] * NUM_PROGRAMS,
+                cpp_codes,
+                crt_func
+                + "\n"
+                + instance_constraint_func
+                + "\n"
+                + domain_constraint_func
+                + "\n"
+                + op_constraint_func,
+                ref_func_names,
+                ref_func_cpps,
+            )
+
+            for i in range(NUM_PROGRAMS):
+                mcmc_samplers[i].current_cmp = cmp_results[i]
+
+            # MCMC start
             for round in range(TOTAL_ROUNDS):
                 start = time.time()
 
                 cpp_codes: list[str] = []
-
                 for i in range(NUM_PROGRAMS):
                     _: float = mcmc_samplers[i].sample_next()
-
                     proposed_solution = mcmc_samplers[i].get_proposed()
                     assert proposed_solution is not None
-                    func_to_eval = proposed_solution.clone()
-
-                    cpp_code = print_to_cpp(func_to_eval)
+                    cpp_code = print_to_cpp(proposed_solution.clone())
                     cpp_codes.append(cpp_code)
 
-                num_unsound, _imprecision, num_exact, num_cases = eval_transfer_func(
+                cmp_results: list[CompareResult] = eval_transfer_func(
                     [func_name] * NUM_PROGRAMS,
                     cpp_codes,
                     crt_func
@@ -533,31 +609,34 @@ def main() -> None:
                     + domain_constraint_func
                     + "\n"
                     + op_constraint_func,
+                    ref_func_names,
+                    ref_func_cpps,
                 )
 
-                _imprecision = 0  # Skip imprecision measurement right now
-                soundness_percent = [
-                    1 - (a / b) for a, b in zip(num_unsound, num_cases)
-                ]
-                precision_percent = [a / b for a, b in zip(num_exact, num_cases)]
+                # num_unsound, _imprecision, num_exact, num_cases, unsolved_unsound, unsolved_imprecision, unsolved_exact, unsolved_num_cases = eval_transfer_func(
+                #     [func_name] * NUM_PROGRAMS,
+                #     cpp_codes,
+                #     crt_func
+                #     + "\n"
+                #     + instance_constraint_func
+                #     + "\n"
+                #     + domain_constraint_func
+                #     + "\n"
+                #     + op_constraint_func,
+                #     ref_func_names,
+                #     ref_func_cpps,
+                # )
 
                 for i in range(NUM_PROGRAMS):
-                    proposed_cost = compute_cost(
-                        soundness_percent[i], precision_percent[i]
-                    )
-
+                    proposed_cost = cmp_results[i].get_cost()
+                    current_cost = mcmc_samplers[i].current_cmp.get_cost()
                     p = random.random()
-                    decision = decide(
-                        p, 1000, mcmc_samplers[i].current_cost, proposed_cost
-                    )
+                    decision = decide(p, 200, current_cost, proposed_cost)
                     if decision:
-                        # print(mcmc_sampler.get_current())
-                        # print(mcmc_sampler.get_proposed())
-                        cost_reduce = mcmc_samplers[i].current_cost - proposed_cost
+                        cost_reduce = current_cost - proposed_cost
 
-                        mcmc_samplers[i].accept_proposed(
-                            proposed_cost, soundness_percent[i], precision_percent[i]
-                        )
+                        mcmc_samplers[i].accept_proposed(cmp_results[i])
+
                         assert mcmc_samplers[i].get_proposed() is None
 
                         if cost_reduce > 0:
@@ -570,15 +649,16 @@ def main() -> None:
                         pass
 
                 for i in range(NUM_PROGRAMS):
-                    spl = mcmc_samplers[i]
+                    res = mcmc_samplers[i].current_cmp
                     print(
-                        f"{round}_{i}\t{spl.current_soundness * 100:.2f}%\t{spl.current_precision * 100:.2f}%\t{spl.current_cost:.3f}"
+                        f"{round}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
                     )
-                    cost_data[i].append(spl.current_cost)
+                    # print(res)
+                    cost_data[i].append(res.get_cost())
 
-                    # if soundness_percent[i] == 1 and precision_percent[i] == 1:
-                    #     print(mcmc_samplers[i].get_current())
-                    #     return
+                # if soundness_percent[i] == 1 and precision_percent[i] == 1:
+                #     print(mcmc_samplers[i].get_current())
+                #     return
                 end = time.time()
                 used_time = end - start
 
