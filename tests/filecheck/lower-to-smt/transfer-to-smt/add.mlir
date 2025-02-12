@@ -14,5 +14,5 @@
 // CHECK-NEXT:    ^0(%x : !smt.bv.bv<8>, %y : !smt.bv.bv<8>, %1 : !effect.state):
 // CHECK-NEXT:      %r = "smt.bv.add"(%x, %y) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
 // CHECK-NEXT:      "smt.return"(%r, %1) : (!smt.bv.bv<8>, !effect.state) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "test"} : () -> ((!smt.bv.bv<8>, !smt.bv.bv<8>, !effect.state) -> (!smt.bv.bv<8>, !effect.state))
+// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.bv.bv<8>, !smt.bv.bv<8>, !effect.state) -> (!smt.bv.bv<8>, !effect.state))
 // CHECK-NEXT:  }

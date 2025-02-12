@@ -2,6 +2,8 @@ import os
 from os import path
 from subprocess import run, PIPE
 
+from xdsl_smt.utils.compare_result import CompareResult
+
 
 def get_build_cmd() -> list[str]:
     has_libclang = (
@@ -82,8 +84,12 @@ def make_xfer_header(concrete_op: str) -> str:
     return includes + concrete_op + conc_op_wrapper
 
 
-def make_xfer_wrapper(func_names: list[str]) -> str:
-    func_sig = "std::vector<AbstVal> synth_function_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
+def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
+    func_sig = (
+        "std::vector<AbstVal> "
+        + wrapper_name
+        + "_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
+    )
 
     def make_func_call(x: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
@@ -103,23 +109,43 @@ def eval_transfer_func(
     xfer_names: list[str],
     xfer_srcs: list[str],
     concrete_op_expr: str,
-) -> tuple[list[int], list[int], list[int], list[int]]:
+    ref_xfer_names: list[str],
+    ref_xfer_srcs: list[str],
+) -> list[CompareResult]:
+    func_to_eval_wrapper_name = "synth_function"
+    ref_func_wrapper_name = "ref_function"
     transfer_func_header = make_xfer_header(concrete_op_expr)
 
+    # rename the transfer functions
+    ref_xfer_srcs = [
+        src.replace(nm, f"{nm}_{i}")
+        for i, (nm, src) in enumerate(zip(ref_xfer_names, ref_xfer_srcs))
+    ]
+    ref_xfer_names = [f"{nm}_{i}" for i, nm in enumerate(ref_xfer_names)]
+
+    # create the wrapper
+    ref_xfer_func_wrapper = make_xfer_wrapper(ref_xfer_names, ref_func_wrapper_name)
+
+    # rename the transfer functions
     xfer_srcs = [
         src.replace(nm, f"{nm}_{i}")
         for i, (nm, src) in enumerate(zip(xfer_names, xfer_srcs))
     ]
     xfer_names = [f"{nm}_{i}" for i, nm in enumerate(xfer_names)]
-    xfer_func_wrapper = make_xfer_wrapper(xfer_names)
-    all_xfer_src = "\n".join(xfer_srcs)
+
+    # create the wrapper
+    xfer_func_wrapper = make_xfer_wrapper(xfer_names, func_to_eval_wrapper_name)
+
+    all_xfer_src = "\n".join(xfer_srcs + ref_xfer_srcs)
 
     base_dir = path.join("xdsl_smt", "eval_engine")
     cur_dir = os.getcwd()
     synth_code_path = path.join(cur_dir, base_dir, "src", "synth.cpp")
 
     with open(synth_code_path, "w") as f:
-        f.write(f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}")
+        f.write(
+            f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}\n{ref_xfer_func_wrapper}"
+        )
 
     try:
         os.mkdir(path.join(cur_dir, base_dir, "build"))
@@ -141,25 +167,48 @@ def eval_transfer_func(
     precs = get_floats(eval_output_lines[3])
     exact = get_floats(eval_output_lines[5])
     num_cases = get_floats(eval_output_lines[7])
+    unsolved_sounds = get_floats(eval_output_lines[9])
+    unsolved_precs = get_floats(eval_output_lines[11])
+    unsolved_exact = get_floats(eval_output_lines[13])
+    unsolved_num_cases = get_floats(eval_output_lines[15])
 
-    return sounds, precs, exact, num_cases
+    assert len(sounds) > 0, f"No output from EvalEngine: {eval_output}"
+    assert (
+        len(sounds)
+        == len(precs)
+        == len(exact)
+        == len(num_cases)
+        == len(unsolved_sounds)
+        == len(unsolved_precs)
+        == len(unsolved_exact)
+        == len(unsolved_num_cases)
+    ), f"EvalEngine output mismatch: {eval_output}"
+
+    cmp_results: list[CompareResult] = [
+        CompareResult(
+            num_cases[i],
+            sounds[i],
+            exact[i],
+            precs[i],
+            unsolved_num_cases[i],
+            unsolved_sounds[i],
+            unsolved_exact[i],
+            unsolved_precs[i],
+        )
+        for i in range(len(sounds))
+    ]
+
+    # return sounds, precs, exact, num_cases, unsolved_sounds, unsolved_precs, unsolved_exact, unsolved_num_cases
+    return cmp_results
 
 
-# cost function on `synth_transfer` branch as of feb 05
-# git commit 9df592f15b23e1759365d20790760ff192d232d7
-def compute_cost(soundness: float, precision: float) -> float:
-    a: float = 1
-    b: float = 4
-    return (a * (1 - soundness) + b * (1 - precision)) / (a + b)
-
-
-'''
-if __name__ == "__main__":
+def main():
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
         return a+b;
     }
     """
+
     transfer_func_name = "llm_wrapper"
     transfer_func_src = """
         #include <llvm/ADT/APInt.h>
@@ -189,18 +238,19 @@ if __name__ == "__main__":
 
     names = [transfer_func_name]
     srcs = [transfer_func_src]
-    num_unsound, imprecision, num_exact, num_cases = eval_transfer_func(
-        names, srcs, concrete_op
-    )
+    ref_names: list[str] = []  # TODO
+    ref_srcs: list[str] = []  # TODO
+    a = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
 
-    soundness_percent = 1 - (num_unsound[0] / num_cases[0])
-    precision_percent = num_exact[0] / num_cases[0]
+    for res in a:
+        print(f"cost:                  {res.get_cost():.04f}")
+        print(f"sound prop:            {res.get_sound_prop():.04f}")
+        print(f"exact prop:            {res.get_exact_prop():.04f}")
+        print(f"edit dis avg:          {res.get_edit_dis_avg():.04f}")
+        print(f"unsolved exact prop:   {res.get_unsolved_exact_prop():.04f}")
+        print(f"unsolved sound prop:   {res.get_unsolved_sound_prop():.04f}")
+        print(f"unsolved edit dis avg: {res.get_unsolved_edit_dis_avg():.04f}")
 
-    proposed_cost = compute_cost(soundness_percent, precision_percent)
 
-    print(f"num_unsound:   {num_unsound[0]}")
-    print(f"imprecision:   {imprecision[0]}")
-    print(f"num_exact:     {num_exact[0]}")
-    print(f"num_cases:     {num_cases[0]}")
-    print(f"proposed_cost: {proposed_cost:.04f}")
-'''
+if __name__ == "__main__":
+    main()

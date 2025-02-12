@@ -2,7 +2,7 @@
 // RUN: xdsl-smt "%s" -t=smt | z3 -in
 
 "builtin.module"() ({
-  %true = "smt.constant_bool"() {"value" = #smt.bool_attr<true>} : () -> !smt.bool
+  %true = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
   "smt.assert"(%true) : (!smt.bool) -> ()
   // CHECK:      (assert true)
 
@@ -79,7 +79,7 @@
   // CHECK-NEXT: (assert ({{.*}} true))
   // CHECK-NEXT: {{.*}})
 
-  %false = "smt.constant_bool"() {"value" = #smt.bool_attr<false>} : () -> !smt.bool
+  %false = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
   "smt.assert"(%false) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert false)
 

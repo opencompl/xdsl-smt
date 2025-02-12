@@ -15,6 +15,12 @@ public:
   Domain domain;
   std::vector<llvm::APInt> v;
 
+  // constructor for a bottom val
+  AbstVal(Domain d, unsigned int bitwidth) : domain(d) {
+    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
+    v = {llvm::APInt(bitwidth, 0), llvm::APInt(bitwidth, 0)};
+  }
+
   AbstVal(Domain d, std::vector<llvm::APInt> v) : domain(d), v(v) {}
   AbstVal(Domain d, llvm::APInt v) : domain(d), v({~v, v}) {
     assert(d == KNOWN_BITS && "constructor doesn't work for other domains\n");
@@ -32,6 +38,12 @@ public:
     }
 
     return true;
+  }
+
+  AbstVal unionWith(const AbstVal &rhs) const {
+    assert(domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
+           "unionWith only implimented for KnownBits domain");
+    return AbstVal(KNOWN_BITS, {zero() | rhs.zero(), one() | rhs.one()});
   }
 
   void printAbstRange() const {

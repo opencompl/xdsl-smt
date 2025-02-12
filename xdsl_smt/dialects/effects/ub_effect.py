@@ -4,6 +4,7 @@ from xdsl.irdl import (
     IRDLOperation,
     operand_def,
     result_def,
+    traits_def,
 )
 
 from xdsl_smt.dialects.smt_dialect import BoolType
@@ -23,7 +24,7 @@ class CreateStateOp(IRDLOperation):
 
     assembly_format = "attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self):
         super().__init__(result_types=[StateType()])
@@ -40,7 +41,7 @@ class TriggerOp(IRDLOperation):
 
     assembly_format = "$state attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, state: SSAValue):
         super().__init__(operands=[state], result_types=[StateType()])
@@ -60,7 +61,7 @@ class ToBoolOp(IRDLOperation):
 
     assembly_format = "$state attr-dict"
 
-    traits = frozenset([Pure()])
+    traits = traits_def(Pure())
 
     def __init__(self, state: SSAValue):
         super().__init__(operands=[state], result_types=[BoolType()])

@@ -16,5 +16,5 @@ builtin.module {
 // CHECK-NEXT:      %4 = "smt.bv.zero_extend"(%2) : (!smt.bv.bv<32>) -> !smt.bv.bv<64>
 // CHECK-NEXT:      %r = "smt.utils.pair"(%4, %3) : (!smt.bv.bv<64>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<64>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%r, %1) : (!smt.utils.pair<!smt.bv.bv<64>, !smt.bool>, !effect.state) -> ()
-// CHECK-NEXT:    }) {"fun_name" = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<64>, !smt.bool>, !effect.state))
+// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<64>, !smt.bool>, !effect.state))
 // CHECK-NEXT:  }

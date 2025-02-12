@@ -4,7 +4,7 @@ from typing import Mapping, Sequence, Any
 from xdsl.ir import SSAValue, Attribute, Region, Operation
 from xdsl.rewriter import InsertPoint
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.interpreters.experimental.pdl import (
+from xdsl.interpreters.pdl import (
     PDLMatcher,
     PDLRewriteFunctions,
 )

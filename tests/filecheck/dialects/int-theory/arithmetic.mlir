@@ -2,8 +2,8 @@
 // RUN: xdsl-smt "%s" -t=smt | z3 -in
 
 "builtin.module"() ({
-      %x = "smt.int.constant"() {"value" = 42} : () -> !smt.int.int
-      %y = "smt.int.constant"() {"value" = 84} : () -> !smt.int.int
+      %x = "smt.int.constant"() {value = 42} : () -> !smt.int.int
+      %y = "smt.int.constant"() {value = 84} : () -> !smt.int.int
 
       %lt = "smt.int.lt"(%x, %y) : (!smt.int.int, !smt.int.int) -> !smt.bool
       %le = "smt.int.le"(%x, %y) : (!smt.int.int, !smt.int.int) -> !smt.bool

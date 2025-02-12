@@ -13,7 +13,7 @@ from xdsl.dialects.func import Func
 from xdsl_smt.dialects.transfer import Transfer
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.passes.transfer_lower import LowerToCpp, addDispatcher, addInductionOps
-from xdsl.dialects.func import FuncOp, Return
+from xdsl.dialects.func import FuncOp, ReturnOp
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
@@ -67,7 +67,7 @@ def checkFunctionValidity(func: FuncOp) -> bool:
         if func_type_arg != arg.type:
             return False
     return_op = func.body.block.last_op
-    if not (return_op is not None and isinstance(return_op, Return)):
+    if not (return_op is not None and isinstance(return_op, ReturnOp)):
         return False
     return return_op.operands[0].type == func.function_type.outputs.data[0]
 

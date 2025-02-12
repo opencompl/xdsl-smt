@@ -153,6 +153,18 @@ unsigned int compare_abstract(AbstVal abs_res, AbstVal best_abs_res,
   return result;
 }
 
+// check if res is a superset of best_res
+bool kb_check_include(const AbstVal &res,
+                      const AbstVal &best_res) {
+  return res.unionWith(best_res) == best_res;
+}
+
+// compute the edit distance between 2 KnownBits
+unsigned int kb_edit_dis(const AbstVal &res, const AbstVal &best_res) {
+  return (res.v[0] ^ best_res.v[0]).popcount() +
+         (res.v[1] ^ best_res.v[1]).popcount();
+}
+
 // TODO make case enum
 unsigned int compare(std::vector<uint8_t> &approx,
                      std::vector<uint8_t> &exact) {
@@ -188,49 +200,37 @@ unsigned int compare(std::vector<uint8_t> &approx,
   return 3;
 }
 
-void printEvalResults(const std::vector<std::vector<unsigned int>> &x) {
-  printf("sound:\n");
-  printf("[");
-  for (uint32_t i = 0; i < x.size(); ++i) {
-    printf("%d, ", x[i][0]);
-  }
-  printf("]\n");
-
-  printf("precise:\n");
-  printf("[");
-  for (uint32_t i = 0; i < x.size(); ++i) {
-    printf("%d, ", x[i][1]);
-  }
-  printf("]\n");
-
-  printf("exact:\n");
-  printf("[");
-  for (uint32_t i = 0; i < x.size(); ++i) {
-    printf("%d, ", x[i][2]);
-  }
-  printf("]\n");
-
-  printf("num_cases:\n");
-  printf("[");
-  for (uint32_t i = 0; i < x.size(); ++i) {
-    printf("%d, ", x[i][3]);
-  }
-  printf("]\n");
+void printEvalResults(const std::vector<std::vector<unsigned int>> &_) {
+  // merge TODO
+  // printf("sound:\n");
+  // printf("[");
+  // for (uint32_t i = 0; i < x.size(); ++i) {
+  //   printf("%d, ", x[i][0]);
+  // }
+  // printf("]\n");
 }
 
 int main() {
   const size_t bitwidth = 4;
 
   std::vector<std::vector<unsigned int>> all_cases;
+  std::vector<std::vector<unsigned int>> unsolved_cases;
+
   long long total_abst_combos = 0;
+  long long total_unsolved_combos = 0;
 
   for (auto lhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
     for (auto rhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
-
       auto best_abstract_res =
           toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth);
 
       std::vector<AbstVal> synth_kbs(synth_function_wrapper(lhs, rhs));
+
+      std::vector<AbstVal> ref_kbs(ref_function_wrapper(lhs, rhs));
+
+      AbstVal cur_kb(KNOWN_BITS, bitwidth);
+      for (auto kb : ref_kbs)
+        cur_kb = cur_kb.unionWith(kb);
 
       if (all_cases.size() == 0) {
         all_cases.resize(synth_kbs.size());
@@ -238,29 +238,101 @@ int main() {
                   std::vector<unsigned int>{0, 0, 0, 0});
       }
 
-      for (uint32_t i = 0; i < synth_kbs.size(); ++i) {
-        // sound non_precision exact num_cases
-        bool isUnsound = false;
-        if (synth_kbs[i] == best_abstract_res) {
-          all_cases[i][2] += 1;
-        } else {
-          auto num_non_precision = compare_abstract(
-              synth_kbs[i], best_abstract_res, isUnsound, bitwidth);
-          if (isUnsound) {
-            all_cases[i][0] += 1;
-          }
-          all_cases[i][1] += num_non_precision;
+      if (unsolved_cases.size() == 0) {
+        unsolved_cases.resize(synth_kbs.size());
+        std::fill(unsolved_cases.begin(), unsolved_cases.end(),
+                  std::vector<unsigned int>{0, 0, 0, 0});
+      }
+
+      bool solved = cur_kb == best_abstract_res;
+
+      // for (uint32_t i = 0; i < synth_kbs.size(); ++i) {
+      //   // sound non_precision exact num_cases
+      //   bool isUnsound = false;
+      //   if (synth_kbs[i] == best_abstract_res) {
+      //     all_cases[i][2] += 1;
+      //   } else {
+      //     auto num_non_precision = compare_abstract(
+      //         synth_kbs[i], best_abstract_res, isUnsound, bitwidth);
+      //     if (isUnsound) {
+      //       all_cases[i][0] += 1;
+      //     }
+      //     all_cases[i][1] += num_non_precision;
+      //   }
+      // }
+      for (size_t i = 0; i < synth_kbs.size(); ++i) {
+        // llvm::KnownBits synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
+        AbstVal synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
+        bool sound = kb_check_include(synth_after_meet, best_abstract_res);
+        bool exact = synth_after_meet == best_abstract_res;
+        unsigned int dis = kb_edit_dis(synth_after_meet, best_abstract_res);
+
+        all_cases[i][0] += sound;
+        all_cases[i][1] += dis;
+        all_cases[i][2] += exact;
+        if (!solved) {
+          unsolved_cases[i][0] += sound;
+          unsolved_cases[i][1] += dis;
+          unsolved_cases[i][2] += exact;
         }
       }
 
       total_abst_combos++;
+      if (!solved)
+        total_unsolved_combos++;
     }
   }
+
   for (auto &res : all_cases) {
     res[3] = static_cast<uint32_t>(total_abst_combos);
   }
 
-  printEvalResults(all_cases);
+  // merge TODO
+  // printEvalResults(all_cases);
+
+  for (auto &res : unsolved_cases) {
+    res[3] = static_cast<unsigned int>(total_unsolved_combos);
+  }
+
+  printf("sound:\n[");
+  for (size_t i = 0; i < all_cases.size(); ++i)
+    printf("%d, ", all_cases[i][0]);
+  printf("]\n");
+
+  printf("precise:\n[");
+  for (size_t i = 0; i < all_cases.size(); ++i)
+    printf("%d, ", all_cases[i][1]);
+  printf("]\n");
+
+  printf("exact:\n[");
+  for (size_t i = 0; i < all_cases.size(); ++i)
+    printf("%d, ", all_cases[i][2]);
+  printf("]\n");
+
+  printf("num_cases:\n[");
+  for (size_t i = 0; i < all_cases.size(); ++i)
+    printf("%d, ", all_cases[i][3]);
+  printf("]\n");
+
+  printf("unsolved_sound:\n[");
+  for (size_t i = 0; i < unsolved_cases.size(); ++i)
+    printf("%d, ", unsolved_cases[i][0]);
+  printf("]\n");
+
+  printf("unsolved_precise:\n[");
+  for (size_t i = 0; i < unsolved_cases.size(); ++i)
+    printf("%d, ", unsolved_cases[i][1]);
+  printf("]\n");
+
+  printf("unsolved_exact:\n[");
+  for (size_t i = 0; i < unsolved_cases.size(); ++i)
+    printf("%d, ", unsolved_cases[i][2]);
+  printf("]\n");
+
+  printf("unsolved_num_cases:\n[");
+  for (size_t i = 0; i < unsolved_cases.size(); ++i)
+    printf("%d, ", unsolved_cases[i][3]);
+  printf("]\n");
 
   return 0;
 }
