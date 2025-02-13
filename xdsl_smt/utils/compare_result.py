@@ -30,7 +30,17 @@ class CompareResult:
 
     cost: float | None = None
 
-    def __init__(self, all_cases: int, sounds: int, exacts: int, edit_dis: int, unsolved_cases: int, unsolved_sounds: int, unsolved_exacts: int, unsolved_edit_dis: int):
+    def __init__(
+        self,
+        all_cases: int,
+        sounds: int,
+        exacts: int,
+        edit_dis: int,
+        unsolved_cases: int,
+        unsolved_sounds: int,
+        unsolved_exacts: int,
+        unsolved_edit_dis: int,
+    ):
         self.all_cases = all_cases
         self.sounds = sounds
         self.exacts = exacts
@@ -48,7 +58,7 @@ class CompareResult:
             alpha = 8
             sound = self.get_sound_prop()
             dis = self.get_unsolved_edit_dis_avg() / (self.BITWIDTH * 2)
-            self.cost = (1 - sound + alpha * dis) / (1+alpha)
+            self.cost = (1 - sound + alpha * dis) / (1 + alpha)
         return self.cost
 
     def get_sound_prop(self) -> float:

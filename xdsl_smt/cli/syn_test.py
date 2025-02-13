@@ -3,6 +3,7 @@ import argparse
 from xdsl.context import MLContext
 from xdsl.parser import Parser
 
+from xdsl_smt.utils.compare_result import CompareResult
 from xdsl_smt.utils.mcmc_sampler import MCMCSampler
 from xdsl_smt.utils.synthesizer_context import SynthesizerContext
 from ..dialects.smt_dialect import (
@@ -74,7 +75,7 @@ def main() -> None:
     for i in range(0):
         _: float = mcmc_sampler.sample_next()
         print(f"Round {i}:{mcmc_sampler.get_proposed()}")
-        mcmc_sampler.accept_proposed(0, 0, 0)
+        mcmc_sampler.accept_proposed(CompareResult(0, 0, 0, 0, 0, 0, 0, 0))
 
 
 if __name__ == "__main__":

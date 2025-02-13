@@ -174,8 +174,7 @@ class SynthesizerContext:
             return NegOp(int_vals[0])
         assert result_type is not None
         result = result_type(
-            # pyright: ignore [reportGeneralTypeIssues]
-            int_vals[0],
+            int_vals[0],  # pyright: ignore [reportCallIssue]
             int_vals[1],
         )
         assert isinstance(result, Operation)
@@ -198,8 +197,7 @@ class SynthesizerContext:
             )
         assert result_type is not None
         result = result_type(
-            # pyright: ignore [reportGeneralTypeIssues]
-            self.random.choice(i1_vals),
+            self.random.choice(i1_vals),  # pyright: ignore [reportCallIssue]
             self.random.choice(i1_vals),
         )
         assert isinstance(result, Operation)
@@ -224,8 +222,7 @@ class SynthesizerContext:
             return NegOp(self.random.choice(int_vals))
         assert result_type is not None
         result = result_type(
-            # pyright: ignore [reportGeneralTypeIssues]
-            self.random.choice(int_vals),
+            self.random.choice(int_vals),  # pyright: ignore [reportCallIssue]
             self.random.choice(int_vals),
         )
         assert isinstance(result, Operation)
