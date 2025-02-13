@@ -161,7 +161,18 @@ def eval_transfer_func(
     os.chdir(path.join(base_dir, "build"))
 
     run(get_build_cmd(), stdout=PIPE)
-    eval_output = run(["./EvalEngine"], stdout=PIPE)
+    eval_output = run(
+        # TODO pass domain as a flag to this function
+        # also make domain an enum
+        ["./EvalEngine", "--domain", "ConstantRange"],
+        stdout=PIPE,
+        stderr=PIPE,
+    )
+
+    if eval_output.returncode != 0:
+        print("EvalEngine failed with this error:")
+        print(eval_output.stderr.decode("utf-8"), end="")
+        exit(eval_output.returncode)
 
     def get_floats(s: str) -> list[int]:
         return eval(s)

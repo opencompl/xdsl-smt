@@ -28,9 +28,19 @@ public:
   // calling this bottom since known 0's and 1's conflict
   // so no concrete values can be extracted from this
   static AbstVal bottom(Domain d, unsigned int bitwidth) {
-    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
-    return AbstVal(d, {llvm::APInt::getMaxValue(bitwidth),
-                       llvm::APInt::getMaxValue(bitwidth)});
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet\n");
+    if (d == CONSTANT_RANGE) {
+      return AbstVal(d, {llvm::APInt::getMinValue(bitwidth),
+                         llvm::APInt::getMinValue(bitwidth)});
+
+    } else if (d == KNOWN_BITS) {
+      return AbstVal(d, {llvm::APInt::getMaxValue(bitwidth),
+                         llvm::APInt::getMaxValue(bitwidth)});
+    }
+
+    // should be unreachable (and this sholud be an invalid val)
+    return AbstVal(d, {});
   }
 
   static AbstVal fromUnion(Domain d, unsigned int bitwidth,

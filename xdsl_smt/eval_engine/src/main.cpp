@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
@@ -70,16 +71,20 @@ uint64_t makeMask(uint8_t bitwidth) {
 AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
                        uint8_t (*op)(const uint8_t, const uint8_t),
                        uint8_t bitwidth, Domain d) {
-  assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
-         "function not implemented for other domains\n");
+  // assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
+  //        "function not implemented for other domains\n");
 
   uint64_t mask = makeMask(bitwidth);
   std::vector<AbstVal> crtVals;
+  // lhs.printAbstRange();
+  // rhs.printAbstRange();
+
 
   for (auto lhs_v : lhs.toConcrete()) {
     for (auto rhs_v : rhs.toConcrete()) {
       // stubbed out op_constraint for now
       // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
+      fprintf(stderr, "here\n");
       llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
       crtVals.push_back(AbstVal::fromConcrete(d, v));
     }
@@ -88,9 +93,25 @@ AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
   return AbstVal::fromIntersection(d, bitwidth, crtVals);
 }
 
-int main() {
-  const Domain d = KNOWN_BITS;
+int main(int argv, char **argc) {
+  // TODO make a flag for bitwidth
   const size_t bitwidth = 4;
+  if (argv != 3 || strcmp(argc[1], "--domain") != 0) {
+    fprintf(stderr, "usage: ./EvalEngine --domain KnownBits\n");
+    return 1;
+  }
+
+  Domain d;
+  if (strcmp(argc[2], "KnownBits") == 0) {
+    d = KNOWN_BITS;
+  } else if (strcmp(argc[2], "ConstantRange") == 0) {
+    d = CONSTANT_RANGE;
+  } else {
+    fprintf(stderr, "Error unknown domain: %s\n", argc[2]);
+    return 1;
+  }
+
+  // TODO maybe make this a cmd line flag but idk
   Results r{numFuncs};
 
   for (auto lhs : enumAbstVals(bitwidth, d)) {
