@@ -226,31 +226,35 @@ def main():
     }
     """
 
-    transfer_func_name = "llm_wrapper"
+    transfer_func_name = "add"
     transfer_func_src = """
-        #include <llvm/ADT/APInt.h>
-        #include <tuple>
-        #include <vector>
+bool isEmptySet(std::vector<APInt> x) { return x[0] == x[1] && x[0].isMinValue(); }
+bool isFullSet(std::vector<APInt> x) { return x[0] == x[1] && x[0].isMaxValue(); }
 
-        using llvm::APInt;
+std::vector<APInt> getEmpty(uint32_t BitWidth) {
+  return {APInt::getMinValue(BitWidth), APInt::getMinValue(BitWidth)};
+}
+std::vector<APInt> getFull(uint32_t BitWidth) {
+  return {APInt::getMaxValue(BitWidth), APInt::getMaxValue(BitWidth)};
+}
 
-        std::tuple<int, int> abstract_udiv(std::tuple<int, int> &lhs, std::tuple<int, int> &rhs) {
-          return std::make_tuple(0, 0);
-        }
+bool isSizeStrictlySmallerThan(std::vector<APInt> lhs, std::vector<APInt> rhs) {
+  if (isFullSet(lhs)) return false;
+  if (isFullSet(rhs)) return true;
+  return (lhs[1] - lhs[0]).ult(rhs[1] - rhs[0]);
+}
 
-        std::vector<APInt> llm_wrapper(std::vector<APInt> arg0,
-                                       std::vector<APInt> arg1) {
-          auto lhs = std::tuple(static_cast<int>(arg0[0].getZExtValue()),
-                                static_cast<int>(arg0[1].getZExtValue()));
-          auto rhs = std::tuple(static_cast<int>(arg1[0].getZExtValue()),
-                                static_cast<int>(arg1[1].getZExtValue()));
-          auto res = abstract_udiv(lhs, rhs);
-
-          APInt res_0 = APInt(4, static_cast<uint64_t>(std::get<0>(res)));
-          APInt res_1 = APInt(4, static_cast<uint64_t>(std::get<1>(res)));
-
-          return {res_0, res_1};
-        }
+std::vector<APInt> add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  unsigned int bw = arg0[0].getBitWidth();
+  if (isEmptySet(arg0) || isEmptySet(arg1)) return getEmpty(bw);
+  if (isFullSet(arg0) || isFullSet(arg1)) return getFull(bw);
+  APInt NewLower = arg0[0] + arg1[0];
+  APInt NewUpper = arg0[1] + arg1[1] - 1;
+  if (NewLower == NewUpper) return getFull(bw);
+  std::vector<APInt> X = {std::move(NewLower), std::move(NewUpper)};
+  if (isSizeStrictlySmallerThan(X, arg0) || isSizeStrictlySmallerThan(X, arg1)) return getFull(bw);
+  return X;
+}
     """
 
     names = [transfer_func_name]

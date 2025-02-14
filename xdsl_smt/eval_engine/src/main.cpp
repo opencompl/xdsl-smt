@@ -71,31 +71,62 @@ uint64_t makeMask(uint8_t bitwidth) {
 AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
                        uint8_t (*op)(const uint8_t, const uint8_t),
                        uint8_t bitwidth, Domain d) {
-  // assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
-  //        "function not implemented for other domains\n");
+  assert(lhs.domain == rhs.domain && "lhs and rhs must be in the same domain");
+  assert((lhs.domain == KNOWN_BITS || lhs.domain == CONSTANT_RANGE) &&
+         "function not implemented for other domains");
 
   uint64_t mask = makeMask(bitwidth);
   std::vector<AbstVal> crtVals;
-  // lhs.printAbstRange();
-  // rhs.printAbstRange();
-
 
   for (auto lhs_v : lhs.toConcrete()) {
     for (auto rhs_v : rhs.toConcrete()) {
       // stubbed out op_constraint for now
       // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
-      fprintf(stderr, "here\n");
+
       llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
+      // printf("====================================\n");
+      // printf("rhs: %d\n", rhs_v);
+      // printf("lhs: %d\n", lhs_v);
+      // printf("res: %lu\n", v.getZExtValue());
       crtVals.push_back(AbstVal::fromConcrete(d, v));
     }
   }
+
+  // printf("====================================\n");
+  // printf("lhs abst: ");
+  // lhs.printAbstRange();
+  // printf("lhs conc: ");
+  // printf("{");
+  // for (auto lhs_v : lhs.toConcrete()) {
+  //   printf("%d, ", lhs_v);
+  // }
+  // printf("}\n");
+  //
+  // printf("-----\n");
+  //
+  // printf("rhs abst: ");
+  // rhs.printAbstRange();
+  // printf("{");
+  // for (auto rhs_v : rhs.toConcrete()) {
+  //   printf("%d, ", rhs_v);
+  // }
+  // printf("}\n");
+  //
+  // printf("-----\n");
+  //
+  // printf("res abst: ");
+  // printf("{\n");
+  // for (auto res : crtVals) {
+  //   res.printAbstRange();
+  // }
+  // printf("}\n");
 
   return AbstVal::fromIntersection(d, bitwidth, crtVals);
 }
 
 int main(int argv, char **argc) {
   // TODO make a flag for bitwidth
-  const size_t bitwidth = 4;
+  const size_t bitwidth = 2;
   if (argv != 3 || strcmp(argc[1], "--domain") != 0) {
     fprintf(stderr, "usage: ./EvalEngine --domain KnownBits\n");
     return 1;
@@ -114,6 +145,8 @@ int main(int argv, char **argc) {
   // TODO maybe make this a cmd line flag but idk
   Results r{numFuncs};
 
+  int k = 0;
+  int l = 0;
   for (auto lhs : enumAbstVals(bitwidth, d)) {
     for (auto rhs : enumAbstVals(bitwidth, d)) {
 
@@ -130,14 +163,37 @@ int main(int argv, char **argc) {
         AbstVal synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
         bool sound = synth_after_meet.isSuperset(best_abstract_res);
         bool exact = synth_after_meet == best_abstract_res;
+        // TODO distance is kind of a bogus measure of CONST_RANGE
         unsigned int dis = synth_after_meet.distance(best_abstract_res);
 
         r.incResult(Result(sound, dis, exact, solved), i);
       }
 
+      // if ((lhs != AbstVal::top(CONSTANT_RANGE, bitwidth)) &&
+      //     (rhs != AbstVal::top(CONSTANT_RANGE, bitwidth))) {
+      if (synth_kbs[0] != best_abstract_res) {
+        printf("=================================\n");
+        printf("lhs:");
+        lhs.printAbstRange();
+        printf("rhs:");
+        rhs.printAbstRange();
+        printf("syn:");
+        synth_kbs[0].printAbstRange();
+        printf("cnc:");
+        best_abstract_res.printAbstRange();
+        ++k;
+        // }
+      }
+      ++l;
+
       r.incCases(solved);
     }
   }
+  printf("=================================\n");
+  printf("right: %d\n", l-k);
+  printf("wrong: %d\n", k);
+  printf("total: %d\n", l);
+  printf("=================================\n");
 
   r.print();
 
