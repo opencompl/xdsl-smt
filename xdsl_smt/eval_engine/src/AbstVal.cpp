@@ -17,12 +17,10 @@
 // gamma (concretization function) Set[ConcreteValue] -> AbstactValue
 //
 // meet (greatest lower bound)
-//   called intersection in llvm
 //   set[AbstractValue] -> AbstractValue
 //   the meet of the empty set should return top
 //
 // join (least upper bound)
-//   called union in llvm
 //   set[AbstractValue] -> AbstractValue
 //   the join of the empty set should return bottom
 
@@ -76,28 +74,26 @@ public:
     std::unreachable();
   }
 
-  //  known as fromUnion in llvm
   static AbstVal joinAll(Domain d, unsigned int bitwidth,
                          const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
            "constructor not impl'd for other domains yet\n");
     return std::accumulate(
-        v.begin(), v.end(), AbstVal::top(d, bitwidth),
+        v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
         [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.join(rhs); });
   }
 
-  //  called intersect with in llvm
   static AbstVal meetAll(Domain d, unsigned int bitwidth,
                          const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
            "constructor not impl'd for other domains yet");
     if (d == KNOWN_BITS) {
       return std::accumulate(
-          v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
+          v.begin(), v.end(), AbstVal::top(d, bitwidth),
           [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.meet(rhs); });
     } else if (d == CONSTANT_RANGE) {
       if (v.size() == 0)
-        return AbstVal::bottom(d, bitwidth);
+        return AbstVal::top(d, bitwidth);
 
       auto [l, u] = std::minmax_element(v.begin(), v.end(),
                                         [](const AbstVal &a, const AbstVal &b) {
@@ -124,7 +120,7 @@ public:
   }
 
   // TODO should be purged if we move ta concepts
-  bool isSuperset(const AbstVal &rhs) const { return this->join(rhs) == rhs; }
+  bool isSuperset(const AbstVal &rhs) const { return this->meet(rhs) == rhs; }
 
   // TODO should be purged if we move ta concepts
   unsigned int distance(const AbstVal &rhs) const {
@@ -145,14 +141,13 @@ public:
     return true;
   }
 
-  // known as unionWith in llvm
   AbstVal join(const AbstVal &rhs) const {
     assert(domain == rhs.domain && "lhs and rhs domains must match");
     assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
            "function not impl'd for other domains yet");
 
     if (domain == KNOWN_BITS) {
-      return AbstVal(KNOWN_BITS, {zero() | rhs.zero(), one() | rhs.one()},
+      return AbstVal(KNOWN_BITS, {zero() & rhs.zero(), one() & rhs.one()},
                      bitwidth);
     } else if (domain == CONSTANT_RANGE) {
       llvm::APInt L = rhs.lower().ult(lower()) ? rhs.lower() : lower();
@@ -241,7 +236,7 @@ public:
            "function not impl'd for this domain");
 
     if (domain == KNOWN_BITS) {
-      return AbstVal(domain, {zero() & rhs.zero(), one() & rhs.one()},
+      return AbstVal(domain, {zero() | rhs.zero(), one() | rhs.one()},
                      bitwidth);
     } else if (domain == CONSTANT_RANGE) {
       llvm::APInt l = rhs.lower().ugt(lower()) ? rhs.lower() : lower();

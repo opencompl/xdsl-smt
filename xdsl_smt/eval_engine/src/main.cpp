@@ -84,7 +84,7 @@ AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
     }
   }
 
-  return AbstVal::meetAll(d, bitwidth, crtVals);
+  return AbstVal::joinAll(d, bitwidth, crtVals);
 }
 
 int main(int argv, char **argc) {
@@ -117,11 +117,11 @@ int main(int argv, char **argc) {
       std::vector<AbstVal> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<AbstVal> ref_kbs(ref_function_wrapper(lhs, rhs));
       // join of all kb values in the vec, ref_kbs
-      AbstVal cur_kb = AbstVal::joinAll(d, bitwidth, ref_kbs);
+      AbstVal cur_kb = AbstVal::meetAll(d, bitwidth, ref_kbs);
       bool solved = cur_kb == best_abstract_res;
 
       for (unsigned int i = 0; i < synth_kbs.size(); ++i) {
-        AbstVal synth_after_meet = cur_kb.join(synth_kbs[i]);
+        AbstVal synth_after_meet = cur_kb.meet(synth_kbs[i]);
         bool sound = synth_after_meet.isSuperset(best_abstract_res);
         bool exact = synth_after_meet == best_abstract_res;
         // TODO distance is kind of a bogus measure of CONST_RANGE
