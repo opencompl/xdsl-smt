@@ -68,7 +68,7 @@ operNameToCpp = {
     "transfer.countr_zero": ".countr_zero",
     "transfer.countl_one": ".countl_one",
     "transfer.countr_one": ".countr_one",
-    "transfer.get_low_bits": ".getLoBits",
+    "transfer.get_low_bits": ".getLowBits",
     "transfer.set_high_bits": ".setHighBits",
     "transfer.set_low_bits": ".setLowBits",
     "transfer.intersects": ".intersects",
@@ -123,6 +123,23 @@ operNameToCpp = {
     "comb.concat": ".concat",
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
+
+
+# operNameToConstraint is used for storing operation constraints used in synthesizing dataflow operations
+# It has shape operNname -> (condition, list[new_args]). If the condition satisfies, the operation doesn't change
+# while it creates an else branch and initialize the operation with list[new_args].
+CHECK_RHS_IN_BITWIDTH = (
+    "{1}.uge(0) && {1}.ule({1}.getBitWidth())",
+    ["{0}", "{1}.urem({1}.getBitWidth())"],
+)
+CHECK_RHS_IS_ZERO = ("{1}!=0", ["{0}", "1"])
+operationToConstraint: dict[Operation, tuple[str, list[str]]] = {
+    SetLowBitsOp: CHECK_RHS_IN_BITWIDTH,
+    SetHighBitsOp: CHECK_RHS_IN_BITWIDTH,
+    ShlOp: CHECK_RHS_IN_BITWIDTH,
+    AShrOp: CHECK_RHS_IN_BITWIDTH,
+    LShrOp: CHECK_RHS_IN_BITWIDTH,
+}
 
 unsignedReturnedType = {
     CountLOneOp,
@@ -295,7 +312,40 @@ def lowerToClassMethod(op: Operation, castOperand=None, castResult=None):
     for i in range(2, len(operands)):
         expr += "," + operands[i]
     expr += ")"
-    result = indent + returnedType + " " + returnedValue + equals + expr + ends
+    if type(op) in operationToConstraint:
+        constraint = operationToConstraint[type(op)]
+        original_operand_names = [operand.name_hint for operand in op.operands]
+        condition = constraint[0].format(*original_operand_names)
+        new_operands = [
+            operand.format(*original_operand_names) for operand in constraint[1]
+        ]
+        result = indent + returnedType + " " + returnedValue + ends
+        true_branch = indent + "\t" + returnedValue + equals + expr + ends
+
+        new_expr = new_operands[0] + operNameToCpp[op.name] + "("
+        operands = [operand for operand in new_operands]
+        if len(operands) > 1:
+            new_expr += operands[1]
+        for i in range(2, len(operands)):
+            new_expr += "," + operands[i]
+        new_expr += ")"
+
+        false_branch = indent + "\t" + returnedValue + equals + new_expr + ends
+
+        if_branch = (
+            indent
+            + "if({condition}){{\n{true_branch}"
+            + indent
+            + "}}else{{\n{false_branch}"
+            + indent
+            + "}}\n"
+        )
+        result = result + if_branch.format(
+            condition=condition, true_branch=true_branch, false_branch=false_branch
+        )
+
+    else:
+        result = indent + returnedType + " " + returnedValue + equals + expr + ends
     if castResult is not None:
         return result + castResult(op)
     return result
@@ -610,7 +660,9 @@ def _(op: CountRZeroOp):
 
 
 def castToUnisgnedFromAPInt(operand):
-    if isinstance(operand.type, TransIntegerType):
+    if isinstance(operand, str):
+        return "(" + operand + ").getZExtValue()"
+    elif isinstance(operand.type, TransIntegerType):
         return operand.name_hint + ".getZExtValue()"
     return operand.name_hint
 
