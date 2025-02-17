@@ -100,7 +100,7 @@ def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"AbstVal res_{x}(lhs.domain, res_v_{x});"
+        return f"AbstVal res_{x}(lhs.domain, res_v_{x}, lhs.bitwidth);"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -226,34 +226,17 @@ def main():
     }
     """
 
-    transfer_func_name = "add"
+    transfer_func_name = "cr_add"
     transfer_func_src = """
-bool isEmptySet(std::vector<APInt> x) { return x[0] == x[1] && x[0].isMinValue(); }
-bool isFullSet(std::vector<APInt> x) { return x[0] == x[1] && x[0].isMaxValue(); }
-
-std::vector<APInt> getEmpty(uint32_t BitWidth) {
-  return {APInt::getMinValue(BitWidth), APInt::getMinValue(BitWidth)};
-}
-std::vector<APInt> getFull(uint32_t BitWidth) {
-  return {APInt::getMaxValue(BitWidth), APInt::getMaxValue(BitWidth)};
-}
-
-bool isSizeStrictlySmallerThan(std::vector<APInt> lhs, std::vector<APInt> rhs) {
-  if (isFullSet(lhs)) return false;
-  if (isFullSet(rhs)) return true;
-  return (lhs[1] - lhs[0]).ult(rhs[1] - rhs[0]);
-}
-
-std::vector<APInt> add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
-  unsigned int bw = arg0[0].getBitWidth();
-  if (isEmptySet(arg0) || isEmptySet(arg1)) return getEmpty(bw);
-  if (isFullSet(arg0) || isFullSet(arg1)) return getFull(bw);
-  APInt NewLower = arg0[0] + arg1[0];
-  APInt NewUpper = arg0[1] + arg1[1] - 1;
-  if (NewLower == NewUpper) return getFull(bw);
-  std::vector<APInt> X = {std::move(NewLower), std::move(NewUpper)};
-  if (isSizeStrictlySmallerThan(X, arg0) || isSizeStrictlySmallerThan(X, arg1)) return getFull(bw);
-  return X;
+std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  bool res0_ov;
+  bool res1_ov;
+  APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
+  APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
+  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
+    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
+            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
+  return {res0, res1};
 }
     """
 
@@ -261,9 +244,10 @@ std::vector<APInt> add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
     srcs = [transfer_func_src]
     ref_names: list[str] = []  # TODO
     ref_srcs: list[str] = []  # TODO
-    a = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
+    results = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
 
-    for res in a:
+    for res in results:
+        print(res)
         print(f"cost:                  {res.get_cost():.04f}")
         print(f"sound prop:            {res.get_sound_prop():.04f}")
         print(f"exact prop:            {res.get_exact_prop():.04f}")

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
@@ -24,7 +25,7 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
       for (uint64_t j = 0; j <= max.getZExtValue(); ++j) {
         llvm::APInt zero = llvm::APInt(bitwidth, i);
         llvm::APInt one = llvm::APInt(bitwidth, j);
-        AbstVal x(KNOWN_BITS, {zero, one});
+        AbstVal x(KNOWN_BITS, {zero, one}, bitwidth);
 
         if (!x.hasConflict())
           ret.push_back(x);
@@ -32,20 +33,17 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
     }
     return ret;
   } else if (d == CONSTANT_RANGE) {
-    std::vector<AbstVal> ret;
+    // TODO there should be some speed wins here
     const llvm::APInt min = llvm::APInt::getMinValue(bitwidth);
     const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
+    std::vector<AbstVal> ret = {AbstVal::top(CONSTANT_RANGE, bitwidth)};
 
     for (llvm::APInt i = min;; ++i) {
       for (llvm::APInt j = min;; ++j) {
-        if (i == j && !(i.isMaxValue() || i.isMinValue())) {
-          if (j == max)
-            break;
-          else
-            continue;
-        }
+        if (j.ult(i))
+          continue;
 
-        ret.push_back(AbstVal(CONSTANT_RANGE, {i, j}));
+        ret.push_back(AbstVal(CONSTANT_RANGE, {i, j}, bitwidth));
 
         if (j == max)
           break;
@@ -55,11 +53,10 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
     }
 
     return ret;
-  } else {
-    printf("unknown abstract domain\n");
   }
 
-  return {};
+  fprintf(stderr, "unknown abstract domain\n");
+  std::unreachable();
 }
 
 uint64_t makeMask(uint8_t bitwidth) {
@@ -82,51 +79,17 @@ AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
     for (auto rhs_v : rhs.toConcrete()) {
       // stubbed out op_constraint for now
       // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
-
       llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
-      // printf("====================================\n");
-      // printf("rhs: %d\n", rhs_v);
-      // printf("lhs: %d\n", lhs_v);
-      // printf("res: %lu\n", v.getZExtValue());
       crtVals.push_back(AbstVal::fromConcrete(d, v));
     }
   }
-
-  // printf("====================================\n");
-  // printf("lhs abst: ");
-  // lhs.printAbstRange();
-  // printf("lhs conc: ");
-  // printf("{");
-  // for (auto lhs_v : lhs.toConcrete()) {
-  //   printf("%d, ", lhs_v);
-  // }
-  // printf("}\n");
-  //
-  // printf("-----\n");
-  //
-  // printf("rhs abst: ");
-  // rhs.printAbstRange();
-  // printf("{");
-  // for (auto rhs_v : rhs.toConcrete()) {
-  //   printf("%d, ", rhs_v);
-  // }
-  // printf("}\n");
-  //
-  // printf("-----\n");
-  //
-  // printf("res abst: ");
-  // printf("{\n");
-  // for (auto res : crtVals) {
-  //   res.printAbstRange();
-  // }
-  // printf("}\n");
 
   return AbstVal::fromIntersection(d, bitwidth, crtVals);
 }
 
 int main(int argv, char **argc) {
   // TODO make a flag for bitwidth
-  const size_t bitwidth = 2;
+  const size_t bitwidth = 4;
   if (argv != 3 || strcmp(argc[1], "--domain") != 0) {
     fprintf(stderr, "usage: ./EvalEngine --domain KnownBits\n");
     return 1;
@@ -145,8 +108,6 @@ int main(int argv, char **argc) {
   // TODO maybe make this a cmd line flag but idk
   Results r{numFuncs};
 
-  int k = 0;
-  int l = 0;
   for (auto lhs : enumAbstVals(bitwidth, d)) {
     for (auto rhs : enumAbstVals(bitwidth, d)) {
 
@@ -169,31 +130,9 @@ int main(int argv, char **argc) {
         r.incResult(Result(sound, dis, exact, solved), i);
       }
 
-      // if ((lhs != AbstVal::top(CONSTANT_RANGE, bitwidth)) &&
-      //     (rhs != AbstVal::top(CONSTANT_RANGE, bitwidth))) {
-      if (synth_kbs[0] != best_abstract_res) {
-        printf("=================================\n");
-        printf("lhs:");
-        lhs.printAbstRange();
-        printf("rhs:");
-        rhs.printAbstRange();
-        printf("syn:");
-        synth_kbs[0].printAbstRange();
-        printf("cnc:");
-        best_abstract_res.printAbstRange();
-        ++k;
-        // }
-      }
-      ++l;
-
       r.incCases(solved);
     }
   }
-  printf("=================================\n");
-  printf("right: %d\n", l-k);
-  printf("wrong: %d\n", k);
-  printf("total: %d\n", l);
-  printf("=================================\n");
 
   r.print();
 
