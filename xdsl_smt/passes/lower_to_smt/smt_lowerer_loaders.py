@@ -77,15 +77,15 @@ def load_dynamic_semantics(semantics: dict[type[Operation], OperationSemantics])
 
 def load_int_semantics(integer_proxy: IntegerProxy):
     semantics = {
-        arith.Constant: IntConstantSemantics(integer_proxy),
-        arith.Select: IntSelectSemantics(integer_proxy),
-        arith.Addi: get_binary_ef_semantics(smt_int.AddOp)(integer_proxy),
-        arith.Subi: get_binary_ef_semantics(smt_int.SubOp)(integer_proxy),
-        arith.Muli: get_binary_ef_semantics(smt_int.MulOp)(integer_proxy),
-        arith.Cmpi: IntCmpiSemantics(integer_proxy),
-        arith.AndI: IntAndISemantics(integer_proxy),
-        arith.DivUI: get_div_semantics(smt_int.DivOp)(integer_proxy),
-        arith.RemUI: get_div_semantics(smt_int.ModOp)(integer_proxy),
+        arith.ConstantOp: IntConstantSemantics(integer_proxy),
+        arith.SelectOp: IntSelectSemantics(integer_proxy),
+        arith.AddiOp: get_binary_ef_semantics(smt_int.AddOp)(integer_proxy),
+        arith.SubiOp: get_binary_ef_semantics(smt_int.SubOp)(integer_proxy),
+        arith.MuliOp: get_binary_ef_semantics(smt_int.MulOp)(integer_proxy),
+        arith.CmpiOp: IntCmpiSemantics(integer_proxy),
+        arith.AndIOp: IntAndISemantics(integer_proxy),
+        arith.DivUIOp: get_div_semantics(smt_int.DivOp)(integer_proxy),
+        arith.RemUIOp: get_div_semantics(smt_int.ModOp)(integer_proxy),
     }
     SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
     types = {

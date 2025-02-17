@@ -461,7 +461,12 @@ def are_generic_integers_defined_on(
     Returns False if there is an operation in module_op that is not
     supported by generic integer semantics. Returns True otherwise.
     """
-    forbidden_ops = [arith.OrI.name, arith.XOrI.name, arith.ShLI.name, arith.DivSI.name]
+    forbidden_ops = [
+        arith.OrIOp.name,
+        arith.XOrIOp.name,
+        arith.ShLIOp.name,
+        arith.DivSIOp.name,
+    ]
     forbidden_ops += [o.name for o in comb.Comb.operations]
     use_parametric_int = True
     for inner_op in module_op.walk():
