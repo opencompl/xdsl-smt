@@ -243,3 +243,43 @@ class ItePairsCanonicalizationPattern(RewritePattern):
         new_snd = smt.IteOp(op.cond, fst_op.second, snd_op.second)
         new_op = smt_utils.PairOp(new_fst.res, new_snd.res)
         rewriter.replace_matched_op([new_fst, new_snd, new_op])
+
+
+class IteMergePattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: smt.IteOp, rewriter: PatternRewriter):
+        if isinstance(true_ite := op.true_val.owner, smt.IteOp):
+            # ((x if c else y) if c' else y) -> x if c && c' else y
+            if true_ite.false_val == op.false_val:
+                new_cond = smt.AndOp.get(op.cond, true_ite.cond)
+                new_ite = smt.IteOp(new_cond.res, true_ite.true_val, op.false_val)
+                rewriter.replace_matched_op([new_cond, new_ite])
+                return
+
+            # ((x if c else y) if c' else x) -> y if c' && !c else x
+            if true_ite.true_val == op.false_val:
+                not_cond2_op = smt.NotOp.get(true_ite.cond)
+                new_cond_op = smt.AndOp.get(op.cond, not_cond2_op.res)
+                new_ite_op = smt.IteOp(
+                    new_cond_op.res, op.false_val, true_ite.false_val
+                )
+                rewriter.replace_matched_op([not_cond2_op, new_cond_op, new_ite_op])
+                return
+
+        if isinstance(false_ite := op.false_val.owner, smt.IteOp):
+            # (x if c else (x if c' else y)) -> x if c || c' else y
+            if false_ite.true_val == op.true_val:
+                new_cond_op = smt.OrOp.get(op.cond, false_ite.cond)
+                new_ite_op = smt.IteOp(
+                    new_cond_op.res, op.true_val, false_ite.false_val
+                )
+                rewriter.replace_matched_op([new_cond_op, new_ite_op])
+                return
+
+            # (x if c else (y if c' else x)) -> x if c || !c' else y
+            if false_ite.false_val == op.true_val:
+                not_cond2_op = smt.NotOp.get(false_ite.cond)
+                new_cond_op = smt.OrOp.get(op.cond, not_cond2_op.res)
+                new_ite_op = smt.IteOp(new_cond_op.res, op.true_val, false_ite.true_val)
+                rewriter.replace_matched_op([not_cond2_op, new_cond_op, new_ite_op])
+                return

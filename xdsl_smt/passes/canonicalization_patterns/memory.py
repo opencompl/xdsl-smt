@@ -12,6 +12,14 @@ OpT = TypeVar(
 )
 
 
+class GetSetMemoryPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: mem.GetMemoryOp, rewriter: PatternRewriter):
+        if not isinstance(set_memory := op.state.owner, mem.SetMemoryOp):
+            return None
+        rewriter.replace_matched_op([], [set_memory.memory])
+
+
 class GetSetBlockPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: mem.GetBlockOp, rewriter: PatternRewriter):

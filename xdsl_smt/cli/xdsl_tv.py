@@ -14,7 +14,10 @@ from xdsl.utils.isattr import isattr
 from xdsl_smt.dialects.memory_dialect import BlockIDType
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
-from xdsl_smt.passes.lower_effects_with_memory import LowerEffectWithMemoryPass
+from xdsl_smt.passes.lower_effects_with_memory import (
+    LowerEffectsWithMemoryPass,
+)
+from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 
 from xdsl_smt.dialects.smt_bitvector_dialect import (
@@ -392,7 +395,18 @@ def main() -> None:
         DeadCodeElimination().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
 
-    LowerEffectWithMemoryPass().apply(ctx, new_module)
+    LowerMemoryEffectsPass().apply(ctx, new_module)
+
+    # Optionally simplify the module
+    if args.opt:
+        CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+        # Remove this once we update to latest xdsl
+        DeadCodeElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+
+    LowerEffectsWithMemoryPass().apply(ctx, new_module)
 
     # Optionally simplify the module
     if args.opt:

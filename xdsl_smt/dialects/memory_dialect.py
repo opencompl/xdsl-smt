@@ -5,12 +5,14 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     irdl_op_definition,
+    traits_def,
 )
 from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
 from xdsl.pattern_rewriter import RewritePattern
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.isattr import isattr
 
+from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.dialects.smt_utils_dialect import PairType
@@ -44,6 +46,51 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     name = "memory.bytes"
 
 
+class GetSetMemoryOpPattern(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.memory import (
+            GetSetMemoryPattern,
+        )
+
+        return (GetSetMemoryPattern(),)
+
+
+@irdl_op_definition
+class GetMemoryOp(IRDLOperation):
+    name = "memory.get_memory"
+
+    state = operand_def(StateType())
+
+    res = result_def(MemoryType())
+
+    assembly_format = "$state attr-dict"
+
+    traits = traits_def(Pure(), GetSetMemoryOpPattern())
+
+    def __init__(self, state: SSAValue):
+        super().__init__(operands=[state], result_types=[MemoryType()])
+        self.res.name_hint = "memory"
+
+
+@irdl_op_definition
+class SetMemoryOp(IRDLOperation):
+    name = "memory.set_memory"
+
+    state = operand_def(StateType())
+    memory = operand_def(MemoryType())
+
+    res = result_def(StateType())
+
+    assembly_format = "$state `,` $memory attr-dict"
+
+    traits = traits_def(Pure())
+
+    def __init__(self, state: SSAValue, memory: SSAValue):
+        super().__init__(operands=[state, memory], result_types=[StateType()])
+        self.res.name_hint = "state"
+
+
 class GetSetBlockOpPattern(HasCanonicalizationPatternsTrait):
     @classmethod
     def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
@@ -67,7 +114,7 @@ class GetBlockOp(IRDLOperation):
 
     assembly_format = "$memory `[` $block_id `]` attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockOpPattern()])
+    traits = traits_def(Pure(), GetSetBlockOpPattern())
 
     def __init__(self, memory: SSAValue, block_id: SSAValue):
         super().__init__(operands=[memory, block_id], result_types=[MemoryBlockType()])
@@ -98,7 +145,7 @@ class SetBlockOp(IRDLOperation):
 
     assembly_format = "$block `,` $memory `[` $block_id `]` attr-dict"
 
-    traits = frozenset([Pure(), SetSetBlockOpPattern()])
+    traits = traits_def(Pure(), SetSetBlockOpPattern())
 
     def __init__(self, block: SSAValue, memory: SSAValue, block_id: SSAValue):
         super().__init__(
@@ -129,7 +176,7 @@ class GetBlockBytesOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockBytesPattern()])
+    traits = traits_def(Pure(), GetSetBlockBytesPattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BytesType()])
@@ -178,7 +225,7 @@ class GetBlockSizeOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockSizePattern()])
+    traits = traits_def(Pure(), GetSetBlockSizePattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BitVectorType(64)])
@@ -230,7 +277,7 @@ class GetBlockLiveMarkerOp(IRDLOperation):
 
     assembly_format = "$memory_block attr-dict"
 
-    traits = frozenset([Pure(), GetSetBlockLiveMarkerPattern()])
+    traits = traits_def(Pure(), GetSetBlockLiveMarkerPattern())
 
     def __init__(self, memory_block: SSAValue):
         super().__init__(operands=[memory_block], result_types=[BoolType()])
@@ -335,6 +382,8 @@ class GetFreshBlockIDOp(IRDLOperation):
 MemoryDialect = Dialect(
     "memory",
     [
+        GetMemoryOp,
+        SetMemoryOp,
         GetBlockOp,
         SetBlockOp,
         GetBlockBytesOp,

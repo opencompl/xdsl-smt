@@ -8,7 +8,7 @@ from xdsl.dialects.builtin import (
     IntegerType,
     i1,
 )
-from typing import Annotated, Mapping, Sequence
+from typing import ClassVar, Mapping, Sequence
 
 from xdsl.ir import (
     ParametrizedAttribute,
@@ -22,7 +22,6 @@ from xdsl.ir import (
 from xdsl.utils.hints import isa
 
 from xdsl.irdl import (
-    ConstraintVar,
     attr_def,
     operand_def,
     var_operand_def,
@@ -35,7 +34,10 @@ from xdsl.irdl import (
     ParameterDef,
     IRDLOperation,
     traits_def,
+    lazy_traits_def,
     AnyAttr,
+    VarConstraint,
+    irdl_to_attr_constraint,
 )
 from xdsl.utils.exceptions import VerifyException
 
@@ -56,7 +58,9 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 @irdl_op_definition
 class AddPoisonOp(IRDLOperation):
     name = "transfer.add_poison"
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     op: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -65,7 +69,9 @@ class AddPoisonOp(IRDLOperation):
 @irdl_op_definition
 class RemovePoisonOp(IRDLOperation):
     name = "transfer.remove_poison"
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     op: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -75,7 +81,9 @@ class RemovePoisonOp(IRDLOperation):
 class Constant(IRDLOperation, InferResultTypeInterface):
     name = "transfer.constant"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     op: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -99,12 +107,14 @@ class Constant(IRDLOperation, InferResultTypeInterface):
         super().__init__(
             operands=[op],
             result_types=[op.type],
-            properties={"value": IntegerAttr(value, IndexType())},
+            attributes={"value": IntegerAttr(value, IndexType())},
         )
 
 
 class UnaryOp(IRDLOperation, InferResultTypeInterface, ABC):
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     op: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -140,7 +150,9 @@ class ReverseBitsOp(UnaryOp):
 
 
 class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     lhs: Operand = operand_def(T)
     rhs: Operand = operand_def(T)
@@ -168,7 +180,9 @@ class BinOp(IRDLOperation, InferResultTypeInterface, ABC):
 
 
 class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     lhs: Operand = operand_def(T)
     rhs: Operand = operand_def(T)
@@ -188,11 +202,9 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         self,
         lhs: SSAValue,
         rhs: SSAValue,
+        attributes: dict[str, Attribute] = {},
     ):
-        super().__init__(
-            operands=[lhs, rhs],
-            result_types=[i1],
-        )
+        super().__init__(operands=[lhs, rhs], result_types=[i1], attributes=attributes)
 
 
 @irdl_op_definition
@@ -319,7 +331,9 @@ class RepeatOp(BinOp):
 class ExtractOp(IRDLOperation):
     name = "transfer.extract"
     # the extracted bits [bitPosition,bitPosition+numBits].
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     val: Operand = operand_def(T)
     numBits: Operand = operand_def(T)
@@ -342,51 +356,29 @@ class ExtractOp(IRDLOperation):
 class GetLowBitsOp(BinOp):
     name = "transfer.get_low_bits"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
-
-    val: Operand = operand_def(T)
-    low_bits: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
 
 @irdl_op_definition
 class SetHighBitsOp(BinOp):
     name = "transfer.set_high_bits"
-
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
-
-    val: Operand = operand_def(T)
-    high_bits: Operand = operand_def(T)
-    result: OpResult = result_def(T)
 
 
 @irdl_op_definition
 class SetLowBitsOp(BinOp):
     name = "transfer.set_low_bits"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
-
-    val: Operand = operand_def(T)
-    low_bits: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
 
 @irdl_op_definition
 class SetSignBitOp(BinOp):
     name = "transfer.set_sign_bit"
-
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
-
-    val: Operand = operand_def(T)
-    sign_bit: Operand = operand_def(T)
-    result: OpResult = result_def(T)
 
 
 @irdl_op_definition
 class IsPowerOf2Op(IRDLOperation):
     name = "transfer.is_power_of_2"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     val: Operand = operand_def(T)
     result: OpResult = result_def(i1)
@@ -405,7 +397,9 @@ class IsPowerOf2Op(IRDLOperation):
 class IsAllOnesOp(IRDLOperation):
     name = "transfer.is_all_ones"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     val: Operand = operand_def(T)
     result: OpResult = result_def(i1)
@@ -425,6 +419,37 @@ class CmpOp(PredicateOp):
     name = "transfer.cmp"
 
     predicate: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
+
+    def __init__(
+        self,
+        lhs: SSAValue,
+        rhs: SSAValue,
+        arg: int | str,
+    ):
+        if isinstance(arg, str):
+            cmp_comparison_operations = {
+                "eq": 0,
+                "ne": 1,
+                "slt": 2,
+                "sle": 3,
+                "sgt": 4,
+                "sge": 5,
+                "ult": 6,
+                "ule": 7,
+                "ugt": 8,
+                "uge": 9,
+            }
+            assert arg in cmp_comparison_operations
+            pred = cmp_comparison_operations[arg]
+        else:
+            pred = arg
+        assert pred >= 0 and pred <= 9
+
+        super().__init__(
+            lhs,
+            rhs,
+            {"predicate": IntegerAttr.from_index_int_value(pred)},
+        )
 
 
 @irdl_attr_definition
@@ -491,6 +516,19 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
         ) != [self.result.type]:
             raise VerifyException("The result type doesn't match the inferred type")
 
+    def __init__(
+        self,
+        op: Operand,
+        index: int,
+    ):
+        assert isinstance(op.type, AbstractValueType) or isinstance(op.type, TupleType)
+        ith_type = op.type.get_fields()[index]
+        super().__init__(
+            operands=[op],
+            result_types=[ith_type],
+            attributes={"index": IntegerAttr(index, IndexType())},
+        )
+
 
 @irdl_op_definition
 class MakeOp(IRDLOperation, InferResultTypeInterface):
@@ -514,6 +552,17 @@ class MakeOp(IRDLOperation, InferResultTypeInterface):
         if self.result.type.get_fields() != [arg.type for arg in self.arguments]:
             raise VerifyException("The required field doesn't match the result type")
 
+    def __init__(
+        self,
+        args: Sequence[SSAValue],
+    ):
+        arg_types = [arg.type for arg in args]
+        result_type = AbstractValueType(arg_types)
+        super().__init__(
+            operands=[args],
+            result_types=[result_type],
+        )
+
 
 @irdl_op_definition
 class SelectOp(IRDLOperation):
@@ -523,7 +572,9 @@ class SelectOp(IRDLOperation):
 
     name = "transfer.select"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     cond: Operand = operand_def(IntegerType(1))
     true_value: Operand = operand_def(T)
@@ -546,14 +597,16 @@ class SelectOp(IRDLOperation):
 class NextLoopOp(IRDLOperation):
     name = "transfer.next_loop"
     arguments: VarOperand = var_operand_def(AnyAttr())
-    traits = traits_def(lambda: frozenset([IsTerminator(), HasParent(ConstRangeForOp)]))
+    traits = lazy_traits_def(lambda: (IsTerminator(), HasParent(ConstRangeForOp)))
 
 
 @irdl_op_definition
 class ConstRangeForOp(IRDLOperation):
     name = "transfer.const_range_for"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     lb: Operand = operand_def(T)
     ub: Operand = operand_def(T)
@@ -565,7 +618,7 @@ class ConstRangeForOp(IRDLOperation):
 
     body: Region = region_def("single_block")
 
-    traits = frozenset([SingleBlockImplicitTerminator(NextLoopOp)])
+    traits = traits_def(SingleBlockImplicitTerminator(NextLoopOp))
 
     def verify_(self):
         # body block verification
@@ -615,7 +668,9 @@ class GetAllOnesOp(UnaryOp):
 
     name = "transfer.get_all_ones"
 
-    T = Annotated[TransIntegerType | IntegerType, ConstraintVar("T")]
+    T: ClassVar = VarConstraint(
+        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
+    )
 
     op: Operand = operand_def(T)
     result: OpResult = result_def(T)

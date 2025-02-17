@@ -69,7 +69,7 @@
     %arg0_0_arith = "transfer.add_poison"(%arg0_0): (i1) -> i1
     %arg0_1_arith = "transfer.add_poison"(%arg0_1): (i1) -> i1
     %add_res = "arith.addi"(%arg0_0_arith, %arg0_1_arith) : (i1,i1) -> i1
-    %all_ones = "arith.constant"() {"value" = 1 : i1} : () -> i1
+    %all_ones = "arith.constant"() {value = 1 : i1} : () -> i1
     %cmp_res = "arith.cmpi"(%add_res,%all_ones) {"predicate" = 0 : i64} : (i1,i1) -> i1
     "func.return"(%cmp_res) : (i1) -> ()
   }) {function_type = (!transfer.abs_value<[i1,i1]>) -> i1, sym_name = "isConstant_i1"} : () -> ()

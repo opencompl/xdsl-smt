@@ -12,7 +12,7 @@ from ...dialects import transfer
 from xdsl.ir import Attribute
 from xdsl_smt.passes.lower_to_smt.smt_rewrite_patterns import SMTLoweringRewritePattern
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
-from xdsl.dialects.func import Call
+from xdsl.dialects import func
 from ...dialects.smt_utils_dialect import PairType, SecondOp, FirstOp, PairOp
 from xdsl_smt.dialects.smt_dialect import BoolType, DefineFunOp, CallOp
 from xdsl.dialects.builtin import ModuleOp
@@ -322,8 +322,8 @@ class UMinOpPattern(smt_pure_lowering_pattern(transfer.UMinOp)):
         )
 
 
-class CallOpPattern(smt_pure_lowering_pattern(Call)):
-    def rewrite_pure(self, op: Call, rewriter: PatternRewriter) -> None:
+class CallOpPattern(smt_pure_lowering_pattern(func.CallOp)):
+    def rewrite_pure(self, op: func.CallOp, rewriter: PatternRewriter) -> None:
         module = op.parent_op()
         callee = op.callee.string_value()
         while not isinstance(module, ModuleOp):

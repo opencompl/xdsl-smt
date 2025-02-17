@@ -4,7 +4,7 @@
 
 builtin.module {
   func.func private @constant() -> i32 {
-    %x = "llvm.mlir.constant"() <{"value" = 3 : i32}> : () -> i32
+    %x = "llvm.mlir.constant"() <{value = 3 : i32}> : () -> i32
     func.return %x : i32
   }
 }

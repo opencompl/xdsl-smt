@@ -29,10 +29,15 @@ jobs:
       - name: Upgrade pip
         run: |
           pip install --upgrade pip
+      - name: Create a virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
       - name: Install the package
         run: |
           pip install .[dev]
       - name: Pyright
-        uses: jakebailey/pyright-action@v1
+        uses: jakebailey/pyright-action@v2
         with:
-          version: "1.1.309"
+          version: PATH
+          venv-path: venv

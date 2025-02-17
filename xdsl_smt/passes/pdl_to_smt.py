@@ -521,8 +521,8 @@ class PDLToSMTLowerer:
                     "composed of non-deleted operations, then deleted operations"
                 )
 
-    def lower_to_smt(self, op: Operation, ctx: MLContext) -> None:
-        patterns = [sub_op for sub_op in op.walk() if isinstance(sub_op, PatternOp)]
+    def lower_to_smt(self, module: ModuleOp, ctx: MLContext) -> None:
+        patterns = [sub_op for sub_op in module.walk() if isinstance(sub_op, PatternOp)]
         n_patterns = len(patterns)
         if n_patterns > 1:
             raise Exception(
@@ -565,11 +565,11 @@ class PDLToSMTLowerer:
             )
         )
         try:
-            walker.rewrite_op(op)
+            walker.rewrite_module(module)
         except StaticallyUnmatchedConstraintError:
-            PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_op(op)
+            PatternRewriteWalker(PatternStaticallyTrueRewrite()).rewrite_module(module)
         else:
-            PatternRewriteWalker(PatternRewrite()).rewrite_op(op)
+            PatternRewriteWalker(PatternRewrite()).rewrite_module(module)
 
 
 @dataclass(frozen=True)

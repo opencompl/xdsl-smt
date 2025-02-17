@@ -11,5 +11,4 @@
 // CHECK-NEXT:    %block_id2 = "smt.int.constant"() {"value" = 1 : ui128} : () -> !smt.int.int
 // CHECK-NEXT:    %block_id3 = "smt.int.constant"() {"value" = 2 : ui128} : () -> !smt.int.int
 
-
 "test.op"(%block_id1, %block_id2, %block_id3, %memory4) : (!memory.block_id, !memory.block_id, !memory.block_id, !memory.memory) -> ()
