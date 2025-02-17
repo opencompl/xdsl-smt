@@ -2,6 +2,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <utility>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
@@ -23,7 +25,7 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
       for (uint64_t j = 0; j <= max.getZExtValue(); ++j) {
         llvm::APInt zero = llvm::APInt(bitwidth, i);
         llvm::APInt one = llvm::APInt(bitwidth, j);
-        AbstVal x(KNOWN_BITS, {zero, one});
+        AbstVal x(KNOWN_BITS, {zero, one}, bitwidth);
 
         if (!x.hasConflict())
           ret.push_back(x);
@@ -31,20 +33,17 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
     }
     return ret;
   } else if (d == CONSTANT_RANGE) {
-    std::vector<AbstVal> ret;
+    // TODO there should be some speed wins here
     const llvm::APInt min = llvm::APInt::getMinValue(bitwidth);
     const llvm::APInt max = llvm::APInt::getMaxValue(bitwidth);
+    std::vector<AbstVal> ret = {AbstVal::top(CONSTANT_RANGE, bitwidth)};
 
     for (llvm::APInt i = min;; ++i) {
       for (llvm::APInt j = min;; ++j) {
-        if (i == j && !(i.isMaxValue() || i.isMinValue())) {
-          if (j == max)
-            break;
-          else
-            continue;
-        }
+        if (j.ult(i))
+          continue;
 
-        ret.push_back(AbstVal(CONSTANT_RANGE, {i, j}));
+        ret.push_back(AbstVal(CONSTANT_RANGE, {i, j}, bitwidth));
 
         if (j == max)
           break;
@@ -54,86 +53,79 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
     }
 
     return ret;
-  } else {
-    printf("unknown abstract domain\n");
   }
 
-  return {};
+  fprintf(stderr, "unknown abstract domain\n");
+  std::unreachable();
+}
+
+uint64_t makeMask(uint8_t bitwidth) {
+  if (bitwidth == 0)
+    return 0;
+  return (1 << bitwidth) - 1;
 }
 
 AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
                        uint8_t (*op)(const uint8_t, const uint8_t),
-                       uint8_t bitwidth) {
+                       uint8_t bitwidth, Domain d) {
+  assert(lhs.domain == rhs.domain && "lhs and rhs must be in the same domain");
+  assert((lhs.domain == KNOWN_BITS || lhs.domain == CONSTANT_RANGE) &&
+         "function not implemented for other domains");
 
-  assert(lhs.domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
-         "function not implemented for other domains\n");
+  uint64_t mask = makeMask(bitwidth);
+  std::vector<AbstVal> crtVals;
 
-  // TODO generate this bit mask automaticlly
-  uint8_t mask = 0b00001111;
-  // really incredibly stupid but idk how to use unique ptrs
-  // TODO fix this crap
-  std::vector<AbstVal> res;
-
-  for (auto lhs_val : lhs.toConcrete()) {
-    for (auto rhs_val : rhs.toConcrete()) {
+  for (auto lhs_v : lhs.toConcrete()) {
+    for (auto rhs_v : rhs.toConcrete()) {
       // stubbed out op_constraint for now
-      // if (op_constraint(APInt(bitwidth, lhs_val), APInt(bitwidth, rhs_val)))
-      if (true) {
-        llvm::APInt v(bitwidth, op(lhs_val, rhs_val) & mask);
-        AbstVal crtVal(KNOWN_BITS, v);
-
-        if (res.size() == 0) {
-          res.push_back(crtVal);
-        } else {
-          res[0] = res[0].intersectWith(crtVal);
-        }
-      }
+      // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
+      llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
+      crtVals.push_back(AbstVal::fromConcrete(d, v));
     }
   }
 
-  return res[0];
+  return AbstVal::joinAll(d, bitwidth, crtVals);
 }
 
-// check if res is a superset of best_res
-// TODO probs put in `AbstVal.cpp`
-bool kb_check_include(const AbstVal &res, const AbstVal &best_res) {
-  return res.unionWith(best_res) == best_res;
-}
-
-// compute the edit distance between 2 KnownBits
-// TODO probs put in `AbstVal.cpp`
-unsigned int kb_edit_dis(const AbstVal &res, const AbstVal &best_res) {
-  return (res.v[0] ^ best_res.v[0]).popcount() +
-         (res.v[1] ^ best_res.v[1]).popcount();
-}
-
-int main() {
+int main(int argv, char **argc) {
+  // TODO make a flag for bitwidth
   const size_t bitwidth = 4;
+  if (argv != 3 || strcmp(argc[1], "--domain") != 0) {
+    fprintf(stderr, "usage: ./EvalEngine --domain KnownBits\n");
+    return 1;
+  }
+
+  Domain d;
+  if (strcmp(argc[2], "KnownBits") == 0) {
+    d = KNOWN_BITS;
+  } else if (strcmp(argc[2], "ConstantRange") == 0) {
+    d = CONSTANT_RANGE;
+  } else {
+    fprintf(stderr, "Error unknown domain: %s\n", argc[2]);
+    return 1;
+  }
+
+  // TODO maybe make this a cmd line flag but idk
   Results r{numFuncs};
 
-  for (auto lhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
-    for (auto rhs : enumAbstVals(bitwidth, KNOWN_BITS)) {
+  for (auto lhs : enumAbstVals(bitwidth, d)) {
+    for (auto rhs : enumAbstVals(bitwidth, d)) {
 
       auto best_abstract_res =
-          toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth);
+          toBestAbstract(lhs, rhs, concrete_op_wrapper, bitwidth, d);
 
       std::vector<AbstVal> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<AbstVal> ref_kbs(ref_function_wrapper(lhs, rhs));
-
-      // this creates a bottom val for kb
-      AbstVal cur_kb(KNOWN_BITS, bitwidth);
-      // then cur_kb is unioned with all elems in ref_kbs
-      // TODO put a function in `AbstVal.cpp` to do this from a vec of abstvals
-      for (auto kb : ref_kbs)
-        cur_kb = cur_kb.unionWith(kb);
-
+      // join of all kb values in the vec, ref_kbs
+      AbstVal cur_kb = AbstVal::meetAll(d, bitwidth, ref_kbs);
       bool solved = cur_kb == best_abstract_res;
 
       for (unsigned int i = 0; i < synth_kbs.size(); ++i) {
-        AbstVal synth_after_meet = cur_kb.unionWith(synth_kbs[i]);
-        bool sound = kb_check_include(synth_after_meet, best_abstract_res);
+        AbstVal synth_after_meet = cur_kb.meet(synth_kbs[i]);
+        bool sound = synth_after_meet.isSuperset(best_abstract_res);
         bool exact = synth_after_meet == best_abstract_res;
-        unsigned int dis = kb_edit_dis(synth_after_meet, best_abstract_res);
+        // TODO distance is kind of a bogus measure of CONST_RANGE
+        unsigned int dis = synth_after_meet.distance(best_abstract_res);
 
         r.incResult(Result(sound, dis, exact, solved), i);
       }

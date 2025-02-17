@@ -27,7 +27,7 @@ from xdsl_smt.dialects.transfer import (
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from ..eval_engine.eval import eval_transfer_func
+from ..eval_engine.eval import eval_transfer_func, AbstractDomain
 from xdsl.ir import BlockArgument
 from xdsl.dialects.builtin import (
     Builtin,
@@ -582,6 +582,7 @@ def main() -> None:
                 + op_constraint_func,
                 ref_func_names,
                 ref_func_cpps,
+                AbstractDomain.KnownBits,
             )
 
             for i in range(NUM_PROGRAMS):
@@ -611,6 +612,7 @@ def main() -> None:
                     + op_constraint_func,
                     ref_func_names,
                     ref_func_cpps,
+                    AbstractDomain.KnownBits,
                 )
 
                 # num_unsound, _imprecision, num_exact, num_cases, unsolved_unsound, unsolved_imprecision, unsolved_exact, unsolved_num_cases = eval_transfer_func(

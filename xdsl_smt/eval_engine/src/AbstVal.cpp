@@ -1,11 +1,32 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <numeric>
+#include <ranges>
+#include <utility>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
+
+// NOTES:
+// alpha (abstraction function) AbstactValue -> Set[ConcreteValue]
+// gamma (concretization function) Set[ConcreteValue] -> AbstactValue
+//
+// meet (greatest lower bound)
+//   set[AbstractValue] -> AbstractValue
+//   the meet of the empty set should return top
+//
+// join (least upper bound)
+//   set[AbstractValue] -> AbstractValue
+//   the join of the empty set should return bottom
+
+// big TODO:
+// this would be WAY easier to maintain/less bug prone if I used interfaces
+// C++ Concepts seem to provide a reasonable implimentaion for these
 
 enum Domain {
   KNOWN_BITS,
@@ -16,16 +37,94 @@ class AbstVal {
 public:
   Domain domain;
   std::vector<llvm::APInt> v;
+  unsigned int bitwidth;
 
-  // constructor for a bottom val
-  AbstVal(Domain d, unsigned int bitwidth) : domain(d) {
-    assert(d == KNOWN_BITS && "constructor not impl'd for other domains yet\n");
-    v = {llvm::APInt(bitwidth, 0), llvm::APInt(bitwidth, 0)};
+  // TODO probs make this private and only accesible from some friend function,
+  // that indicates that you should not be constructing an AbstVal this way
+  AbstVal(Domain d, std::vector<llvm::APInt> v, unsigned int bw)
+      : domain(d), v(v), bitwidth(bw) {}
+
+  static AbstVal top(Domain d, unsigned int bitwidth) {
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet");
+    auto max = llvm::APInt::getMaxValue(bitwidth);
+    auto min = llvm::APInt::getMinValue(bitwidth);
+
+    if (d == CONSTANT_RANGE)
+      return AbstVal(d, {min, max}, bitwidth);
+    else if (d == KNOWN_BITS)
+      return AbstVal(d, {min, min}, bitwidth);
+
+    std::unreachable();
   }
 
-  AbstVal(Domain d, std::vector<llvm::APInt> v) : domain(d), v(v) {}
-  AbstVal(Domain d, llvm::APInt v) : domain(d), v({~v, v}) {
-    assert(d == KNOWN_BITS && "constructor doesn't work for other domains\n");
+  static AbstVal bottom(Domain d, unsigned int bitwidth) {
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet\n");
+    auto min = llvm::APInt::getMinValue(bitwidth);
+    auto max = llvm::APInt::getMaxValue(bitwidth);
+
+    // both KB and CR bottoms were picked bc they have invalid bit
+    // representaions, and they have the opposite bit pattern of top
+    if (d == CONSTANT_RANGE)
+      return AbstVal(d, {max, min}, bitwidth);
+    else if (d == KNOWN_BITS)
+      return AbstVal(d, {max, max}, bitwidth);
+
+    std::unreachable();
+  }
+
+  static AbstVal joinAll(Domain d, unsigned int bitwidth,
+                         const std::vector<AbstVal> &v) {
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet\n");
+    return std::accumulate(
+        v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
+        [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.join(rhs); });
+  }
+
+  static AbstVal meetAll(Domain d, unsigned int bitwidth,
+                         const std::vector<AbstVal> &v) {
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet");
+    if (d == KNOWN_BITS) {
+      return std::accumulate(
+          v.begin(), v.end(), AbstVal::top(d, bitwidth),
+          [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.meet(rhs); });
+    } else if (d == CONSTANT_RANGE) {
+      if (v.size() == 0)
+        return AbstVal::top(d, bitwidth);
+
+      auto [l, u] = std::minmax_element(v.begin(), v.end(),
+                                        [](const AbstVal &a, const AbstVal &b) {
+                                          return a.v[0].ult(b.v[0]);
+                                        });
+
+      return AbstVal(d, {l->v[0], u->v[0]}, bitwidth);
+    }
+
+    std::unreachable();
+  }
+
+  // also known as alpha
+  static AbstVal fromConcrete(Domain d, llvm::APInt v) {
+    assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
+           "constructor not impl'd for other domains yet");
+    if (d == KNOWN_BITS) {
+      return AbstVal(d, {~v, v}, v.getBitWidth());
+    } else if (d == CONSTANT_RANGE) {
+      return AbstVal(d, {v, v}, v.getBitWidth());
+    }
+
+    std::unreachable();
+  }
+
+  // TODO should be purged if we move ta concepts
+  bool isSuperset(const AbstVal &rhs) const { return this->meet(rhs) == rhs; }
+
+  // TODO should be purged if we move ta concepts
+  unsigned int distance(const AbstVal &rhs) const {
+    return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
   }
 
   bool operator==(const AbstVal &rhs) const {
@@ -42,38 +141,56 @@ public:
     return true;
   }
 
-  AbstVal unionWith(const AbstVal &rhs) const {
-    assert(domain == KNOWN_BITS && rhs.domain == KNOWN_BITS &&
-           "unionWith only implimented for KnownBits domain");
-    return AbstVal(KNOWN_BITS, {zero() | rhs.zero(), one() | rhs.one()});
+  AbstVal join(const AbstVal &rhs) const {
+    assert(domain == rhs.domain && "lhs and rhs domains must match");
+    assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
+           "function not impl'd for other domains yet");
+
+    if (domain == KNOWN_BITS) {
+      return AbstVal(KNOWN_BITS, {zero() & rhs.zero(), one() & rhs.one()},
+                     bitwidth);
+    } else if (domain == CONSTANT_RANGE) {
+      llvm::APInt L = rhs.lower().ult(lower()) ? rhs.lower() : lower();
+      llvm::APInt U = rhs.upper().ugt(upper()) ? rhs.upper() : upper();
+      return AbstVal(CONSTANT_RANGE, {std::move(L), std::move(U)}, bitwidth);
+    }
+
+    std::unreachable();
   }
 
   void printAbstRange() const {
     if (domain == KNOWN_BITS) {
-      for (uint32_t i = zero().getBitWidth() - 1; i >= 0; --i) {
-        const char bit = one()[i] ? '1' : zero()[i] ? '0' : '?';
+      if (isBottom()) {
+        printf("(bottom)\n");
+        return;
+      }
+      for (uint32_t i = zero().getBitWidth(); i > 0; --i) {
+        const char bit = one()[i - 1] ? '1' : zero()[i - 1] ? '0' : '?';
         printf("%c", bit);
       }
       if (isConstant())
         printf(" const %lu", getConstant().getZExtValue());
-      if (isUnknown())
+      if (isTop())
         printf(" (top)");
       printf("\n");
     } else if (domain == CONSTANT_RANGE) {
-      printf("[%ld, %ld)", getLower().getZExtValue(),
-             getUpper().getZExtValue());
-      if (isFullSet())
+      if (isBottom()) {
+        printf("(bottom)\n");
+        return;
+      }
+      printf("[%ld, %ld]", lower().getZExtValue(), upper().getZExtValue());
+      if (isTop())
         printf(" (top)");
-      if (isEmptySet())
-        printf(" (bottom)");
       printf("\n");
     } else {
-      printf("unknown domain\n");
+      fprintf(stderr, "unknown domain\n");
     }
   }
 
   // TODO return a generic container based on what the caller asks for
   // TODO there's a faster way to this but this works for now
+  // TODO should this return an APInt??
+  // also known as alpha
   std::vector<uint8_t> const toConcrete() const {
     if (domain == KNOWN_BITS) {
       std::vector<uint8_t> ret;
@@ -92,26 +209,13 @@ public:
       return ret;
 
     } else if (domain == CONSTANT_RANGE) {
-      std::vector<uint8_t> ret;
+      uint8_t l = static_cast<uint8_t>(lower().getZExtValue());
+      uint8_t u = static_cast<uint8_t>(upper().getZExtValue() + 1);
 
-      if (isFullSet()) {
-        const llvm::APInt min =
-            llvm::APInt::getMinValue(getLower().getBitWidth());
-        const llvm::APInt max =
-            llvm::APInt::getMaxValue(getLower().getBitWidth());
+      if (l > u)
+        return {};
 
-        for (llvm::APInt i = min; i != max; ++i)
-          ret.push_back(static_cast<uint8_t>(i.getZExtValue()));
-
-        ret.push_back(static_cast<uint8_t>(max.getZExtValue()));
-
-        return ret;
-      }
-
-      for (llvm::APInt i = getLower(); i != getUpper(); ++i)
-        ret.push_back(static_cast<uint8_t>(i.getZExtValue()));
-
-      return ret;
+      return std::views::iota(l, u) | std::ranges::to<std::vector>();
     } else {
       printf("unknown domain\n");
     }
@@ -126,12 +230,23 @@ public:
     return zero().intersects(one());
   }
 
-  AbstVal intersectWith(const AbstVal &rhs) const {
-    assert(domain == KNOWN_BITS &&
-           "intersectWith is only implimented for KnownBits");
-    assert(domain == rhs.domain && "rhs domain must match lhs domain");
+  AbstVal meet(const AbstVal &rhs) const {
+    assert(domain == rhs.domain && "rhs and lhs domain must match");
+    assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
+           "function not impl'd for this domain");
 
-    return AbstVal(domain, {zero() & rhs.zero(), one() & rhs.one()});
+    if (domain == KNOWN_BITS) {
+      return AbstVal(domain, {zero() | rhs.zero(), one() | rhs.one()},
+                     bitwidth);
+    } else if (domain == CONSTANT_RANGE) {
+      llvm::APInt l = rhs.lower().ugt(lower()) ? rhs.lower() : lower();
+      llvm::APInt u = rhs.upper().ult(upper()) ? rhs.upper() : upper();
+      if (l.ugt(u))
+        return bottom(CONSTANT_RANGE, l.getBitWidth());
+      return AbstVal(CONSTANT_RANGE, {std::move(l), std::move(u)}, bitwidth);
+    }
+
+    std::unreachable();
   }
 
 private:
@@ -148,32 +263,16 @@ private:
     return v[1];
   }
 
-  unsigned getBitWidth() const {
-    assert(domain == KNOWN_BITS &&
-           "getBitWidth is only applicable to the KnownBits domain");
-    assert(zero().getBitWidth() == one().getBitWidth() &&
-           "Zero and One should have the same width!");
-    return zero().getBitWidth();
-  }
-
-  bool isConstant() const {
-    assert(domain == KNOWN_BITS &&
-           "isConstant is only applicable to the KnownBits domain");
-
-    return zero().popcount() + one().popcount() == getBitWidth();
-  }
-
-  bool isUnknown() const {
-    assert(domain == KNOWN_BITS &&
-           "isUnknown is only applicable to the KnownBits domain");
-    return zero().isZero() && one().isZero();
-  }
-
   const llvm::APInt getConstant() const {
-    assert(domain == KNOWN_BITS &&
-           "getConstant is only applicable to the KnownBits domain");
+    assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
+           "isConstant is only applicable to the KnownBits domain");
     assert(isConstant() && "Can only get value when all bits are known");
-    return one();
+    if (domain == KNOWN_BITS)
+      return one();
+    if (domain == KNOWN_BITS)
+      return upper();
+
+    std::unreachable();
   }
 
   // cr stuff
@@ -189,27 +288,18 @@ private:
     return v[1];
   }
 
-  llvm::APInt getLower() const {
-    assert(domain == CONSTANT_RANGE &&
-           "getLower is only applicable to the KnownBits domain");
-    return lower();
+  bool isConstant() const {
+    assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
+           "isConstant is only applicable to the KnownBits domain");
+
+    if (domain == KNOWN_BITS)
+      return zero().popcount() + one().popcount() == bitwidth;
+    if (domain == CONSTANT_RANGE)
+      return lower() == upper();
+
+    std::unreachable();
   }
 
-  llvm::APInt getUpper() const {
-    assert(domain == CONSTANT_RANGE &&
-           "getUpper is only applicable to the KnownBits domain");
-    return upper();
-  }
-
-  bool isEmptySet() const {
-    assert(domain == CONSTANT_RANGE &&
-           "isEmptySet is only applicable to the KnownBits domain");
-    return lower() == upper() && lower().isMinValue();
-  }
-
-  bool isFullSet() const {
-    assert(domain == CONSTANT_RANGE &&
-           "isFullSet is only applicable to the KnownBits domain");
-    return lower() == upper() && lower().isMaxValue();
-  }
+  bool isBottom() const { return *this == bottom(domain, bitwidth); }
+  bool isTop() const { return *this == top(domain, bitwidth); }
 };

@@ -1,8 +1,17 @@
 import os
 from os import path
 from subprocess import run, PIPE
+from enum import Enum, auto
 
 from xdsl_smt.utils.compare_result import CompareResult
+
+
+class AbstractDomain(Enum):
+    KnownBits = auto()
+    ConstantRange = auto()
+
+    def __str__(self) -> str:
+        return self.name
 
 
 def get_build_cmd() -> list[str]:
@@ -100,7 +109,7 @@ def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"AbstVal res_{x}(lhs.domain, res_v_{x});"
+        return f"AbstVal res_{x}(lhs.domain, res_v_{x}, lhs.bitwidth);"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -116,6 +125,7 @@ def eval_transfer_func(
     concrete_op_expr: str,
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
+    domain: AbstractDomain,
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
@@ -161,7 +171,16 @@ def eval_transfer_func(
     os.chdir(path.join(base_dir, "build"))
 
     run(get_build_cmd(), stdout=PIPE)
-    eval_output = run(["./EvalEngine"], stdout=PIPE)
+    eval_output = run(
+        ["./EvalEngine", "--domain", str(domain)],
+        stdout=PIPE,
+        stderr=PIPE,
+    )
+
+    if eval_output.returncode != 0:
+        print("EvalEngine failed with this error:")
+        print(eval_output.stderr.decode("utf-8"), end="")
+        exit(eval_output.returncode)
 
     def get_floats(s: str) -> list[int]:
         return eval(s)
@@ -215,40 +234,30 @@ def main():
     }
     """
 
-    transfer_func_name = "llm_wrapper"
+    transfer_func_name = "cr_add"
     transfer_func_src = """
-        #include <llvm/ADT/APInt.h>
-        #include <tuple>
-        #include <vector>
-
-        using llvm::APInt;
-
-        std::tuple<int, int> abstract_udiv(std::tuple<int, int> &lhs, std::tuple<int, int> &rhs) {
-          return std::make_tuple(0, 0);
-        }
-
-        std::vector<APInt> llm_wrapper(std::vector<APInt> arg0,
-                                       std::vector<APInt> arg1) {
-          auto lhs = std::tuple(static_cast<int>(arg0[0].getZExtValue()),
-                                static_cast<int>(arg0[1].getZExtValue()));
-          auto rhs = std::tuple(static_cast<int>(arg1[0].getZExtValue()),
-                                static_cast<int>(arg1[1].getZExtValue()));
-          auto res = abstract_udiv(lhs, rhs);
-
-          APInt res_0 = APInt(4, static_cast<uint64_t>(std::get<0>(res)));
-          APInt res_1 = APInt(4, static_cast<uint64_t>(std::get<1>(res)));
-
-          return {res_0, res_1};
-        }
+std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  bool res0_ov;
+  bool res1_ov;
+  APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
+  APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
+  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
+    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
+            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
+  return {res0, res1};
+}
     """
 
     names = [transfer_func_name]
     srcs = [transfer_func_src]
     ref_names: list[str] = []  # TODO
     ref_srcs: list[str] = []  # TODO
-    a = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
+    results = eval_transfer_func(
+        names, srcs, concrete_op, ref_names, ref_srcs, AbstractDomain.ConstantRange
+    )
 
-    for res in a:
+    for res in results:
+        print(res)
         print(f"cost:                  {res.get_cost():.04f}")
         print(f"sound prop:            {res.get_sound_prop():.04f}")
         print(f"exact prop:            {res.get_exact_prop():.04f}")
