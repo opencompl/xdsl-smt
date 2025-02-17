@@ -81,7 +81,9 @@ def test(input: TestInput) -> None:
     names, srcs = zip(*input.functions)
 
     # TODO what do the last two arguments do? // what are they for??
-    results = eval_transfer_func(names, srcs, input.concrete_op, [], [], input.domain)
+    results = eval_transfer_func(
+        list(names), list(srcs), input.concrete_op, [], [], input.domain
+    )
 
     for n, r, e in zip(names, results, input.expected_outputs):
         if str(r) != e:
@@ -142,9 +144,7 @@ cr_add_test = TestInput(
     concrete_add,
     AbstractDomain.ConstantRange,
     [cr_add],
-    [
-        "all: 18769	s: 11849	e: 11849	p: 20864	unsolved:6920	us: 0	ue: 0	up: 20864"
-    ],
+    ["all: 18769	s: 11849	e: 11849	p: 20864	unsolved:6920	us: 0	ue: 0	up: 20864"],
 )
 
 if __name__ == "__main__":
