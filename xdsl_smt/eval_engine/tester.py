@@ -144,7 +144,7 @@ cr_add_test = TestInput(
     concrete_add,
     AbstractDomain.ConstantRange,
     [cr_add],
-    ["all: 18769	s: 11849	e: 11849	p: 20864	unsolved:6920	us: 0	ue: 0	up: 20864"],
+    ["all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0"],
 )
 
 if __name__ == "__main__":
