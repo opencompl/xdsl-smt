@@ -3,8 +3,7 @@
 # run these tests via `python -m xdsl_smt.eval_engine.tester`
 
 from typing import NamedTuple
-from xdsl_smt.eval_engine.eval import eval_transfer_func
-# from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.eval_engine.eval import eval_transfer_func, AbstractDomain
 
 # TODO test for known_bits and const_range and int_mod
 # TODO test at different bitwidths
@@ -13,7 +12,7 @@ from xdsl_smt.eval_engine.eval import eval_transfer_func
 
 class TestInput(NamedTuple):
     concrete_op: str
-    domain: str
+    domain: AbstractDomain
     functions: list[tuple[str, str]]
     expected_outputs: list[str]
 
@@ -50,7 +49,7 @@ std::vector<APInt> kb_or(std::vector<APInt> arg0, std::vector<APInt> arg1) {
 """,
 )
 
-kb_xor_fn = (
+kb_xor = (
     "kb_xor",
     """
 std::vector<APInt> kb_xor(std::vector<APInt> arg0, std::vector<APInt> arg1) {
@@ -61,12 +60,28 @@ std::vector<APInt> kb_xor(std::vector<APInt> arg0, std::vector<APInt> arg1) {
 """,
 )
 
+cr_add = (
+    "cr_add",
+    """
+std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  bool res0_ov;
+  bool res1_ov;
+  APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
+  APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
+  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
+    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
+            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
+  return {res0, res1};
+}
+""",
+)
+
 
 def test(input: TestInput) -> None:
     names, srcs = zip(*input.functions)
 
     # TODO what do the last two arguments do? // what are they for??
-    results = eval_transfer_func(names, srcs, input.concrete_op, [], [])
+    results = eval_transfer_func(names, srcs, input.concrete_op, [], [], input.domain)
 
     for n, r, e in zip(names, results, input.expected_outputs):
         if str(r) != e:
@@ -79,10 +94,10 @@ def test(input: TestInput) -> None:
             print("===================================================================")
 
 
-or_test = TestInput(
+kb_or_test = TestInput(
     concrete_or,
-    "KnownBits",
-    [kb_xor_fn, kb_and, kb_or],
+    AbstractDomain.KnownBits,
+    [kb_xor, kb_and, kb_or],
     [
         "all: 6561	s: 4096	e: 1296	p: 11664	unsolved:6480	us: 4015	ue: 1215	up: 11664",
         "all: 6561	s: 625	e: 81	p: 23328	unsolved:6480	us: 624	ue: 80	up: 23112",
@@ -90,10 +105,10 @@ or_test = TestInput(
     ],
 )
 
-and_test = TestInput(
+kb_and_test = TestInput(
     concrete_and,
-    "KnownBits",
-    [kb_xor_fn, kb_and, kb_or],
+    AbstractDomain.KnownBits,
+    [kb_xor, kb_and, kb_or],
     [
         "all: 6561	s: 1296	e: 256	p: 23328	unsolved:6480	us: 1215	ue: 175	up: 23328",
         "all: 6561	s: 6561	e: 6561	p: 0	unsolved:6480	us: 6480	ue: 6480	up: 0",
@@ -101,10 +116,10 @@ and_test = TestInput(
     ],
 )
 
-xor_test = TestInput(
+kb_xor_test = TestInput(
     concrete_xor,
-    "KnownBits",
-    [kb_xor_fn, kb_and, kb_or],
+    AbstractDomain.KnownBits,
+    [kb_xor, kb_and, kb_or],
     [
         "all: 6561	s: 6561	e: 6561	p: 0	unsolved:5936	us: 5936	ue: 5936	up: 0",
         "all: 6561	s: 256	e: 256	p: 23328	unsolved:5936	us: 175	ue: 175	up: 22328",
@@ -112,10 +127,10 @@ xor_test = TestInput(
     ],
 )
 
-add_test = TestInput(
+kb_add_test = TestInput(
     concrete_add,
-    "KnownBits",
-    [kb_xor_fn, kb_and, kb_or],
+    AbstractDomain.KnownBits,
+    [kb_xor, kb_and, kb_or],
     [
         "all: 6561	s: 2625	e: 2625	p: 6620	unsolved:4220	us: 2000	ue: 2000	up: 4328",
         "all: 6561	s: 121	e: 121	p: 20018	unsolved:4220	us: 40	ue: 40	up: 15358",
@@ -123,8 +138,18 @@ add_test = TestInput(
     ],
 )
 
+cr_add_test = TestInput(
+    concrete_add,
+    AbstractDomain.ConstantRange,
+    [cr_add],
+    [
+        "all: 18769	s: 11849	e: 11849	p: 20864	unsolved:6920	us: 0	ue: 0	up: 20864"
+    ],
+)
+
 if __name__ == "__main__":
-    test(or_test)
-    test(and_test)
-    test(xor_test)
-    test(add_test)
+    test(kb_or_test)
+    test(kb_and_test)
+    test(kb_xor_test)
+    test(kb_add_test)
+    test(cr_add_test)

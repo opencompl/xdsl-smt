@@ -1,8 +1,17 @@
 import os
 from os import path
 from subprocess import run, PIPE
+from enum import Enum, auto
 
 from xdsl_smt.utils.compare_result import CompareResult
+
+
+class AbstractDomain(Enum):
+    KnownBits = auto()
+    ConstantRange = auto()
+
+    def __str__(self) -> str:
+        return self.name
 
 
 def get_build_cmd() -> list[str]:
@@ -116,6 +125,7 @@ def eval_transfer_func(
     concrete_op_expr: str,
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
+    domain: AbstractDomain,
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
@@ -162,9 +172,7 @@ def eval_transfer_func(
 
     run(get_build_cmd(), stdout=PIPE)
     eval_output = run(
-        # TODO pass domain as a flag to this function
-        # also make domain an enum
-        ["./EvalEngine", "--domain", "ConstantRange"],
+        ["./EvalEngine", "--domain", str(domain)],
         stdout=PIPE,
         stderr=PIPE,
     )
@@ -244,7 +252,9 @@ std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
     srcs = [transfer_func_src]
     ref_names: list[str] = []  # TODO
     ref_srcs: list[str] = []  # TODO
-    results = eval_transfer_func(names, srcs, concrete_op, ref_names, ref_srcs)
+    results = eval_transfer_func(
+        names, srcs, concrete_op, ref_names, ref_srcs, AbstractDomain.ConstantRange
+    )
 
     for res in results:
         print(res)
