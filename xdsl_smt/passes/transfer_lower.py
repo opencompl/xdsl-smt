@@ -102,10 +102,13 @@ class LowerToCpp(ModulePass):
         global autogen
         autogen = 0
         set_int_to_apint(self.int_to_apint)
+        # We found PatternRewriteWalker skipped the op itself during iteration
+        # Do it manually on op
+        transferFunction(op, self.fout)
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier([LowerOperation(self.fout)]),
             walk_regions_first=False,
-            apply_recursively=True,
+            apply_recursively=False,
             walk_reverse=False,
         )
         walker.rewrite_module(op)

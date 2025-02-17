@@ -68,7 +68,7 @@ operNameToCpp = {
     "transfer.countr_zero": ".countr_zero",
     "transfer.countl_one": ".countl_one",
     "transfer.countr_one": ".countr_one",
-    "transfer.get_low_bits": ".getLoBits",
+    "transfer.get_low_bits": ".getLowBits",
     "transfer.set_high_bits": ".setHighBits",
     "transfer.set_low_bits": ".setLowBits",
     "transfer.intersects": ".intersects",
@@ -123,6 +123,29 @@ operNameToCpp = {
     "comb.concat": ".concat",
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
+
+
+# operNameToConstraint is used for storing operation constraints used in synthesizing dataflow operations
+# It has shape operNname -> (condition, action). If the condition satisfies, the operation doesn't change
+# while it creates an else branch and performs the action
+# The action should be a string with parameters (result values, *new_args)
+SHIFTING_ACTION = (
+    "{1}.uge(0) && {1}.ule({1}.getBitWidth())",
+    "{0} = APInt({1}.getBitWidth(), 0)",
+)
+SET_BITS_ACTION = (
+    "{1}.uge(0) && {1}.ule({1}.getBitWidth())",
+    "{0} = APInt::getAllOnes({1}.getBitWidth())",
+)
+
+# CHECK_RHS_IS_ZERO = ("{1}!=0", ["{0}", "1"])
+operationToConstraint: dict[Operation, tuple[str, str]] = {
+    SetLowBitsOp: SET_BITS_ACTION,
+    SetHighBitsOp: SET_BITS_ACTION,
+    ShlOp: SHIFTING_ACTION,
+    AShrOp: SHIFTING_ACTION,
+    LShrOp: SHIFTING_ACTION,
+}
 
 unsignedReturnedType = {
     CountLOneOp,
@@ -295,7 +318,31 @@ def lowerToClassMethod(op: Operation, castOperand=None, castResult=None):
     for i in range(2, len(operands)):
         expr += "," + operands[i]
     expr += ")"
-    result = indent + returnedType + " " + returnedValue + equals + expr + ends
+    if type(op) in operationToConstraint:
+        constraint = operationToConstraint[type(op)]
+        original_operand_names = [operand.name_hint for operand in op.operands]
+        condition = constraint[0].format(*original_operand_names)
+        result = indent + returnedType + " " + returnedValue + ends
+        true_branch = indent + "\t" + returnedValue + equals + expr + ends
+
+        action = constraint[1].format(returnedValue, *original_operand_names)
+
+        false_branch = indent + "\t" + action + ends
+
+        if_branch = (
+            indent
+            + "if({condition}){{\n{true_branch}"
+            + indent
+            + "}}else{{\n{false_branch}"
+            + indent
+            + "}}\n"
+        )
+        result = result + if_branch.format(
+            condition=condition, true_branch=true_branch, false_branch=false_branch
+        )
+
+    else:
+        result = indent + returnedType + " " + returnedValue + equals + expr + ends
     if castResult is not None:
         return result + castResult(op)
     return result
@@ -338,7 +385,7 @@ def _(op: CmpOp):
 
 
 @lowerOperation.register
-def _(op: arith.Cmpi):
+def _(op: arith.CmpiOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     equals = "="
@@ -352,7 +399,7 @@ def _(op: arith.Cmpi):
 
 
 @lowerOperation.register
-def _(op: arith.Select):
+def _(op: arith.SelectOp):
     returnedType = lowerType(op.operands[1].type, op)
     returnedValue = op.results[0].name_hint
     equals = "="
@@ -479,7 +526,7 @@ def _(op: FromArithOp):
 
 
 @lowerOperation.register
-def _(op: arith.Constant):
+def _(op: arith.ConstantOp):
     value = op.value.value.data
     assert isinstance(op.results[0].type, IntegerType)
     size = op.results[0].type.width.data
@@ -530,7 +577,7 @@ def _(op: GetAllOnesOp):
 
 
 @lowerOperation.register
-def _(op: Call):
+def _(op: CallOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     callee = op.callee.string_value() + "("
@@ -610,7 +657,9 @@ def _(op: CountRZeroOp):
 
 
 def castToUnisgnedFromAPInt(operand):
-    if isinstance(operand.type, TransIntegerType):
+    if isinstance(operand, str):
+        return "(" + operand + ").getZExtValue()"
+    elif isinstance(operand.type, TransIntegerType):
         return operand.name_hint + ".getZExtValue()"
     return operand.name_hint
 
