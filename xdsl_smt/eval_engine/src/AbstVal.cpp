@@ -13,46 +13,22 @@
 #include <llvm/ADT/APInt.h>
 
 // NOTES:
-// this stuff is confusing me, and there's a lot of overloaded terms
-// so Imma drop some notes in this file for later reference
-//
 // alpha (abstraction function) AbstactValue -> Set[ConcreteValue]
 // gamma (concretization function) Set[ConcreteValue] -> AbstactValue
 //
 // meet (greatest lower bound)
-//   kinda the intersection between all abstract values
+//   called intersection in llvm
 //   set[AbstractValue] -> AbstractValue
 //   the meet of the empty set should return top
 //
 // join (least upper bound)
-//   kinda the union between all abstract values
+//   called union in llvm
 //   set[AbstractValue] -> AbstractValue
 //   the join of the empty set should return bottom
 
 // big TODO:
 // this would be WAY easier to maintain/less bug prone if I used interfaces
 // C++ Concepts seem to provide a reasonable implimentaion for these
-// The first step would be to getting a list of functions that are needed to
-// fully impl an abstract domain. Here's what I think so far:
-//
-// Constructors:
-//   bottom
-//   top
-//   from set of conc vals
-//   from single conc val
-//
-// uncat:
-//   alpha
-//   gamma
-//   join
-//   meet
-//   operator==
-//
-// Debug (not strictly nesc, but helpful):
-//   Print/to string repr
-//   read from stdin
-//
-// also likely that anything that's private can be done away with
 
 enum Domain {
   KNOWN_BITS,
@@ -100,35 +76,25 @@ public:
     std::unreachable();
   }
 
-  // also known as join
-  // join when v.size() == 0 should be bottom
-  //  This is not true in the code below and
-  //  there's some gap in my understanding of why that's the case
-  //  but this seems to be correct??
-  static AbstVal fromUnion(Domain d, unsigned int bitwidth,
-                           const std::vector<AbstVal> &v) {
+  //  known as fromUnion in llvm
+  static AbstVal joinAll(Domain d, unsigned int bitwidth,
+                         const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
            "constructor not impl'd for other domains yet\n");
-    return std::accumulate(v.begin(), v.end(), AbstVal::top(d, bitwidth),
-                           [](const AbstVal &lhs, const AbstVal &rhs) {
-                             return lhs.unionWith(rhs);
-                           });
+    return std::accumulate(
+        v.begin(), v.end(), AbstVal::top(d, bitwidth),
+        [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.join(rhs); });
   }
 
-  // also known as meet
-  // meet when v.size() == 0 should be top
-  //  This is not true in the code below and
-  //  there's some gap in my understanding of why that's the case
-  //  but this seems to be correct??
-  static AbstVal fromIntersection(Domain d, unsigned int bitwidth,
-                                  const std::vector<AbstVal> &v) {
+  //  called intersect with in llvm
+  static AbstVal meetAll(Domain d, unsigned int bitwidth,
+                         const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
            "constructor not impl'd for other domains yet");
     if (d == KNOWN_BITS) {
-      return std::accumulate(v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
-                             [](const AbstVal &lhs, const AbstVal &rhs) {
-                               return lhs.intersectWith(rhs);
-                             });
+      return std::accumulate(
+          v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
+          [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.meet(rhs); });
     } else if (d == CONSTANT_RANGE) {
       if (v.size() == 0)
         return AbstVal::bottom(d, bitwidth);
@@ -158,9 +124,7 @@ public:
   }
 
   // TODO should be purged if we move ta concepts
-  bool isSuperset(const AbstVal &rhs) const {
-    return this->unionWith(rhs) == rhs;
-  }
+  bool isSuperset(const AbstVal &rhs) const { return this->join(rhs) == rhs; }
 
   // TODO should be purged if we move ta concepts
   unsigned int distance(const AbstVal &rhs) const {
@@ -181,7 +145,8 @@ public:
     return true;
   }
 
-  AbstVal unionWith(const AbstVal &rhs) const {
+  // known as unionWith in llvm
+  AbstVal join(const AbstVal &rhs) const {
     assert(domain == rhs.domain && "lhs and rhs domains must match");
     assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
            "function not impl'd for other domains yet");
@@ -270,7 +235,7 @@ public:
     return zero().intersects(one());
   }
 
-  AbstVal intersectWith(const AbstVal &rhs) const {
+  AbstVal meet(const AbstVal &rhs) const {
     assert(domain == rhs.domain && "rhs and lhs domain must match");
     assert((domain == KNOWN_BITS || domain == CONSTANT_RANGE) &&
            "function not impl'd for this domain");
