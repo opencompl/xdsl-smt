@@ -338,7 +338,7 @@ def _(op: CmpOp):
 
 
 @lowerOperation.register
-def _(op: arith.Cmpi):
+def _(op: arith.CmpiOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     equals = "="
@@ -352,7 +352,7 @@ def _(op: arith.Cmpi):
 
 
 @lowerOperation.register
-def _(op: arith.Select):
+def _(op: arith.SelectOp):
     returnedType = lowerType(op.operands[1].type, op)
     returnedValue = op.results[0].name_hint
     equals = "="
@@ -479,7 +479,7 @@ def _(op: FromArithOp):
 
 
 @lowerOperation.register
-def _(op: arith.Constant):
+def _(op: arith.ConstantOp):
     value = op.value.value.data
     assert isinstance(op.results[0].type, IntegerType)
     size = op.results[0].type.width.data
@@ -530,7 +530,7 @@ def _(op: GetAllOnesOp):
 
 
 @lowerOperation.register
-def _(op: Call):
+def _(op: CallOp):
     returnedType = lowerType(op.results[0].type)
     returnedValue = op.results[0].name_hint
     callee = op.callee.string_value() + "("
