@@ -126,19 +126,25 @@ operNameToCpp = {
 
 
 # operNameToConstraint is used for storing operation constraints used in synthesizing dataflow operations
-# It has shape operNname -> (condition, list[new_args]). If the condition satisfies, the operation doesn't change
-# while it creates an else branch and initialize the operation with list[new_args].
-CHECK_RHS_IN_BITWIDTH = (
+# It has shape operNname -> (condition, action). If the condition satisfies, the operation doesn't change
+# while it creates an else branch and performs the action
+# The action should be a string with parameters (result values, *new_args)
+SHIFTING_ACTION = (
     "{1}.uge(0) && {1}.ule({1}.getBitWidth())",
-    ["{0}", "{1}.urem({1}.getBitWidth())"],
+    "{0} = APInt({1}.getBitWidth(), 0)",
 )
-CHECK_RHS_IS_ZERO = ("{1}!=0", ["{0}", "1"])
-operationToConstraint: dict[Operation, tuple[str, list[str]]] = {
-    SetLowBitsOp: CHECK_RHS_IN_BITWIDTH,
-    SetHighBitsOp: CHECK_RHS_IN_BITWIDTH,
-    ShlOp: CHECK_RHS_IN_BITWIDTH,
-    AShrOp: CHECK_RHS_IN_BITWIDTH,
-    LShrOp: CHECK_RHS_IN_BITWIDTH,
+SET_BITS_ACTION = (
+    "{1}.uge(0) && {1}.ule({1}.getBitWidth())",
+    "{0} = APInt::getAllOnes({1}.getBitWidth())",
+)
+
+# CHECK_RHS_IS_ZERO = ("{1}!=0", ["{0}", "1"])
+operationToConstraint: dict[Operation, tuple[str, str]] = {
+    SetLowBitsOp: SET_BITS_ACTION,
+    SetHighBitsOp: SET_BITS_ACTION,
+    ShlOp: SHIFTING_ACTION,
+    AShrOp: SHIFTING_ACTION,
+    LShrOp: SHIFTING_ACTION,
 }
 
 unsignedReturnedType = {
@@ -316,21 +322,12 @@ def lowerToClassMethod(op: Operation, castOperand=None, castResult=None):
         constraint = operationToConstraint[type(op)]
         original_operand_names = [operand.name_hint for operand in op.operands]
         condition = constraint[0].format(*original_operand_names)
-        new_operands = [
-            operand.format(*original_operand_names) for operand in constraint[1]
-        ]
         result = indent + returnedType + " " + returnedValue + ends
         true_branch = indent + "\t" + returnedValue + equals + expr + ends
 
-        new_expr = new_operands[0] + operNameToCpp[op.name] + "("
-        operands = [operand for operand in new_operands]
-        if len(operands) > 1:
-            new_expr += operands[1]
-        for i in range(2, len(operands)):
-            new_expr += "," + operands[i]
-        new_expr += ")"
+        action = constraint[1].format(returnedValue, *original_operand_names)
 
-        false_branch = indent + "\t" + returnedValue + equals + new_expr + ends
+        false_branch = indent + "\t" + action + ends
 
         if_branch = (
             indent
