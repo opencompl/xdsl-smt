@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -60,7 +59,7 @@ public:
 
   static AbstVal bottom(Domain d, unsigned int bitwidth) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
-           "constructor not impl'd for other domains yet\n");
+           "constructor not impl'd for other domains yet");
     auto min = llvm::APInt::getMinValue(bitwidth);
     auto max = llvm::APInt::getMaxValue(bitwidth);
 
@@ -77,7 +76,7 @@ public:
   static AbstVal joinAll(Domain d, unsigned int bitwidth,
                          const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
-           "constructor not impl'd for other domains yet\n");
+           "constructor not impl'd for other domains yet");
     return std::accumulate(
         v.begin(), v.end(), AbstVal::bottom(d, bitwidth),
         [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.join(rhs); });
@@ -87,23 +86,9 @@ public:
                          const std::vector<AbstVal> &v) {
     assert((d == KNOWN_BITS || d == CONSTANT_RANGE) &&
            "constructor not impl'd for other domains yet");
-    if (d == KNOWN_BITS) {
-      return std::accumulate(
-          v.begin(), v.end(), AbstVal::top(d, bitwidth),
-          [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.meet(rhs); });
-    } else if (d == CONSTANT_RANGE) {
-      if (v.size() == 0)
-        return AbstVal::top(d, bitwidth);
-
-      auto [l, u] = std::minmax_element(v.begin(), v.end(),
-                                        [](const AbstVal &a, const AbstVal &b) {
-                                          return a.v[0].ult(b.v[0]);
-                                        });
-
-      return AbstVal(d, {l->v[0], u->v[0]}, bitwidth);
-    }
-
-    std::unreachable();
+    return std::accumulate(
+        v.begin(), v.end(), AbstVal::top(d, bitwidth),
+        [](const AbstVal &lhs, const AbstVal &rhs) { return lhs.meet(rhs); });
   }
 
   // also known as alpha
