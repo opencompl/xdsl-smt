@@ -20,6 +20,7 @@ class TestInput(NamedTuple):
 # maybe just make a dict
 concrete_or = "APInt concrete_op(APInt a, APInt b) { return a|b; }"
 concrete_add = "APInt concrete_op(APInt a, APInt b) { return a+b; }"
+concrete_sub = "APInt concrete_op(APInt a, APInt b) { return a-b; }"
 concrete_xor = "APInt concrete_op(APInt a, APInt b) { return a^b; }"
 concrete_and = "APInt concrete_op(APInt a, APInt b) { return a&b; }"
 concrete_udiv = "APInt concrete_op(APInt a, APInt b) { return a.udiv(b); }"
@@ -68,6 +69,22 @@ std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
   bool res1_ov;
   APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
   APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
+  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
+    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
+            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
+  return {res0, res1};
+}
+""",
+)
+
+cr_sub = (
+    "cr_sub",
+    """
+std::vector<APInt> cr_sub(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  bool res0_ov;
+  bool res1_ov;
+  APInt res0 = arg0[0].usub_ov(arg1[1], res0_ov);
+  APInt res1 = arg0[1].usub_ov(arg1[0], res1_ov);
   if (res0.ugt(res1) || (res0_ov ^ res1_ov))
     return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
             llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
@@ -143,8 +160,21 @@ kb_add_test = TestInput(
 cr_add_test = TestInput(
     concrete_add,
     AbstractDomain.ConstantRange,
-    [cr_add],
-    ["all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0"],
+    [cr_add, cr_sub],
+    [
+        "all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0",
+        "all: 18769	s: 12224	e: 9179	p: 30596	unsolved:6920	us: 3420	ue: 375	up: 22212",
+    ],
+)
+
+cr_sub_test = TestInput(
+    concrete_sub,
+    AbstractDomain.ConstantRange,
+    [cr_sub, cr_add],
+    [
+        "all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0",
+        "all: 18769	s: 12224	e: 9179	p: 30596	unsolved:6920	us: 3420	ue: 375	up: 22212",
+    ],
 )
 
 if __name__ == "__main__":
@@ -153,3 +183,4 @@ if __name__ == "__main__":
     test(kb_xor_test)
     test(kb_add_test)
     test(cr_add_test)
+    test(cr_sub_test)
