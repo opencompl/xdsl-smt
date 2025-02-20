@@ -100,16 +100,16 @@ def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
 
 def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
     func_sig = (
-        "std::vector<AbstVal> "
+        "std::vector<KnownBits> "
         + wrapper_name
-        + "_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
+        + "_wrapper(const AbstVal<KnownBits> &lhs, const AbstVal<KnownBits> &rhs)"
     )
 
     def make_func_call(x: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"AbstVal res_{x}(lhs.domain, res_v_{x}, lhs.bitwidth);"
+        return f"KnownBits res_{x}(res_v_{x}, lhs.bitwidth);"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -230,21 +230,16 @@ def eval_transfer_func(
 def main():
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
-        return a+b;
+        return a^b;
     }
     """
 
-    transfer_func_name = "cr_add"
+    transfer_func_name = "kb_xor"
     transfer_func_src = """
-std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
-  bool res0_ov;
-  bool res1_ov;
-  APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
-  APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
-  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
-    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
-            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
-  return {res0, res1};
+std::vector<APInt> kb_xor(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  APInt res_0 = (arg0[0] & arg1[0]) | (arg0[1] & arg1[1]);
+  APInt res_1 = (arg0[0] & arg1[1]) | (arg0[1] & arg1[0]);
+  return {res_0, res_1};
 }
     """
 
