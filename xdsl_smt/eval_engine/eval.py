@@ -78,7 +78,7 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
+def make_xfer_header(concrete_op: str) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
     #include <tuple>
@@ -88,28 +88,26 @@ def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
     """
 
     conc_op_wrapper = """
-    uint8_t concrete_op_wrapper(const uint8_t a, const uint8_t b) {
-      return concrete_op(APInt(8, a), APInt(8, b)).getZExtValue();
+    unsigned int concrete_op_wrapper(const unsigned int a, const unsigned int b) {
+      return concrete_op(APInt(32, a), APInt(32, b)).getZExtValue();
     }
     """
 
-    num_funcs_const = f"unsigned int numFuncs = {num_funcs};"
-
-    return includes + concrete_op + conc_op_wrapper + num_funcs_const
+    return includes + concrete_op + conc_op_wrapper
 
 
 def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
     func_sig = (
-        "std::vector<KnownBits> "
+        "std::vector<Domain> "
         + wrapper_name
-        + "_wrapper(const AbstVal<KnownBits> &lhs, const AbstVal<KnownBits> &rhs)"
+        + "_wrapper(const Domain &lhs, const Domain &rhs)"
     )
 
     def make_func_call(x: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"KnownBits res_{x}(res_v_{x}, lhs.bitwidth);"
+        return f"Domain res_{x}(res_v_{x});"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -127,10 +125,13 @@ def eval_transfer_func(
     ref_xfer_srcs: list[str],
     domain: AbstractDomain,
 ) -> list[CompareResult]:
+    bitwidth = 4
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
 
-    transfer_func_header = make_xfer_header(concrete_op_expr, len(xfer_names))
+    transfer_func_header = make_xfer_header(concrete_op_expr)
+    transfer_func_header += f"\ntypedef {domain}<{bitwidth}> Domain;\n"
+    transfer_func_header += f"\nunsigned int numFuncs = {len(xfer_names)};\n"
 
     # rename the transfer functions
     ref_xfer_srcs = [
@@ -171,11 +172,7 @@ def eval_transfer_func(
     os.chdir(path.join(base_dir, "build"))
 
     run(get_build_cmd(), stdout=PIPE)
-    eval_output = run(
-        ["./EvalEngine", "--domain", str(domain)],
-        stdout=PIPE,
-        stderr=PIPE,
-    )
+    eval_output = run(["./EvalEngine"], stdout=PIPE, stderr=PIPE)
 
     if eval_output.returncode != 0:
         print("EvalEngine failed with this error:")
@@ -223,23 +220,27 @@ def eval_transfer_func(
         for i in range(len(sounds))
     ]
 
-    # return sounds, precs, exact, num_cases, unsolved_sounds, unsolved_precs, unsolved_exact, unsolved_num_cases
     return cmp_results
 
 
 def main():
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
-        return a^b;
+        return a+b;
     }
     """
 
-    transfer_func_name = "kb_xor"
+    transfer_func_name = "cr_add"
     transfer_func_src = """
-std::vector<APInt> kb_xor(std::vector<APInt> arg0, std::vector<APInt> arg1) {
-  APInt res_0 = (arg0[0] & arg1[0]) | (arg0[1] & arg1[1]);
-  APInt res_1 = (arg0[0] & arg1[1]) | (arg0[1] & arg1[0]);
-  return {res_0, res_1};
+std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
+  bool res0_ov;
+  bool res1_ov;
+  APInt res0 = arg0[0].uadd_ov(arg1[0], res0_ov);
+  APInt res1 = arg0[1].uadd_ov(arg1[1], res1_ov);
+  if (res0.ugt(res1) || (res0_ov ^ res1_ov))
+    return {llvm::APInt::getMinValue(arg0[0].getBitWidth()),
+            llvm::APInt::getMaxValue(arg0[0].getBitWidth())};
+  return {res0, res1};
 }
     """
 
