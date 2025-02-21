@@ -67,12 +67,13 @@ public:
   const Domain toBestAbst(const Domain &rhs,
                           unsigned int (*op)(const unsigned int,
                                              const unsigned int)) {
+    llvm::APInt x(N, 0);
     unsigned int mask = makeMask(N);
     std::vector<Domain> crtVals;
 
-    for (auto lhs_v : toConcrete()) {
-      for (auto rhs_v : rhs.toConcrete()) {
-        llvm::APInt x(N, op(lhs_v, rhs_v) & mask);
+    for (unsigned int lhs_v : toConcrete()) {
+      for (unsigned int rhs_v : rhs.toConcrete()) {
+        x = op(lhs_v, rhs_v) & mask;
         crtVals.push_back(fromConcrete(x));
       }
     }
@@ -141,20 +142,16 @@ public:
     return KnownBits({zero() & rhs.zero(), one() & rhs.one()});
   }
 
-  // TODO there should be a much faster way to do this
   const std::vector<unsigned int> toConcrete() const {
     std::vector<unsigned int> ret;
-    const llvm::APInt min = llvm::APInt::getZero(N);
-    const llvm::APInt max = llvm::APInt::getMaxValue(N);
+    const unsigned int z = zero().getZExtValue();
+    const unsigned int o = one().getZExtValue();
+    const unsigned int min = llvm::APInt::getZero(N).getZExtValue();
+    const unsigned int max = llvm::APInt::getMaxValue(N).getZExtValue();
 
-    for (auto i = min;; ++i) {
-
-      if (!zero().intersects(i) && !one().intersects(~i))
-        ret.push_back(i.getZExtValue());
-
-      if (i == max)
-        break;
-    }
+    for (unsigned int i = min; i <= max; ++i)
+      if ((z & i) == 0 && (o & ~i) == 0)
+        ret.push_back(i);
 
     return ret;
   }
@@ -173,20 +170,25 @@ public:
     return KnownBits({min, min});
   }
 
-  // TODO there should be a faster way to do this
   static std::vector<KnownBits> const enumVals() {
+    const unsigned int max = llvm::APInt::getMaxValue(N).getZExtValue();
+    llvm::APInt zero = llvm::APInt(N, 0);
+    llvm::APInt one = llvm::APInt(N, 0);
     std::vector<KnownBits> ret;
-    const llvm::APInt max = llvm::APInt::getMaxValue(N);
-    for (unsigned long i = 0; i <= max.getZExtValue(); ++i) {
-      for (unsigned long j = 0; j <= max.getZExtValue(); ++j) {
-        llvm::APInt zero = llvm::APInt(N, i);
-        llvm::APInt one = llvm::APInt(N, j);
-        KnownBits x({zero, one});
+    ret.reserve(max * max);
 
-        if (!x.hasConflict())
-          ret.push_back(x);
+    for (unsigned int i = 0; i <= max; ++i) {
+      unsigned char jmp = i % 2 + 1;
+      for (unsigned int j = 0; j <= max; j += jmp) {
+        if ((i & j) != 0)
+          continue;
+
+        zero = i;
+        one = j;
+        ret.push_back(KnownBits({zero, one}));
       }
     }
+
     return ret;
   }
 };
@@ -228,8 +230,8 @@ public:
   }
 
   const ConstantRange join(const ConstantRange &rhs) const {
-    llvm::APInt l = rhs.lower().ult(lower()) ? rhs.lower() : lower();
-    llvm::APInt u = rhs.upper().ugt(upper()) ? rhs.upper() : upper();
+    const llvm::APInt l = rhs.lower().ult(lower()) ? rhs.lower() : lower();
+    const llvm::APInt u = rhs.upper().ugt(upper()) ? rhs.upper() : upper();
     return ConstantRange({std::move(l), std::move(u)});
   }
 
@@ -260,24 +262,19 @@ public:
     return ConstantRange({min, max});
   }
 
-  // TODO there should be a faster way to do this
   static std::vector<ConstantRange> const enumVals() {
-    const llvm::APInt min = llvm::APInt::getMinValue(N);
-    const llvm::APInt max = llvm::APInt::getMaxValue(N);
+    const unsigned int min = llvm::APInt::getMinValue(N).getZExtValue();
+    const unsigned int max = llvm::APInt::getMaxValue(N).getZExtValue();
+    llvm::APInt l = llvm::APInt(N, 0);
+    llvm::APInt u = llvm::APInt(N, 0);
     std::vector<ConstantRange> ret = {top()};
 
-    for (llvm::APInt i = min;; ++i) {
-      for (llvm::APInt j = min;; ++j) {
-        if (j.ult(i))
-          continue;
-
-        ret.push_back(ConstantRange({i, j}));
-
-        if (j == max)
-          break;
+    for (unsigned int i = min; i <= max; ++i) {
+      for (unsigned int j = i; j <= max; ++j) {
+        l = i;
+        u = j;
+        ret.push_back(ConstantRange({l, u}));
       }
-      if (i == max)
-        break;
     }
 
     return ret;
