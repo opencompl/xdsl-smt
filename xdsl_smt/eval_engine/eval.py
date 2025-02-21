@@ -50,6 +50,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             "clang++",
             "-std=c++23",
+            "-O2",
             f"-I{llvm_include_dir}",
             "../src/main.cpp",
             "-o",
@@ -69,6 +70,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             "clang++",
             "-std=c++23",
+            "-O2",
             f"-I{llvm_include_dir}",
             "../src/main.cpp",
             "-o",
@@ -81,7 +83,6 @@ def get_build_cmd() -> list[str]:
 def make_xfer_header(concrete_op: str) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
-    #include <tuple>
     #include <vector>
     #include "AbstVal.cpp"
     using llvm::APInt;
