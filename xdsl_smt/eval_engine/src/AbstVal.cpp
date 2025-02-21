@@ -20,10 +20,19 @@ consteval unsigned int makeMask(unsigned char bitwidth) {
 template <typename Domain, unsigned char N> class AbstVal {
 protected:
   explicit AbstVal(const std::vector<llvm::APInt> &v) : v(v) {}
+
 public:
   std::vector<llvm::APInt> v;
 
-public:
+  // static ctors
+  static const Domain bottom() { return Domain::bottom(); }
+  static const Domain top() { return Domain::top(); }
+  static const std::vector<Domain> enumVals() { return Domain::enumVals(); }
+
+  static const Domain fromConcrete(const llvm::APInt &x) {
+    return Domain::fromConcrete(x);
+  }
+
   static const Domain joinAll(const std::vector<Domain> &v) {
     return std::accumulate(
         v.begin(), v.end(), bottom(),
@@ -36,31 +45,12 @@ public:
         [](const Domain &lhs, const Domain &rhs) { return lhs.meet(rhs); });
   }
 
-  static const Domain fromConcrete(const llvm::APInt &x) {
-    static_assert(std::is_base_of<AbstVal, Domain>::value);
-    static_assert(std::is_same<decltype(&Domain::fromConcrete),
-                               Domain (*)(const llvm::APInt &)>::value);
-    return Domain::fromConcrete(x);
-  }
-
-  static const Domain bottom() {
-    static_assert(std::is_base_of<AbstVal, Domain>::value);
-    static_assert(std::is_same<decltype(&Domain::bottom), Domain (*)()>::value);
-    return Domain::bottom();
-  }
-
-  static const Domain top() {
-    static_assert(std::is_base_of<AbstVal, Domain>::value);
-    static_assert(std::is_same<decltype(&Domain::top), Domain (*)()>::value);
-
-    return Domain::top();
-  }
-
-  static const std::vector<Domain> enumVals() {
-    static_assert(std::is_base_of<AbstVal, Domain>::value);
-    static_assert(
-        std::is_same<decltype(&Domain::enumVals), Domain (*)()>::value);
-    return Domain::enumVals();
+  // normal methods
+  bool isTop() const { return *this == top(); }
+  bool isBottom() const { return *this == bottom(); }
+  bool isSuperset(const Domain &rhs) const { return meet(rhs) == rhs; }
+  unsigned int distance(const Domain &rhs) const {
+    return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
   }
 
   bool operator==(const AbstVal &rhs) const {
@@ -74,36 +64,41 @@ public:
     return true;
   };
 
-  bool isTop() const { return *this == top(); }
-  bool isBottom() const { return *this == bottom(); }
-  bool isSuperset(const Domain &rhs) const { return meet(rhs) == rhs; }
-  unsigned int distance(const Domain &rhs) const {
-    return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
-  }
-
-  static const Domain toBestAbst(const Domain &lhs, const Domain &rhs,
-                                 unsigned int (*op)(const unsigned int,
-                                                    const unsigned int)) {
+  const Domain toBestAbst(const Domain &rhs,
+                          unsigned int (*op)(const unsigned int,
+                                             const unsigned int)) {
     unsigned int mask = makeMask(N);
     std::vector<Domain> crtVals;
 
-    for (auto lhs_v : lhs.toConcrete()) {
+    for (auto lhs_v : toConcrete()) {
       for (auto rhs_v : rhs.toConcrete()) {
-        llvm::APInt v(N, op(lhs_v, rhs_v) & mask);
-        crtVals.push_back(AbstVal<Domain, N>::fromConcrete(v));
+        llvm::APInt x(N, op(lhs_v, rhs_v) & mask);
+        crtVals.push_back(fromConcrete(x));
       }
     }
 
-    return AbstVal<Domain, N>::joinAll(crtVals);
+    return joinAll(crtVals);
   }
 
-  virtual ~AbstVal() = default;
-  virtual bool isConstant() const = 0;
-  virtual llvm::APInt getConstant() const = 0;
-  virtual Domain meet(const Domain &) const = 0;
-  virtual Domain join(const Domain &) const = 0;
-  virtual std::vector<unsigned int> const toConcrete() const = 0;
-  virtual std::string display() const = 0;
+  // methods delegated to derived class
+  bool isConstant() const {
+    return static_cast<const Domain *>(this)->isConstant();
+  };
+  const llvm::APInt getConstant() const {
+    return static_cast<const Domain *>(this)->getConstant();
+  };
+  const Domain meet(const Domain &rhs) const {
+    return static_cast<const Domain *>(this)->meet(rhs);
+  };
+  const Domain join(const Domain &rhs) const {
+    return static_cast<const Domain *>(this)->join(rhs);
+  };
+  const std::vector<unsigned int> toConcrete() const {
+    return static_cast<const Domain *>(this)->toConcrete();
+  };
+  const std::string display() const {
+    return static_cast<Domain>(this)->display();
+  };
 };
 
 template <unsigned char N> class KnownBits : public AbstVal<KnownBits<N>, N> {
@@ -116,7 +111,7 @@ public:
   explicit KnownBits(const std::vector<llvm::APInt> &v)
       : AbstVal<KnownBits<N>, N>(v) {}
 
-  virtual std::string display() const override {
+  const std::string display() const {
     if (KnownBits<N>::isBottom()) {
       return "(bottom)";
     }
@@ -135,19 +130,19 @@ public:
     return ss.str();
   }
 
-  virtual bool isConstant() const override { return zero() == one(); }
-  virtual llvm::APInt getConstant() const override { return zero(); }
+  bool isConstant() const { return zero().popcount() + one().popcount() == N; }
+  const llvm::APInt getConstant() const { return zero(); }
 
-  virtual KnownBits meet(const KnownBits &rhs) const override {
+  const KnownBits meet(const KnownBits &rhs) const {
     return KnownBits({zero() | rhs.zero(), one() | rhs.one()});
   }
 
-  virtual KnownBits join(const KnownBits &rhs) const override {
+  const KnownBits join(const KnownBits &rhs) const {
     return KnownBits({zero() & rhs.zero(), one() & rhs.one()});
   }
 
   // TODO there should be a much faster way to do this
-  virtual std::vector<unsigned int> const toConcrete() const override {
+  const std::vector<unsigned int> toConcrete() const {
     std::vector<unsigned int> ret;
     const llvm::APInt min = llvm::APInt::getZero(N);
     const llvm::APInt max = llvm::APInt::getMaxValue(N);
@@ -206,7 +201,7 @@ public:
   explicit ConstantRange(const std::vector<llvm::APInt> &v)
       : AbstVal<ConstantRange<N>, N>(v) {}
 
-  virtual std::string display() const override {
+  const std::string display() const {
     if (ConstantRange::isBottom()) {
       return "(bottom)";
     }
@@ -221,10 +216,10 @@ public:
     return ss.str();
   }
 
-  virtual bool isConstant() const override { return lower() == upper(); }
-  virtual llvm::APInt getConstant() const override { return lower(); }
+  bool isConstant() const { return lower() == upper(); }
+  const llvm::APInt getConstant() const { return lower(); }
 
-  virtual ConstantRange meet(const ConstantRange &rhs) const override {
+  const ConstantRange meet(const ConstantRange &rhs) const {
     llvm::APInt l = rhs.lower().ugt(lower()) ? rhs.lower() : lower();
     llvm::APInt u = rhs.upper().ult(upper()) ? rhs.upper() : upper();
     if (l.ugt(u))
@@ -232,13 +227,13 @@ public:
     return ConstantRange({std::move(l), std::move(u)});
   }
 
-  virtual ConstantRange join(const ConstantRange &rhs) const override {
+  const ConstantRange join(const ConstantRange &rhs) const {
     llvm::APInt l = rhs.lower().ult(lower()) ? rhs.lower() : lower();
     llvm::APInt u = rhs.upper().ugt(upper()) ? rhs.upper() : upper();
     return ConstantRange({std::move(l), std::move(u)});
   }
 
-  virtual std::vector<unsigned int> const toConcrete() const override {
+  const std::vector<unsigned int> toConcrete() const {
     std::vector<unsigned int> ret;
     unsigned int l = lower().getZExtValue();
     unsigned int u = upper().getZExtValue() + 1;

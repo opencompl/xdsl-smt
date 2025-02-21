@@ -15,8 +15,7 @@ template <typename Domain> Results eval(unsigned int nFuncs) {
     for (auto rhs : Domain::enumVals()) {
 
       // TODO see if these values can be cached
-      auto best_abstract_res =
-          Domain::toBestAbst(lhs, rhs, concrete_op_wrapper);
+      auto best_abstract_res = lhs.toBestAbst(rhs, concrete_op_wrapper);
 
       std::vector<Domain> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<Domain> ref_kbs(ref_function_wrapper(lhs, rhs));

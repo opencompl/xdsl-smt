@@ -50,7 +50,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             "clang++",
             "-std=c++23",
-            "-O2",
+            "-O1",
             f"-I{llvm_include_dir}",
             "../src/main.cpp",
             "-o",
@@ -70,7 +70,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             "clang++",
             "-std=c++23",
-            "-O2",
+            "-O1",
             f"-I{llvm_include_dir}",
             "../src/main.cpp",
             "-o",
