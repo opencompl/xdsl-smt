@@ -10,9 +10,10 @@
 
 template <typename Domain> Results eval(unsigned int nFuncs) {
   Results r{nFuncs};
+  const std::vector<Domain> fullLattice = Domain::enumVals();
 
-  for (auto lhs : Domain::enumVals()) {
-    for (auto rhs : Domain::enumVals()) {
+  for (Domain lhs : fullLattice) {
+    for (Domain rhs : fullLattice) {
       Domain best_abstract_res = lhs.toBestAbst(rhs, concrete_op_wrapper);
       std::vector<Domain> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<Domain> ref_kbs(ref_function_wrapper(lhs, rhs));

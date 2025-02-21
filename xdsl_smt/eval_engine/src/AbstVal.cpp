@@ -70,9 +70,10 @@ public:
     llvm::APInt x(N, 0);
     unsigned int mask = makeMask(N);
     std::vector<Domain> crtVals;
+    const std::vector<unsigned int> rhss = rhs.toConcrete();
 
     for (unsigned int lhs_v : toConcrete()) {
-      for (unsigned int rhs_v : rhs.toConcrete()) {
+      for (unsigned int rhs_v : rhss) {
         x = op(lhs_v, rhs_v) & mask;
         crtVals.push_back(fromConcrete(x));
       }
