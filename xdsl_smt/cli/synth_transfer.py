@@ -27,7 +27,7 @@ from xdsl_smt.dialects.transfer import (
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from ..eval_engine.eval import eval_transfer_func, AbstractDomain
+import xdsl_smt.eval_engine.eval as eval_engine
 from xdsl.ir import BlockArgument
 from xdsl.dialects.builtin import (
     Builtin,
@@ -94,6 +94,37 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
     arg_parser.add_argument(
         "-random_seed", type=int, nargs="?", help="specify the random seed"
+    )
+    arg_parser.add_argument(
+        "-llvm_build_dir",
+        type=str,
+        nargs="?",
+        help="Specify the build directory of LLVM",
+    )
+    arg_parser.add_argument(
+        "-program_length",
+        type=int,
+        nargs="?",
+        help="Specify the maximal length of synthesized program. 40 by default.",
+    )
+    arg_parser.add_argument(
+        "-total_rounds",
+        type=int,
+        nargs="?",
+        help="Specify the number of rounds the synthesizer should run. 1000 by default.",
+    )
+    arg_parser.add_argument(
+        "-num_programs",
+        type=int,
+        nargs="?",
+        help="Specify the number of programs that runs at every round. 100 by default.",
+    )
+    arg_parser.add_argument(
+        "-inv_temp",
+        type=int,
+        nargs="?",
+        help="Inverse temperature \\beta for MCMC. The larger the value is, the lower the probability of accepting a program with a higher cost. 200 by default. "
+        "E.g., MCMC has a 1/2 probability of accepting a program with a cost 1/beta higher. ",
     )
 
 
@@ -404,6 +435,11 @@ def get_default_op_constraint():
 SYNTH_WIDTH = 8
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
+PROGRAM_LENGTH = 40
+NUM_PROGRAMS = 100
+INIT_COST = 1
+TOTAL_ROUNDS = 10000
+INV_TEMP = 200
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 OP_CONSTRAINT = "op_constraint"
@@ -477,6 +513,27 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     random_number_file = args.random_file
     random_seed = args.random_seed
+    num_programs = args.num_programs
+    total_rounds = args.total_rounds
+    program_length = args.program_length
+    inv_temp = args.inv_temp
+
+    # Set up llvm_build_dir
+    llvm_build_dir = args.llvm_build_dir
+    if llvm_build_dir is not None:
+        if not llvm_build_dir.endswith("/"):
+            llvm_build_dir += "/"
+        llvm_build_dir += "bin/"
+        eval_engine.llvm_bin_dir = llvm_build_dir
+    if num_programs is None:
+        num_programs = NUM_PROGRAMS
+    if total_rounds is None:
+        total_rounds = TOTAL_ROUNDS
+    if program_length is None:
+        program_length = PROGRAM_LENGTH
+    if inv_temp is None:
+        inv_temp = INV_TEMP
+
     assert isinstance(module, ModuleOp)
 
     if not os.path.isdir(OUTPUTS_FOLDER):
@@ -499,11 +556,6 @@ def main() -> None:
     random = Random(random_seed)
     if random_number_file is not None:
         random.read_from_file(random_number_file)
-
-    PROGRAM_LENGTH = 40
-    NUM_PROGRAMS = 100
-    INIT_COST = 1
-    TOTAL_ROUNDS = 10000
 
     # sound_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
     # precision_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
@@ -548,30 +600,22 @@ def main() -> None:
             func_name = func.sym_name.data
             mcmc_samplers: list[MCMCSampler] = []
 
-            # init_code = print_to_cpp(func.clone())
-            # init_soundness, init_precision = eval_transfer_func(
-            #     [func_name], [init_code], crt_func
-            # )
-
-            for _ in range(NUM_PROGRAMS):
+            for _ in range(num_programs):
                 sampler = MCMCSampler(
-                    func, context, PROGRAM_LENGTH, init_cost=INIT_COST
+                    func, context, program_length, init_cost=INIT_COST
                 )
-                # sampler = MCMCSampler(
-                #     func, context, PROGRAM_LENGTH, init_cost=compute_cost(
-                #         init_soundness[0], init_precision[0]), reset=False, init_soundness=init_soundness[0], init_precision=init_precision[0])
 
                 mcmc_samplers.append(sampler)
 
             # Get the cost of initial programs
             cpp_codes: list[str] = []
-            for i in range(NUM_PROGRAMS):
+            for i in range(num_programs):
                 func_to_eval = mcmc_samplers[i].get_current().clone()
                 cpp_code = print_to_cpp(func_to_eval)
                 cpp_codes.append(cpp_code)
 
-            cmp_results: list[CompareResult] = eval_transfer_func(
-                [func_name] * NUM_PROGRAMS,
+            cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                [func_name] * num_programs,
                 cpp_codes,
                 crt_func
                 + "\n"
@@ -582,26 +626,26 @@ def main() -> None:
                 + op_constraint_func,
                 ref_func_names,
                 ref_func_cpps,
-                AbstractDomain.KnownBits,
+                eval_engine.AbstractDomain.KnownBits,
             )
 
-            for i in range(NUM_PROGRAMS):
+            for i in range(num_programs):
                 mcmc_samplers[i].current_cmp = cmp_results[i]
 
             # MCMC start
-            for round in range(TOTAL_ROUNDS):
+            for round in range(total_rounds):
                 start = time.time()
 
                 cpp_codes: list[str] = []
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     _: float = mcmc_samplers[i].sample_next()
                     proposed_solution = mcmc_samplers[i].get_proposed()
                     assert proposed_solution is not None
                     cpp_code = print_to_cpp(proposed_solution.clone())
                     cpp_codes.append(cpp_code)
 
-                cmp_results: list[CompareResult] = eval_transfer_func(
-                    [func_name] * NUM_PROGRAMS,
+                cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                    [func_name] * num_programs,
                     cpp_codes,
                     crt_func
                     + "\n"
@@ -612,7 +656,7 @@ def main() -> None:
                     + op_constraint_func,
                     ref_func_names,
                     ref_func_cpps,
-                    AbstractDomain.KnownBits,
+                    eval_engine.AbstractDomain.KnownBits,
                 )
 
                 # num_unsound, _imprecision, num_exact, num_cases, unsolved_unsound, unsolved_imprecision, unsolved_exact, unsolved_num_cases = eval_transfer_func(
@@ -629,11 +673,11 @@ def main() -> None:
                 #     ref_func_cpps,
                 # )
 
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     proposed_cost = cmp_results[i].get_cost()
                     current_cost = mcmc_samplers[i].current_cmp.get_cost()
                     p = random.random()
-                    decision = decide(p, 200, current_cost, proposed_cost)
+                    decision = decide(p, inv_temp, current_cost, proposed_cost)
                     if decision:
                         cost_reduce = current_cost - proposed_cost
 
@@ -650,7 +694,7 @@ def main() -> None:
                         mcmc_samplers[i].reject_proposed()
                         pass
 
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     res = mcmc_samplers[i].current_cmp
                     print(
                         f"{round}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
