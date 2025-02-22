@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstdio>
 #include <numeric>
-#include <ranges>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -237,14 +236,15 @@ public:
   }
 
   const std::vector<unsigned int> toConcrete() const {
-    std::vector<unsigned int> ret;
     unsigned int l = lower().getZExtValue();
     unsigned int u = upper().getZExtValue() + 1;
 
     if (l > u)
       return {};
 
-    return std::views::iota(l, u) | std::ranges::to<std::vector>();
+    std::vector<unsigned int> ret(u - l);
+    std::iota(ret.begin(), ret.end(), l);
+    return ret;
   }
 
   static ConstantRange fromConcrete(const llvm::APInt &x) {
