@@ -54,8 +54,8 @@ public:
       return AbstVal(d, {min, max}, bitwidth);
     else if (d == KNOWN_BITS)
       return AbstVal(d, {min, min}, bitwidth);
-
-    std::unreachable();
+    else
+      assert(false);
   }
 
   static AbstVal bottom(Domain d, unsigned int bitwidth) {
@@ -70,8 +70,9 @@ public:
       return AbstVal(d, {max, min}, bitwidth);
     else if (d == KNOWN_BITS)
       return AbstVal(d, {max, max}, bitwidth);
+    else
+      assert(false);
 
-    std::unreachable();
   }
 
   static AbstVal joinAll(Domain d, unsigned int bitwidth,
@@ -101,9 +102,10 @@ public:
                                         });
 
       return AbstVal(d, {l->v[0], u->v[0]}, bitwidth);
+    } else{
+      assert(false);
     }
 
-    std::unreachable();
   }
 
   // also known as alpha
@@ -114,9 +116,10 @@ public:
       return AbstVal(d, {~v, v}, v.getBitWidth());
     } else if (d == CONSTANT_RANGE) {
       return AbstVal(d, {v, v}, v.getBitWidth());
+    } else{
+      assert(false);
     }
 
-    std::unreachable();
   }
 
   // TODO should be purged if we move ta concepts
@@ -153,9 +156,10 @@ public:
       llvm::APInt L = rhs.lower().ult(lower()) ? rhs.lower() : lower();
       llvm::APInt U = rhs.upper().ugt(upper()) ? rhs.upper() : upper();
       return AbstVal(CONSTANT_RANGE, {std::move(L), std::move(U)}, bitwidth);
+    } else{
+      assert(false);
     }
 
-    std::unreachable();
   }
 
   void printAbstRange() const {
@@ -215,7 +219,9 @@ public:
       if (l > u)
         return {};
 
-      return std::views::iota(l, u) | std::ranges::to<std::vector>();
+      std::vector<uint8_t> ret(u - l);
+      std::iota(ret.begin(), ret.end(), l);
+      return ret;
     } else {
       printf("unknown domain\n");
     }
@@ -244,9 +250,10 @@ public:
       if (l.ugt(u))
         return bottom(CONSTANT_RANGE, l.getBitWidth());
       return AbstVal(CONSTANT_RANGE, {std::move(l), std::move(u)}, bitwidth);
+    } else{
+      assert(false);
     }
 
-    std::unreachable();
   }
 
 private:
@@ -271,8 +278,10 @@ private:
       return one();
     if (domain == KNOWN_BITS)
       return upper();
+    else{
+      assert(false);
+    }
 
-    std::unreachable();
   }
 
   // cr stuff
@@ -296,8 +305,10 @@ private:
       return zero().popcount() + one().popcount() == bitwidth;
     if (domain == CONSTANT_RANGE)
       return lower() == upper();
+    else{
+      assert(false);
+    }
 
-    std::unreachable();
   }
 
   bool isBottom() const { return *this == bottom(domain, bitwidth); }

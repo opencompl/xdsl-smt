@@ -53,10 +53,11 @@ std::vector<AbstVal> const enumAbstVals(const uint32_t bitwidth,
     }
 
     return ret;
+  } else{
+    assert(false);
   }
 
   fprintf(stderr, "unknown abstract domain\n");
-  std::unreachable();
 }
 
 uint64_t makeMask(uint8_t bitwidth) {
