@@ -1,14 +1,14 @@
 import argparse
 
 from xdsl.context import MLContext
+from xdsl.dialects.builtin import i1, IntegerAttr
 from xdsl.parser import Parser
 
 from xdsl.utils.exceptions import VerifyException
-from xdsl_smt.dialects import transfer
 from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.mutation_program import MutationProgram
 from xdsl_smt.utils.synthesizer_context import SynthesizerContext
 from xdsl_smt.utils.random import Random
-from xdsl.dialects import arith
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
@@ -16,14 +16,12 @@ from xdsl_smt.dialects.transfer import (
     MakeOp,
     GetAllOnesOp,
     Constant,
+    AndOp,
+    CmpOp,
 )
-from xdsl.dialects.builtin import (
-    IntegerAttr,
-    IntegerType,
-    i1,
-)
+import xdsl.dialects.arith as arith
 from xdsl.dialects.func import FuncOp, ReturnOp
-from xdsl.ir import Operation, OpResult, SSAValue, Block
+from xdsl.ir import Operation, OpResult
 import sys as sys
 
 
@@ -47,8 +45,8 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 class MCMCSampler:
     last_make_op: MakeOp
-    current: FuncOp
-    proposed: FuncOp | None
+    current: MutationProgram
+    proposed: MutationProgram | None
     current_cmp: CompareResult
     context: SynthesizerContext
     random: Random
@@ -60,21 +58,27 @@ class MCMCSampler:
         length: int,
         init_cost: float,
         reset: bool = True,
+        random_init_program: bool = True,
         init_cmp_res: CompareResult = CompareResult(0, 0, 0, 0, 0, 0, 0, 0),
     ):
-        self.current = func.clone()
+        if reset:
+            self.current = self.construct_init_program(func, length)
+        else:
+            self.current = MutationProgram(func.clone())
         self.proposed = None
         self.current_cmp = init_cmp_res
         self.context = context
         self.random = context.get_random_class()
-        if reset:
-            self.construct_init_program(self.current, length)
+        if random_init_program:
+            self.reset_to_random_prog(length)
 
     def get_current(self):
-        return self.current
+        return self.current.func
 
     def get_proposed(self):
-        return self.proposed
+        if self.proposed is None:
+            return None
+        return self.proposed.func
 
     def accept_proposed(self, proposed_cmp: CompareResult):
         assert self.proposed is not None
@@ -85,113 +89,51 @@ class MCMCSampler:
     def reject_proposed(self):
         self.proposed = None
 
-    def get_valid_bool_operands(
-        self, ops: list[Operation], x: int
-    ) -> tuple[list[SSAValue], int]:
-        """
-        Get operations that before ops[x] so that can serve as operands
-        """
-        bool_ops: list[SSAValue] = [
-            result for op in ops[:x] for result in op.results if result.type == i1
-        ]
-        bool_count = len(bool_ops)
-        return bool_ops, bool_count
-
-    def get_valid_int_operands(
-        self, ops: list[Operation], x: int
-    ) -> tuple[list[SSAValue], int]:
-        """
-        Get operations that before ops[x] so that can serve as operands
-        """
-        int_ops: list[SSAValue] = [
-            result
-            for op in ops[:x]
-            for result in op.results
-            if isinstance(result.type, TransIntegerType)
-        ]
-        int_count = len(int_ops)
-        return int_ops, int_count
-
-    def replace_entire_operation(
-        self, block: Block, ops: list[Operation], idx: int
-    ) -> float:
+    def replace_entire_operation(self, prog: MutationProgram, idx: int) -> float:
         """
         Random pick an operation and replace it with a new one
         """
-        # idx = self.random.choice(live_op_indices)
-        old_op = ops[idx]
+        old_op = prog.ops[idx]
+        int_operands, _ = prog.get_valid_int_operands(idx)
+        bool_operands, _ = prog.get_valid_bool_operands(idx)
 
-        int_operands, num_int_operands = self.get_valid_int_operands(ops, idx)
-        bool_operands, num_bool_operands = self.get_valid_bool_operands(ops, idx)
-
-        def calculate_operand_prob(op: Operation) -> int:
-            ret = 1
-            for operand in op.operands:
-                if operand.type == IntegerType(4):
-                    ret = ret * num_int_operands
-                elif operand.type == i1:
-                    ret = ret * num_bool_operands
-            return ret
-
-        if old_op.results[0].type == i1:  # bool
-            new_op = self.context.get_random_i1_op(int_operands, bool_operands)
-
-            forward_prob = calculate_operand_prob(old_op)
-            backward_prob = calculate_operand_prob(new_op)
-
-        elif isinstance(old_op.results[0].type, TransIntegerType):  # integer
-            new_op = self.context.get_random_int_op_except(
-                int_operands, bool_operands, old_op
-            )
-
-            forward_prob = calculate_operand_prob(old_op)
-            backward_prob = calculate_operand_prob(new_op)
-
-        else:
-            raise VerifyException(
-                "Unexpected result type {}".format(old_op.results[0].type)
-            )
-
-        block.insert_op_before(new_op, old_op)
-        if len(old_op.results) > 0 and len(new_op.results) > 0:
-            old_op.results[0].replace_by(new_op.results[0])
-        block.detach_op(old_op)
-
-        return backward_prob / forward_prob
-
-    def replace_operand(self, ops: list[Operation], idx: int) -> float:
-        op = ops[idx]
-        int_operands, _ = self.get_valid_int_operands(ops, idx)
-        bool_operands, _ = self.get_valid_bool_operands(ops, idx)
-
-        ith = self.random.randint(0, len(op.operands) - 1)
-        if op.operands[ith].type == i1:
-            new_operand = self.random.choice(bool_operands)
-        elif isinstance(op.operands[ith].type, TransIntegerType):
-            new_operand = self.random.choice(int_operands)
-        else:
-            raise VerifyException(
-                "Unexpected operand type {}".format(op.operands[ith].type)
-            )
-
-        op.operands[ith] = new_operand
+        new_op = None
+        while new_op is None:
+            if old_op.results[0].type == i1:  # bool
+                new_op = self.context.get_random_i1_op(int_operands, bool_operands)
+            elif isinstance(old_op.results[0].type, TransIntegerType):  # integer
+                new_op = self.context.get_random_int_op(int_operands, bool_operands)
+            else:
+                raise VerifyException("Unexpected result type {}".format(old_op))
+        prog.replace_operation(old_op, new_op)
         return 1
 
-    def replace_make_operand(self, ops: list[Operation], make_op_idx: int) -> float:
-        idx = make_op_idx
-        op = ops[idx]
-        assert isinstance(op, MakeOp)
+    def replace_operand(self, prog: MutationProgram, idx: int) -> float:
+        op = prog.ops[idx]
+        int_operands, _ = prog.get_valid_int_operands(idx)
+        bool_operands, _ = prog.get_valid_bool_operands(idx)
 
-        int_operands, _ = self.get_valid_int_operands(ops, idx)
-        ith = self.random.randint(0, len(op.operands) - 1)
-        assert isinstance(op.operands[ith].type, TransIntegerType)
-        new_operand = self.random.choice(int_operands)
-        op.operands[ith] = new_operand
+        success = False
+        while not success:
+            success = self.context.replace_operand(op, int_operands, bool_operands)
+
         return 1
 
-    def construct_init_program(self, func: FuncOp, length: int):
+    # def replace_make_operand(self, ops: list[Operation], make_op_idx: int) -> float:
+    #     idx = make_op_idx
+    #     op = ops[idx]
+    #     assert isinstance(op, MakeOp)
+    #
+    #     int_operands, _ = self.get_valid_int_operands(ops, idx)
+    #     ith = self.random.randint(0, len(op.operands) - 1)
+    #     assert isinstance(op.operands[ith].type, TransIntegerType)
+    #     new_operand = self.random.choice(int_operands)
+    #     op.operands[ith] = new_operand
+    #     return 1
+
+    def construct_init_program(self, _func: FuncOp, length: int):
+        func = _func.clone()
         block = func.body.block
-
         for op in block.ops:
             block.detach_op(op)
 
@@ -201,6 +143,7 @@ class MCMCSampler:
                 for i, field_type in enumerate(arg.type.get_fields()):
                     op = GetOp(arg, i)
                     block.add_op(op)
+
         assert isinstance(block.last_op, GetOp)
         tmp_int_ssavalue = block.last_op.results[0]
 
@@ -221,18 +164,12 @@ class MCMCSampler:
         block.add_op(all_ones)
 
         # Part III: Main Body
-        tmp_bool_ssavalue = true.results[0]
+        # tmp_bool_ssavalue = false_op.results[0]
         for i in range(length // 2):
-            nop_bool = arith.AndIOp(tmp_bool_ssavalue, tmp_bool_ssavalue)
-            nop_int = transfer.AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
+            nop_bool = CmpOp(tmp_int_ssavalue, tmp_int_ssavalue, 0)
+            nop_int1 = AndOp(tmp_int_ssavalue, tmp_int_ssavalue)
             block.add_op(nop_bool)
-            block.add_op(nop_int)
-
-        # Part III-2: Random reset main body
-        for i in range(length):
-            ops = list(block.ops)
-            tmp_ops_len = len(block.ops)
-            self.replace_entire_operation(block, ops, tmp_ops_len - 1 - i)
+            block.add_op(nop_int1)
 
         last_int_op = block.last_op
 
@@ -254,50 +191,8 @@ class MCMCSampler:
 
         # Part V: Return
         block.add_op(ReturnOp(return_val[0]))
-        return
 
-    @staticmethod
-    def get_modifiable_operations(
-        func: FuncOp, only_live: bool = True
-    ) -> list[tuple[Operation, int]]:
-        ops = list(func.body.block.ops)
-        assert isinstance(ops[-1], ReturnOp)
-        assert isinstance(ops[-2], MakeOp)
-        last_make_op = ops[-2]
-
-        live_set = set[Operation]()
-        modifiable_ops = list[tuple[Operation, int]]()
-
-        for operand in last_make_op.operands:
-            assert isinstance(operand.owner, Operation)
-            live_set.add(operand.owner)
-        # live_set.add(last_make_op)
-
-        def not_in_main_body(op: Operation):
-            # filter out operations not belong to main body
-            return (
-                isinstance(operation, Constant)
-                or isinstance(operation, arith.ConstantOp)
-                or isinstance(operation, GetAllOnesOp)
-                or isinstance(operation, GetOp)
-                or isinstance(operation, MakeOp)
-                or isinstance(operation, ReturnOp)
-            )
-
-        for idx in range(len(ops) - 3, -1, -1):
-            operation = ops[idx]
-            if not_in_main_body(operation):
-                continue
-            if only_live:
-                if operation in live_set:
-                    modifiable_ops.append((operation, idx))
-                    for operand in operation.operands:
-                        assert isinstance(operand.owner, Operation)
-                        live_set.add(operand.owner)
-            else:
-                modifiable_ops.append((operation, idx))
-
-        return modifiable_ops
+        return MutationProgram(func)
 
     def sample_next(self) -> float:
         """
@@ -306,32 +201,43 @@ class MCMCSampler:
         """
         self.proposed = self.current.clone()
 
-        return_op = self.proposed.body.block.last_op
-        assert isinstance(return_op, ReturnOp)
-        last_make_op = return_op.operands[0].owner
-        assert isinstance(last_make_op, MakeOp)
+        # return_op = self.proposed.body.block.last_op
+        # assert isinstance(return_op, Return)
+        # last_make_op = return_op.operands[0].owner
+        # assert isinstance(last_make_op, MakeOp)
 
-        live_ops = self.get_modifiable_operations(self.proposed)
+        live_ops = self.proposed.get_modifiable_operations()
         live_op_indices = [_[1] for _ in live_ops]
 
-        ops = list(self.proposed.body.block.ops)
-
         sample_mode = self.random.random()
-        if sample_mode < 0.3 and live_op_indices:
-            # replace an operation with a new operation
+        if (
+            sample_mode < 0.3 and live_op_indices
+        ):  # replace an operation with a new operation
             idx = self.random.choice(live_op_indices)
-            ratio = self.replace_entire_operation(self.proposed.body.block, ops, idx)
-
-        elif sample_mode < 1 and live_op_indices:
-            # replace an operand in an operation
+            ratio = self.replace_entire_operation(self.proposed, idx)
+        elif sample_mode < 1 and live_op_indices:  # replace an operand in an operation
             idx = self.random.choice(live_op_indices)
-            ratio = self.replace_operand(ops, idx)
-
-        elif sample_mode < 1:
-            # replace an operand in makeOp
-            ratio = self.replace_make_operand(ops, len(ops) - 2)
+            ratio = self.replace_operand(self.proposed, idx)
+        # elif sample_mode < 1:
+        #     # replace an operand in makeOp
+        #     ratio = self.replace_make_operand(ops, len(ops) - 2)
         else:
-            # todo: replace an operations with NOP
             ratio = 1
 
         return ratio
+
+    def reset_to_random_prog(self, length: int):
+        # Part III-2: Random reset main body
+        total_ops_len = len(self.current.ops)
+        """
+        the function in self.current should include:
+          init_constant_values
+          main body with number of operations (length)
+          last make and return op
+
+        As a result, total_ops_len = len(constant_values) + length + 2
+        the last operation at the main body should have idea total_ops_len - 3
+        so we iterate i 0 -> length, and replace the operation at total_ops_len - 3 - i
+        """
+        for i in range(length):
+            self.replace_entire_operation(self.current, total_ops_len - 3 - i)

@@ -36,6 +36,14 @@ class Random:
             return lst[cur_index]
         return random.choice(lst)
 
+    def choice2(self, lst: Sequence[T]) -> list[T]:
+        if self.from_file:
+            # assume the file provides 2 different numbers
+            cur_index1 = self.__get_rand__() % len(lst)
+            cur_index2 = self.__get_rand__() % len(lst)
+            return [lst[cur_index1], lst[cur_index2]]
+        return random.sample(lst, 2)
+
     def randint(self, a: int, b: int) -> int:
         if self.from_file:
             # first get the number in range [0, b-a+1)

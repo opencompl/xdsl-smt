@@ -27,7 +27,7 @@ from xdsl_smt.dialects.transfer import (
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from ..eval_engine.eval import eval_transfer_func, AbstractDomain
+import xdsl_smt.eval_engine.eval as eval_engine
 from xdsl.ir import BlockArgument
 from xdsl.dialects.builtin import (
     Builtin,
@@ -40,7 +40,7 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     StringAttr,
 )
-from xdsl.dialects.func import Func, FuncOp, ReturnOp
+from xdsl.dialects.func import Func, FuncOp, ReturnOp, CallOp
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
@@ -94,6 +94,37 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
     arg_parser.add_argument(
         "-random_seed", type=int, nargs="?", help="specify the random seed"
+    )
+    arg_parser.add_argument(
+        "-llvm_build_dir",
+        type=str,
+        nargs="?",
+        help="Specify the build directory of LLVM",
+    )
+    arg_parser.add_argument(
+        "-program_length",
+        type=int,
+        nargs="?",
+        help="Specify the maximal length of synthesized program. 40 by default.",
+    )
+    arg_parser.add_argument(
+        "-total_rounds",
+        type=int,
+        nargs="?",
+        help="Specify the number of rounds the synthesizer should run. 1000 by default.",
+    )
+    arg_parser.add_argument(
+        "-num_programs",
+        type=int,
+        nargs="?",
+        help="Specify the number of programs that runs at every round. 100 by default.",
+    )
+    arg_parser.add_argument(
+        "-inv_temp",
+        type=int,
+        nargs="?",
+        help="Inverse temperature \\beta for MCMC. The larger the value is, the lower the probability of accepting a program with a higher cost. 200 by default. "
+        "E.g., MCMC has a 1/2 probability of accepting a program with a cost 1/beta higher. ",
     )
 
 
@@ -404,9 +435,16 @@ def get_default_op_constraint():
 SYNTH_WIDTH = 8
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
+PROGRAM_LENGTH = 40
+NUM_PROGRAMS = 100
+INIT_COST = 1
+TOTAL_ROUNDS = 10000
+INV_TEMP = 200
+SOLUTION_SIZE = 8
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 OP_CONSTRAINT = "op_constraint"
+MEET_FUNC = "meet"
 TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
 
@@ -426,32 +464,38 @@ def is_ref_function(func: FuncOp) -> bool:
     return func.sym_name.data.startswith("ref_")
 
 
-# def eval_transfer_func_helper(funcs: list[FuncOp], crt_func: str, instance_constraint_func: str, domain_constraint_func: str, op_constraint_func: str, ref_func_names: list[str], ref_func_cpps: list[str]) -> list[CmpRes]:
-
-#     cpp_codes: list[str] = []
-#     func_names: list[str] = []
-
-#     for f in funcs:
-#         func_to_eval = f.clone()
-#         func_names.append(f.sym_name.data)
-#         cpp_code = print_to_cpp(func_to_eval)
-#         cpp_codes.append(cpp_code)
-
-#     cmp_results = eval_transfer_func(
-#         func_names,
-#         cpp_codes,
-#         crt_func
-#         + "\n"
-#         + instance_constraint_func
-#         + "\n"
-#         + domain_constraint_func
-#         + "\n"
-#         + op_constraint_func,
-#         ref_func_names,
-#         ref_func_cpps,
-#     )
-
-#     return cmp_results
+def generate_meet_solution(meet_funcs: list[FuncOp]) -> FuncOp:
+    if len(meet_funcs) == 0:
+        raise ValueError("Solution candidate not found!")
+    result = FuncOp("solution", meet_funcs[0].function_type)
+    result_type = result.function_type.outputs.data
+    part_result: list[CallOp] = []
+    for ith, func in enumerate(meet_funcs):
+        cur_func_name = "part_solution_" + str(ith)
+        func.sym_name = StringAttr("part_solution_" + str(ith))
+        part_result.append(CallOp(cur_func_name, result.args, result_type))
+    if len(part_result) == 1:
+        result.body.block.add_ops(part_result + [ReturnOp(part_result[-1])])
+    else:
+        meet_result: list[CallOp] = [
+            CallOp(
+                "meet",
+                [part_result[0], part_result[1]],
+                result_type,
+            )
+        ]
+        for i in range(2, len(part_result)):
+            meet_result.append(
+                CallOp(
+                    "meet",
+                    [meet_result[-1], part_result[i]],
+                    result_type,
+                )
+            )
+        result.body.block.add_ops(
+            part_result + meet_result + [ReturnOp(meet_result[-1])]
+        )
+    return result
 
 
 def main() -> None:
@@ -477,6 +521,27 @@ def main() -> None:
     module = parse_file(ctx, args.transfer_functions)
     random_number_file = args.random_file
     random_seed = args.random_seed
+    num_programs = args.num_programs
+    total_rounds = args.total_rounds
+    program_length = args.program_length
+    inv_temp = args.inv_temp
+
+    # Set up llvm_build_dir
+    llvm_build_dir = args.llvm_build_dir
+    if llvm_build_dir is not None:
+        if not llvm_build_dir.endswith("/"):
+            llvm_build_dir += "/"
+        llvm_build_dir += "bin/"
+        eval_engine.llvm_bin_dir = llvm_build_dir
+    if num_programs is None:
+        num_programs = NUM_PROGRAMS
+    if total_rounds is None:
+        total_rounds = TOTAL_ROUNDS
+    if program_length is None:
+        program_length = PROGRAM_LENGTH
+    if inv_temp is None:
+        inv_temp = INV_TEMP
+
     assert isinstance(module, ModuleOp)
 
     if not os.path.isdir(OUTPUTS_FOLDER):
@@ -494,27 +559,26 @@ def main() -> None:
     )
     """
     print("Round\tsoundness%\tprecision%\tcost")
-    possible_solution: set[str] = set()
+    """
+    This structure maintains a dictionary of potential solutions
+    All solutions must come from different program groups, sorted by cost
+    """
+    solutions: dict[int, tuple[float, FuncOp]] = {}
 
     random = Random(random_seed)
     if random_number_file is not None:
         random.read_from_file(random_number_file)
 
-    PROGRAM_LENGTH = 40
-    NUM_PROGRAMS = 100
-    INIT_COST = 1
-    TOTAL_ROUNDS = 10000
-
-    # sound_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
-    # precision_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
     cost_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
 
     context = SynthesizerContext(random)
     context.set_cmp_flags([0, 6, 7])
+    context.use_full_int_ops()
 
     domain_constraint_func = ""
     instance_constraint_func = ""
     op_constraint_func = get_default_op_constraint()
+    meet_func = ""
     # Handle helper funcitons
     for func in module.ops:
         if isinstance(func, FuncOp):
@@ -525,15 +589,22 @@ def main() -> None:
                 instance_constraint_func = print_to_cpp(func)
             elif func_name == OP_CONSTRAINT:
                 op_constraint_func = print_to_cpp(func)
+            elif func_name == MEET_FUNC:
+                meet_func = print_to_cpp(func)
+    solution_size = 1
+    if meet_func != "":
+        solution_size = SOLUTION_SIZE
 
     ref_funcs: list[FuncOp] = []
     for func in module.ops:
         if isinstance(func, FuncOp) and is_ref_function(func):
             ref_funcs.append(func)
 
-    assert len(ref_funcs) > 0
+    # We comment this out because ref functions could be empty
+    # assert len(ref_funcs) > 0
     ref_func_names = [func.sym_name.data for func in ref_funcs]
     ref_func_cpps = [print_to_cpp(func) for func in ref_funcs]
+    used_crt_func = None
 
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
@@ -545,33 +616,30 @@ def main() -> None:
                 concrete_func_name = applied_to.data[0].data
             concrete_func = get_concrete_function(concrete_func_name, SYNTH_WIDTH, None)
             crt_func = print_concrete_function_to_cpp(concrete_func)
+            if used_crt_func is None:
+                used_crt_func = crt_func
             func_name = func.sym_name.data
             mcmc_samplers: list[MCMCSampler] = []
 
-            # init_code = print_to_cpp(func.clone())
-            # init_soundness, init_precision = eval_transfer_func(
-            #     [func_name], [init_code], crt_func
-            # )
-
-            for _ in range(NUM_PROGRAMS):
+            for _ in range(num_programs):
                 sampler = MCMCSampler(
-                    func, context, PROGRAM_LENGTH, init_cost=INIT_COST
+                    func,
+                    context,
+                    program_length,
+                    random_init_program=True,
+                    init_cost=INIT_COST,
                 )
-                # sampler = MCMCSampler(
-                #     func, context, PROGRAM_LENGTH, init_cost=compute_cost(
-                #         init_soundness[0], init_precision[0]), reset=False, init_soundness=init_soundness[0], init_precision=init_precision[0])
-
                 mcmc_samplers.append(sampler)
 
             # Get the cost of initial programs
             cpp_codes: list[str] = []
-            for i in range(NUM_PROGRAMS):
+            for i in range(num_programs):
                 func_to_eval = mcmc_samplers[i].get_current().clone()
                 cpp_code = print_to_cpp(func_to_eval)
                 cpp_codes.append(cpp_code)
 
-            cmp_results: list[CompareResult] = eval_transfer_func(
-                [func_name] * NUM_PROGRAMS,
+            cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                [func_name] * num_programs,
                 cpp_codes,
                 crt_func
                 + "\n"
@@ -582,26 +650,27 @@ def main() -> None:
                 + op_constraint_func,
                 ref_func_names,
                 ref_func_cpps,
-                AbstractDomain.KnownBits,
+                eval_engine.AbstractDomain.KnownBits,
             )
 
-            for i in range(NUM_PROGRAMS):
+            for i in range(num_programs):
                 mcmc_samplers[i].current_cmp = cmp_results[i]
 
             # MCMC start
-            for round in range(TOTAL_ROUNDS):
+            for round in range(total_rounds):
                 start = time.time()
 
                 cpp_codes: list[str] = []
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     _: float = mcmc_samplers[i].sample_next()
                     proposed_solution = mcmc_samplers[i].get_proposed()
+
                     assert proposed_solution is not None
                     cpp_code = print_to_cpp(proposed_solution.clone())
                     cpp_codes.append(cpp_code)
 
-                cmp_results: list[CompareResult] = eval_transfer_func(
-                    [func_name] * NUM_PROGRAMS,
+                cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                    [func_name] * num_programs,
                     cpp_codes,
                     crt_func
                     + "\n"
@@ -612,28 +681,14 @@ def main() -> None:
                     + op_constraint_func,
                     ref_func_names,
                     ref_func_cpps,
-                    AbstractDomain.KnownBits,
+                    eval_engine.AbstractDomain.KnownBits,
                 )
 
-                # num_unsound, _imprecision, num_exact, num_cases, unsolved_unsound, unsolved_imprecision, unsolved_exact, unsolved_num_cases = eval_transfer_func(
-                #     [func_name] * NUM_PROGRAMS,
-                #     cpp_codes,
-                #     crt_func
-                #     + "\n"
-                #     + instance_constraint_func
-                #     + "\n"
-                #     + domain_constraint_func
-                #     + "\n"
-                #     + op_constraint_func,
-                #     ref_func_names,
-                #     ref_func_cpps,
-                # )
-
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     proposed_cost = cmp_results[i].get_cost()
                     current_cost = mcmc_samplers[i].current_cmp.get_cost()
                     p = random.random()
-                    decision = decide(p, 200, current_cost, proposed_cost)
+                    decision = decide(p, inv_temp, current_cost, proposed_cost)
                     if decision:
                         cost_reduce = current_cost - proposed_cost
 
@@ -650,17 +705,49 @@ def main() -> None:
                         mcmc_samplers[i].reject_proposed()
                         pass
 
-                for i in range(NUM_PROGRAMS):
+                for i in range(num_programs):
                     res = mcmc_samplers[i].current_cmp
                     print(
                         f"{round}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
                     )
-                    # print(res)
                     cost_data[i].append(res.get_cost())
-
-                # if soundness_percent[i] == 1 and precision_percent[i] == 1:
-                #     print(mcmc_samplers[i].get_current())
-                #     return
+                    """
+                    Select solution candidates
+                    """
+                    if res.sounds == res.all_cases:
+                        cost = res.get_cost()
+                        # If solutions has less than eight element, we directly add it
+                        if len(solutions) < solution_size:
+                            if i in solutions:
+                                if cost < solutions[i][0]:
+                                    solutions[i] = (
+                                        cost,
+                                        mcmc_samplers[i].current.func.clone(),
+                                    )
+                            else:
+                                solutions[i] = (
+                                    cost,
+                                    mcmc_samplers[i].current.func.clone(),
+                                )
+                        # Otherwise we replace the one with maximal cost in current solution
+                        else:
+                            max_ith = -1
+                            max_cost = 0
+                            if i in solutions:
+                                max_ith = i
+                                max_cost = solutions[i][0]
+                            else:
+                                for ith, ith_ele in solutions.items():
+                                    if ith_ele[0] > max_cost:
+                                        max_ith = ith
+                                        max_cost = ith_ele[0]
+                            if cost < max_cost:
+                                del solutions[max_ith]
+                                solutions[i] = (
+                                    cost,
+                                    mcmc_samplers[i].current.func.clone(),
+                                )
+                        assert len(solutions) <= solution_size
                 end = time.time()
                 used_time = end - start
 
@@ -687,5 +774,40 @@ def main() -> None:
                         if soundness_check_res:
                             print(mcmcSampler.func)
                         """
-    for item in possible_solution:
-        print(item)
+    # Eval last solution:
+    solution_str = ""
+    solution_list: list[FuncOp] = []
+    if len(solutions) == 0:
+        print("Cannot find any sound transfer functions!")
+        exit(0)
+    for item in solutions.values():
+        solution_list.append(item[1])
+    last_solution = generate_meet_solution(solution_list)
+    for sol in solution_list:
+        solution_str += print_to_cpp(sol)
+        solution_str += "\n"
+    solution_str += print_to_cpp(last_solution)
+    solution_str += "\n"
+    with open("tmp.cpp", "w") as fout:
+        fout.write(solution_str)
+    assert used_crt_func is not None
+    cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+        ["solution"],
+        [solution_str],
+        used_crt_func
+        + "\n"
+        + instance_constraint_func
+        + "\n"
+        + domain_constraint_func
+        + "\n"
+        + op_constraint_func
+        + "\n"
+        + meet_func,
+        ref_func_names,
+        ref_func_cpps,
+        eval_engine.AbstractDomain.KnownBits,
+    )
+    solution_result = cmp_results[0]
+    print(
+        f"last_solution\t{solution_result.get_sound_prop() * 100:.2f}%\t{solution_result.get_exact_prop() * 100:.2f}%\t{solution_result.get_unsolved_edit_dis_avg():.3f}\t{solution_result.get_cost():.3f}"
+    )

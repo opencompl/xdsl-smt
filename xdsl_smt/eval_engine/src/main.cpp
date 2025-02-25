@@ -19,7 +19,6 @@ template <typename Domain> Results eval(unsigned int nFuncs) {
       std::vector<Domain> ref_kbs(ref_function_wrapper(lhs, rhs));
       Domain cur_kb = Domain::meetAll(ref_kbs);
       bool solved = cur_kb == best_abstract_res;
-
       for (unsigned int i = 0; i < synth_kbs.size(); ++i) {
         Domain synth_after_meet = cur_kb.meet(synth_kbs[i]);
         bool sound = synth_after_meet.isSuperset(best_abstract_res);

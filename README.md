@@ -1,14 +1,26 @@
-# xdsl-smt
+# synth-transfer
 
-This repository contains a work-in-progress implementation of an SMTLib dialect for [xDSL](https://github.com/xdslproject/xdsl).
+This repository is based on xdsl-smt and contains a tool for synthesizing transfer functions in dataflow analysis.
 
-It currently contains the implementation of the core theory of SMTLib and a partial implementation
-of the bitvector theory.
+It currently contains the implementation of the synthesizer and several examples files on KnownBits domain.
 
-It also contains a partial lowering from `pdl`, `arith`, `comb`, and `func` to `smt`, a translation
-validation tool between `arith` + `comb` + `func` programs.
+The diagram below shows the overview of this project.
+
+![Project Overview](./synth.png)
 
 ## Installation
+
+### Set up LLVM
+
+After cloning LLVM repo, `cd` to the new cloned repo (normally the folder name is llvm-project) and execute
+
+```bash
+mkdir build
+cd build
+cmake -GNinja -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" ../llvm
+ninja
+```
+
 
 ### Virtual environment
 
@@ -40,69 +52,60 @@ To setup an environment for hacking on xdsl-smt, use the following commands:
 pip install -e '.[dev]'
 ```
 
-## Printing SMTLib
 
-When a program only contains `SMTLib` operations and attributes, it can be
-printed as an SMTLib script with
+## Tool usage
 
+If you installed this project successfully, now we can start with synthesizing a simple XOR transfer function
+on known bits domain.
 ```bash
-xdsl-smt file.mlir -t smt
+synth-transfer ./tests/synth/knownBitsXor.mlir -llvm_build_dir /pathToYourLLVM/llvm-project/build/ -total_rounds 10  -num_programs 10
 ```
+Our argument `-total_rounds` controls how many rounds we run and `-num_programs` specifies how many functions
+we synthesize at once in one round.
 
-You can also directly run the SMTLib script with
-
-```bash
-xdsl-smt file.mlir -t smt | z3
+If it runs successfully, we can observe some output like:
+```text
+Round	soundness%	precision%	cost
+0_0	9.05%	1.65%	2.824	0.415
+0_1	100.00%	0.00%	1.965	0.218
+0_2	0.11%	0.08%	3.898	0.544
+0_3	2.87%	0.27%	3.545	0.502
+0_4	43.07%	4.35%	2.283	0.317
+0_5	11.90%	5.07%	2.813	0.410
+0_6	31.37%	4.11%	2.474	0.351
+0_7	19.52%	2.11%	2.694	0.389
+0_8	22.22%	4.21%	2.474	0.361
+0_9	77.23%	2.11%	2.075	0.256
+Used Time: 2.79
 ```
-or any other solver compatible with SMTLib.
+In the example above, we set both arguments to `10` so for the input XOR specification, we it runs 10 rounds and
+samples 10 function in every round.
 
-## Running the translation validation tool
-
-The translation validator can be run with
-```bash
-xdsl-tv file_before.xdsl file_after.xdsl | z3
+After running out all rounds, it prints the evaluation of synthesized solution:
+```text
+last_solution	100.00%	9.53%	1.965	0.218
 ```
+where says the solution is `100%` sound, `9.53%`  precise with the cost as `0.218`
 
-This command will check that the second program is a valid refinement of the first one.
-
-In order to simplify debugging the refinement script, you can pass the `-opt` option
-to `xdsl-tv` to simplify obvious expressions and remove the use of the `pair` datatype.
-
-## Verifying PDL rewrites
-
-PDL rewrites can be verified with the `verify-pdl` tool. It takes a single file as input, and will check for the correctness of all rewrites that are present in the file.
-
-It is run with
+A `tmp.cpp` will be generated as the solution in C++ by combined all solutions in the solution set.
+Here is a possible solution function:
 ```
-verify-pdl file.mlir
+std::vector<APInt> solution(std::vector<APInt> autogen0,std::vector<APInt> autogen1){
+	std::vector<APInt> autogen2=part_solution_0(autogen0,autogen1);
+	std::vector<APInt> autogen3=part_solution_1(autogen0,autogen1);
+	std::vector<APInt> autogen4=part_solution_2(autogen0,autogen1);
+	std::vector<APInt> autogen5=part_solution_3(autogen0,autogen1);
+	std::vector<APInt> autogen6=part_solution_4(autogen0,autogen1);
+	std::vector<APInt> autogen7=meet(autogen2,autogen3);
+	std::vector<APInt> autogen8=meet(autogen7,autogen4);
+	std::vector<APInt> autogen9=meet(autogen8,autogen5);
+	std::vector<APInt> autogen10=meet(autogen9,autogen6);
+	return autogen10;
+}
 ```
+We will discuss more information about input and output file in the next section.
 
-## Running passes with `xdsl-smt`
+You can play with other input specification under `tests/synth`.
 
-`xdsl-smt` uses the `-p` command to run passes on a program.
-```bash
-# Run dce, then convert arith to smt, and output the result in SMTLib form
-xdsl-smt file.xdsl -p=dce,lower-to-smt,canonicalize,dce -t smt
-```
-
-`xdsl-smt` defines the following passes:
-* `dce`: Eliminate dead code.
-* `canonicalize,dce`: Apply simple peephole optimizations on SMT programs. This is useful for debugging generated code.
-* `lower-pairs`: Try to remove usage of `pair` datatypes. This duplicates function definitions when they return pairs.
-* `lower-to-smt`: Lowers `arith`, `comb`, `func` to the `smt` dialect. Can also be extended with additional rewrite
-  patterns for new dialects.
-* `pdl-to-smt`: Lowers `PDL` rewrites to the `smt` dialect, using the `lower-to-smt` pass. The resulting SMT program
-  will check that the rewrite is correct.
-
-## Extending the project with new semantics
-
-The lowering to SMT can be extended with new semantics using the fields of the `LowerToSMT` class:
-* `type_lowerers` extends the lowering of types to SMT sorts.
-* `rewrite_patterns` extends the lowering of operations to SMT operations using rewrite patterns.
-* `operation_semantics` extends the lowering of operations to SMT operations using meta-level semantics. Giving semantics this way is necessary to support these operations in `pdl-to-smt`.
-* `attribute_semantics` extends the lowering of attributes to SMT attributes using meta-level semantics. Giving semantics this way is necessary to support these attributes in `pdl-to-smt`.
-
-The lowering to SMT from PDL can additionally be extended with the following fields from `PDLToSMT` class:
-* `native_rewrites` extends the semantics of functions used in `pdl.apply_native_rewrite`
-* `native_constraints` extends the semantics of functions used in `pdl.apply_native_constraint`
-* `native_static_constraints` extends the semantics of function used in `pdl.apply_native_constraint`, when the constraint should be checked before the lowering to SMT. This can happen when a PDL rewrite yields an invalid SMT program when this constraint is not satisfied, for instance by creating non-verifying operations.
+## Extending the project with one new abstract domain
+  Needs to be down

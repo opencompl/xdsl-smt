@@ -14,6 +14,9 @@ class AbstractDomain(Enum):
         return self.name
 
 
+llvm_bin_dir: str = ""
+
+
 def get_build_cmd() -> list[str]:
     has_libclang = (
         run(["ldconfig", "-p"], stdout=PIPE)
@@ -23,17 +26,23 @@ def get_build_cmd() -> list[str]:
 
     llvm_include_dir = (
         run(
-            ["llvm-config", "--includedir"],
+            [llvm_bin_dir + "llvm-config", "--includedir"],
             stdout=PIPE,
         )
         .stdout.decode("utf-8")
         .split("\n")[0]
     )
 
-    if has_libclang == -1:
+    if llvm_bin_dir != "" or has_libclang == -1:
         all_llvm_link_flags = (
             run(
-                ["llvm-config", "--ldflags", "--libdir", "--libs", "--system-libs"],
+                [
+                    llvm_bin_dir + "llvm-config",
+                    "--ldflags",
+                    "--libdir",
+                    "--libs",
+                    "--system-libs",
+                ],
                 stdout=PIPE,
             )
             .stdout.decode("utf-8")
@@ -48,10 +57,13 @@ def get_build_cmd() -> list[str]:
         ]
 
         build_cmd = [
-            "clang++",
+            llvm_bin_dir + "clang++",
             "-std=c++20",
             "-O1",
             f"-I{llvm_include_dir}",
+            f"-I{llvm_bin_dir}../include",
+            "-L",
+            f"{llvm_bin_dir}../lib",
             "../src/main.cpp",
             "-o",
             "EvalEngine",
