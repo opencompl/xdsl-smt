@@ -59,6 +59,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             llvm_bin_dir + "clang++",
             "-std=c++20",
+            "-O1",
             f"-I{llvm_include_dir}",
             f"-I{llvm_bin_dir}../include",
             "-L",
@@ -81,6 +82,7 @@ def get_build_cmd() -> list[str]:
         build_cmd = [
             "clang++",
             "-std=c++20",
+            "-O1",
             f"-I{llvm_include_dir}",
             "../src/main.cpp",
             "-o",
@@ -90,38 +92,35 @@ def get_build_cmd() -> list[str]:
     return build_cmd
 
 
-def make_xfer_header(concrete_op: str, num_funcs: int) -> str:
+def make_xfer_header(concrete_op: str) -> str:
     includes = """
     #include <llvm/ADT/APInt.h>
-    #include <tuple>
     #include <vector>
     #include "AbstVal.cpp"
     using llvm::APInt;
     """
 
     conc_op_wrapper = """
-    uint8_t concrete_op_wrapper(const uint8_t a, const uint8_t b) {
-      return concrete_op(APInt(8, a), APInt(8, b)).getZExtValue();
+    unsigned int concrete_op_wrapper(const unsigned int a, const unsigned int b) {
+      return concrete_op(APInt(32, a), APInt(32, b)).getZExtValue();
     }
     """
 
-    num_funcs_const = f"unsigned int numFuncs = {num_funcs};"
-
-    return includes + concrete_op + conc_op_wrapper + num_funcs_const
+    return includes + concrete_op + conc_op_wrapper
 
 
 def make_xfer_wrapper(func_names: list[str], wrapper_name: str) -> str:
     func_sig = (
-        "std::vector<AbstVal> "
+        "std::vector<Domain> "
         + wrapper_name
-        + "_wrapper(const AbstVal &lhs, const AbstVal &rhs)"
+        + "_wrapper(const Domain &lhs, const Domain &rhs)"
     )
 
     def make_func_call(x: str) -> str:
         return f"const std::vector<llvm::APInt> res_v_{x} = {x}" + "(lhs.v, rhs.v);"
 
     def make_res(x: str) -> str:
-        return f"AbstVal res_{x}(lhs.domain, res_v_{x}, lhs.bitwidth);"
+        return f"Domain res_{x}(res_v_{x});"
 
     func_calls = "\n".join([make_func_call(x) for x in func_names])
     results = "\n".join([make_res(x) for x in func_names])
@@ -138,11 +137,14 @@ def eval_transfer_func(
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
     domain: AbstractDomain,
+    bitwidth: int,
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
 
-    transfer_func_header = make_xfer_header(concrete_op_expr, len(xfer_names))
+    transfer_func_header = make_xfer_header(concrete_op_expr)
+    transfer_func_header += f"\ntypedef {domain}<{bitwidth}> Domain;\n"
+    transfer_func_header += f"\nunsigned int numFuncs = {len(xfer_names)};\n"
 
     # rename the transfer functions
     ref_xfer_srcs = [
@@ -183,11 +185,7 @@ def eval_transfer_func(
     os.chdir(path.join(base_dir, "build"))
 
     run(get_build_cmd(), stdout=PIPE)
-    eval_output = run(
-        ["./EvalEngine", "--domain", str(domain)],
-        stdout=PIPE,
-        stderr=PIPE,
-    )
+    eval_output = run(["./EvalEngine"], stdout=PIPE, stderr=PIPE)
 
     if eval_output.returncode != 0:
         print("EvalEngine failed with this error:")
@@ -231,15 +229,21 @@ def eval_transfer_func(
             unsolved_sounds[i],
             unsolved_exact[i],
             unsolved_precs[i],
+            bitwidth,
         )
         for i in range(len(sounds))
     ]
 
-    # return sounds, precs, exact, num_cases, unsolved_sounds, unsolved_precs, unsolved_exact, unsolved_num_cases
     return cmp_results
 
 
 def main():
+    constraint_func = """
+    bool op_constraint(APInt _arg0, APInt _arg1){
+        return true;
+    }
+    """
+
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
         return a+b;
@@ -265,7 +269,13 @@ std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
     ref_names: list[str] = []  # TODO
     ref_srcs: list[str] = []  # TODO
     results = eval_transfer_func(
-        names, srcs, concrete_op, ref_names, ref_srcs, AbstractDomain.ConstantRange
+        names,
+        srcs,
+        f"{concrete_op}\n{constraint_func}",
+        ref_names,
+        ref_srcs,
+        AbstractDomain.ConstantRange,
+        4,
     )
 
     for res in results:
