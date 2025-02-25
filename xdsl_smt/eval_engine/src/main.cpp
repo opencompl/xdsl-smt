@@ -78,10 +78,10 @@ AbstVal toBestAbstract(const AbstVal lhs, const AbstVal rhs,
 
   for (auto lhs_v : lhs.toConcrete()) {
     for (auto rhs_v : rhs.toConcrete()) {
-      // stubbed out op_constraint for now
-      // if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {}
-      llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
-      crtVals.push_back(AbstVal::fromConcrete(d, v));
+      if (op_constraint(APInt(bitwidth, lhs_v), APInt(bitwidth, rhs_v))) {
+        llvm::APInt v(bitwidth, op(lhs_v, rhs_v) & mask);
+        crtVals.push_back(AbstVal::fromConcrete(d, v));
+      }
     }
   }
 
