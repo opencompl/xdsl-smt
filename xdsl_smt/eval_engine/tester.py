@@ -95,11 +95,20 @@ std::vector<APInt> cr_sub(std::vector<APInt> arg0, std::vector<APInt> arg1) {
 
 
 def test(input: TestInput) -> None:
-    names, srcs = zip(*input.functions)
+    constraint_func = """
+    bool op_constraint(APInt _arg0, APInt _arg1){
+        return true;
+    }
+    """
 
-    # TODO what do the last two arguments do? // what are they for??
+    names, srcs = zip(*input.functions)
     results = eval_transfer_func(
-        list(names), list(srcs), input.concrete_op, [], [], input.domain
+        list(names),
+        list(srcs),
+        f"{input.concrete_op}\n{constraint_func}",
+        [],
+        [],
+        input.domain,
     )
 
     for n, r, e in zip(names, results, input.expected_outputs):

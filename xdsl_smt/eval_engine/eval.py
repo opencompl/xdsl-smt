@@ -237,6 +237,12 @@ def eval_transfer_func(
 
 
 def main():
+    constraint_func = """
+    bool op_constraint(APInt _arg0, APInt _arg1){
+        return true;
+    }
+    """
+
     concrete_op = """
     APInt concrete_op(APInt a, APInt b) {
         return a+b;
@@ -262,7 +268,12 @@ std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
     ref_names: list[str] = []  # TODO
     ref_srcs: list[str] = []  # TODO
     results = eval_transfer_func(
-        names, srcs, concrete_op, ref_names, ref_srcs, AbstractDomain.ConstantRange
+        names,
+        srcs,
+        f"{concrete_op}\n{constraint_func}",
+        ref_names,
+        ref_srcs,
+        AbstractDomain.ConstantRange,
     )
 
     for res in results:

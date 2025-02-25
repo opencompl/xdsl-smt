@@ -10,12 +10,6 @@
 
 #include <llvm/ADT/APInt.h>
 
-consteval unsigned int makeMask(unsigned char bitwidth) {
-  if (bitwidth == 0)
-    return 0;
-  return (1 << bitwidth) - 1;
-}
-
 template <typename Domain, unsigned char N> class AbstVal {
 protected:
   explicit AbstVal(const std::vector<llvm::APInt> &v) : v(v) {}
@@ -45,6 +39,7 @@ public:
   }
 
   // normal methods
+  unsigned char getBitWidth() const { return N; }
   bool isTop() const { return *this == top(); }
   bool isBottom() const { return *this == bottom(); }
   bool isSuperset(const Domain &rhs) const { return meet(rhs) == rhs; }
@@ -62,24 +57,6 @@ public:
 
     return true;
   };
-
-  const Domain toBestAbst(const Domain &rhs,
-                          unsigned int (*op)(const unsigned int,
-                                             const unsigned int)) {
-    llvm::APInt x(N, 0);
-    unsigned int mask = makeMask(N);
-    std::vector<Domain> crtVals;
-    const std::vector<unsigned int> rhss = rhs.toConcrete();
-
-    for (unsigned int lhs_v : toConcrete()) {
-      for (unsigned int rhs_v : rhss) {
-        x = op(lhs_v, rhs_v) & mask;
-        crtVals.push_back(fromConcrete(x));
-      }
-    }
-
-    return joinAll(crtVals);
-  }
 
   // methods delegated to derived class
   bool isConstant() const {
