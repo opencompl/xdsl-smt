@@ -108,4 +108,50 @@ We will discuss more information about input and output file in the next section
 You can play with other input specification under `tests/synth`.
 
 ## Extending the project with one new abstract domain
-  Needs to be down
+
+To add a new abstract domain you add a new class to `AbstVal.cpp` which inherits from the `AbstVal` base class and is templated on the bitwidth, `N`.
+Here's an example called `NewDomain`:
+
+```cpp
+template <unsigned char N> class NewDomain : public AbstVal<NewDomain<N>, N> {
+public:
+  explicit NewDomain(const std::vector<llvm::APInt> &v)
+      : AbstVal<NewDomain<N>, N>(v) {}
+
+  const std::string display() const;
+  bool isConstant() const;
+  const llvm::APInt getConstant() const;
+
+  const NewDomain meet(const NewDomain &) const;
+  const NewDomain join(const NewDomain &) const;
+  const std::vector<unsigned int> toConcrete() const;
+
+  // static constructors
+  static NewDomain top();
+  static NewDomain bottom();
+  static NewDomain fromConcrete(const llvm::APInt &);
+  static std::vector<NewDomain> const enumVals();
+};
+```
+
+Here's a list of the methods required for every domain domain:
+* `NewDomain(const std::vector<llvm::APInt> &)`: this constructor is for synthesiszed transfer functions to create instances of `NewDomain` in the evaluation engine
+* `display()`, `isConstant()`, and `getConstant()`: are not used by the evaluation engine (and as such are not strictly required), but they are handy for debugging
+* `meet(const NewDomain &)`, and `join(const NewDomain &)`: should follow their respective definitions, in the lattice of the abstract domain
+* `toConcrete()`: is the gamma function, which enumerates all of the concrete values represented by the abstract value as a `std::vector<unsigned int>`
+* `top()`, and `bottom()`: should also follow their definitions of full set and empty set
+* `fromConcrete(const llvm::APInt &)`: takes a concrete value and constructs the abstract value holding only that concrete value
+* `enumVals()`: enumerates the entire lattice of abstract values as a `std::vector<NewDoman>`
+
+The other last change needed to add a new domain is in `eval.py`.
+Add `NewDomain = auto()` to the list of other domains in the enum.
+
+```python
+class AbstractDomain(Enum):
+    KnownBits = auto()
+    ConstantRange = auto()
+
+    def __str__(self) -> str:
+        return self.name
+
+```
