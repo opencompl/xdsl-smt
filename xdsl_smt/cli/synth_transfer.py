@@ -777,6 +777,9 @@ def main() -> None:
     # Eval last solution:
     solution_str = ""
     solution_list: list[FuncOp] = []
+    if len(solutions) == 0:
+        print("Cannot find any sound transfer functions!")
+        exit(0)
     for item in solutions.values():
         solution_list.append(item[1])
     last_solution = generate_meet_solution(solution_list)
