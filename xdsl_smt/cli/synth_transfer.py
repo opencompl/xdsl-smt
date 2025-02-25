@@ -809,5 +809,5 @@ def main() -> None:
     )
     solution_result = cmp_results[0]
     print(
-        f"last_solution\t{solution_result.get_sound_prop() * 100:.2f}%\t{solution_result.get_unsolved_exact_prop() * 100:.2f}%\t{solution_result.get_unsolved_edit_dis_avg():.3f}\t{solution_result.get_cost():.3f}"
+        f"last_solution\t{solution_result.get_sound_prop() * 100:.2f}%\t{solution_result.get_exact_prop() * 100:.2f}%\t{solution_result.get_unsolved_edit_dis_avg():.3f}\t{solution_result.get_cost():.3f}"
     )
