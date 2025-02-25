@@ -109,6 +109,7 @@ def test(input: TestInput) -> None:
         [],
         [],
         input.domain,
+        4,
     )
 
     for n, r, e in zip(names, results, input.expected_outputs):

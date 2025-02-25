@@ -137,8 +137,8 @@ def eval_transfer_func(
     ref_xfer_names: list[str],
     ref_xfer_srcs: list[str],
     domain: AbstractDomain,
+    bitwidth: int,
 ) -> list[CompareResult]:
-    bitwidth = 4
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
 
@@ -229,6 +229,7 @@ def eval_transfer_func(
             unsolved_sounds[i],
             unsolved_exact[i],
             unsolved_precs[i],
+            bitwidth,
         )
         for i in range(len(sounds))
     ]
@@ -274,6 +275,7 @@ std::vector<APInt> cr_add(std::vector<APInt> arg0, std::vector<APInt> arg1) {
         ref_names,
         ref_srcs,
         AbstractDomain.ConstantRange,
+        4,
     )
 
     for res in results:

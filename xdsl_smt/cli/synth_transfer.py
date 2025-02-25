@@ -126,6 +126,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="Inverse temperature \\beta for MCMC. The larger the value is, the lower the probability of accepting a program with a higher cost. 200 by default. "
         "E.g., MCMC has a 1/2 probability of accepting a program with a cost 1/beta higher. ",
     )
+    arg_parser.add_argument(
+        "-bitwidth",
+        type=int,
+        nargs="?",
+        help="Specify the bitwidth of the evaluation engine",
+    )
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
@@ -525,6 +531,7 @@ def main() -> None:
     total_rounds = args.total_rounds
     program_length = args.program_length
     inv_temp = args.inv_temp
+    bitwidth = args.bitwidth
 
     # Set up llvm_build_dir
     llvm_build_dir = args.llvm_build_dir
@@ -651,6 +658,7 @@ def main() -> None:
                 ref_func_names,
                 ref_func_cpps,
                 eval_engine.AbstractDomain.KnownBits,
+                bitwidth,
             )
 
             for i in range(num_programs):
@@ -682,6 +690,7 @@ def main() -> None:
                     ref_func_names,
                     ref_func_cpps,
                     eval_engine.AbstractDomain.KnownBits,
+                    bitwidth,
                 )
 
                 for i in range(num_programs):
