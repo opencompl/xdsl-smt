@@ -815,6 +815,7 @@ def main() -> None:
         ref_func_names,
         ref_func_cpps,
         eval_engine.AbstractDomain.KnownBits,
+        bitwidth,
     )
     solution_result = cmp_results[0]
     print(
