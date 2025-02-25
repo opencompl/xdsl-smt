@@ -530,11 +530,20 @@ def _(op: arith.ConstantOp):
     value = op.value.value.data
     assert isinstance(op.results[0].type, IntegerType)
     size = op.results[0].type.width.data
+    max_val_plus_one = 1 << size
     returnedType = "int"
-    if value > ((1 << 31) - 1):
+    if value >= (1 << 31):
         assert False and "arith constant overflow maximal int"
     returnedValue = op.results[0].name_hint
-    return indent + returnedType + " " + returnedValue + " = " + str(value) + ends
+    return (
+        indent
+        + returnedType
+        + " "
+        + returnedValue
+        + " = "
+        + str((value + max_val_plus_one) % max_val_plus_one)
+        + ends
+    )
 
 
 @lowerOperation.register
