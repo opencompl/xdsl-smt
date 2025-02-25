@@ -416,6 +416,12 @@ def print_concrete_function_to_cpp(func: FuncOp) -> str:
     sio = StringIO()
     LowerToCpp(sio, True).apply(ctx, cast(ModuleOp, func))
     return sio.getvalue()
+    # return """
+    #     APInt concrete_op(APInt arg0, APInt arg1){
+    #        // return arg0.uge(arg1) ? arg0 : arg1;
+    #        return arg0 + arg1;
+    #     }
+    #     """
 
 
 def print_to_cpp(func: FuncOp) -> str:
@@ -563,6 +569,7 @@ def main() -> None:
 
     context = SynthesizerContext(random)
     context.set_cmp_flags([0, 6, 7])
+    context.use_full_int_ops()
 
     domain_constraint_func = ""
     instance_constraint_func = ""
@@ -602,9 +609,15 @@ def main() -> None:
 
             for _ in range(num_programs):
                 sampler = MCMCSampler(
-                    func, context, program_length, init_cost=INIT_COST
+                    func,
+                    context,
+                    program_length,
+                    random_init_program=True,
+                    init_cost=INIT_COST,
                 )
-
+                # sampler = MCMCSampler(
+                #     func, context, PROGRAM_LENGTH, init_cost=compute_cost(
+                #         init_soundness[0], init_precision[0]), reset=False, init_soundness=init_soundness[0], init_precision=init_precision[0])
                 mcmc_samplers.append(sampler)
 
             # Get the cost of initial programs
@@ -640,6 +653,7 @@ def main() -> None:
                 for i in range(num_programs):
                     _: float = mcmc_samplers[i].sample_next()
                     proposed_solution = mcmc_samplers[i].get_proposed()
+
                     assert proposed_solution is not None
                     cpp_code = print_to_cpp(proposed_solution.clone())
                     cpp_codes.append(cpp_code)
