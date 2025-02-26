@@ -132,6 +132,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         nargs="?",
         help="Specify the bitwidth of the evaluation engine",
     )
+    arg_parser.add_argument(
+        "-solution_size",
+        type=int,
+        nargs="?",
+        help="Specify the size of solution set",
+    )
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
@@ -438,7 +444,7 @@ def get_default_op_constraint():
     """
 
 
-SYNTH_WIDTH = 8
+SYNTH_WIDTH = 4
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
 PROGRAM_LENGTH = 40
@@ -532,6 +538,7 @@ def main() -> None:
     program_length = args.program_length
     inv_temp = args.inv_temp
     bitwidth = args.bitwidth
+    solution_size = args.solution_size
 
     # Set up llvm_build_dir
     llvm_build_dir = args.llvm_build_dir
@@ -548,6 +555,10 @@ def main() -> None:
         program_length = PROGRAM_LENGTH
     if inv_temp is None:
         inv_temp = INV_TEMP
+    if bitwidth is None:
+        bitwidth = SYNTH_WIDTH
+    if solution_size is None:
+        solution_size = SOLUTION_SIZE
 
     assert isinstance(module, ModuleOp)
 
@@ -576,7 +587,7 @@ def main() -> None:
     if random_number_file is not None:
         random.read_from_file(random_number_file)
 
-    cost_data: list[list[float]] = [[] for _ in range(NUM_PROGRAMS)]
+    cost_data: list[list[float]] = [[] for _ in range(num_programs)]
 
     context = SynthesizerContext(random)
     context.set_cmp_flags([0, 6, 7])
@@ -598,9 +609,8 @@ def main() -> None:
                 op_constraint_func = print_to_cpp(func)
             elif func_name == MEET_FUNC:
                 meet_func = print_to_cpp(func)
-    solution_size = 1
-    if meet_func != "":
-        solution_size = SOLUTION_SIZE
+    if meet_func == "":
+        solution_size = 1
 
     ref_funcs: list[FuncOp] = []
     for func in module.ops:
