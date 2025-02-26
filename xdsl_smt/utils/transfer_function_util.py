@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import Callable
 
 from xdsl.context import MLContext
@@ -150,7 +151,7 @@ def get_width_from_type(ty: Attribute) -> int:
     Given a bit vector type or a pair type including a bit vector,
     returns the bit width of that bit vector
     """
-    while isa(ty, AnyPairType):
+    if isa(ty, AnyPairType):
         assert isinstance(ty.first, Attribute)
         ty = ty.first
     if isinstance(ty, BitVectorType):
@@ -232,10 +233,7 @@ def compare_defining_op(func: DefineFunOp | None, func1: DefineFunOp | None) -> 
         return False
     if func_none or func1_none:
         return True
-    for arg, arg1 in zip(func.body.block.args, func1.body.block.args):
-        if arg.type != arg1.type:
-            return False
-    return func.func_type.outputs.data[0] == func1.func_type.outputs.data[0]
+    return func.func_type == func1.func_type
 
 
 def fix_defining_op_return_type(func: DefineFunOp) -> DefineFunOp:
@@ -254,6 +252,7 @@ def fix_defining_op_return_type(func: DefineFunOp) -> DefineFunOp:
     return func
 
 
+@dataclass
 class FunctionCollection:
     """
     This class maintains a map from width(int) -> smt function function
@@ -264,20 +263,9 @@ class FunctionCollection:
     """
 
     main_func: FuncOp
-    smt_funcs: dict[int, DefineFunOp] = {}
     create_smt: Callable[[FuncOp, int, MLContext], DefineFunOp]
     ctx: MLContext
-
-    def __init__(
-        self,
-        func: FuncOp,
-        create_smt: Callable[[FuncOp, int, MLContext], DefineFunOp],
-        ctx: MLContext,
-    ):
-        self.main_func = func
-        self.create_smt = create_smt
-        self.smt_funcs = {}
-        self.ctx = ctx
+    smt_funcs: dict[int, DefineFunOp] = field(default_factory=dict)
 
     def getFunctionByWidth(self, width: int) -> DefineFunOp:
         if width not in self.smt_funcs:
@@ -285,19 +273,22 @@ class FunctionCollection:
         return self.smt_funcs[width]
 
 
+@dataclass
 class TransferFunction:
     """
     This class maintains information about a transfer function before lowering to smt
     """
 
-    is_abstract_arg: list[bool] = []
+    transfer_function: FuncOp
+
+    is_abstract_arg: list[bool] = field(init=False)
     """"
     is_abstract_arg[ith] == True -> ith argument of the transfer function is an abstract value
     is_abstract_arg[ith] == False -> ith argument of the transfer function is not an abstract value,
     which maybe a constant value or extra parameters
     """
 
-    name: str = ""
+    name: str = field(init=False)
 
     is_forward: bool = True
     """
@@ -315,40 +306,29 @@ class TransferFunction:
     When the transfer function applies backwards, this field indicates which argument it applies to
     """
 
-    transfer_function: FuncOp
-
-    def __init__(
-        self,
-        transfer_function: FuncOp,
-        is_forward: bool = True,
-        operationNo: int = -1,
-        replace_int_attr: bool = False,
-    ):
-        self.name = transfer_function.sym_name.data
-        self.is_forward = is_forward
-        self.operationNo = operationNo
+    def __post_init__(self):
+        self.name = self.transfer_function.sym_name.data
         is_abstract_arg: list[bool] = []
-        self.transfer_function = transfer_function
-        func_type = transfer_function.function_type
-        for func_type_arg, arg in zip(func_type.inputs, transfer_function.args):
+        func_type = self.transfer_function.function_type
+        for func_type_arg, arg in zip(func_type.inputs, self.transfer_function.args):
             assert func_type_arg == arg.type
             is_abstract_arg.append(isinstance(arg.type, AbstractValueType))
         self.is_abstract_arg = is_abstract_arg
-        self.replace_int_attr = replace_int_attr
 
 
+@dataclass
 class SMTTransferFunction:
     """
     This class maintains information about a transfer function after lowering to SMT
     """
 
-    is_abstract_arg: list[bool] = []
-    is_forward: bool = True
-    operationNo: int = -1
+    transfer_function_before_smt: TransferFunction
+    is_abstract_arg: list[bool] = field(init=False)
+    is_forward: bool = field(init=False)
+    operationNo: int = field(init=False)
+
     transfer_function_name: str
-    transfer_function: DefineFunOp | None = None
     concrete_function_name: str
-    concrete_function: DefineFunOp | None = None
 
     abstract_constraint: DefineFunOp | None
     """
@@ -375,34 +355,13 @@ class SMTTransferFunction:
     This function maintains the constraint  of integer attributes
     For example, the truncated length should be larger than 0 and less than the total bit width
     """
+    transfer_function: DefineFunOp | None = None
+    concrete_function: DefineFunOp | None = None
 
-    def __init__(
-        self,
-        transfer_function_name: str,
-        transfer_function: DefineFunOp | None,
-        tfRecord: dict[str, TransferFunction],
-        concrete_function_name: str,
-        concrete_function: DefineFunOp | None,
-        abstract_constraint: DefineFunOp | None,
-        op_constraint: DefineFunOp | None,
-        soundness_counterexample: DefineFunOp | None,
-        int_attr_arg: list[int] | None,
-        int_attr_constraint: DefineFunOp | None,
-    ):
-        self.transfer_function_name = transfer_function_name
-        self.concrete_function_name = concrete_function_name
-        assert self.transfer_function_name in tfRecord
-        tf = tfRecord[self.transfer_function_name]
-        self.transfer_function = transfer_function
-        self.is_forward = tf.is_forward
-        self.is_abstract_arg = tf.is_abstract_arg
-        self.concrete_function = concrete_function
-        self.abstract_constraint = abstract_constraint
-        self.op_constraint = op_constraint
-        self.operationNo = tf.operationNo
-        self.soundness_counterexample = soundness_counterexample
-        self.int_attr_arg = int_attr_arg
-        self.int_attr_constraint = int_attr_constraint
+    def __post_init__(self):
+        self.is_abstract_arg = self.transfer_function_before_smt.is_abstract_arg
+        self.is_forward = self.transfer_function_before_smt.is_forward
+        self.operationNo = self.transfer_function_before_smt.operationNo
 
     def verify(self):
         assert compare_defining_op(self.transfer_function, self.abstract_constraint)
