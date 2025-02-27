@@ -138,6 +138,7 @@ def eval_transfer_func(
     ref_xfer_srcs: list[str],
     domain: AbstractDomain,
     bitwidth: int,
+    helper_funcs: list[str] | None = None,
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
@@ -168,13 +169,17 @@ def eval_transfer_func(
 
     all_xfer_src = "\n".join(xfer_srcs + ref_xfer_srcs)
 
+    all_helper_funcs_src = ""
+    if helper_funcs:
+        all_helper_funcs_src = "\n".join(helper_funcs)
+
     base_dir = path.join("xdsl_smt", "eval_engine")
     cur_dir = os.getcwd()
     synth_code_path = path.join(cur_dir, base_dir, "src", "synth.cpp")
 
     with open(synth_code_path, "w") as f:
         f.write(
-            f"{transfer_func_header}\n{all_xfer_src}\n{xfer_func_wrapper}\n{ref_xfer_func_wrapper}"
+            f"{transfer_func_header}\n{all_helper_funcs_src}\n{all_xfer_src}\n{xfer_func_wrapper}\n{ref_xfer_func_wrapper}"
         )
 
     try:

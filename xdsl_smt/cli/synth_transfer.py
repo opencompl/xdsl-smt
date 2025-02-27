@@ -658,17 +658,12 @@ def main() -> None:
             cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
                 [func_name] * num_programs,
                 cpp_codes,
-                crt_func
-                + "\n"
-                + instance_constraint_func
-                + "\n"
-                + domain_constraint_func
-                + "\n"
-                + op_constraint_func,
+                crt_func,
                 ref_func_names,
                 ref_func_cpps,
                 eval_engine.AbstractDomain.KnownBits,
                 bitwidth,
+                [instance_constraint_func, domain_constraint_func, op_constraint_func],
             )
 
             for i in range(num_programs):
@@ -690,17 +685,16 @@ def main() -> None:
                 cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
                     [func_name] * num_programs,
                     cpp_codes,
-                    crt_func
-                    + "\n"
-                    + instance_constraint_func
-                    + "\n"
-                    + domain_constraint_func
-                    + "\n"
-                    + op_constraint_func,
+                    crt_func,
                     ref_func_names,
                     ref_func_cpps,
                     eval_engine.AbstractDomain.KnownBits,
                     bitwidth,
+                    [
+                        instance_constraint_func,
+                        domain_constraint_func,
+                        op_constraint_func,
+                    ],
                 )
 
                 for i in range(num_programs):
@@ -813,19 +807,17 @@ def main() -> None:
     cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
         ["solution"],
         [solution_str],
-        used_crt_func
-        + "\n"
-        + instance_constraint_func
-        + "\n"
-        + domain_constraint_func
-        + "\n"
-        + op_constraint_func
-        + "\n"
-        + meet_func,
+        used_crt_func,
         ref_func_names,
         ref_func_cpps,
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
+        [
+            instance_constraint_func,
+            domain_constraint_func,
+            op_constraint_func,
+            meet_func,
+        ],
     )
     solution_result = cmp_results[0]
     print(
