@@ -77,3 +77,6 @@ class CompareResult:
 
     def get_unsolved_edit_dis_avg(self) -> float:
         return self.unsolved_edit_dis / self.unsolved_cases
+
+    def is_sound(self):
+        return self.sounds == self.all_cases
