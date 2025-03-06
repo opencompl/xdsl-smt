@@ -12,8 +12,6 @@ from ..dialects.transfer import (
     CountLZeroOp,
     CountROneOp,
     CountRZeroOp,
-    # SetHighBitsOp,
-    # SetLowBitsOp,
     # GetBitWidthOp,
     # UMulOverflowOp,
     # SMinOp,
@@ -113,10 +111,13 @@ full_int_ops: list[type[Operation]] = [
     SelectOp,
     LShrOp,
     ShlOp,
+    MulOp,
     CountLOneOp,
     CountLZeroOp,
     CountROneOp,
     CountRZeroOp,
+    # SetHighBitsOp,
+    # SetLowBitsOp,
 ]
 
 basic_i1_ops: list[type[Operation]] = [arith.AndIOp, arith.OrIOp, arith.XOrIOp, CmpOp]
@@ -199,7 +200,7 @@ optimize_operands_selection: dict[type[Operation], Callable[[SSAValue], bool]] =
     # arith operations
     arith.AndIOp: is_constant_bool,
     arith.OrIOp: is_constant_bool,
-    arith.XOrIOp: is_false,
+    arith.XOrIOp: is_constant_bool,
 }
 
 

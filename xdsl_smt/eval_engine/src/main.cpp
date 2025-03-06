@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 #include <llvm/ADT/APInt.h>
@@ -47,6 +48,10 @@ template <typename Domain> const Results eval(unsigned int nFuncs) {
   for (Domain lhs : fullLattice) {
     for (Domain rhs : fullLattice) {
       Domain best_abstract_res = toBestAbst(lhs, rhs, concrete_op_wrapper);
+      // we skip a (lhs, rhs) if there are no concrete values that satisfy
+      // op_constraint
+      if (best_abstract_res.isBottom())
+        continue;
       std::vector<Domain> synth_kbs(synth_function_wrapper(lhs, rhs));
       std::vector<Domain> ref_kbs(ref_function_wrapper(lhs, rhs));
       Domain cur_kb = Domain::meetAll(ref_kbs);
@@ -57,6 +62,9 @@ template <typename Domain> const Results eval(unsigned int nFuncs) {
         bool exact = synth_after_meet == best_abstract_res;
         unsigned int dis = synth_after_meet.distance(best_abstract_res);
 
+        // std::clog << lhs.display() << ' ' << rhs.display() << ' ' <<
+        // best_abstract_res.display() << ' ' << synth_after_meet.display() <<
+        // "\n";
         r.incResult(Result(sound, dis, exact, solved), i);
       }
 

@@ -116,7 +116,7 @@ operNameToCpp = {
     "comb.mods": ".srem",
     "comb.modu": ".urem",
     "comb.mux": ["?", ":"],
-    "comb.shrs": ".alhr",
+    "comb.shrs": ".ashr",
     "comb.shru": ".lshr",
     "comb.shl": ".shl",
     "comb.extract": ".extractBits",
@@ -139,7 +139,7 @@ SET_BITS_ACTION = (
 )
 
 # CHECK_RHS_IS_ZERO = ("{1}!=0", ["{0}", "1"])
-operationToConstraint: dict[Operation, tuple[str, str]] = {
+operationToConstraint: dict[type(Operation), tuple[str, str]] = {
     SetLowBitsOp: SET_BITS_ACTION,
     SetHighBitsOp: SET_BITS_ACTION,
     ShlOp: SHIFTING_ACTION,

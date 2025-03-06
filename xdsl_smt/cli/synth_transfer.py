@@ -71,6 +71,10 @@ from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
 from ..utils.cost_model import decide
+from ..utils.log_utils import (
+    setup_loggers,
+    print_set_of_funcs_to_file,
+)
 from ..utils.mcmc_sampler import MCMCSampler
 from ..utils.mutation_program import MutationProgram
 from ..utils.synthesizer_context import SynthesizerContext
@@ -84,6 +88,8 @@ from ..utils.transfer_function_util import (
     SMTTransferFunction,
     fixDefiningOpReturnType,
 )
+
+# from ..utils.visualize import print_figure
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -462,6 +468,8 @@ TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
 
 OUTPUTS_FOLDER = "outputs"
+LOG_FILE = "synth.log"
+VERBOSE = 1  # todo: make it a cmd line arg
 
 
 def eliminate_dead_code(func: FuncOp) -> FuncOp:
@@ -469,18 +477,6 @@ def eliminate_dead_code(func: FuncOp) -> FuncOp:
     DeadCodeElimination().apply(ctx, new_module)
     assert isinstance(new_module.ops.first, FuncOp)
     return new_module.ops.first
-
-
-def print_func_to_file(sampler: MCMCSampler, rd: int, i: int, path: str):
-    res = sampler.current_cmp
-
-    func = sampler.get_current()
-
-    with open(f"{path}/tf{rd}_{i}.mlir", "w") as file:
-        file.write(
-            f"Run: {rd}_{i}\nCost: {res.get_cost()}\nSound: {res.get_sound_prop()}\nUExact: {res.get_unsolved_exact_prop()}\nUDis: {res.get_unsolved_edit_dis_avg()}\n{res}\n"
-        )
-        file.write(str(eliminate_dead_code(func)))
 
 
 def is_ref_function(func: FuncOp) -> bool:
@@ -576,18 +572,9 @@ def main() -> None:
     if not os.path.isdir(OUTPUTS_FOLDER):
         os.mkdir(OUTPUTS_FOLDER)
 
-    """
-    (
-        smt_transfer_function_obj,
-        domain_constraint,
-        instance_constraint,
-        int_attr,
-    ) = get_transfer_function(module, ctx)
-    test_set = generate_test_set(
-        smt_transfer_function_obj, domain_constraint, instance_constraint, int_attr, ctx
-    )
-    """
-    print("Round_ID\tSound%\tUExact%\tUDis\tCost")
+    logger = setup_loggers(OUTPUTS_FOLDER, VERBOSE)
+
+    logger.debug("Round_ID\tSound%\tUExact%\tUDis\tCost")
     """
     This structure maintains a dictionary of potential solutions
     All solutions must come from different program groups, sorted by cost
@@ -597,8 +584,6 @@ def main() -> None:
     random = Random(random_seed)
     if random_number_file is not None:
         random.read_from_file(random_number_file)
-
-    cost_data: list[list[float]] = [[] for _ in range(num_programs)]
 
     context = SynthesizerContext(random)
     context.set_cmp_flags([0, 6, 7])
@@ -633,43 +618,212 @@ def main() -> None:
     ref_funcs = [eliminate_dead_code(func) for func in ref_funcs]
     ref_func_names = [func.sym_name.data for func in ref_funcs]
     ref_func_cpps = [print_to_cpp(func) for func in ref_funcs]
-    used_crt_func = None
 
+    xfer_func = None
+    crt_func = ""
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
-            concrete_func_name = ""
             if isinstance(func, FuncOp) and "applied_to" in func.attributes:
                 assert isa(
                     applied_to := func.attributes["applied_to"], ArrayAttr[StringAttr]
                 )
                 concrete_func_name = applied_to.data[0].data
-            concrete_func = get_concrete_function(concrete_func_name, SYNTH_WIDTH, None)
-            crt_func = print_concrete_function_to_cpp(concrete_func)
-            if used_crt_func is None:
-                used_crt_func = crt_func
-            func_name = func.sym_name.data
-            mcmc_samplers: list[MCMCSampler] = []
-
-            for _ in range(num_programs):
-                sampler = MCMCSampler(
-                    func,
-                    context,
-                    program_length,
-                    random_init_program=True,
-                    init_cost=INIT_COST,
+                concrete_func = get_concrete_function(
+                    concrete_func_name, SYNTH_WIDTH, None
                 )
-                mcmc_samplers.append(sampler)
+                crt_func = print_concrete_function_to_cpp(concrete_func)
+                xfer_func = func
+                break
 
-            # Get the cost of initial programs
+    assert isinstance(xfer_func, FuncOp), "No transfer function is found in input file"
+    assert crt_func != "", "Failed to get concrete function from input file"
+    xfer_func_name = xfer_func.sym_name.data
+
+    num_iters = 100  # todo: make it a command line argument
+    for iter in range(num_iters):
+        mcmc_samplers: list[MCMCSampler] = []
+        for _ in range(num_programs):
+            sampler = MCMCSampler(
+                xfer_func,
+                context,
+                program_length,
+                random_init_program=True,
+                init_cost=INIT_COST,
+            )
+            mcmc_samplers.append(sampler)
+        # Get the cost of initial programs
+        cpp_codes: list[str] = []
+        for i in range(num_programs):
+            func_to_eval = mcmc_samplers[i].get_current().clone()
+            cpp_code = print_to_cpp(eliminate_dead_code(func_to_eval))
+            cpp_codes.append(cpp_code)
+        cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+            [xfer_func_name] * num_programs,
+            cpp_codes,
+            crt_func,
+            ref_func_names,
+            ref_func_cpps,
+            eval_engine.AbstractDomain.KnownBits,
+            bitwidth,
+            [instance_constraint_func, domain_constraint_func, op_constraint_func],
+        )
+        for i in range(num_programs):
+            mcmc_samplers[i].current_cmp = cmp_results[i]
+
+        cost_data: list[list[float]] = [
+            [cmp_results[i].get_cost()] for i in range(num_programs)
+        ]
+        """
+        These 3 lists store "good" transformers during the search
+        """
+        sound_most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
+        most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
+        lowest_cost_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
+        for i in range(num_programs):
+            mcmc_samplers[i].current_cmp = cmp_results[i]
+            sound_most_exact_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
+            most_exact_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
+            lowest_cost_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
+        # MCMC start
+        logger.info(
+            f"Iter {iter}: Start {num_programs} MCMC. Each one is run for {total_rounds} steps..."
+        )
+        for rnd in range(total_rounds):
             cpp_codes: list[str] = []
             for i in range(num_programs):
-                func_to_eval = mcmc_samplers[i].get_current().clone()
-                cpp_code = print_to_cpp(eliminate_dead_code(func_to_eval))
+                _: float = mcmc_samplers[i].sample_next()
+                proposed_solution = mcmc_samplers[i].get_proposed()
+                assert proposed_solution is not None
+                cpp_code = print_to_cpp(eliminate_dead_code(proposed_solution))
                 cpp_codes.append(cpp_code)
-
+            start = time.time()
             cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
-                [func_name] * num_programs,
+                [xfer_func_name] * num_programs,
                 cpp_codes,
+                crt_func,
+                ref_func_names,
+                ref_func_cpps,
+                eval_engine.AbstractDomain.KnownBits,
+                bitwidth,
+                [
+                    instance_constraint_func,
+                    domain_constraint_func,
+                    op_constraint_func,
+                ],
+            )
+            end = time.time()
+            used_time = end - start
+            for i in range(num_programs):
+                proposed_cost = cmp_results[i].get_cost()
+                current_cost = mcmc_samplers[i].current_cmp.get_cost()
+                p = random.random()
+                decision = decide(p, inv_temp, current_cost, proposed_cost)
+                if decision:
+                    mcmc_samplers[i].accept_proposed(cmp_results[i])
+                    assert mcmc_samplers[i].get_proposed() is None
+                    tmp_tuple = (mcmc_samplers[i].current, cmp_results[i], rnd)
+                    need_print = False
+                    # Update sound_most_exact_tfs
+                    if (
+                        cmp_results[i].is_sound()
+                        and cmp_results[i].exacts > sound_most_exact_tfs[i][1].exacts
+                    ):
+                        sound_most_exact_tfs[i] = tmp_tuple
+                        need_print = True
+                    # Update most_exact_tfs
+                    if (
+                        cmp_results[i].unsolved_exacts
+                        > most_exact_tfs[i][1].unsolved_exacts
+                    ):
+                        most_exact_tfs[i] = tmp_tuple
+                        need_print = True
+                    # Update lowest_cost_tfs
+                    if cmp_results[i].get_cost() < lowest_cost_tfs[i][1].get_cost():
+                        lowest_cost_tfs[i] = tmp_tuple
+                        need_print = True
+
+                    # disable it temporarily
+                    if need_print:
+                        pass
+                        # print_func_to_file(
+                        #     mcmc_samplers[i].current_cmp, eliminate_dead_code(mcmc_samplers[i].current.func), iter, rnd, i, OUTPUTS_FOLDER
+                        # )
+                else:
+                    mcmc_samplers[i].reject_proposed()
+                    pass
+            for i in range(num_programs):
+                res = mcmc_samplers[i].current_cmp
+                logger.debug(
+                    f"{iter}_{rnd}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
+                )
+                cost_data[i].append(res.get_cost())
+                """
+                Select solution candidates
+                """
+                if res.sounds == res.all_cases:
+                    cost = res.get_cost()
+                    # If solutions has less than eight element, we directly add it
+                    if len(solutions) < solution_size:
+                        if i in solutions:
+                            if cost < solutions[i][0]:
+                                solutions[i] = (
+                                    cost,
+                                    mcmc_samplers[i].current.func.clone(),
+                                )
+                        else:
+                            solutions[i] = (
+                                cost,
+                                mcmc_samplers[i].current.func.clone(),
+                            )
+                    # Otherwise we replace the one with maximal cost in current solution
+                    else:
+                        max_ith = -1
+                        max_cost = 0
+                        if i in solutions:
+                            max_ith = i
+                            max_cost = solutions[i][0]
+                        else:
+                            for ith, ith_ele in solutions.items():
+                                if ith_ele[0] > max_cost:
+                                    max_ith = ith
+                                    max_cost = ith_ele[0]
+                        if cost < max_cost:
+                            del solutions[max_ith]
+                            solutions[i] = (
+                                cost,
+                                mcmc_samplers[i].current.func.clone(),
+                            )
+                    assert len(solutions) <= solution_size
+
+            logger.debug(f"Used Time: {used_time:.2f}")
+            # Print the current best result every K rounds
+            if rnd % 250 == 100 or rnd == total_rounds - 1:
+                logger.debug("Sound transformers with most exact outputs:")
+                for i in range(num_programs):
+                    res = sound_most_exact_tfs[i][1]
+                    if res.is_sound():
+                        logger.debug(f"{i}_{sound_most_exact_tfs[i][2]}\t{res}")
+                logger.debug("Transformers with most unsolved exact outputs:")
+                for i in range(num_programs):
+                    logger.debug(f"{i}_{most_exact_tfs[i][2]}\t{most_exact_tfs[i][1]}")
+                logger.debug("Transformers with lowest cost:")
+                for i in range(num_programs):
+                    logger.debug(
+                        f"{i}_{lowest_cost_tfs[i][2]}\t{lowest_cost_tfs[i][1]}"
+                    )
+
+        # Todo: switch to edit distance later (for now add new transformer if it makes more inputs exact)
+        cur_most_e: float = 0
+        for i in range(num_programs):
+            if (not sound_most_exact_tfs[i][1].is_sound()) or sound_most_exact_tfs[i][
+                1
+            ].unsolved_exacts == 0:
+                continue
+            func_to_eval = sound_most_exact_tfs[i][0].func
+            cpp_code = print_to_cpp(eliminate_dead_code(func_to_eval))
+            cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                [xfer_func_name],
+                [cpp_code],
                 crt_func,
                 ref_func_names,
                 ref_func_cpps,
@@ -677,175 +831,55 @@ def main() -> None:
                 bitwidth,
                 [instance_constraint_func, domain_constraint_func, op_constraint_func],
             )
-
-            for i in range(num_programs):
-                mcmc_samplers[i].current_cmp = cmp_results[i]
-
-            """
-            These 3 lists store "good" transformers during the search
-            """
-            sound_most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-            most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-            lowest_cost_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-
-            for i in range(num_programs):
-                mcmc_samplers[i].current_cmp = cmp_results[i]
-                sound_most_exact_tfs.append(
-                    (mcmc_samplers[i].current, cmp_results[i], 0)
+            if cmp_results[0].exacts > cur_most_e:
+                logger.info(
+                    f"Add a new transformer {iter}_{sound_most_exact_tfs[i][2]}_{i}. Exact: {cmp_results[0].get_exact_prop() * 100:.2f}%, Precision: {cmp_results[0].get_bitwise_precision() * 100:.2f}%"
                 )
-                most_exact_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
-                lowest_cost_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
+                logger.debug(cmp_results[0])
+                cur_most_e = cmp_results[0].exacts
+                ref_funcs.append(eliminate_dead_code(sound_most_exact_tfs[i][0].func))
+                ref_func_names.append(xfer_func_name)
+                ref_func_cpps.append(cpp_code)
 
-            # MCMC start
-            for rnd in range(total_rounds):
-                cpp_codes: list[str] = []
-                for i in range(num_programs):
-                    _: float = mcmc_samplers[i].sample_next()
-                    proposed_solution = mcmc_samplers[i].get_proposed()
+        logger.info(f"Size of the sound set: {len(ref_func_names)}")
 
-                    assert proposed_solution is not None
-                    cpp_code = print_to_cpp(eliminate_dead_code(proposed_solution))
-                    cpp_codes.append(cpp_code)
+        if cur_most_e == 0:
+            logger.info(f"No improvement in the last {total_rounds} rounds!")
+            # exit(0)
 
-                start = time.time()
-                cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
-                    [func_name] * num_programs,
-                    cpp_codes,
-                    crt_func,
-                    ref_func_names,
-                    ref_func_cpps,
-                    eval_engine.AbstractDomain.KnownBits,
-                    bitwidth,
-                    [
-                        instance_constraint_func,
-                        domain_constraint_func,
-                        op_constraint_func,
-                    ],
-                )
-                end = time.time()
-                used_time = end - start
+        # Remove redundant transformers
+        size_of_meet = len(ref_funcs)
+        keep_idx = {i for i in range(size_of_meet)}
+        for i in range(size_of_meet):
+            cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
+                [ref_func_names[i]],
+                [ref_func_cpps[i]],
+                crt_func,
+                [ref_func_names[k] for k in keep_idx if k != i],
+                [ref_func_cpps[k] for k in keep_idx if k != i],
+                eval_engine.AbstractDomain.KnownBits,
+                bitwidth,
+                [instance_constraint_func, domain_constraint_func, op_constraint_func],
+            )
+            if cmp_results[0].unsolved_exacts == 0:
+                keep_idx.remove(i)
+                logger.info(f"Remove {i}-th transformers")
+                logger.debug(cmp_results[0])
+        ref_funcs = [ref_funcs[i] for i in keep_idx]
+        ref_func_names = [ref_func_names[i] for i in keep_idx]
+        ref_func_cpps = [ref_func_cpps[i] for i in keep_idx]
 
-                for i in range(num_programs):
-                    proposed_cost = cmp_results[i].get_cost()
-                    current_cost = mcmc_samplers[i].current_cmp.get_cost()
-                    p = random.random()
-                    decision = decide(p, inv_temp, current_cost, proposed_cost)
-                    if decision:
-                        mcmc_samplers[i].accept_proposed(cmp_results[i])
-                        assert mcmc_samplers[i].get_proposed() is None
+        logger.info(f"Size of the sound set after removal: {len(ref_func_names)}")
+        print_set_of_funcs_to_file(ref_funcs, iter, OUTPUTS_FOLDER)
 
-                        tmp_tuple = (mcmc_samplers[i].current, cmp_results[i], rnd)
-                        need_print = False
+        # print_figure(cost_data, OUTPUTS_FOLDER, f"iter{iter}")
 
-                        # Update sound_most_exact_tfs
-                        if (
-                            cmp_results[i].is_sound()
-                            and cmp_results[i].exacts
-                            > sound_most_exact_tfs[i][1].exacts
-                        ):
-                            sound_most_exact_tfs[i] = tmp_tuple
-                            need_print = True
+        if cur_most_e == sound_most_exact_tfs[0][1].all_cases:
+            logger.info(f"Find a perfect solution:\n")
+            for f in ref_funcs:
+                logger.info(eliminate_dead_code(f))
+            exit(0)
 
-                        # Update most_exact_tfs
-                        if (
-                            cmp_results[i].unsolved_exacts
-                            > most_exact_tfs[i][1].unsolved_exacts
-                        ):
-                            most_exact_tfs[i] = tmp_tuple
-                            need_print = True
-
-                        # Update lowest_cost_tfs
-                        if cmp_results[i].get_cost() < lowest_cost_tfs[i][1].get_cost():
-                            lowest_cost_tfs[i] = tmp_tuple
-                            need_print = True
-                        if need_print:
-                            print_func_to_file(mcmc_samplers[i], rnd, i, OUTPUTS_FOLDER)
-
-                    else:
-                        mcmc_samplers[i].reject_proposed()
-                        pass
-
-                for i in range(num_programs):
-                    res = mcmc_samplers[i].current_cmp
-                    print(
-                        f"{rnd}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res.get_cost():.3f}"
-                    )
-                    cost_data[i].append(res.get_cost())
-                    """
-                    Select solution candidates
-                    """
-                    if res.sounds == res.all_cases:
-                        cost = res.get_cost()
-                        # If solutions has less than eight element, we directly add it
-                        if len(solutions) < solution_size:
-                            if i in solutions:
-                                if cost < solutions[i][0]:
-                                    solutions[i] = (
-                                        cost,
-                                        mcmc_samplers[i].current.func.clone(),
-                                    )
-                            else:
-                                solutions[i] = (
-                                    cost,
-                                    mcmc_samplers[i].current.func.clone(),
-                                )
-                        # Otherwise we replace the one with maximal cost in current solution
-                        else:
-                            max_ith = -1
-                            max_cost = 0
-                            if i in solutions:
-                                max_ith = i
-                                max_cost = solutions[i][0]
-                            else:
-                                for ith, ith_ele in solutions.items():
-                                    if ith_ele[0] > max_cost:
-                                        max_ith = ith
-                                        max_cost = ith_ele[0]
-                            if cost < max_cost:
-                                del solutions[max_ith]
-                                solutions[i] = (
-                                    cost,
-                                    mcmc_samplers[i].current.func.clone(),
-                                )
-                        assert len(solutions) <= solution_size
-
-                # Print the current best result every K rounds
-                if rnd % 250 == 100:
-                    print("Sound transformers with most exact outputs:")
-                    for i in range(num_programs):
-                        res = sound_most_exact_tfs[i][1]
-                        if res.is_sound():
-                            print(f"{i}_{sound_most_exact_tfs[i][2]}\t{res}")
-                    print("Transformers with most unsolved exact outputs:")
-                    for i in range(num_programs):
-                        print(f"{i}_{most_exact_tfs[i][2]}\t{most_exact_tfs[i][1]}")
-                    print("Transformers with lowest cost:")
-                    for i in range(num_programs):
-                        print(f"{i}_{lowest_cost_tfs[i][2]}\t{lowest_cost_tfs[i][1]}")
-
-                print(f"Used Time: {used_time:.2f}")
-                """
-                tmp_clone_module: ModuleOp = module.clone()
-
-
-                lowerToSMTModule(tmp_clone_module, SYNTH_WIDTH, ctx)
-                for smt_func in tmp_clone_module.ops:
-                    if (
-                        isinstance(smt_func, DefineFunOp)
-                        and smt_func.fun_name.data == func_name
-                    ):
-                        smt_transfer_function_obj.transfer_function = smt_func
-
-                        soundness_check_res = soundness_check(
-                            smt_transfer_function_obj,
-                            domain_constraint,
-                            instance_constraint,
-                            int_attr,
-                            ctx,
-                        )
-                        if soundness_check_res:
-                            print(mcmcSampler.func)
-                        """
     # Eval last solution:
     solution_str = ""
     solution_list: list[FuncOp] = []
@@ -862,11 +896,11 @@ def main() -> None:
     solution_str += "\n"
     with open("tmp.cpp", "w") as fout:
         fout.write(solution_str)
-    assert used_crt_func is not None
+    assert crt_func is not None
     cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
         ["solution"],
         [solution_str],
-        used_crt_func,
+        crt_func,
         ref_func_names,
         ref_func_cpps,
         eval_engine.AbstractDomain.KnownBits,

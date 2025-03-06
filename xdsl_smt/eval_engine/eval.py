@@ -142,6 +142,7 @@ def eval_transfer_func(
 ) -> list[CompareResult]:
     func_to_eval_wrapper_name = "synth_function"
     ref_func_wrapper_name = "ref_function"
+    ref_func_suffix = "REF"
 
     transfer_func_header = make_xfer_header(concrete_op_expr)
     transfer_func_header += f"\ntypedef {domain}<{bitwidth}> Domain;\n"
@@ -149,10 +150,12 @@ def eval_transfer_func(
 
     # rename the transfer functions
     ref_xfer_srcs = [
-        src.replace(nm, f"{nm}_{i}")
+        src.replace(nm, f"{nm}_{ref_func_suffix}_{i}")
         for i, (nm, src) in enumerate(zip(ref_xfer_names, ref_xfer_srcs))
     ]
-    ref_xfer_names = [f"{nm}_{i}" for i, nm in enumerate(ref_xfer_names)]
+    ref_xfer_names = [
+        f"{nm}_{ref_func_suffix}_{i}" for i, nm in enumerate(ref_xfer_names)
+    ]
 
     # create the wrapper
     ref_xfer_func_wrapper = make_xfer_wrapper(ref_xfer_names, ref_func_wrapper_name)

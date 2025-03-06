@@ -80,3 +80,6 @@ class CompareResult:
 
     def is_sound(self):
         return self.sounds == self.all_cases
+
+    def get_bitwise_precision(self):
+        return 1 - (self.get_edit_dis_avg() / (self.bitwidth * 2))
