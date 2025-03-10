@@ -93,4 +93,6 @@ class CompareResult:
         return 1 - (self.get_edit_dis_avg() / (self.bitwidth * 2))
 
     def get_prec_improve_avg(self):
-        return (self.base_edit_dis - self.edit_dis) / (self.bitwidth * 2 * self.all_cases)
+        return (self.base_edit_dis - self.edit_dis) / (
+            self.bitwidth * 2 * self.all_cases
+        )
