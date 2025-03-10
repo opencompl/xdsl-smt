@@ -1,29 +1,32 @@
 class CompareResult:
-    """The comparison result of a candidate transformer f and the best transformer f_best"""
+    """The comparison result of (a candidate transformer f /\ a set of sound transformer F) and the best transformer f_best"""
 
     all_cases: int
     """The number of inputs"""
 
     sounds: int
-    """The number of inputs on which f gets sound"""
+    """The number of inputs on which f /\ F gets sound"""
 
     exacts: int
-    """The number of inputs on which f gets exact"""
+    """The number of inputs on which f /\ F gets exact"""
 
     edit_dis: int
-    """The sum of edit distance between the outputs of f and the f_best """
+    """The sum of edit distance between the outputs of f /\ F and the f_best """
+
+    base_edit_dis: int
+    """The sum of edit distance between the outputs of F and the f_best"""
 
     unsolved_cases: int
-    """The number of unsolved inputs (previous transformers do not get exact)"""
+    """The number of unsolved inputs (F do not get exact)"""
 
     unsolved_sounds: int
-    """The number of unsolved inputs on which f gets sound"""
+    """The number of unsolved inputs on which f /\ F gets sound"""
 
     unsolved_exacts: int
-    """The number of unsolved inputs on which f gets exact"""
+    """The number of unsolved inputs on which f /\ F gets exact"""
 
     unsolved_edit_dis: int
-    """The sum of edit distance between the outputs of f and the f_best on unsolved inputs"""
+    """The sum of edit distance between the outputs of f /\ F and the f_best on unsolved inputs"""
 
     cost: float | None = None
 
@@ -52,7 +55,7 @@ class CompareResult:
         self.bitwidth = bitwidth
 
     def __str__(self):
-        return f"all: {self.all_cases}\ts: {self.sounds}\te: {self.exacts}\tp: {self.edit_dis}\tunsolved:{self.unsolved_cases}\tus: {self.unsolved_sounds}\tue: {self.unsolved_exacts}\tup: {self.unsolved_edit_dis}\tbasep: {self.base_dis}"
+        return f"all: {self.all_cases}\ts: {self.sounds}\te: {self.exacts}\tp: {self.edit_dis}\tunsolved:{self.unsolved_cases}\tus: {self.unsolved_sounds}\tue: {self.unsolved_exacts}\tup: {self.unsolved_edit_dis}\tbasep: {self.base_edit_dis}"
 
     def get_cost(self) -> float:
         if self.cost is None:
@@ -90,4 +93,4 @@ class CompareResult:
         return 1 - (self.get_edit_dis_avg() / (self.bitwidth * 2))
 
     def get_prec_improve_avg(self):
-        return (self.edit_dis - self.base_edit_dis) / (self.bitwidth * 2 * self.all_cases)
+        return (self.base_edit_dis - self.edit_dis) / (self.bitwidth * 2 * self.all_cases)
