@@ -586,10 +586,18 @@ def synthesize_transfer_function(
         func_to_eval = mcmc_samplers[i].get_current().clone()
         cpp_code = print_to_cpp(eliminate_dead_code(func_to_eval))
         cpp_codes.append(cpp_code)
-    cmp_results: list[CompareResult] = eval_func(
-        [func_name] * num_programs,
-        cpp_codes,
-    )
+    if solution_size == 0:
+        cmp_results: list[CompareResult] = solution_set.eval_func(
+            [func_name] * num_programs,
+            cpp_codes,
+            solution_set.solution_names,
+            solution_set.solution_srcs,
+        )
+    else:
+        cmp_results: list[CompareResult] = solution_set.eval_func(
+            [func_name] * num_programs,
+            cpp_codes,
+        )
     for i in range(num_programs):
         mcmc_samplers[i].current_cmp = cmp_results[i]
 
