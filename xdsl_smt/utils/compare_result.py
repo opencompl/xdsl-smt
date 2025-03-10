@@ -37,7 +37,7 @@ class CompareResult:
         unsolved_sounds: int,
         unsolved_exacts: int,
         unsolved_edit_dis: int,
-        base_dis: int,
+        base_edit_dis: int,
         bitwidth: int,
     ):
         self.all_cases = all_cases
@@ -48,7 +48,7 @@ class CompareResult:
         self.unsolved_sounds = unsolved_sounds
         self.unsolved_exacts = unsolved_exacts
         self.unsolved_edit_dis = unsolved_edit_dis
-        self.base_dis = base_dis
+        self.base_edit_dis = base_edit_dis
         self.bitwidth = bitwidth
 
     def __str__(self):
@@ -88,3 +88,6 @@ class CompareResult:
 
     def get_bitwise_precision(self):
         return 1 - (self.get_edit_dis_avg() / (self.bitwidth * 2))
+
+    def get_prec_improve_avg(self):
+        return (self.edit_dis - self.base_edit_dis) / (self.bitwidth * 2 * self.all_cases)
