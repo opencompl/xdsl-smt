@@ -67,8 +67,8 @@ template <typename Domain> const Results eval(unsigned int nFuncs) {
         // "\n";
         r.incResult(Result(sound, dis, exact, solved), i);
       }
-
-      r.incCases(solved);
+      unsigned int base_dis = cur_kb.distance(best_abstract_res);
+      r.incCases(solved, base_dis);
     }
   }
 
