@@ -594,7 +594,7 @@ def synthesize_transfer_function(
             solution_set.solution_srcs,
         )
     else:
-        cmp_results: list[CompareResult] = solution_set.eval_func(
+        cmp_results: list[CompareResult] = eval_func(
             [func_name] * num_programs,
             cpp_codes,
         )

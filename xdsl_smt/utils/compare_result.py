@@ -1,17 +1,17 @@
 class CompareResult:
-    """The comparison result of (a candidate transformer f /\ a set of sound transformer F) and the best transformer f_best"""
+    """The comparison result of (a candidate transformer f MEET a set of sound transformer F) and the best transformer f_best"""
 
     all_cases: int
     """The number of inputs"""
 
     sounds: int
-    """The number of inputs on which f /\ F gets sound"""
+    """The number of inputs on which (f MEET F) gets sound"""
 
     exacts: int
-    """The number of inputs on which f /\ F gets exact"""
+    """The number of inputs on which (f MEET F) gets exact"""
 
     edit_dis: int
-    """The sum of edit distance between the outputs of f /\ F and the f_best """
+    """The sum of edit distance between the outputs of (f MEET F) and the f_best """
 
     base_edit_dis: int
     """The sum of edit distance between the outputs of F and the f_best"""
@@ -20,13 +20,13 @@ class CompareResult:
     """The number of unsolved inputs (F do not get exact)"""
 
     unsolved_sounds: int
-    """The number of unsolved inputs on which f /\ F gets sound"""
+    """The number of unsolved inputs on which (f MEET F) gets sound"""
 
     unsolved_exacts: int
-    """The number of unsolved inputs on which f /\ F gets exact"""
+    """The number of unsolved inputs on which (f MEET F) gets exact"""
 
     unsolved_edit_dis: int
-    """The sum of edit distance between the outputs of f /\ F and the f_best on unsolved inputs"""
+    """The sum of edit distance between the outputs of (f MEET F) and the f_best on unsolved inputs"""
 
     cost: float | None = None
 
