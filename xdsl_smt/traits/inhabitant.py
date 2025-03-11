@@ -14,6 +14,8 @@ class HasInhabitant(ABC):
 
 
 def create_inhabitant(type: Attribute, rewriter: PatternRewriter) -> SSAValue | None:
+    if isinstance(type, HasInhabitant):
+        return type.create_inhabitant(rewriter)
     if isinstance(type, builtin.IntegerType):
         constant = arith.ConstantOp(builtin.IntegerAttr(0, type), type)
         rewriter.insert_op_before_matched_op(constant)

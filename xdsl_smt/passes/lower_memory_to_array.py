@@ -115,6 +115,12 @@ class LowerGenericOp(RewritePattern):
             rewriter.handle_operation_modification(op)
 
 
+class CreateMemoryPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+        return
+
+
 class GetBlockPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: mem.GetBlockOp, rewriter: PatternRewriter):

@@ -1,9 +1,11 @@
-from xdsl.ir import Dialect, SSAValue
+from typing import Sequence
+from xdsl.ir import Dialect, SSAValue, Attribute
 from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
     operand_def,
     result_def,
+    var_result_def,
     traits_def,
 )
 
@@ -38,13 +40,16 @@ class TriggerOp(IRDLOperation):
 
     state = operand_def(StateType())
     res = result_def(StateType())
+    irrelevant_values = var_result_def()
 
-    assembly_format = "$state attr-dict"
+    assembly_format = "$state attr-dict (`:` type($irrelevant_values)^)?"
 
     traits = traits_def(Pure())
 
-    def __init__(self, state: SSAValue):
-        super().__init__(operands=[state], result_types=[StateType()])
+    def __init__(self, state: SSAValue, irrelevant_values: Sequence[Attribute] = ()):
+        super().__init__(
+            operands=[state], result_types=[StateType(), irrelevant_values]
+        )
 
 
 @irdl_op_definition

@@ -46,6 +46,23 @@ class BytesType(ParametrizedAttribute, TypeAttribute):
     name = "memory.bytes"
 
 
+@irdl_op_definition
+class CreateMemoryOp(IRDLOperation):
+    """Create a new memory state where all blocks are dead."""
+
+    name = "memory.create_memory"
+
+    res = result_def(MemoryType())
+
+    assembly_format = "attr-dict"
+
+    traits = traits_def(Pure())
+
+    def __init__(self):
+        super().__init__(operands=[], result_types=[MemoryType()])
+        self.res.name_hint = "memory"
+
+
 class GetSetMemoryOpPattern(HasCanonicalizationPatternsTrait):
     @classmethod
     def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
@@ -382,6 +399,7 @@ class GetFreshBlockIDOp(IRDLOperation):
 MemoryDialect = Dialect(
     "memory",
     [
+        CreateMemoryOp,
         GetMemoryOp,
         SetMemoryOp,
         GetBlockOp,

@@ -190,4 +190,15 @@ class YieldOp(IRDLOperation):
         )
 
 
-UBDialect = Dialect("ub", [UBOp, FromOp, MatchOp, YieldOp], [UBOrType])
+class IrrelevantOp(IRDLOperation):
+    name = "ub.irrelevant"
+
+    res = result_def()
+
+    assembly_format = "attr-dict `:` type($res)"
+
+    def __init__(self, res_type: Attribute):
+        super().__init__(result_types=[res_type])
+
+
+UBDialect = Dialect("ub", [UBOp, FromOp, MatchOp, YieldOp, IrrelevantOp], [UBOrType])

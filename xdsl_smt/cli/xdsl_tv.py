@@ -19,6 +19,7 @@ from xdsl_smt.passes.lower_effects_with_memory import (
 )
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
+from xdsl_smt.passes.lower_memory_and_ub_effects import LowerMemoryAndUBEffectsPass
 
 from xdsl_smt.dialects.smt_bitvector_dialect import (
     BitVectorType,
@@ -76,6 +77,7 @@ from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semant
 from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
 )
+from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
@@ -94,6 +96,13 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="Optimize the SMTLib program by lowering "
         "pairs and applying constant folding.",
         action="store_true",
+    )
+
+    arg_parser.add_argument(
+        "-lowering",
+        type=str,
+        default="old",
+        help="The lowering to use. Either 'old' or 'new'.",
     )
 
 
@@ -320,6 +329,15 @@ def remove_effect_states(func: DefineFunOp) -> None:
     func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], ret.outputs.data[:-1])
 
 
+def simplify_module(ctx: MLContext, module: ModuleOp) -> None:
+    CanonicalizePass().apply(ctx, module)
+    CommonSubexpressionElimination().apply(ctx, module)
+    CanonicalizePass().apply(ctx, module)
+    # Remove this once we update to latest xdsl
+    DeadCodeElimination().apply(ctx, module)
+    CanonicalizePass().apply(ctx, module)
+
+
 def main() -> None:
     ctx = MLContext()
     arg_parser = argparse.ArgumentParser()
@@ -388,34 +406,27 @@ def main() -> None:
 
     # Optionally simplify the module
     if args.opt:
-        CanonicalizePass().apply(ctx, new_module)
-        CommonSubexpressionElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        # Remove this once we update to latest xdsl
-        DeadCodeElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
+        simplify_module(ctx, new_module)
 
-    LowerMemoryEffectsPass().apply(ctx, new_module)
+    if args.lowering == "old":
+        LowerMemoryEffectsPass().apply(ctx, new_module)
 
-    # Optionally simplify the module
-    if args.opt:
-        CanonicalizePass().apply(ctx, new_module)
-        CommonSubexpressionElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        # Remove this once we update to latest xdsl
-        DeadCodeElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
+        # Optionally simplify the module
+        if args.opt:
+            simplify_module(ctx, new_module)
 
-    LowerEffectsWithMemoryPass().apply(ctx, new_module)
+        LowerEffectsWithMemoryPass().apply(ctx, new_module)
+    else:
+        LowerMemoryAndUBEffectsPass().apply(ctx, new_module)
+
+        if args.opt:
+            simplify_module(ctx, new_module)
+
+        LowerUBToPairs().apply(ctx, new_module)
 
     # Optionally simplify the module
     if args.opt:
-        CanonicalizePass().apply(ctx, new_module)
-        CommonSubexpressionElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        # Remove this once we update to latest xdsl
-        DeadCodeElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
+        simplify_module(ctx, new_module)
 
     # Add refinement operations
     add_function_refinement(func, func_after, func_type, InsertPoint.at_end(block))
@@ -430,22 +441,14 @@ def main() -> None:
     # Optionally simplify the module
     if args.opt:
         LowerPairs().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        CommonSubexpressionElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        # Remove this once we update to latest xdsl
-        DeadCodeElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
+        simplify_module(ctx, new_module)
 
     # Lower memory to arrays
     LowerMemoryToArrayPass().apply(ctx, new_module)
 
     if args.opt:
-        CanonicalizePass().apply(ctx, new_module)
         LowerPairs().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
-        CommonSubexpressionElimination().apply(ctx, new_module)
-        CanonicalizePass().apply(ctx, new_module)
+        simplify_module(ctx, new_module)
 
     print_to_smtlib(new_module, sys.stdout)
 
