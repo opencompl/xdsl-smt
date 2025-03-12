@@ -43,6 +43,7 @@ private:
   std::vector<Result> r;
   unsigned int cases = {};
   unsigned int unsolvedCases = {};
+  unsigned int basePrecise = {};
 
 public:
   Results(unsigned int numFns) { r = std::vector<Result>(numFns); }
@@ -69,12 +70,15 @@ public:
                 [](const Result &x) { return x.unsolvedExact; });
     printMember("unsolved_num_cases",
                 [this](const Result &_) { return unsolvedCases; });
+    printMember("base_precise",
+                [this](const Result &_) { return basePrecise; });
   }
 
   void incResult(const Result &newR, unsigned int i) { r[i] += newR; }
 
-  void incCases(bool solved) {
+  void incCases(bool solved, int dis) {
     cases += 1;
     unsolvedCases += !solved ? 1 : 0;
+    basePrecise += dis;
   }
 };
