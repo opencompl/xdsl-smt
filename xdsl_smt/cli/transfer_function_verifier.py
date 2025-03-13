@@ -651,20 +651,6 @@ def main() -> None:
                 concrete_func,
             )
 
-            """
-            smt_transfer_function_obj = SMTTransferFunction(
-                func_name,
-                smt_transfer_function,
-                transfer_functions,
-                concrete_func_name,
-                concrete_func,
-                abs_op_constraint,
-                op_constraint,
-                soundness_counterexample,
-                int_attr_arg,
-                int_attr_constraint,
-            )
-            """
             verify_smt_transfer_function(
                 smt_transfer_function_obj,
                 domain_constraint,
