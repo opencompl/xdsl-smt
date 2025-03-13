@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize,dce -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize,dce | filecheck "%s"
 
 builtin.module {
     // x * -1 -> 0 - x
@@ -26,9 +26,29 @@ builtin.module {
     }
 }
 
-// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (declare-const tmp Bool)
-// CHECK-NEXT:  (declare-const x (Pair (_ BitVec 32) Bool))
-// CHECK-NEXT:  (declare-const c0_attr (_ BitVec 32))
-// CHECK-NEXT:  (assert (and (not (or tmp (and (not tmp) (=> (not (second x)) (and (= (bvmul (first x) c0_attr) (bvsub (_ bv0 32) (first x))) (not (second x))))))) (= c0_attr (_ bv4294967295 32))))
-// CHECK-NEXT:  (check-sat)
+// CHECK:       builtin.module {
+// CHECK-NEXT:    %0 = "smt.declare_const"() : () -> !smt.bool
+// CHECK-NEXT:    %x = "smt.declare_const"() : () -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
+// CHECK-NEXT:    %c0_attr = "smt.declare_const"() : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    %1 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    %2 = "smt.eq"(%c0_attr, %1) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:    %3 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %4 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bool
+// CHECK-NEXT:    %5 = "smt.bv.mul"(%3, %c0_attr) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %zero_attr = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    %6 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %7 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bool
+// CHECK-NEXT:    %8 = "smt.bv.sub"(%zero_attr, %6) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %9 = "smt.not"(%4) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %10 = "smt.not"(%7) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %11 = "smt.eq"(%5, %8) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:    %12 = "smt.and"(%11, %10) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %13 = "smt.implies"(%9, %12) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %14 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %15 = "smt.and"(%14, %13) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %16 = "smt.or"(%0, %15) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %17 = "smt.not"(%16) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %18 = "smt.and"(%17, %2) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    "smt.assert"(%18) : (!smt.bool) -> ()
+// CHECK-NEXT:    "smt.check_sat"() : () -> ()
+// CHECK-NEXT:  }
