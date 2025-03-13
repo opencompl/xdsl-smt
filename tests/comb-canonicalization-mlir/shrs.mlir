@@ -31,7 +31,7 @@ pdl.pattern @ShrRhsKnownConstant : benefit(0) {
         %last_bit_attr = pdl.apply_native_rewrite "subi"(%width, %one : !pdl.attribute, !pdl.attribute) : !pdl.attribute
 
         %i1 = pdl.type : i1
-        %last_bit_op = pdl.operation "comb.extract"(%x : !pdl.value) {"low_bit" = %last_bit_attr} -> (%i1 : !pdl.type)
+        %last_bit_op = pdl.operation "comb.extract"(%x : !pdl.value) {"lowBit" = %last_bit_attr} -> (%i1 : !pdl.type)
         %last_bit = pdl.result 0 of %last_bit_op
 
         %replicate_op = pdl.operation "comb.replicate"(%last_bit : !pdl.value) -> (%shift_type : !pdl.type)
@@ -42,7 +42,7 @@ pdl.pattern @ShrRhsKnownConstant : benefit(0) {
         %extract_width = pdl.apply_native_rewrite "subi"(%type_width, %shift_width : !pdl.attribute, !pdl.attribute) : !pdl.attribute
         %extract_type = pdl.apply_native_rewrite "integer_type_from_width"(%extract_width : !pdl.attribute) : !pdl.type
 
-        %extract_op = pdl.operation "comb.extract"(%x : !pdl.value) {"low_bit" = %shift_attr} -> (%extract_type : !pdl.type)
+        %extract_op = pdl.operation "comb.extract"(%x : !pdl.value) {"lowBit" = %shift_attr} -> (%extract_type : !pdl.type)
         %extract = pdl.result 0 of %extract_op
 
         %res_op = pdl.operation "comb.concat"(%replicate, %extract : !pdl.value, !pdl.value) -> (%type : !pdl.type)

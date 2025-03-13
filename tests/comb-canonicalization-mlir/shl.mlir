@@ -36,7 +36,7 @@ pdl.pattern @ShlRhsKnownConstant : benefit(0) {
         %extract_type = pdl.apply_native_rewrite "integer_type_from_width"(%extract_width : !pdl.attribute) : !pdl.type
 
         %low_bit = pdl.apply_native_rewrite "get_zero_attr"(%i32 : !pdl.type) : !pdl.attribute
-        %extract_op = pdl.operation "comb.extract"(%x : !pdl.value) {"low_bit" = %low_bit} -> (%extract_type : !pdl.type)
+        %extract_op = pdl.operation "comb.extract"(%x : !pdl.value) {"lowBit" = %low_bit} -> (%extract_type : !pdl.type)
         %extract = pdl.result 0 of %extract_op
 
         %res_op = pdl.operation "comb.concat"(%extract, %zero : !pdl.value, !pdl.value) -> (%type : !pdl.type)

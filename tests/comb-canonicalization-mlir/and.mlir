@@ -196,11 +196,11 @@ pdl.pattern @AndConcatCst : benefit(0) {
 
     pdl.rewrite %and_op {
         %right_width = pdl.apply_native_rewrite "get_width"(%t_right, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
-        %cst2_prime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %right_width} -> (%t_left : !pdl.type)
+        %cst2_prime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"lowBit" = %right_width} -> (%t_left : !pdl.type)
         %cst2_prime = pdl.result 0 of %cst2_prime_op
 
         %zero = pdl.attribute = 0 : i32
-        %cst2_primeprime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"low_bit" = %zero} -> (%t_right : !pdl.type)
+        %cst2_primeprime_op = pdl.operation "comb.extract"(%cst2 : !pdl.value) {"lowBit" = %zero} -> (%t_right : !pdl.type)
         %cst2_primeprime = pdl.result 0 of %cst2_primeprime_op
 
         %and_x_cst2_prime_op = pdl.operation "comb.and"(%x, %cst2_prime : !pdl.value, !pdl.value) -> (%t_left : !pdl.type)
@@ -228,13 +228,13 @@ pdl.pattern @AndCommonOperand : benefit(0) {
     %one = pdl.attribute = 1 : i3
     %two = pdl.attribute = 2 : i3
 
-    %a0_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %zero } -> (%i1 : !pdl.type)
+    %a0_op = pdl.operation "comb.extract"(%a : !pdl.value) { "lowBit" = %zero } -> (%i1 : !pdl.type)
     %a0 = pdl.result 0 of %a0_op
 
-    %a1_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %one } -> (%i1 : !pdl.type)
+    %a1_op = pdl.operation "comb.extract"(%a : !pdl.value) { "lowBit" = %one } -> (%i1 : !pdl.type)
     %a1 = pdl.result 0 of %a1_op
 
-    %a2_op = pdl.operation "comb.extract"(%a : !pdl.value) { "low_bit" = %two } -> (%i1 : !pdl.type)
+    %a2_op = pdl.operation "comb.extract"(%a : !pdl.value) { "lowBit" = %two } -> (%i1 : !pdl.type)
     %a2 = pdl.result 0 of %a2_op
 
     %and_op = pdl.operation "comb.and"(%a0, %a1, %a2 : !pdl.value, !pdl.value, !pdl.value) -> (%i1 : !pdl.type)
