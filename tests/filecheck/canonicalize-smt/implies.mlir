@@ -12,7 +12,7 @@
   %a = "smt.implies"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%a) : (!smt.bool) -> ()
   // CHECK-NEXT: "smt.assert"(%x) : (!smt.bool) -> ()
-  
+
   // (false => x) -> true
   %b = "smt.implies"(%false, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%b) : (!smt.bool) -> ()
