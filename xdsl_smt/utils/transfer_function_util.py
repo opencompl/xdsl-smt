@@ -151,7 +151,7 @@ def get_width_from_type(ty: Attribute) -> int:
     Given a bit vector type or a pair type including a bit vector,
     returns the bit width of that bit vector
     """
-    if isa(ty, AnyPairType):
+    while isa(ty, AnyPairType):
         assert isinstance(ty.first, Attribute)
         ty = ty.first
     if isinstance(ty, BitVectorType):
