@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=canonicalize,dce -t=smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=canonicalize,dce | filecheck "%s"
 
 "builtin.module"() ({
   // (forall x, true) -> true
@@ -8,7 +8,8 @@
     "smt.yield"(%y) : (!smt.bool) -> ()
   }) : () -> !smt.bool
   "smt.assert"(%b) : (!smt.bool) -> ()
-  // CHECK:      (assert true)
+  // CHECK:      %b = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%b) : (!smt.bool) -> ()
 
   // (forall x, false) -> false
   %c = "smt.forall"() ({
@@ -17,7 +18,8 @@
     "smt.yield"(%y_1) : (!smt.bool) -> ()
   }) : () -> !smt.bool
   "smt.assert"(%c) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert false)
+  // CHECK-NEXT: %c = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%c) : (!smt.bool) -> ()
 
   // (exists x, true) -> true
   %d = "smt.exists"() ({
@@ -26,7 +28,8 @@
     "smt.yield"(%y_2) : (!smt.bool) -> ()
   }) : () -> !smt.bool
   "smt.assert"(%d) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert true)
+  // CHECK-NEXT: %d = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%d) : (!smt.bool) -> ()
 
   // (exists x, false) -> false
   %e = "smt.exists"() ({
@@ -35,5 +38,6 @@
     "smt.yield"(%y_3) : (!smt.bool) -> ()
   }) : () -> !smt.bool
   "smt.assert"(%e) : (!smt.bool) -> ()
-  // CHECK-NEXT: (assert false)
+  // CHECK-NEXT: %e = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%e) : (!smt.bool) -> ()
 }) : () -> ()
