@@ -22,4 +22,3 @@ builtin.module {
 // CHECK-NEXT:  (let (($tmp_2 ($test $tmp_0)))
 // CHECK-NEXT:  (or (and (not (second $tmp_1)) (= (first $tmp_2) (first $tmp_1))) (second $tmp_2))))))
 // CHECK-NEXT:  (check-sat)
-
