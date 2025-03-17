@@ -444,9 +444,6 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     name = "smt.declare_const"
     res: OpResult = result_def()
 
-    # TODO: This function is not constant if its value is not inhabited
-    traits = traits_def(traits.Pure())
-
     def __init__(self, type: Attribute):
         super().__init__(result_types=[type])
 
