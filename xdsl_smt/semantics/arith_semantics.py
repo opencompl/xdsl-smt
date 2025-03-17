@@ -319,59 +319,69 @@ class DivuiSemantics(SimplePurePoisonSemantics):
 
 
 class RemsiSemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for remainder by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_rem_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_rem_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
+
+        # UB cases: remainder by zero or rhs poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.SRemOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_rem_by_zero,
-                value_op,
-            ]
-        )
-        return ((value_op.res, is_rem_by_zero.res),)
+        return ((res,), new_state)
 
 
 class RemuiSemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for remainder by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_rem_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_rem_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
+
+        # UB cases: remainder by zero or rhs poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.URemOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.URemOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_rem_by_zero,
-                value_op,
-            ]
-        )
-        return ((value_op.res, is_rem_by_zero.res),)
+        return ((res,), new_state)
 
 
 class ShrsiSemantics(SimplePurePoisonSemantics):
