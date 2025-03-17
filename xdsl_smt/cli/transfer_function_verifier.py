@@ -130,15 +130,14 @@ def get_dynamic_concrete_function_name(concrete_op_name: str) -> str:
     assert False and "Unsupported concrete function"
 
 
-"""
- Used to construct concrete operations with integer attrs when enumerating all possible int attrs
- Thus this can only be constructed at the run time
-"""
-
-
 def get_dynamic_concrete_function(
     concrete_func_name: str, width: int, int_attr: dict[int, int], is_forward: bool
 ) -> FuncOp:
+    """
+    Used to construct concrete operations with integer attrs when enumerating all possible int attrs
+    Thus this can only be constructed at the run time
+    """
+
     intTy = IntegerType(width)
     if concrete_func_name == "comb_extract":
         delta: int = 1 if not is_forward else 0
@@ -161,14 +160,13 @@ def get_dynamic_concrete_function(
     return result
 
 
-"""
- Given a name of one concrete operation, return a function with only that operation
-"""
-
-
 def get_concrete_function(
     concrete_op_name: str, width: int, extra: int | None
 ) -> FuncOp:
+    """
+    Given a name of one concrete operation, return a function with only that operation
+    """
+
     # iterate all semantics and find corresponding comb operation
     result = None
     for k in comb_semantics.keys():
@@ -233,25 +231,23 @@ def lower_to_smt_module(module: ModuleOp, width: int, ctx: MLContext):
     LowerEffectPass().apply(ctx, module)
 
 
-"""
-  Input: a function with type FuncOp
-  Return: True if the function is a transfer function that needs to be verified
-          False if the function is a helper function or others
-"""
-
-
 def is_transfer_function(func: FuncOp) -> bool:
+    """
+    Input: a function with type FuncOp
+    Return: True if the function is a transfer function that needs to be verified
+            False if the function is a helper function or others
+    """
+
     return "applied_to" in func.attributes
 
 
-"""
-  Input: a transfer function with type FuncOp
-  Return: True if the transfer function is a forward transfer function
-          False if the transfer function is a backward transfer function
-"""
-
-
 def is_forward(func: FuncOp) -> bool:
+    """
+    Input: a transfer function with type FuncOp
+    Return: True if the transfer function is a forward transfer function
+            False if the transfer function is a backward transfer function
+    """
+
     if "is_forward" in func.attributes:
         forward = func.attributes["is_forward"]
         assert isinstance(forward, IntegerAttr)
@@ -259,16 +255,15 @@ def is_forward(func: FuncOp) -> bool:
     return False
 
 
-"""
-  Input: a transfer function with type FuncOp
-  Return: True if we need to replace some operands with constant
-
-  Example: extract(%x, 0, 4) -> True ; add(%x, %y) -> False
-  0 and 4 here must be constants rather variables when lower to SMT
-"""
-
-
 def need_replace_int_attr(func: FuncOp) -> bool:
+    """
+    Input: a transfer function with type FuncOp
+    Return: True if we need to replace some operands with constant
+
+    Example: extract(%x, 0, 4) -> True ; add(%x, %y) -> False
+    0 and 4 here must be constants rather variables when lower to SMT
+    """
+
     if "replace_int_attr" in func.attributes:
         replace_int_attr = func.attributes["replace_int_attr"]
         assert isinstance(replace_int_attr, IntegerAttr)
@@ -276,29 +271,27 @@ def need_replace_int_attr(func: FuncOp) -> bool:
     return False
 
 
-"""
-  Input: a backward transfer function
-  Return: The ith-operand it applies to
-"""
-
-
 def get_operationNo(func: FuncOp) -> int:
+    """
+    Input: a backward transfer function
+    Return: The ith-operand it applies to
+    """
+
     if "operationNo" in func.attributes:
         assert isinstance(func.attributes["operationNo"], IntegerAttr)
         return func.attributes["operationNo"].value.data
     return -1
 
 
-"""
-  Input: a transfer function with type FuncOp
-  Return: a list of indices indicating which operands need to be replaced by a constant
-
-  Example: extract(%x, 0, 4) -> [1, 2] ; add(%x, %y) -> []
-  0 and 4 here must be constants rather variables when lower to SMT
-"""
-
-
 def get_int_attr_arg(func: FuncOp) -> list[int]:
+    """
+    Input: a transfer function with type FuncOp
+    Return: a list of indices indicating which operands need to be replaced by a constant
+
+    Example: extract(%x, 0, 4) -> [1, 2] ; add(%x, %y) -> []
+    0 and 4 here must be constants rather variables when lower to SMT
+    """
+
     int_attr: list[int] = []
     assert "int_attr" in func.attributes
     func_int_attr = func.attributes["int_attr"]
@@ -309,15 +302,14 @@ def get_int_attr_arg(func: FuncOp) -> list[int]:
     return int_attr
 
 
-"""
-  Input: a list describes locations of args of integer attributes
-  Return: a dictionary with init all integer attributes to zeros
-
-  Example: [1,2] -> {1: 0, 2: 0} ; [] -> {}
-"""
-
-
 def generate_int_attr_arg(int_attr_arg: list[int] | None) -> dict[int, int]:
+    """
+    Input: a list describes locations of args of integer attributes
+    Return: a dictionary with init all integer attributes to zeros
+
+    Example: [1,2] -> {1: 0, 2: 0} ; [] -> {}
+    """
+
     if int_attr_arg is None:
         return {}
     intAttr: dict[int, int] = {}
@@ -326,19 +318,18 @@ def generate_int_attr_arg(int_attr_arg: list[int] | None) -> dict[int, int]:
     return intAttr
 
 
-"""
-  Input: a dictionary with init all integer attributes to zeros
-  Return: updates the dictionary with next possible value combination.
-          True if it has the next combination
-          False if it has not
-
-  Example: {1: 0, 2: 0}  -> True with {1: 0, 2: 1}; {} -> False
-           {1: 0, 2: 1}  -> True with {1: 1, 2: 0}; {1: 1, 2: 0}  -> True with {1: 1, 2: 1}
-           {1: (1<<width)-1, 2: (1<<width)-1}  -> False
-"""
-
-
 def next_int_attr_arg(intAttr: dict[int, int], width: int) -> bool:
+    """
+    Input: a dictionary with init all integer attributes to zeros
+    Return: updates the dictionary with next possible value combination.
+            True if it has the next combination
+            False if it has not
+
+    Example: {1: 0, 2: 0}  -> True with {1: 0, 2: 1}; {} -> False
+             {1: 0, 2: 1}  -> True with {1: 1, 2: 0}; {1: 1, 2: 0}  -> True with {1: 1, 2: 1}
+             {1: (1<<width)-1, 2: (1<<width)-1}  -> False
+    """
+
     if not intAttr:
         return False
     maxArity: int = 0
@@ -363,16 +354,15 @@ TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
 
 
-"""
-  Input: a function with type FuncOp
-  Return: the function lowered to SMT dialect with specified width
-
-  We might reuse some function with specific width so we save it to global TMP_MODULE
-  Class FunctionCollection is the only caller of this function and maintains all generated SMT functions
-"""
-
-
 def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
+    """
+    Input: a function with type FuncOp
+    Return: the function lowered to SMT dialect with specified width
+
+    We might reuse some function with specific width so we save it to global TMP_MODULE
+    Class FunctionCollection is the only caller of this function and maintains all generated SMT functions
+    """
+
     global TMP_MODULE
     TMP_MODULE.append(ModuleOp([func.clone()]))
     lower_to_smt_module(TMP_MODULE[-1], width, ctx)
@@ -381,17 +371,16 @@ def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp
     return resultFunc
 
 
-"""
-  If the transfer function has a non-empty int_attr dictionary, it replaces function arguments by constant operation
-  specifed in int_attr dictionary.
-
-  Example: abs_extract(%x, %lowbit, %len) and {1:0, 2:4} -> abs_extract(%x, Constant(0), Constant(4));
-"""
-
-
 def get_dynamic_transfer_function(
     func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int], ctx: MLContext
 ) -> DefineFunOp:
+    """
+    If the transfer function has a non-empty int_attr dictionary, it replaces function arguments by constant operation
+    specifed in int_attr dictionary.
+
+    Example: abs_extract(%x, %lowbit, %len) and {1:0, 2:4} -> abs_extract(%x, Constant(0), Constant(4));
+    """
+
     module.body.block.add_op(func)
     args: list[BlockArgument] = []
     for arg_idx, val in int_attr.items():
