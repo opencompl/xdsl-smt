@@ -1,6 +1,5 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-import re
 from typing import Mapping, Sequence
 from xdsl.ir import Operation, SSAValue, Attribute
 from xdsl.parser import AnyIntegerAttr
