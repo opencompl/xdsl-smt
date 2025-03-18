@@ -22,7 +22,7 @@ from xdsl_smt.dialects.transfer import (
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.ir.core import BlockArgument
+from xdsl.ir.core import BlockArgument, Attribute
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
@@ -102,7 +102,7 @@ def parse_file(ctx: MLContext, file: str | None) -> Operation:
 
 
 def solve_vector_width(maximal_bits: int):
-    return list(range(1, maximal_bits))
+    return list(range(4, 5))
 
 
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
@@ -113,6 +113,7 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     DeadCodeElimination().apply(ctx, cloned_op)
 
     print_to_smtlib(cloned_op, stream)
+    # print(stream.getvalue())
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -182,9 +183,9 @@ def get_concrete_function(
                 combOp = k(*result.args)
             elif concrete_op_name == "comb.icmp":
                 funcTy = FunctionType.from_lists([intTy, intTy], [i1])
+                func_name += str(extra)
                 result = FuncOp(func_name, funcTy)
                 assert extra is not None
-                func_name += str(extra)
                 combOp = comb.ICmpOp(result.args[0], result.args[1], extra)
             elif concrete_op_name == "comb.concat":
                 funcTy = FunctionType.from_lists(
@@ -589,9 +590,10 @@ def main() -> None:
         for op in smt_module.ops:
             # op is a transfer function
             if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                assert isa(
-                    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr]
-                )
+                # assert isa(
+                #    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr | IntegerAttr]
+                # )
+                applied_to = op.attributes["applied_to"]
                 concrete_func_name = applied_to.data[0].data
                 # concrete_func_name = op.attributes["applied_to"].data[0].data
                 func_name = op.sym_name.data
@@ -609,9 +611,10 @@ def main() -> None:
 
                 if concrete_func_name not in concrete_func_names:
                     extra = None
-                    assert isa(
-                        applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr]
-                    )
+                    # assert isa(
+                    #    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr]
+                    # )
+                    applied_to = op.attributes["applied_to"]
                     if len(applied_to.data) > 1:
                         extra = applied_to.data[1]
                         assert (
@@ -622,6 +625,8 @@ def main() -> None:
                     concrete_funcs.append(
                         get_concrete_function(concrete_func_name, width, extra)
                     )
+                    if len(applied_to.data) >= 2:
+                        concrete_func_name += str(applied_to.data[1].value.data)
                     concrete_func_names.add(concrete_func_name)
                 transfer_function_name_to_concrete_function_name[
                     func_name
