@@ -714,7 +714,7 @@ def backward_precision_check(
     domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
     int_attr: dict[int, int],
-):
+) -> list[Operation]:
     assert not transfer_function.is_forward
     return [CheckSatOp()]
 
