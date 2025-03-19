@@ -571,7 +571,7 @@ def verify_smt_transfer_function(
                     int_attr,
                     ctx,
                 )
-            if False:
+            if True:
                 precision_check(
                     smt_transfer_function,
                     domain_constraint,
@@ -695,7 +695,7 @@ def main() -> None:
                         get_concrete_function(concrete_func_name, width, extra)
                     )
                     if len(applied_to.data) >= 2:
-                        concrete_func_name += str(applied_to.data[1].value.data)
+                        concrete_func_name += str(extra)
                     concrete_func_names.add(concrete_func_name)
                 transfer_function_name_to_concrete_function_name[
                     func_name
