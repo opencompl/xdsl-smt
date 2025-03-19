@@ -61,6 +61,7 @@ from ..utils.transfer_function_check_util import (
     int_attr_check,
     forward_precision_check,
     module_op_validity_check,
+    backward_precision_check,
 )
 from ..passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
@@ -481,7 +482,12 @@ def precision_check(
             int_attr,
         )
     else:
-        assert False and "Right now not supported backwards precision check"
+        added_ops: list[Operation] = backward_precision_check(
+            smt_transfer_function,
+            domain_constraint,
+            instance_constraint,
+            int_attr,
+        )
     query_module.body.block.add_ops(added_ops)
 
     FunctionCallInline(True, {}).apply(ctx, query_module)
