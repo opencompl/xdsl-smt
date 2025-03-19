@@ -338,6 +338,7 @@ def backward_soundness_check(
         [effect]
         + abs_arg_ops
         + crt_arg_ops
+        + crt_arg_first_ops
         + [constant_bv_0, constant_bv_1]
         + [
             call_abs_func_op,
@@ -712,8 +713,10 @@ def backward_precision_check(
     transfer_function: SMTTransferFunction,
     domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
-):
+    int_attr: dict[int, int],
+) -> list[Operation]:
     assert not transfer_function.is_forward
+    return [CheckSatOp()]
 
 
 def print_module_until_op(module: ModuleOp, cur_op: Operation):
