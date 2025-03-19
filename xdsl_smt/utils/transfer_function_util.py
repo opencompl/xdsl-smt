@@ -19,7 +19,7 @@ from ..dialects.smt_bitvector_dialect import (
 from ..dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
 from xdsl.dialects.func import FuncOp
 from ..dialects.transfer import AbstractValueType
-from xdsl.ir import Operation, SSAValue, Attribute
+from xdsl.ir import Operation, SSAValue, Attribute, Block
 from xdsl.dialects.builtin import (
     FunctionType,
 )
@@ -84,6 +84,15 @@ def call_function_and_assert_result(
     return [callOp, firstOp] + assertOps
 
 
+def call_function_and_eq_result_with_effect(
+    func: DefineFunOp, args: list[SSAValue], bv: ConstantOp, effect: SSAValue
+) -> tuple[list[Operation], EqOp]:
+    callOp, callFirstOp = call_function_with_effect(func, args, effect)
+    firstOp = FirstOp(callFirstOp.res)
+    eqOp = EqOp(firstOp.res, bv.res)
+    return [callOp, callFirstOp, firstOp, eqOp], eqOp
+
+
 def call_function_and_assert_result_with_effect(
     func: DefineFunOp, args: list[SSAValue], bv: ConstantOp, effect: SSAValue
 ) -> list[Operation]:
@@ -95,6 +104,25 @@ def call_function_and_assert_result_with_effect(
     firstOp = FirstOp(callFirstOp.res)
     assertOps = assert_result(firstOp.res, bv)
     return [callOp, callFirstOp, firstOp] + assertOps
+
+
+def insert_argument_instances_to_block_with_effect(
+    func: DefineFunOp, int_attr: dict[int, int], block: Block
+) -> list[SSAValue]:
+    result: list[SSAValue] = []
+    assert isinstance(func.body.block.args[-1].type, BoolType)
+    curLen = len(block.args)
+    for i, arg in enumerate(func.body.block.args[:-1]):
+        argType = arg.type
+        if i in int_attr:
+            constOp = ConstantOp(int_attr[i], get_width_from_type(argType))
+            block.add_op(constOp)
+            result.append(constOp.res)
+        else:
+            block.insert_arg(argType, curLen)
+            curLen += 1
+            result.append(block.args[-1])
+    return result
 
 
 def get_argument_instances_with_effect(
@@ -135,6 +163,40 @@ def get_argument_instances(
         else:
             result.append(DeclareConstOp(argType))
     return result
+
+
+def insert_result_instances_to_block_with_effect(
+    func: DefineFunOp, block: Block
+) -> list[SSAValue]:
+    return_type = func.func_type.outputs.data[0]
+    assert isa(return_type, AnyPairType)
+    real_return_type = return_type.first
+    effect_type = return_type.second
+    assert isinstance(effect_type, BoolType)
+    block.insert_arg(real_return_type, 0)
+    result: list[SSAValue] = [block.args[0]]
+    return result
+
+
+def insert_result_instances_to_block(func: DefineFunOp, block: Block) -> list[SSAValue]:
+    return_type = func.func_type.outputs.data[0]
+    block.insert_arg(return_type, 0)
+    result: list[SSAValue] = [block.args[0]]
+    return result
+
+
+def get_result_instance_with_effect(
+    func: DefineFunOp,
+) -> tuple[list[Operation], SSAValue]:
+    """
+    Given a function, construct a list of its returned value by DeclareConstOp
+    We assume only the first returned value is useful
+    """
+    return_type = func.func_type.outputs.data[0]
+    assert isinstance(return_type, PairType)
+    declConstOp = DeclareConstOp(return_type.first)
+    assert isinstance(return_type.second, BoolType)
+    return [declConstOp], declConstOp.res
 
 
 def get_result_instance(func: DefineFunOp) -> list[DeclareConstOp]:

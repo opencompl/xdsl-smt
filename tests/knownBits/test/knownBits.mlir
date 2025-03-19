@@ -21,7 +21,7 @@
     %result="arith.andi"(%cmp1,%cmp2):(i1,i1)->i1
     "func.return"(%result) : (i1) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>, !transfer.integer) -> i1, sym_name = "getInstanceConstraint"} : () -> ()
-  
+
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -33,7 +33,7 @@
     %result = "transfer.make"(%result_0, %result_1) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "intersection"} : () -> ()
-  
+
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -53,9 +53,9 @@
   ^bb0(%arg0: !transfer.abs_value<[i1,i1]>):
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[i1,i1]>) -> i1
     %arg0_1 = "transfer.get"(%arg0) {index=1:index}: (!transfer.abs_value<[i1,i1]>) -> i1
-    
+
     %arg0_0_arith ="transfer.add_poison"(%arg0_0): (i1) -> i1
-    %arg0_1_arith ="transfer.add_poison"(%arg0_1): (i1) -> i1    
+    %arg0_1_arith ="transfer.add_poison"(%arg0_1): (i1) -> i1
     %add_res = "arith.addi"(%arg0_0_arith, %arg0_1_arith) : (i1,i1) -> i1
     %all_ones = "arith.constant"() {"value" = 1 : i1} : () -> i1
     %cmp_res = "arith.cmpi"(%add_res,%all_ones) {"predicate" = 0 : i64} : (i1,i1) -> i1
@@ -67,7 +67,7 @@
     %arg0_1_arith ="transfer.add_poison"(%arg0_1): (i1) -> i1
     "func.return"(%arg0_1_arith) : (i1) -> ()
   }) {function_type = (!transfer.abs_value<[i1,i1]>) -> i1, sym_name = "getConstant_i1"} : () -> ()
-  
+
 
 "func.func"() ({
   ^bb0(%cond: !transfer.abs_value<[i1,i1]>, %arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
@@ -225,7 +225,7 @@
     %result = "transfer.make"(%result_0, %result_1) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "CONCATImpl", applied_to=["comb.concat"], CPPCLASS=["circt::comb::ConcatOp"],is_forward=true, induction=true} : () -> ()
-  
+
 "func.func"() ({
 ^bb0(%arg0: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %len:!transfer.integer,%low_bit :!transfer.integer):
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -241,8 +241,8 @@
     %result="arith.andi"(%result_2,%low_bit_res):(i1,i1)->i1
     "func.return"(%result) : (i1) -> ()
   }) {function_type = (!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> i1,
-  sym_name = "EXTRACTAttrConstraint"} : () -> ()  
-  
+  sym_name = "EXTRACTAttrConstraint"} : () -> ()
+
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %len:!transfer.integer ,%low_bit:!transfer.integer ):
     %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
@@ -253,6 +253,44 @@
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>, sym_name = "EXTRACTImpl", applied_to=["comb.extract"], CPPCLASS=["circt::comb::ExtractOp"],is_forward=true, int_attr=[1,2],int_attr_constraint="EXTRACTAttrConstraint", replace_int_attr=true } : () -> ()
 
+
+ "func.func"() ({
+  ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.abs_value<[!transfer.integer,!transfer.integer]>):
+    %arg0Max = "func.call"(%arg0) {callee = @getMaxValue} : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %arg1Max = "func.call"(%arg1) {callee = @getMaxValue} : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %umaxResult = "transfer.mul"(%arg0Max, %arg1Max) : (!transfer.integer, !transfer.integer) -> !transfer.integer
+    %umaxResultOverflow = "transfer.umul_overflow"(%arg0Max, %arg1Max) : (!transfer.integer, !transfer.integer) -> i1
+    %zero = "transfer.constant"(%arg0Max){value=0:index} : (!transfer.integer) -> !transfer.integer
+    %umaxResult_cnt_l_zero = "transfer.countl_zero" (%umaxResult) : (!transfer.integer) -> !transfer.integer
+    %leadZ = "transfer.select" (%umaxResultOverflow, %zero, %umaxResult_cnt_l_zero): (i1, !transfer.integer, !transfer.integer) -> !transfer.integer
+    %arg0_0 = "transfer.get"(%arg0) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %arg0_1 = "transfer.get"(%arg0) {index=1:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %arg1_0 = "transfer.get"(%arg1) {index=0:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %arg1_1 = "transfer.get"(%arg1) {index=1:index}: (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.integer
+    %lhs_union = "transfer.or"(%arg0_0, %arg0_1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %rhs_union = "transfer.or"(%arg1_0, %arg1_1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %trailBitsKnown0 = "transfer.countr_one"(%lhs_union): (!transfer.integer) -> !transfer.integer
+    %trailBitsKnown1 = "transfer.countr_one"(%rhs_union): (!transfer.integer) -> !transfer.integer
+    %trailZero0 = "transfer.countr_one"(%arg0_0): (!transfer.integer) -> !transfer.integer
+    %trailZero1 = "transfer.countr_one"(%arg1_0): (!transfer.integer) -> !transfer.integer
+    %trailZ = "transfer.add"(%trailZero0, %trailZero1): (!transfer.integer,!transfer.integer) -> !transfer.integer
+    %smallestOperand_arg0 = "transfer.sub"(%trailBitsKnown0, %trailZero0): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %smallestOperand_arg1 = "transfer.sub"(%trailBitsKnown1, %trailZero1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %smallestOperand = "transfer.umin"(%smallestOperand_arg0, %smallestOperand_arg1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %resultBitsKnown_arg0="transfer.add"(%smallestOperand, %trailZ): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %bitwidth = "transfer.get_bit_width"(%arg0_0): (!transfer.integer) -> !transfer.integer
+    %resultBitsKnown = "transfer.umin"(%resultBitsKnown_arg0,%bitwidth): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %bottomKnown_arg0 = "transfer.get_low_bits"(%arg0_1, %trailBitsKnown0): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %bottomKnown_arg1 = "transfer.get_low_bits"(%arg1_1, %trailBitsKnown1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %bottomKnown = "transfer.mul"(%bottomKnown_arg0, %bottomKnown_arg1): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %bottomKnown_neg="transfer.neg"(%bottomKnown): (!transfer.integer) -> !transfer.integer
+    %resZerotmp2="transfer.get_low_bits"(%bottomKnown_neg, %resultBitsKnown): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %resZerotmp = "transfer.set_high_bits"(%zero, %leadZ): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %resZero = "transfer.or"(%resZerotmp, %resZerotmp2): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %resOne="transfer.get_low_bits"(%bottomKnown, %resultBitsKnown): (!transfer.integer,!transfer.integer)->!transfer.integer
+    %result = "transfer.make"(%resZero, %resOne) : (!transfer.integer, !transfer.integer) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>
+    "func.return"(%result) : (!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer,!transfer.integer]>,!transfer.abs_value<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer,!transfer.integer]>,is_forward=true, sym_name = "MULImpl", applied_to=["comb.mul"], CPPCLASS=["circt::comb::MulOp"]} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer,!transfer.integer]>, %arg1: !transfer.integer):
