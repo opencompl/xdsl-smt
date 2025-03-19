@@ -660,12 +660,11 @@ def main() -> None:
         for op in smt_module.ops:
             # op is a transfer function
             if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                # assert isa(
-                #    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr | IntegerAttr]
-                # )
-                applied_to = op.attributes["applied_to"]
+                assert isa(
+                    applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
+                )
+                assert isinstance(applied_to.data[0], StringAttr)
                 concrete_func_name = applied_to.data[0].data
-                # concrete_func_name = op.attributes["applied_to"].data[0].data
                 func_name = op.sym_name.data
 
                 if need_replace_int_attr(op):
@@ -681,10 +680,10 @@ def main() -> None:
 
                 if concrete_func_name not in concrete_func_names:
                     extra = None
-                    # assert isa(
-                    #    applied_to := op.attributes["applied_to"], ArrayAttr[StringAttr]
-                    # )
-                    applied_to = op.attributes["applied_to"]
+                    assert isa(
+                        applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
+                    )
+                    assert isinstance(applied_to.data[0], StringAttr)
                     if len(applied_to.data) > 1:
                         extra = applied_to.data[1]
                         assert (
@@ -696,7 +695,7 @@ def main() -> None:
                         get_concrete_function(concrete_func_name, width, extra)
                     )
                     if len(applied_to.data) >= 2:
-                        concrete_func_name += str(applied_to.data[1].value.data)
+                        concrete_func_name += str(extra)
                     concrete_func_names.add(concrete_func_name)
                 transfer_function_name_to_concrete_function_name[
                     func_name

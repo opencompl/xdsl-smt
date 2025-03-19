@@ -193,7 +193,7 @@ def get_result_instance_with_effect(
     We assume only the first returned value is useful
     """
     return_type = func.func_type.outputs.data[0]
-    assert isinstance(return_type, PairType)
+    assert isa(return_type, PairType)
     declConstOp = DeclareConstOp(return_type.first)
     assert isinstance(return_type.second, BoolType)
     return [declConstOp], declConstOp.res
