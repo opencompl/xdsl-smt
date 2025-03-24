@@ -1,81 +1,43 @@
-#include <cmath>
-#include <cstdio>
-#include <cstring>
 #include <iostream>
+#include <iterator>
+#include <string>
 #include <vector>
 
-#include <llvm/ADT/APInt.h>
+#include "AbstVal.h"
+#include "Eval.h"
+#include "jit.h"
 
-#include "Results.cpp"
-#include "synth.cpp"
-
-unsigned int makeMask(unsigned char bitwidth) {
-  if (bitwidth == 0)
-    return 0;
-  return (1 << bitwidth) - 1;
-}
-
-template <typename Domain>
-const Domain toBestAbst(const Domain &lhs, const Domain &rhs,
-                        unsigned int (*op)(const unsigned int,
-                                           const unsigned int)) {
-  const unsigned char bitwidth = lhs.getBitWidth();
-  llvm::APInt x(bitwidth, 0);
-  llvm::APInt lhs_op_con(bitwidth, 0);
-  llvm::APInt rhs_op_con(bitwidth, 0);
-  unsigned int mask = makeMask(bitwidth);
-  std::vector<Domain> crtVals;
-  const std::vector<unsigned int> rhss = rhs.toConcrete();
-
-  for (unsigned int lhs_v : lhs.toConcrete()) {
-    for (unsigned int rhs_v : rhss) {
-      lhs_op_con = lhs_v;
-      rhs_op_con = rhs_v;
-      if (op_constraint(lhs_op_con, rhs_op_con)) {
-        x = op(lhs_v, rhs_v) & mask;
-        crtVals.push_back(Domain::fromConcrete(x));
-      }
-    }
+std::vector<std::string> split_whitespace(const std::string &input) {
+  std::vector<std::string> result;
+  std::istringstream iss(input);
+  std::string word;
+  while (iss >> word) {
+    result.push_back(word);
   }
-
-  return Domain::joinAll(crtVals);
-}
-
-template <typename Domain> const Results eval(unsigned int nFuncs) {
-  Results r{nFuncs};
-  const std::vector<Domain> fullLattice = Domain::enumVals();
-
-  for (Domain lhs : fullLattice) {
-    for (Domain rhs : fullLattice) {
-      Domain best_abstract_res = toBestAbst(lhs, rhs, concrete_op_wrapper);
-      // we skip a (lhs, rhs) if there are no concrete values that satisfy
-      // op_constraint
-      if (best_abstract_res.isBottom())
-        continue;
-      std::vector<Domain> synth_kbs(synth_function_wrapper(lhs, rhs));
-      std::vector<Domain> ref_kbs(ref_function_wrapper(lhs, rhs));
-      Domain cur_kb = Domain::meetAll(ref_kbs);
-      bool solved = cur_kb == best_abstract_res;
-      for (unsigned int i = 0; i < synth_kbs.size(); ++i) {
-        Domain synth_after_meet = cur_kb.meet(synth_kbs[i]);
-        bool sound = synth_after_meet.isSuperset(best_abstract_res);
-        bool exact = synth_after_meet == best_abstract_res;
-        unsigned int dis = synth_after_meet.distance(best_abstract_res);
-
-        // std::clog << lhs.display() << ' ' << rhs.display() << ' ' <<
-        // best_abstract_res.display() << ' ' << synth_after_meet.display() <<
-        // "\n";
-        r.incResult(Result(sound, dis, exact, solved), i);
-      }
-      unsigned int base_dis = cur_kb.distance(best_abstract_res);
-      r.incCases(solved, base_dis);
-    }
-  }
-
-  return r;
+  return result;
 }
 
 int main() {
-  eval<Domain>(numFuncs).print();
+  std::string tmpStr;
+  std::string domain;
+  std::getline(std::cin, domain);
+
+  std::getline(std::cin, tmpStr);
+  unsigned int bw = static_cast<unsigned int>(std::stoul(tmpStr));
+  std::getline(std::cin, tmpStr);
+  std::vector<std::string> synNames = split_whitespace(tmpStr);
+  std::getline(std::cin, tmpStr);
+  std::vector<std::string> bFnNames = split_whitespace(tmpStr);
+  std::string fnSrcCode(std::istreambuf_iterator<char>(std::cin), {});
+
+  std::unique_ptr<llvm::orc::LLJIT> jit = getJit(fnSrcCode);
+
+  if (domain == "KnownBits")
+    Eval<KnownBits>(std::move(jit), synNames, bFnNames, bw).eval().print();
+  else if (domain == "ConstantRange")
+    Eval<ConstantRange>(std::move(jit), synNames, bFnNames, bw).eval().print();
+  else
+    std::cerr << "Unknown domain: " << domain << "\n";
+
   return 0;
 }

@@ -105,12 +105,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "-random_seed", type=int, nargs="?", help="specify the random seed"
     )
     arg_parser.add_argument(
-        "-llvm_build_dir",
-        type=str,
-        nargs="?",
-        help="Specify the build directory of LLVM",
-    )
-    arg_parser.add_argument(
         "-program_length",
         type=int,
         nargs="?",
@@ -503,18 +497,22 @@ def solution_set_eval_func(
     bitwidth: int,
     helper_funcs: list[str] | None = None,
 ) -> Callable[[list[str], list[str], list[str], list[str]], list[CompareResult]]:
+    all_extra_src = (
+        [concrete_op_expr]
+        if helper_funcs is None
+        else helper_funcs + [concrete_op_expr]
+    )
     return lambda transfer_names=list[str], transfer_srcs=list[
         str
     ], base_transfer_names=list[str], base_transfer_srcs=list[str]: (
         eval_engine.eval_transfer_func(
             transfer_names,
             transfer_srcs,
-            concrete_op_expr,
             base_transfer_names,
             base_transfer_srcs,
+            all_extra_src,
             domain,
             bitwidth,
-            helper_funcs,
         )
     )
 
@@ -532,16 +530,20 @@ def main_eval_func(
     bitwidth: int,
     helper_funcs: list[str] | None = None,
 ) -> Callable[[list[str], list[str]], list[CompareResult]]:
+    all_extra_src = (
+        [concrete_op_expr]
+        if helper_funcs is None
+        else helper_funcs + [concrete_op_expr]
+    )
     return lambda transfer_names=list[str], transfer_srcs=list[str]: (
         eval_engine.eval_transfer_func(
             transfer_names,
             transfer_srcs,
-            concrete_op_expr,
             base_transfer_names,
             base_transfer_srcs,
+            all_extra_src,
             domain,
             bitwidth,
-            helper_funcs,
         )
     )
 
@@ -766,13 +768,6 @@ def main() -> None:
     solution_size = args.solution_size
     num_iters = args.num_iters
 
-    # Set up llvm_build_dir
-    llvm_build_dir = args.llvm_build_dir
-    if llvm_build_dir is not None:
-        if not llvm_build_dir.endswith("/"):
-            llvm_build_dir += "/"
-        llvm_build_dir += "bin/"
-        eval_engine.llvm_bin_dir = llvm_build_dir
     if num_programs is None:
         num_programs = NUM_PROGRAMS
     if total_rounds is None:
@@ -922,17 +917,17 @@ def main() -> None:
     cmp_results: list[CompareResult] = eval_engine.eval_transfer_func(
         ["solution"],
         [solution_str],
-        crt_func,
         [],
         [],
-        eval_engine.AbstractDomain.KnownBits,
-        bitwidth,
         [
+            crt_func,
             instance_constraint_func,
             domain_constraint_func,
             op_constraint_func,
             meet_func,
         ],
+        eval_engine.AbstractDomain.KnownBits,
+        bitwidth,
     )
     solution_result = cmp_results[0]
     print(

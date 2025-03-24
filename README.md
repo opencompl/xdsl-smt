@@ -10,17 +10,17 @@ The diagram below shows the overview of this project.
 
 ## Installation
 
-### Set up LLVM
+### Make the Eval Engine
 
-After cloning LLVM repo, `cd` to the new cloned repo (normally the folder name is llvm-project) and execute
+First install the development packages for llvm and clang.
+If they are not availible via your distro's package manager, then build them from source.
 
 ```bash
-mkdir build
-cd build
-cmake -GNinja -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" ../llvm
-ninja
+cd xdsl_smt/eval_engine/
+mkdir build && cd build
+cmake .. && make
+cd ../../..
 ```
-
 
 ### Virtual environment
 
@@ -109,39 +109,39 @@ You can play with other input specification under `tests/synth`.
 
 ## Extending the project with one new abstract domain
 
-To add a new abstract domain you add a new class to `AbstVal.cpp` which inherits from the `AbstVal` base class and is templated on the bitwidth, `N`.
+To add a new abstract domain you add a new class to `AbstVal.cpp` which inherits from the `AbstVal` base class.
 Here's an example called `NewDomain`:
 
 ```cpp
-template <unsigned char N> class NewDomain : public AbstVal<NewDomain<N>, N> {
+class NewDomain : public AbstVal<NewDomain> {
 public:
-  explicit NewDomain(const std::vector<llvm::APInt> &v)
-      : AbstVal<NewDomain<N>, N>(v) {}
+  explicit NewDomain(const std::vector<APInt> &v, unsigned int bw)
+      : AbstVal<NewDomain>(v, bw) {}
 
   const std::string display() const;
   bool isConstant() const;
-  const llvm::APInt getConstant() const;
+  const APInt getConstant() const;
 
   const NewDomain meet(const NewDomain &) const;
   const NewDomain join(const NewDomain &) const;
   const std::vector<unsigned int> toConcrete() const;
 
   // static constructors
-  static NewDomain top();
-  static NewDomain bottom();
-  static NewDomain fromConcrete(const llvm::APInt &);
-  static std::vector<NewDomain> const enumVals();
+  static NewDomain top(unsigned int bw);
+  static NewDomain bottom(unsigned int bw);
+  static NewDomain fromConcrete(const APInt &v, unsigned int bw);
+  static std::vector<NewDomain> const enumVals(unsigned int bw);
 };
 ```
 
 Here's a list of the methods required for every domain domain:
-* `NewDomain(const std::vector<llvm::APInt> &)`: this constructor is for synthesiszed transfer functions to create instances of `NewDomain` in the evaluation engine
+* `NewDomain(const std::vector<APInt> &v, unsigned int bw)`: this constructor is for synthesiszed transfer functions to create instances of `NewDomain` in the evaluation engine
 * `display()`, `isConstant()`, and `getConstant()`: are not used by the evaluation engine (and as such are not strictly required), but they are handy for debugging
 * `meet(const NewDomain &)`, and `join(const NewDomain &)`: should follow their respective definitions, in the lattice of the abstract domain
 * `toConcrete()`: is the gamma function, which enumerates all of the concrete values represented by the abstract value as a `std::vector<unsigned int>`
-* `top()`, and `bottom()`: should also follow their definitions of full set and empty set
-* `fromConcrete(const llvm::APInt &)`: takes a concrete value and constructs the abstract value holding only that concrete value
-* `enumVals()`: enumerates the entire lattice of abstract values as a `std::vector<NewDoman>`
+* `top(unsigned int bw)`, and `bottom(unsigned int bw)`: should also follow their definitions of full set and empty set
+* `fromConcrete(const APInt &v, unsigned int bw)`: takes a concrete value and constructs the abstract value holding only that concrete value
+* `enumVals(unsigned int bw)`: enumerates the entire lattice of abstract values as a `std::vector<NewDoman>`
 
 The other last change needed to add a new domain is in `eval.py`.
 Add `NewDomain = auto()` to the list of other domains in the enum.
