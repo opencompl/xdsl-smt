@@ -33,8 +33,9 @@ def transferFunction(op, fout):
     pass
 
 
-funcStr = ""
 indent = "\t"
+funcPrefix = 'extern "C" '
+funcStr = funcPrefix
 needDispatch: list[FuncOp] = []
 inductionOp: list[FuncOp] = []
 
@@ -66,7 +67,7 @@ def _(op: Operation, fout):
     if isinstance(parentOp, FuncOp) and parentOp.body.block.last_op == op:
         funcStr += "}\n"
         fout.write(funcStr)
-        funcStr = ""
+        funcStr = funcPrefix
 
 
 @dataclass

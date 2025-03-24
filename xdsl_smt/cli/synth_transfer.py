@@ -447,7 +447,7 @@ def print_to_cpp(func: FuncOp) -> str:
 
 def get_default_op_constraint():
     return """
-    int op_constraint(APInt arg0,APInt arg1){
+    extern "C" int op_constraint(APInt arg0,APInt arg1){
 	return true;
     }
     """

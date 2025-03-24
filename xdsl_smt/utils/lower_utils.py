@@ -158,11 +158,17 @@ unsignedReturnedType = {
 ends = ";\n"
 indent = "\t"
 int_to_apint = False
+use_custom_vec = True
 
 
 def set_int_to_apint(to_apint: bool):
     global int_to_apint
     int_to_apint = to_apint
+
+
+def set_use_custom_vec(custom_vec: bool):
+    global use_custom_vec
+    use_custom_vec = custom_vec
 
 
 def lowerType(typ, specialOp=None):
@@ -177,6 +183,8 @@ def lowerType(typ, specialOp=None):
         typeName = lowerType(fields[0])
         for i in range(1, len(fields)):
             assert lowerType(fields[i]) == typeName
+        if use_custom_vec:
+            return "Vec<" + str(len(fields)) + ">"
         return "std::vector<" + typeName + ">"
     elif isinstance(typ, IntegerType):
         return "int" if not int_to_apint else "APInt"
