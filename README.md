@@ -10,16 +10,66 @@ The diagram below shows the overview of this project.
 
 ## Installation
 
-### Make the Eval Engine
+### Build the Eval Engine
 
+#### Set up LLVM
+
+This section tells you how to build LLVM required by the Eval Engine from the source code.
+
+The Eval Engine requires LLVM built with LLVMGold library, so first we need to download the library
+
+`git clone --depth 1 git://sourceware.org/git/binutils-gdb.git binutils`
+
+This line download `binutils` library and we need to use its include path later in LLVM configuration.
+(Reminder: No need to build it manually because LLVM would automatically build it since we specify its path)
+
+Suppose its path is `/home/username/GitRepo/binutils/`
+
+Next, clone llvm repo
+```bash
+git clone https://github.com/llvm/llvm-project.git
+cd llvm-project
+git checkout 87adafcd2e248fa69d1f776a9e60f95df03b885d
+mkdir build
+cd build
+```
+and build the LLVM with following configuration:
+```bash
+cmake -GNinja -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON -DBUILD_SHARED_LIBS=ON \
+-DLLVM_BINUTILS_INCDIR=/home/username/GitRepo/binutils/include/ \
+-DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_ASSERTIONS=ON \
+-DLLVM_ENABLE_PROJECTS="llvm;clang;mlir"  ../llvm
+```
+
+Please update the second line `-DLLVM_BINUTILS_INCDIR=` with your own path
+and don't forget to add `include/` at the end.
+
+Lastly, we should run
+```bash
+ninja
+```
+To build LLVM
+
+
+
+#### Make the Eval Engine
 First install the development packages for llvm and clang.
 If they are not availible via your distro's package manager, then build them from source.
+So here, suppose you have a working LLVM setup.
 
 ```bash
 cd xdsl_smt/eval_engine/
 mkdir build && cd build
 cmake .. && make
 cd ../../..
+```
+
+If you build LLVM from the source as described in the previous section, you should use following commands to replace
+the third line in the previous block.
+```bash
+cmake .. -D  CMAKE_CXX_COMPILER=/home/username/GitRepo/llvm-project/build/bin/clang++ \
+-D CMAKE_PREFIX_PATH=/home/username/GitRepo/llvm-project/build
+make
 ```
 
 ### Virtual environment
