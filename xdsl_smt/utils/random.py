@@ -36,6 +36,11 @@ class Random:
             return lst[cur_index]
         return random.choice(lst)
 
+    def choice_weighted(self, lst: Sequence[T], weights: dict[T, int]) -> T:
+        # todo: if self.from_file: ...
+        w = [weights[key] for key in lst]
+        return random.choices(lst, weights=w, k=1)[0]
+
     def choice2(self, lst: Sequence[T]) -> list[T]:
         if self.from_file:
             # assume the file provides 2 different numbers

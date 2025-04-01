@@ -39,37 +39,41 @@ class MutationProgram:
         new_ops = list(new_func.body.block.ops)
         return MutationProgram(new_func, new_ops)
 
+    @staticmethod
+    def not_in_main_body(op: Operation):
+        # filter out operations not belong to main body
+        return (
+            isinstance(op, Constant)
+            or isinstance(op, arith.ConstantOp)
+            or isinstance(op, GetAllOnesOp)
+            or isinstance(op, GetOp)
+            or isinstance(op, MakeOp)
+            or isinstance(op, ReturnOp)
+        )
+
     def get_modifiable_operations(
         self, only_live: bool = True
     ) -> list[tuple[Operation, int]]:
         """
         Get live operations when only_live = True, otherwise return all operations in the main body
         """
-        assert isinstance(self.ops[-1], ReturnOp)
-        assert isinstance(self.ops[-2], MakeOp)
-        last_make_op = self.ops[-2]
-
-        live_set = set[Operation]()
         modifiable_ops = list[tuple[Operation, int]]()
+        live_set = set[Operation]()
 
-        for operand in last_make_op.operands:
-            assert isinstance(operand.owner, Operation)
-            live_set.add(operand.owner)
+        assert isinstance(self.ops[-1], ReturnOp)
 
-        def not_in_main_body(op: Operation):
-            # filter out operations not belong to main body
-            return (
-                isinstance(operation, Constant)
-                or isinstance(operation, arith.ConstantOp)
-                or isinstance(operation, GetAllOnesOp)
-                or isinstance(operation, GetOp)
-                or isinstance(operation, MakeOp)
-                or isinstance(operation, ReturnOp)
-            )
+        if isinstance(self.ops[-2], MakeOp):  # regular function
+            last_make_op = self.ops[-2]
+            for operand in last_make_op.operands:
+                assert isinstance(operand.owner, Operation)
+                live_set.add(operand.owner)
+        else:  # condition
+            assert not MutationProgram.not_in_main_body(self.ops[-2])
+            live_set.add(self.ops[-2])
 
-        for idx in range(len(self.ops) - 3, -1, -1):
+        for idx in range(len(self.ops) - 2, -1, -1):
             operation = self.ops[idx]
-            if not_in_main_body(operation):
+            if MutationProgram.not_in_main_body(operation):
                 continue
             if only_live:
                 if operation in live_set:

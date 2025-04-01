@@ -25,21 +25,7 @@ def eval_transfer_func(
     base_dir = path.join("xdsl_smt", "eval_engine")
     engine_path = path.join(base_dir, "build", "eval_engine")
     if not path.exists(engine_path):
-        raise FileExistsError(f"Eval Enigne not found at: {engine_path}")
-
-    # rename the transfer functions
-    base_srcs = [
-        src.replace(nm, f"{nm}_base_{i}")
-        for i, (nm, src) in enumerate(zip(base_names, base_srcs))
-    ]
-    base_names = [f"{nm}_base_{i}" for i, nm in enumerate(base_names)]
-
-    # rename the transfer functions
-    xfer_srcs = [
-        src.replace(nm, f"{nm}_{i}")
-        for i, (nm, src) in enumerate(zip(xfer_names, xfer_srcs))
-    ]
-    xfer_names = [f"{nm}_{i}" for i, nm in enumerate(xfer_names)]
+        raise FileExistsError(f"Eval Engine not found at: {engine_path}")
 
     engine_params = ""
     engine_params += f"{domain}\n"

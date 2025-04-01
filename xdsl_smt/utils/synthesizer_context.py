@@ -1,4 +1,5 @@
 from xdsl.dialects.builtin import i1, IntegerAttr
+from xdsl.dialects.func import FuncOp
 
 from ..dialects.transfer import (
     NegOp,
@@ -76,6 +77,11 @@ class Collection(Generic[T]):
     def get_random_element(self) -> T | None:
         if self.lst_len != 0:
             return self.random.choice(self.lst)
+        return None
+
+    def get_weighted_random_element(self, weights: dict[T, int]) -> T | None:
+        if self.lst_len != 0:
+            return self.random.choice_weighted(self.lst, weights=weights)
         return None
 
     def get_all_elements(self) -> tuple[T, ...]:
@@ -245,33 +251,58 @@ class SynthesizerContext:
     cmp_flags: list[int]
     i1_ops: Collection[type[Operation]]
     int_ops: Collection[type[Operation]]
+    i1_weights: dict[type[Operation], int]
+    int_weights: dict[type[Operation], int]
+    weighted: bool
     commutative: bool = False
     idempotent: bool = True
     skip_trivial: bool = True
 
-    def __init__(self, random: Random):
+    def __init__(
+        self,
+        random: Random,
+    ):
         self.random = random
         self.cmp_flags = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         self.i1_ops = Collection(basic_i1_ops, self.random)
         self.int_ops = Collection(basic_int_ops, self.random)
+        self.i1_weights = {key: 1 for key in basic_i1_ops}
+        self.int_weights = {key: 1 for key in basic_int_ops}
+        self.weighted = True
 
     def use_basic_int_ops(self):
         self.int_ops = Collection(basic_int_ops, self.random)
+        self.int_weights = {key: 1 for key in basic_int_ops}
 
     def use_full_int_ops(self):
         self.int_ops = Collection(full_int_ops, self.random)
+        self.int_weights = {key: 1 for key in full_int_ops}
 
     def use_basic_i1_ops(self):
         self.i1_ops = Collection(basic_i1_ops, self.random)
+        self.i1_weights = {key: 1 for key in basic_i1_ops}
 
     def use_full_i1_ops(self):
         self.i1_ops = Collection(full_i1_ops, self.random)
+        self.i1_weights = {key: 1 for key in full_i1_ops}
 
     def get_available_i1_ops(self) -> tuple[type[Operation], ...]:
         return self.i1_ops.get_all_elements()
 
     def get_available_int_ops(self) -> tuple[type[Operation], ...]:
         return self.int_ops.get_all_elements()
+
+    def update_i1_weights(self, frequency: dict[type[Operation], int]):
+        self.i1_weights = {key: 1 for key in self.i1_ops.get_all_elements()}
+        for key in frequency:
+            assert key in self.i1_weights
+            self.i1_weights[key] = frequency[key] + 1
+
+    def update_int_weights(self, frequency: dict[type[Operation], int]):
+        self.int_weights = {key: 1 for key in self.int_ops.get_all_elements()}
+        for key in frequency:
+            assert key in self.int_weights
+            self.int_weights[key] = frequency[key] + 1
 
     def set_cmp_flags(self, cmp_flags: list[int]):
         assert len(cmp_flags) != 0
@@ -293,15 +324,18 @@ class SynthesizerContext:
         return False
 
     def select_operand(
-        self, vals: list[SSAValue], constraint: Callable[[SSAValue], bool]
-    ) -> SSAValue:
+        self,
+        vals: list[SSAValue],
+        constraint: Callable[[SSAValue], bool],
+        exclude_val: SSAValue | None = None,
+    ) -> SSAValue | None:
         current_pos = self.random.randint(0, len(vals) - 1)
         for _ in range(len(vals)):
-            if not constraint(vals[current_pos]):
+            if not constraint(vals[current_pos]) and vals[current_pos] != exclude_val:
                 return vals[current_pos]
             current_pos += 1
             current_pos %= len(vals)
-        raise ValueError("Cannot find any matched operand")
+        return None
 
     def select_two_operand(
         self,
@@ -309,13 +343,16 @@ class SynthesizerContext:
         constraint1: Callable[[SSAValue], bool],
         constraint2: Callable[[SSAValue], bool] | None = None,
         is_idempotent: bool = False,
-    ) -> tuple[SSAValue, SSAValue]:
+    ) -> tuple[SSAValue | None, SSAValue | None]:
         val1 = self.select_operand(vals, constraint1)
+        if val1 is None:
+            return None, None
         if constraint2 is None:
             constraint2 = constraint1
         if is_idempotent:
-            constraint2 = lambda val=SSAValue: constraint1(val) and val != val1
-        val2 = self.select_operand(vals, constraint2)
+            val2 = self.select_operand(vals, constraint2, val1)
+        else:
+            val2 = self.select_operand(vals, constraint2)
         return val1, val2
 
     def build_i1_op(
@@ -323,13 +360,15 @@ class SynthesizerContext:
         result_type: type[Operation],
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
-    ) -> Operation:
+    ) -> Operation | None:
         if result_type == CmpOp:
             val1, val2 = self.select_two_operand(
                 int_vals,
                 self.get_constraint(result_type),
                 is_idempotent=self.is_idempotent(result_type),
             )
+            if val1 is None or val2 is None:
+                return None
             return CmpOp(
                 val1,
                 val2,
@@ -341,6 +380,8 @@ class SynthesizerContext:
             self.get_constraint(result_type),
             is_idempotent=self.is_idempotent(result_type),
         )
+        if val1 is None or val2 is None:
+            return None
         result = result_type(
             val1,  # pyright: ignore [reportCallIssue]
             val2,
@@ -353,7 +394,7 @@ class SynthesizerContext:
         result_type: type[Operation],
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
-    ) -> Operation:
+    ) -> Operation | None:
         assert result_type is not None
         if result_type == SelectOp:
             (
@@ -368,10 +409,14 @@ class SynthesizerContext:
                 false_constraint,
                 is_idempotent=self.is_idempotent(result_type),
             )
+            if cond is None or true_val is None or false_val is None:
+                return None
             return SelectOp(cond, true_val, false_val)
         elif issubclass(result_type, UnaryOp):
             val = self.select_operand(int_vals, self.get_constraint(result_type))
-            return result_type(val)
+            if val is None:
+                return None
+            return result_type(val)  # pyright: ignore [reportCallIssue]
         elif self.skip_trivial and result_type in optimize_complex_operands_selection:
             constraint1, constraint2 = optimize_complex_operands_selection[result_type]
             val1, val2 = self.select_two_operand(
@@ -386,6 +431,9 @@ class SynthesizerContext:
                 self.get_constraint(result_type),
                 is_idempotent=self.is_idempotent(result_type),
             )
+
+        if val1 is None or val2 is None:
+            return None
         result = result_type(
             val1,  # pyright: ignore [reportCallIssue]
             val2,
@@ -397,8 +445,11 @@ class SynthesizerContext:
         self,
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
-    ) -> Operation:
-        result_type = self.i1_ops.get_random_element()
+    ) -> Operation | None:
+        if self.weighted:
+            result_type = self.i1_ops.get_weighted_random_element(self.i1_weights)
+        else:
+            result_type = self.i1_ops.get_random_element()
         assert result_type is not None
         return self.build_i1_op(result_type, int_vals, i1_vals)
 
@@ -406,8 +457,11 @@ class SynthesizerContext:
         self,
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
-    ) -> Operation:
-        result_type = self.int_ops.get_random_element()
+    ) -> Operation | None:
+        if self.weighted:
+            result_type = self.int_ops.get_weighted_random_element(self.int_weights)
+        else:
+            result_type = self.int_ops.get_random_element()
         assert result_type is not None
         return self.build_int_op(result_type, int_vals, i1_vals)
 
@@ -416,7 +470,7 @@ class SynthesizerContext:
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
         except_op: Operation,
-    ) -> Operation:
+    ) -> Operation | None:
         result_type = self.i1_ops.get_random_element_if(
             lambda op_ty=type[Operation]: op_ty != type(except_op)
         )
@@ -428,7 +482,7 @@ class SynthesizerContext:
         int_vals: list[SSAValue],
         i1_vals: list[SSAValue],
         except_op: Operation,
-    ) -> Operation:
+    ) -> Operation | None:
         result_type = self.int_ops.get_random_element_if(
             lambda op_ty=type[Operation]: op_ty != type(except_op)
         )
@@ -442,9 +496,15 @@ class SynthesizerContext:
         if not self.skip_trivial:
             # NOTICE: consider not the same value?
             if isinstance(op.operands[ith].type, TransIntegerType):
-                op.operands[ith] = self.select_operand(int_vals, no_constraint)
+                val = self.select_operand(int_vals, no_constraint)
+                if val is None:
+                    return False
+                op.operands[ith] = val
             elif op.operands[ith].type == i1:
-                op.operands[ith] = self.select_operand(i1_vals, no_constraint)
+                val = self.select_operand(int_vals, no_constraint)
+                if val is None:
+                    return False
+                op.operands[ith] = val
             else:
                 raise ValueError(
                     "unknown type when replacing operand: " + str(op.operands[ith].type)
@@ -469,15 +529,35 @@ class SynthesizerContext:
                     constraint(val) and val != op.operands[1 - ith]
                 )
         if isinstance(op.operands[ith].type, TransIntegerType):
-            op.operands[ith] = self.select_operand(
+            val = self.select_operand(
                 int_vals, constraint if new_constraint is None else new_constraint
             )
+            if val is None:
+                return False
+            op.operands[ith] = val
         elif op.operands[ith].type == i1:
-            op.operands[ith] = self.select_operand(
+            val = self.select_operand(
                 i1_vals, constraint if new_constraint is None else new_constraint
             )
+            if val is None:
+                return False
+            op.operands[ith] = val
         else:
             raise ValueError(
                 "unknown type when replacing operand: " + str(op.operands[ith].type)
             )
         return True
+
+    @staticmethod
+    def count_op_frequency(
+        func: FuncOp,
+    ) -> tuple[dict[type[Operation], int], dict[type[Operation], int]]:
+        freq_int: dict[type[Operation], int] = {}
+        freq_i1: dict[type[Operation], int] = {}
+        for op in func.body.block.ops:
+            ty = type(op)
+            if ty in full_int_ops:
+                freq_int[ty] = freq_int.get(ty, 0) + 1
+            if ty in full_i1_ops:
+                freq_i1[ty] = freq_i1.get(ty, 0) + 1
+        return freq_int, freq_i1
