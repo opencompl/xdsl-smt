@@ -275,9 +275,21 @@ class URemOp(BinaryBVOp, SimpleSMTLibOp):
         return "bvurem"
 
 
+class SRemCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SRemFold,
+        )
+
+        return (SRemFold(),)
+
+
 @irdl_op_definition
 class SRemOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.srem"
+
+    traits = traits_def(traits.Pure(), SRemCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsrem"
@@ -315,9 +327,21 @@ class AShrOp(BinaryBVOp, SimpleSMTLibOp):
         return "bvashr"
 
 
+class SDivCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            SDivFold,
+        )
+
+        return (SDivFold(),)
+
+
 @irdl_op_definition
 class SDivOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.sdiv"
+
+    traits = traits_def(traits.Pure(), SDivCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvsdiv"
@@ -336,17 +360,41 @@ class UDivOp(BinaryBVOp, SimpleSMTLibOp):
 ################################################################################
 
 
+class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            OrCanonicalizationPattern,
+        )
+
+        return (OrCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class OrOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.or"
+
+    traits = traits_def(traits.Pure(), OrCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvor"
 
 
+class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            AndCanonicalizationPattern,
+        )
+
+        return (AndCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class AndOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.and"
+
+    traits = traits_def(traits.Pure(), AndCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvand"
@@ -360,9 +408,21 @@ class NotOp(UnaryBVOp, SimpleSMTLibOp):
         return "bvnot"
 
 
+class XorCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+    @classmethod
+    def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
+        from xdsl_smt.passes.canonicalization_patterns.smt_bv import (
+            XorCanonicalizationPattern,
+        )
+
+        return (XorCanonicalizationPattern(),)
+
+
 @irdl_op_definition
 class XorOp(BinaryBVOp, SimpleSMTLibOp):
     name = "smt.bv.xor"
+
+    traits = traits_def(traits.Pure(), XorCanonicalizationPatterns())
 
     def op_name(self) -> str:
         return "bvxor"

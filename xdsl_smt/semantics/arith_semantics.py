@@ -750,38 +750,26 @@ class CeilDivSISemantics(SimplePurePoisonSemantics):
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
-        # Division when the result is positive
-        # we do ((lhs - 1) / rhs) + 1 for lhs and rhs positive
-        # and ((lhs + 1)) / lhs) + 1 for lhs and rhs negative
-        is_lhs_positive = rewriter.insert(smt_bv.SltOp(lhs, zero)).res
-        opposite_one = rewriter.insert(smt.IteOp(is_lhs_positive, minus_one, one)).res
-        lhs_minus_one = rewriter.insert(smt_bv.SubOp(lhs, opposite_one)).res
-        floor_div = rewriter.insert(smt_bv.SDivOp(lhs_minus_one, rhs)).res
-        positive_res = rewriter.insert(smt_bv.AddOp(floor_div, one)).res
+        # Do the lhs / rhs division
+        div = rewriter.insert(smt_bv.SDivOp(lhs, rhs)).res
 
-        # If the result is non positive
-        # We do - ((- lhs) / rhs)
-        minus_lhs = rewriter.insert(smt_bv.SubOp(zero, lhs)).res
-        neg_floor_div = rewriter.insert(smt_bv.SDivOp(minus_lhs, rhs)).res
-        nonpositive_res = rewriter.insert(smt_bv.SubOp(zero, neg_floor_div)).res
+        # Check if we should round up rather than towards zero
+        # This happens when the remainder is not zero and both operands have the same sign
 
-        # Check if the result is positive
-        is_rhs_positive = rewriter.insert(smt_bv.SltOp(rhs, zero)).res
-        is_lhs_negative = rewriter.insert(smt_bv.SltOp(zero, lhs)).res
-        is_rhs_negative = rewriter.insert(smt_bv.SltOp(zero, rhs)).res
-        are_both_positive = rewriter.insert(
-            smt.AndOp(is_lhs_positive, is_rhs_positive)
-        ).res
-        are_both_negative = rewriter.insert(
-            smt.AndOp(is_lhs_negative, is_rhs_negative)
-        ).res
-        is_positive = rewriter.insert(
-            smt.OrOp(are_both_positive, are_both_negative)
+        mul = rewriter.insert(smt_bv.MulOp(div, rhs)).res
+        is_remainder_not_zero = rewriter.insert(smt.DistinctOp(mul, lhs)).res
+        is_lhs_positive = rewriter.insert(smt_bv.SgtOp(lhs, zero)).res
+        is_rhs_positive = rewriter.insert(smt_bv.SgtOp(rhs, zero)).res
+        same_sign = rewriter.insert(smt.EqOp(is_lhs_positive, is_rhs_positive)).res
+        should_round_up = rewriter.insert(
+            smt.AndOp(same_sign, is_remainder_not_zero)
         ).res
 
-        value_res = rewriter.insert(
-            smt.IteOp(is_positive, positive_res, nonpositive_res)
-        ).res
+        # If we should round up, add one to the result
+        one = rewriter.insert(smt_bv.ConstantOp(1, width)).res
+        div_plus_one = rewriter.insert(smt_bv.AddOp(div, one)).res
+        value_res = rewriter.insert(smt.IteOp(should_round_up, div_plus_one, div)).res
+
         res = rewriter.insert(smt_utils.PairOp(value_res, lhs_poison)).res
 
         return ((res,), new_state)
