@@ -668,6 +668,8 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.XorOp: TrivialOpSemantics(transfer.XorOp, smt_bv.XorOp),
     transfer.SubOp: TrivialOpSemantics(transfer.SubOp, smt_bv.SubOp),
     transfer.NegOp: TrivialOpSemantics(transfer.NegOp, smt_bv.NotOp),
+    transfer.LShrOp: TrivialOpSemantics(transfer.LShrOp, smt_bv.LShrOp),
+    transfer.AShrOp: TrivialOpSemantics(transfer.AShrOp, smt_bv.AShrOp),
     transfer.ShlOp: TrivialOpSemantics(transfer.ShlOp, smt_bv.ShlOp),
     transfer.ConcatOp: ConcatOpSemantics(),
     transfer.RepeatOp: RepeatOpSemantics(),

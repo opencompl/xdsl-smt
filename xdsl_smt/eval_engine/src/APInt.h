@@ -789,7 +789,7 @@ public:
   unsigned countLeadingOnes() const { return countl_one(); }
   unsigned countTrailingZeros() const { return countr_zero(); }
   unsigned countr_one() const {
-    return static_cast<unsigned int>(__builtin_clzll(~VAL));
+    return static_cast<unsigned int>(__builtin_ctzll(~VAL));
   }
   unsigned countTrailingOnes() const { return countr_one(); }
   unsigned popcount() const {

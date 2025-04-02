@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os.path
-import subprocess
 import time
 from typing import cast, Callable
 
@@ -15,21 +14,17 @@ from xdsl.utils.hints import isa
 from xdsl_smt.utils.compare_result import CompareResult
 from ..dialects.smt_dialect import (
     SMTDialect,
-    DefineFunOp,
 )
 from ..dialects.smt_bitvector_dialect import (
     SMTBitVectorDialect,
     ConstantOp,
 )
 from xdsl_smt.dialects.transfer import (
-    AbstractValueType,
     TransIntegerType,
-    TupleType,
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 import xdsl_smt.eval_engine.eval as eval_engine
-from xdsl.ir import BlockArgument
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
@@ -37,37 +32,21 @@ from xdsl.dialects.builtin import (
     IntegerType,
     i1,
     FunctionType,
-    AnyArrayAttr,
     ArrayAttr,
     StringAttr,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from ..dialects.transfer import Transfer
-from xdsl.dialects.arith import Arith
+from xdsl.dialects.arith import Arith, ConstantOp
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.hw import HW
 from ..passes.dead_code_elimination import DeadCodeElimination
-from ..passes.merge_func_results import MergeFuncResultsPass
-from ..passes.transfer_inline import FunctionCallInline
+
 import xdsl.dialects.comb as comb
 from xdsl.ir import Operation
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMTPass, SMTLowerer
-from ..passes.lower_effects import LowerEffectPass
-from ..passes.lower_to_smt import (
-    func_to_smt_patterns,
-)
+
 from ..passes.transfer_lower import LowerToCpp
-from xdsl_smt.semantics import transfer_semantics
-from ..traits.smt_printer import print_to_smtlib
-from xdsl_smt.passes.lower_pairs import LowerPairs
-from xdsl.transforms.canonicalize import CanonicalizePass
-from xdsl_smt.semantics.arith_semantics import arith_semantics
-from xdsl_smt.semantics.builtin_semantics import IntegerTypeSemantics
-from xdsl_smt.semantics.transfer_semantics import (
-    transfer_semantics,
-    AbstractValueTypeSemantics,
-    TransferIntegerTypeSemantics,
-)
+
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
@@ -87,15 +66,6 @@ from ..utils.mutation_program import MutationProgram
 from ..utils.solution_set import SolutionSet, UnsizedSolutionSet, SizedSolutionSet
 from ..utils.synthesizer_context import SynthesizerContext
 from ..utils.random import Random
-from ..utils.transfer_function_check_util import (
-    forward_soundness_check,
-    backward_soundness_check,
-)
-from ..utils.transfer_function_util import (
-    FunctionCollection,
-    SMTTransferFunction,
-    fixDefiningOpReturnType,
-)
 
 # from ..utils.visualize import print_figure
 
@@ -172,69 +142,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
-    # cloned_op = op.clone()
-    cloned_op = op
-    stream = StringIO()
-    LowerPairs().apply(ctx, cloned_op)
-    CanonicalizePass().apply(ctx, cloned_op)
-    DeadCodeElimination().apply(ctx, cloned_op)
-
-    print_to_smtlib(cloned_op, stream)
-    res = subprocess.run(
-        ["z3", "-in"],
-        capture_output=True,
-        input=stream.getvalue(),
-        text=True,
-    )
-    if res.returncode != 0:
-        raise Exception(res.stderr)
-    return "unsat" in res.stdout
-
-
-def get_model(ctx: MLContext, op: ModuleOp) -> tuple[bool, str]:
-    cloned_op = op.clone()
-    stream = StringIO()
-    LowerPairs().apply(ctx, cloned_op)
-    CanonicalizePass().apply(ctx, cloned_op)
-    DeadCodeElimination().apply(ctx, cloned_op)
-
-    print_to_smtlib(cloned_op, stream)
-    print("\n(eval const_first)\n", file=stream)
-    # print(stream.getvalue())
-    res = subprocess.run(
-        ["z3", "-in"],
-        capture_output=True,
-        input=stream.getvalue(),
-        text=True,
-    )
-    if res.returncode != 0:
-        return False, ""
-    return True, str(res.stdout)
-
-
-def lowerToSMTModule(module: ModuleOp, width: int, ctx: MLContext):
-    # lower to SMT
-    SMTLowerer.rewrite_patterns = {
-        **func_to_smt_patterns,
-    }
-    SMTLowerer.type_lowerers = {
-        IntegerType: IntegerTypeSemantics(),
-        AbstractValueType: AbstractValueTypeSemantics(),
-        TransIntegerType: TransferIntegerTypeSemantics(width),
-        # tuple and abstract use the same type lowerers
-        TupleType: AbstractValueTypeSemantics(),
-    }
-    SMTLowerer.op_semantics = {
-        **arith_semantics,
-        **transfer_semantics,
-        **comb_semantics,
-    }
-    LowerToSMTPass().apply(ctx, module)
-    MergeFuncResultsPass().apply(ctx, module)
-    LowerEffectPass().apply(ctx, module)
-
-
 def parse_file(ctx: MLContext, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
@@ -257,129 +164,6 @@ def is_forward(func: FuncOp) -> bool:
         assert isinstance(forward, IntegerAttr)
         return forward.value.data == 1
     return False
-
-
-def need_replace_int_attr(func: FuncOp) -> bool:
-    if "replace_int_attr" in func.attributes:
-        forward = func.attributes["replace_int_attr"]
-        assert isinstance(forward, IntegerAttr)
-        return forward.value.data == 1
-    return False
-
-
-def get_operationNo(func: FuncOp) -> int:
-    if "operationNo" in func.attributes:
-        assert isinstance(func.attributes["operationNo"], IntegerAttr)
-        return func.attributes["operationNo"].value.data
-    return -1
-
-
-def get_int_attr_arg(func: FuncOp) -> list[int]:
-    int_attr: list[int] = []
-    assert "int_attr" in func.attributes
-    func_int_attr = func.attributes["int_attr"]
-    assert isa(func_int_attr, AnyArrayAttr)
-    for attr in func_int_attr.data:
-        assert isinstance(attr, IntegerAttr)
-        int_attr.append(attr.value.data)
-    return int_attr
-
-
-def generateIntAttrArg(int_attr_arg: list[int] | None) -> dict[int, int]:
-    if int_attr_arg is None:
-        return {}
-    intAttr: dict[int, int] = {}
-    for i in int_attr_arg:
-        intAttr[i] = 0
-    return intAttr
-
-
-def nextIntAttrArg(intAttr: dict[int, int], width: int) -> bool:
-    if not intAttr:
-        return False
-    maxArity: int = 0
-    for i in intAttr.keys():
-        maxArity = max(i, maxArity)
-    hasCarry: bool = True
-    for i in range(maxArity, -1, -1):
-        if not hasCarry:
-            break
-        if i in intAttr:
-            intAttr[i] += 1
-            if intAttr[i] >= width:
-                intAttr[i] %= width
-            else:
-                hasCarry = False
-    return not hasCarry
-
-
-def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
-    global TMP_MODULE
-    TMP_MODULE.append(ModuleOp([func.clone()]))
-    lowerToSMTModule(TMP_MODULE[-1], width, ctx)
-    resultFunc = TMP_MODULE[-1].ops.first
-    assert isinstance(resultFunc, DefineFunOp)
-    return resultFunc
-
-
-def get_dynamic_transfer_function(
-    func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int], ctx: MLContext
-) -> DefineFunOp:
-    module.body.block.add_op(func)
-    args: list[BlockArgument] = []
-    for arg_idx, val in int_attr.items():
-        bv_constant = ConstantOp(val, width)
-        assert isinstance(func.body.block.first_op, Operation)
-        func.body.block.insert_op_before(bv_constant, func.body.block.first_op)
-        args.append(func.body.block.args[arg_idx])
-        args[-1].replace_by(bv_constant.res)
-    for arg in args:
-        func.body.block.erase_arg(arg)
-    new_args_type = [arg.type for arg in func.body.block.args]
-    new_function_type = FunctionType.from_lists(
-        new_args_type, func.function_type.outputs.data
-    )
-    func.function_type = new_function_type
-
-    lowerToSMTModule(module, width, ctx)
-    resultFunc = module.ops.first
-    assert isinstance(resultFunc, DefineFunOp)
-    return fixDefiningOpReturnType(resultFunc)
-
-
-def get_dynamic_concrete_function_name(concrete_op_name: str) -> str:
-    if concrete_op_name == "comb.extract":
-        return "comb_extract"
-    assert False and "Unsupported concrete function"
-
-
-# Used to construct concrete operations with integer attrs when enumerating all possible int attrs
-# Thus this can only be constructed at the run time
-def get_dynamic_concrete_function(
-    concrete_func_name: str, width: int, intAttr: dict[int, int], is_forward: bool
-) -> FuncOp:
-    result = None
-    intTy = IntegerType(width)
-    combOp = None
-    if concrete_func_name == "comb_extract":
-        delta: int = 1 if not is_forward else 0
-        resultWidth = intAttr[1 + delta]
-        resultIntTy = IntegerType(resultWidth)
-        low_bit = intAttr[2 + delta]
-        funcTy = FunctionType.from_lists([intTy], [resultIntTy])
-        result = FuncOp(concrete_func_name, funcTy)
-        combOp = comb.ExtractOp(
-            result.args[0], IntegerAttr.from_int_and_width(low_bit, 64), resultIntTy
-        )
-    else:
-        print(concrete_func_name)
-        assert False and "Not supported concrete function yet"
-    returnOp = ReturnOp(combOp.results[0])
-    result.body.block.add_ops([combOp, returnOp])
-    assert result is not None and (
-        "Cannot find the concrete function for" + concrete_func_name
-    )
-    return result
 
 
 def get_concrete_function(
@@ -427,35 +211,6 @@ def get_concrete_function(
     return result
 
 
-def soundness_check(
-    smt_transfer_function: SMTTransferFunction,
-    domain_constraint: FunctionCollection,
-    instance_constraint: FunctionCollection,
-    int_attr: dict[int, int],
-    ctx: MLContext,
-):
-    query_module = ModuleOp([])
-    if smt_transfer_function.is_forward:
-        added_ops: list[Operation] = forward_soundness_check(
-            smt_transfer_function,
-            domain_constraint,
-            instance_constraint,
-            int_attr,
-        )
-    else:
-        added_ops: list[Operation] = backward_soundness_check(
-            smt_transfer_function,
-            domain_constraint,
-            instance_constraint,
-            int_attr,
-        )
-    query_module.body.block.add_ops(added_ops)
-    FunctionCallInline(True, {}).apply(ctx, query_module)
-    verify_res = verify_pattern(ctx, query_module)
-    print("Soundness Check result:", verify_res)
-    return verify_res
-
-
 def print_concrete_function_to_cpp(func: FuncOp) -> str:
     sio = StringIO()
     LowerToCpp(sio, True).apply(ctx, cast(ModuleOp, func))
@@ -468,12 +223,13 @@ def print_to_cpp(func: FuncOp) -> str:
     return sio.getvalue()
 
 
-def get_default_op_constraint():
-    return """
-    extern "C" int op_constraint(APInt arg0,APInt arg1){
-	return true;
-    }
-    """
+def get_default_op_constraint(concrete_func: FuncOp):
+    cond_type = FunctionType.from_lists(concrete_func.function_type.inputs.data, [i1])
+    func = FuncOp("op_constraint", cond_type)
+    true_op: ConstantOp = ConstantOp(IntegerAttr.from_int_and_width(1, 1), i1)
+    return_op = ReturnOp(true_op)
+    func.body.block.add_ops([true_op, return_op])
+    return func
 
 
 SYNTH_WIDTH = 4
@@ -679,6 +435,9 @@ def synthesize_transfer_function(
     logger: logging.Logger,
     # Evalate transfer functions
     eval_func: Callable[[list[FunctionWithCondition]], list[CompareResult]],
+    concrete_func: FuncOp,
+    helper_funcs: list[FuncOp],
+    ctx: MLContext,
     # Global arguments
     num_programs: int,
     program_length: int,
@@ -887,6 +646,8 @@ def synthesize_transfer_function(
     new_solution_set: SolutionSet = solution_set.construct_new_solution_set(
         candidates_sp, candidates_p, candidates_c
     )
+    new_solution_set.remove_unsound_solutions(concrete_func, helper_funcs, ctx)
+    new_solution_set = new_solution_set.construct_new_solution_set([], [], [])
 
     if solution_size == 0:
         print_set_of_funcs_to_file(
@@ -978,30 +739,6 @@ def main() -> None:
     context_cond.use_full_int_ops()
     context_cond.use_full_i1_ops()
 
-    domain_constraint_func = ""
-    instance_constraint_func = ""
-    op_constraint_func = get_default_op_constraint()
-    meet_func = ""
-    get_top_func = ""
-    # Handle helper funcitons
-    for func in module.ops:
-        if isinstance(func, FuncOp):
-            func_name = func.sym_name.data
-            if func_name == DOMAIN_CONSTRAINT:
-                domain_constraint_func = print_to_cpp(func)
-            elif func_name == INSTANCE_CONSTRAINT:
-                instance_constraint_func = print_to_cpp(func)
-            elif func_name == OP_CONSTRAINT:
-                op_constraint_func = print_to_cpp(func)
-            elif func_name == MEET_FUNC:
-                meet_func = print_to_cpp(func)
-            elif func_name == GET_TOP_FUNC:
-                get_top_func = print_to_cpp(func)
-                global get_top_func_op
-                get_top_func_op = func
-    if meet_func == "":
-        solution_size = 1
-
     ref_funcs: list[FuncOp] = []
     for func in module.ops:
         if isinstance(func, FuncOp) and is_ref_function(func):
@@ -1010,7 +747,7 @@ def main() -> None:
     base_transfers = [FunctionWithCondition(f) for f in ref_funcs]
 
     transfer_func = None
-    crt_func = ""
+    crt_func = None
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
             if isinstance(func, FuncOp) and "applied_to" in func.attributes:
@@ -1021,16 +758,47 @@ def main() -> None:
                 concrete_func = get_concrete_function(
                     concrete_func_name, SYNTH_WIDTH, None
                 )
-                crt_func = print_concrete_function_to_cpp(concrete_func)
+                crt_func = concrete_func
                 transfer_func = func
                 break
 
     assert isinstance(
         transfer_func, FuncOp
     ), "No transfer function is found in input file"
-    assert crt_func != "", "Failed to get concrete function from input file"
+    assert crt_func is not None, "Failed to get concrete function from input file"
 
-    helper_funcs = [
+    domain_constraint_func: FuncOp | None = None
+    instance_constraint_func: FuncOp | None = None
+    op_constraint_func: FuncOp | None = None
+    meet_func: FuncOp | None = None
+    get_top_func: FuncOp | None = None
+    # Handle helper funcitons
+    for func in module.ops:
+        if isinstance(func, FuncOp):
+            func_name = func.sym_name.data
+            if func_name == DOMAIN_CONSTRAINT:
+                domain_constraint_func = func
+            elif func_name == INSTANCE_CONSTRAINT:
+                instance_constraint_func = func
+            elif func_name == OP_CONSTRAINT:
+                op_constraint_func = func
+            elif func_name == MEET_FUNC:
+                meet_func = func
+            elif func_name == GET_TOP_FUNC:
+                get_top_func = func
+                global get_top_func_op
+                get_top_func_op = func
+    if meet_func is None:
+        solution_size = 1
+
+    if op_constraint_func is None:
+        op_constraint_func = get_default_op_constraint(crt_func)
+    assert instance_constraint_func is not None
+    assert domain_constraint_func is not None
+    assert meet_func is not None
+    assert get_top_func is not None
+
+    helper_funcs: list[FuncOp] = [
         crt_func,
         instance_constraint_func,
         domain_constraint_func,
@@ -1038,10 +806,14 @@ def main() -> None:
         get_top_func,
     ]
 
+    helper_funcs_cpp: list[str] = [print_concrete_function_to_cpp(crt_func)] + [
+        print_to_cpp(func) for func in helper_funcs[1:]
+    ]
+
     solution_eval_func = solution_set_eval_func(
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
-        helper_funcs,
+        helper_funcs_cpp,
     )
 
     if solution_size == 0:
@@ -1057,7 +829,7 @@ def main() -> None:
         base_transfers,
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
-        helper_funcs,
+        helper_funcs_cpp,
     )
 
     # current_prog_len = 10
@@ -1084,6 +856,9 @@ def main() -> None:
             solution_set,
             logger,
             eval_func,
+            crt_func,
+            helper_funcs[1:],
+            ctx,
             num_programs,
             program_length,
             condition_length,
@@ -1112,7 +887,7 @@ def main() -> None:
         [solution_str],
         [],
         [],
-        helper_funcs + [meet_func],
+        helper_funcs_cpp + [print_to_cpp(meet_func)],
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
     )

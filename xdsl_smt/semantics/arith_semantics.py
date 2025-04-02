@@ -246,135 +246,142 @@ class ShliSemantics(SimplePurePoisonSemantics):
         return ((value_op.res, shift_amount_too_big.res),)
 
 
-class DivsiSemantics(SimplePoisonSemantics):
-    def get_simple_semantics(
+class DivsiSemantics(OperationSemantics):
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue,
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> tuple[Sequence[tuple[SSAValue, SSAValue | None]], SSAValue]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for division by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_div_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_div_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
 
         # Check for underflow
-        minimum_value = smt_bv.ConstantOp(2 ** (width - 1), width)
-        minus_one = smt_bv.ConstantOp(2**width - 1, width)
-        lhs_is_min_val = smt.EqOp(operands[0], minimum_value.res)
-        rhs_is_minus_one = smt.EqOp(operands[1], minus_one.res)
-        is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+        minimum_value = rewriter.insert(smt_bv.ConstantOp(2 ** (width - 1), width)).res
+        minus_one = rewriter.insert(smt_bv.ConstantOp(2**width - 1, width)).res
+        lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
+        rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
+        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
 
-        # New poison cases
-        trigger_ub = smt_ub.TriggerOp(effect_state)
-        new_state = smt.IteOp(is_div_by_zero.res, trigger_ub.res, effect_state)
+        # UB cases: underflow, division by zero, or rhs being poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, is_underflow)).res
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.SDivOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.SDivOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_div_by_zero,
-                minimum_value,
-                minus_one,
-                lhs_is_min_val,
-                rhs_is_minus_one,
-                is_underflow,
-                trigger_ub,
-                new_state,
-                value_op,
-            ]
-        )
-        return (((value_op.res, is_underflow.res),), new_state.res)
+        return ((res,), new_state)
 
 
 class DivuiSemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for division by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_div_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_div_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
+
+        # UB cases: division by zero or rhs being poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.UDivOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.UDivOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_div_by_zero,
-                value_op,
-            ]
-        )
-        return ((value_op.res, is_div_by_zero.res),)
+        return ((res,), new_state)
 
 
 class RemsiSemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for remainder by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_rem_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_rem_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
+
+        # UB cases: remainder by zero or rhs poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.SRemOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_rem_by_zero,
-                value_op,
-            ]
-        )
-        return ((value_op.res, is_rem_by_zero.res),)
+        return ((res,), new_state)
 
 
 class RemuiSemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for remainder by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_rem_by_zero = smt.EqOp(operands[1], zero.res)
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_rem_by_zero = rewriter.insert(smt.EqOp(rhs, zero)).res
+
+        # UB cases: remainder by zero or rhs poison
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
-        value_op = smt_bv.URemOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.URemOp(lhs, rhs)).res
+        res = rewriter.insert(smt_utils.PairOp(value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                is_rem_by_zero,
-                value_op,
-            ]
-        )
-        return ((value_op.res, is_rem_by_zero.res),)
+        return ((res,), new_state)
 
 
 class ShrsiSemantics(SimplePurePoisonSemantics):
@@ -664,200 +671,174 @@ class ExtSISemantics(SimplePurePoisonSemantics):
         return ((op.res, None),)
 
 
-class CeilDivUISemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+class CeilDivUISemantics(SimplePoisonSemantics):
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue]:
+        assert effect_state is not None
 
-        zero = smt_bv.ConstantOp(0, width)
-        one = smt_bv.ConstantOp(1, width)
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
+
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        one = rewriter.insert(smt_bv.ConstantOp(1, width)).res
 
         # Check for division by zero
-        is_rhs_zero = smt.EqOp(zero.res, operands[1])
+        is_rhs_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
+
+        # UB cases: division by zero or rhs poison
+        is_ub = rewriter.insert(smt.OrOp(is_rhs_zero, rhs_poison)).res
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # We need to check if the lhs is zero, so we don't underflow later on
-        is_lhs_zero = smt.EqOp(zero.res, operands[0])
+        is_lhs_zero = rewriter.insert(smt.EqOp(zero, lhs)).res
 
         # Compute floor((lhs - 1) / rhs) + 1
-        lhs_minus_one = smt_bv.SubOp(operands[0], one.res)
-        floor_div = smt_bv.UDivOp(lhs_minus_one.res, operands[1])
-        nonzero_res = smt_bv.AddOp(floor_div.res, one.res)
+        lhs_minus_one = rewriter.insert(smt_bv.SubOp(lhs, one)).res
+        floor_div = rewriter.insert(smt_bv.UDivOp(lhs_minus_one, rhs)).res
+        nonzero_res = rewriter.insert(smt_bv.AddOp(floor_div, one)).res
 
         # If the lhs is zero, the result is zero
-        value_res = smt.IteOp(is_lhs_zero.res, zero.res, nonzero_res.res)
+        value_res = rewriter.insert(smt.IteOp(is_lhs_zero, zero, nonzero_res)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                zero,
-                one,
-                is_rhs_zero,
-                is_lhs_zero,
-                lhs_minus_one,
-                floor_div,
-                nonzero_res,
-                value_res,
-            ]
-        )
+        res = rewriter.insert(smt_utils.PairOp(value_res, lhs_poison)).res
 
-        return ((value_res.res, is_rhs_zero.res),)
+        return ((res,), new_state)
 
 
 class CeilDivSISemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for underflow
-        minimum_value = smt_bv.ConstantOp(2 ** (width - 1), width)
-        minus_one = smt_bv.ConstantOp(2**width - 1, width)
-        one = smt_bv.ConstantOp(1, width)
-        lhs_is_min_val = smt.EqOp(operands[0], minimum_value.res)
-        rhs_is_minus_one = smt.EqOp(operands[1], minus_one.res)
-        is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+        minimum_value = rewriter.insert(smt_bv.ConstantOp(2 ** (width - 1), width)).res
+        minus_one = rewriter.insert(smt_bv.ConstantOp(2**width - 1, width)).res
+        one = rewriter.insert(smt_bv.ConstantOp(1, width)).res
+        lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
+        rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
+        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
 
         # Check for division by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_div_by_zero = smt.EqOp(zero.res, operands[1])
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_div_by_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
 
-        # Poison if underflow or division by zero or previous poison
-        introduce_poison = smt.OrOp(is_underflow.res, is_div_by_zero.res)
+        # UB cases: underflow, division by zero or rhs poison
+        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).res
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Division when the result is positive
         # we do ((lhs - 1) / rhs) + 1 for lhs and rhs positive
         # and ((lhs + 1)) / lhs) + 1 for lhs and rhs negative
-        is_lhs_positive = smt_bv.SltOp(operands[0], zero.res)
-        opposite_one = smt.IteOp(is_lhs_positive.res, minus_one.res, one.res)
-        lhs_minus_one = smt_bv.SubOp(operands[0], opposite_one.res)
-        floor_div = smt_bv.SDivOp(lhs_minus_one.res, operands[1])
-        positive_res = smt_bv.AddOp(floor_div.res, one.res)
+        is_lhs_positive = rewriter.insert(smt_bv.SltOp(lhs, zero)).res
+        opposite_one = rewriter.insert(smt.IteOp(is_lhs_positive, minus_one, one)).res
+        lhs_minus_one = rewriter.insert(smt_bv.SubOp(lhs, opposite_one)).res
+        floor_div = rewriter.insert(smt_bv.SDivOp(lhs_minus_one, rhs)).res
+        positive_res = rewriter.insert(smt_bv.AddOp(floor_div, one)).res
 
         # If the result is non positive
         # We do - ((- lhs) / rhs)
-        minus_lhs = smt_bv.SubOp(zero.res, operands[0])
-        neg_floor_div = smt_bv.SDivOp(minus_lhs.res, operands[1])
-        nonpositive_res = smt_bv.SubOp(zero.res, neg_floor_div.res)
+        minus_lhs = rewriter.insert(smt_bv.SubOp(zero, lhs)).res
+        neg_floor_div = rewriter.insert(smt_bv.SDivOp(minus_lhs, rhs)).res
+        nonpositive_res = rewriter.insert(smt_bv.SubOp(zero, neg_floor_div)).res
 
         # Check if the result is positive
-        is_rhs_positive = smt_bv.SltOp(operands[1], zero.res)
-        is_lhs_negative = smt_bv.SltOp(zero.res, operands[0])
-        is_rhs_negative = smt_bv.SltOp(zero.res, operands[1])
-        are_both_positive = smt.AndOp(
-            is_lhs_positive.res,
-            is_rhs_positive.res,
-        )
-        are_both_negative = smt.AndOp(
-            is_lhs_negative.res,
-            is_rhs_negative.res,
-        )
-        is_positive = smt.OrOp(are_both_positive.res, are_both_negative.res)
+        is_rhs_positive = rewriter.insert(smt_bv.SltOp(rhs, zero)).res
+        is_lhs_negative = rewriter.insert(smt_bv.SltOp(zero, lhs)).res
+        is_rhs_negative = rewriter.insert(smt_bv.SltOp(zero, rhs)).res
+        are_both_positive = rewriter.insert(
+            smt.AndOp(is_lhs_positive, is_rhs_positive)
+        ).res
+        are_both_negative = rewriter.insert(
+            smt.AndOp(is_lhs_negative, is_rhs_negative)
+        ).res
+        is_positive = rewriter.insert(
+            smt.OrOp(are_both_positive, are_both_negative)
+        ).res
 
-        value_res = smt.IteOp(is_positive.res, positive_res.res, nonpositive_res.res)
+        value_res = rewriter.insert(
+            smt.IteOp(is_positive, positive_res, nonpositive_res)
+        ).res
+        res = rewriter.insert(smt_utils.PairOp(value_res, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                minimum_value,
-                minus_one,
-                one,
-                lhs_is_min_val,
-                rhs_is_minus_one,
-                is_underflow,
-                zero,
-                is_div_by_zero,
-                introduce_poison,
-                is_lhs_positive,
-                opposite_one,
-                lhs_minus_one,
-                floor_div,
-                positive_res,
-                minus_lhs,
-                neg_floor_div,
-                nonpositive_res,
-                is_rhs_positive,
-                is_lhs_negative,
-                is_rhs_negative,
-                are_both_positive,
-                are_both_negative,
-                is_positive,
-                value_res,
-            ]
-        )
-        return ((value_res.res, introduce_poison.res),)
+        return ((res,), new_state)
 
 
 class FloorDivSISemantics(SimplePurePoisonSemantics):
-    def get_pure_semantics(
+    def get_semantics(
         self,
         operands: Sequence[SSAValue],
         results: Sequence[Attribute],
         attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
         rewriter: PatternRewriter,
-    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-        assert isinstance(results[0], IntegerType)
-        width = results[0].width.data
+    ) -> tuple[Sequence[SSAValue], SSAValue]:
+        assert effect_state is not None
+
+        lhs, lhs_poison = get_int_value_and_poison(operands[0], rewriter)
+        rhs, rhs_poison = get_int_value_and_poison(operands[1], rewriter)
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
 
         # Check for underflow
-        minimum_value = smt_bv.ConstantOp(2 ** (width - 1), width)
-        minus_one = smt_bv.ConstantOp(2**width - 1, width)
-        lhs_is_min_val = smt.EqOp(operands[0], minimum_value.res)
-        rhs_is_minus_one = smt.EqOp(operands[1], minus_one.res)
-        is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
+        minimum_value = rewriter.insert(smt_bv.ConstantOp(2 ** (width - 1), width)).res
+        minus_one = rewriter.insert(smt_bv.ConstantOp(2**width - 1, width)).res
+        lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
+        rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
+        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
 
         # Check for division by zero
-        zero = smt_bv.ConstantOp(0, width)
-        is_div_by_zero = smt.EqOp(zero.res, operands[1])
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        is_div_by_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
 
-        # Poison if underflow or division by zero or previous poison
-        introduce_poison = smt.OrOp(is_underflow.res, is_div_by_zero.res)
+        # UB cases: underflow, division by zero, or poison in rhs
+        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).res
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
+        new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Compute a division rounded by zero
-        value_op = smt_bv.SDivOp(operands[0], operands[1])
+        value_op = rewriter.insert(smt_bv.SDivOp(lhs, rhs)).res
 
         # If the result is negative, subtract 1 if the remainder is not 0
-        is_lhs_negative = smt_bv.SltOp(operands[0], zero.res)
-        is_rhs_negative = smt_bv.SltOp(operands[1], zero.res)
-        is_negative = smt.XorOp(is_lhs_negative.res, is_rhs_negative.res)
-        remainder = smt_bv.SRemOp(operands[0], operands[1])
-        is_remainder_not_zero = smt.DistinctOp(remainder.res, zero.res)
-        subtract_one = smt_bv.AddOp(value_op.res, minus_one.res)
-        should_subtract_one = smt.AndOp(is_negative.res, is_remainder_not_zero.res)
-        res_value_op = smt.IteOp(
-            should_subtract_one.res, subtract_one.res, value_op.res
-        )
+        is_lhs_negative = rewriter.insert(smt_bv.SltOp(lhs, zero)).res
+        is_rhs_negative = rewriter.insert(smt_bv.SltOp(rhs, zero)).res
+        is_negative = rewriter.insert(smt.XorOp(is_lhs_negative, is_rhs_negative)).res
+        remainder = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
+        is_remainder_not_zero = rewriter.insert(smt.DistinctOp(remainder, zero)).res
+        subtract_one = rewriter.insert(smt_bv.AddOp(value_op, minus_one)).res
+        should_subtract_one = rewriter.insert(
+            smt.AndOp(is_negative, is_remainder_not_zero)
+        ).res
+        res_value_op = rewriter.insert(
+            smt.IteOp(should_subtract_one, subtract_one, value_op)
+        ).res
+        res = rewriter.insert(smt_utils.PairOp(res_value_op, lhs_poison)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                minimum_value,
-                minus_one,
-                lhs_is_min_val,
-                rhs_is_minus_one,
-                is_underflow,
-                zero,
-                is_div_by_zero,
-                introduce_poison,
-                value_op,
-                is_lhs_negative,
-                is_rhs_negative,
-                is_negative,
-                remainder,
-                is_remainder_not_zero,
-                subtract_one,
-                should_subtract_one,
-                res_value_op,
-            ]
-        )
-        return ((res_value_op.res, introduce_poison.res),)
+        return ((res,), new_state)
 
 
 arith_semantics: dict[type[Operation], OperationSemantics] = {

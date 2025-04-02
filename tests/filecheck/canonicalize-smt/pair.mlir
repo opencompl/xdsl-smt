@@ -1,12 +1,10 @@
-// RUN: xdsl-smt "%s" -p=canonicalize,dce -t=smt | filecheck "%s"
-
-//CHECK:      (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
+// RUN: xdsl-smt "%s" -p=canonicalize,dce | filecheck "%s"
 
 "builtin.module"() ({
   %x = "smt.declare_const"() : () -> !smt.bool
-  //CHECK-NEXT: (declare-const x Bool)
   %y = "smt.declare_const"() : () -> !smt.bool
-  //CHECK-NEXT: (declare-const y Bool)
+  // CHECK:      %x = "smt.declare_const"() : () -> !smt.bool
+  // CHECK-NEXT: %y = "smt.declare_const"() : () -> !smt.bool
 
   %p = "smt.utils.pair"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.utils.pair<!smt.bool, !smt.bool>
   %first = "smt.utils.first"(%p) : (!smt.utils.pair<!smt.bool, !smt.bool>) -> !smt.bool
@@ -14,9 +12,9 @@
 
   // first (pair x y) -> x
   "smt.assert"(%first) : (!smt.bool) -> ()
-  //CHECK-NEXT: (assert x)
+  // CHECK-NEXT: "smt.assert"(%x) : (!smt.bool) -> ()
 
   // second (pair x y) -> y
   "smt.assert"(%second) : (!smt.bool) -> ()
-  //CHECK-NEXT: (assert y)
+  // CHECK-NEXT: "smt.assert"(%y) : (!smt.bool) -> ()
 }) : () -> ()

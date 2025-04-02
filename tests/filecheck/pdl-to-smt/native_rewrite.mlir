@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize,dce -t smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=pdl-to-smt,lower-effects,canonicalize,dce | filecheck "%s"
 
 builtin.module {
     pdl.pattern @add_constant_fold : benefit(0) {
@@ -23,9 +23,17 @@ builtin.module {
     }
 }
 
-// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (declare-const tmp Bool)
-// CHECK-NEXT:  (declare-const c0 (_ BitVec 32))
-// CHECK-NEXT:  (declare-const c1 (_ BitVec 32))
-// CHECK-NEXT:  (assert (not (or tmp (and (not tmp) (= (bvadd c0 c1) (bvadd c0 c1))))))
-// CHECK-NEXT:  (check-sat)
+// CHECK:       builtin.module {
+// CHECK-NEXT:    %0 = "smt.declare_const"() : () -> !smt.bool
+// CHECK-NEXT:    %c0 = "smt.declare_const"() : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    %c1 = "smt.declare_const"() : () -> !smt.bv.bv<32>
+// CHECK-NEXT:    %1 = "smt.bv.add"(%c0, %c1) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %res = "smt.bv.add"(%c0, %c1) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %2 = "smt.eq"(%1, %res) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:    %3 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %4 = "smt.and"(%3, %2) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %5 = "smt.or"(%0, %4) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %6 = "smt.not"(%5) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    "smt.assert"(%6) : (!smt.bool) -> ()
+// CHECK-NEXT:    "smt.check_sat"() : () -> ()
+// CHECK-NEXT:  }

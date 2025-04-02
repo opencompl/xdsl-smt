@@ -1,4 +1,4 @@
-// RUN: xdsl-smt "%s" -p=canonicalize,dce -t=smt | filecheck "%s"
+// RUN: xdsl-smt "%s" -p=canonicalize,dce | filecheck "%s"
 
 "builtin.module"() ({
 
@@ -8,10 +8,12 @@
   // not true -> false
   %a = "smt.not"(%true) : (!smt.bool) -> !smt.bool
   "smt.assert"(%a) : (!smt.bool) -> ()
-  // CHECK: (assert false)
+  // CHECK:      %a = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%a) : (!smt.bool) -> ()
 
   // not false -> true
   %b = "smt.not"(%false) : (!smt.bool) -> !smt.bool
   "smt.assert"(%b) : (!smt.bool) -> ()
-  // CHECK: (assert true)
+  // CHECK-NEXT: %b = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%b) : (!smt.bool) -> ()
 }) : () -> ()

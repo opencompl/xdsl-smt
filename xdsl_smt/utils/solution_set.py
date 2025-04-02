@@ -1,12 +1,14 @@
 from __future__ import annotations
 from typing import Callable
 
+from xdsl.context import MLContext
 from xdsl.dialects.func import FuncOp, CallOp, ReturnOp
 from xdsl.ir import Operation
 
 from xdsl_smt.utils.compare_result import CompareResult
 from abc import ABC, abstractmethod
 import logging
+from xdsl_smt.utils.verifier_utils import verify_transfer_function
 
 from xdsl_smt.utils.function_with_condition import FunctionWithCondition
 from xdsl_smt.utils.synthesizer_context import SynthesizerContext
@@ -136,6 +138,23 @@ class SolutionSet(ABC):
         solution_str += self.lower_to_cpp(final_solution)
         solution_str += "\n"
         return final_solution, solution_str
+
+    def remove_unsound_solutions(
+        self, concrete_op: FuncOp, helper_funcs: list[FuncOp], ctx: MLContext
+    ):
+        unsound_lst: list[int] = []
+        for i, sol in enumerate(self.solutions):
+            cur_helper = [sol.func]
+            if sol.cond is not None:
+                cur_helper.append(sol.cond)
+            if not verify_transfer_function(
+                sol.get_function(), cur_helper + helper_funcs, ctx, 16
+            ):
+                unsound_lst.append(i)
+        for unsound_idx in unsound_lst[::-1]:
+            self.solutions.pop(unsound_idx)
+            self.solutions_size -= 1
+            self.is_perfect = False
 
 
 """

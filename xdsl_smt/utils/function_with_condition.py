@@ -45,6 +45,10 @@ class FunctionWithCondition:
         whole_function = FuncOp(self.func_name, self.func.function_type)
         args = whole_function.args
 
+        whole_function.attributes["applied_to"] = self.func.attributes["applied_to"]
+        whole_function.attributes["CPPCLASS"] = self.func.attributes["CPPCLASS"]
+        whole_function.attributes["is_forward"] = self.func.attributes["is_forward"]
+
         if self.cond is None:
             call_op = CallOp(
                 self.func.sym_name.data, args, self.func.function_type.outputs.data

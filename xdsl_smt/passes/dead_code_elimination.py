@@ -4,10 +4,13 @@ from xdsl.ir import Operation
 from xdsl.context import MLContext
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
+from xdsl_smt.traits.effects import Pure
 
 
 class RemoveDeadPattern(RewritePattern):
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+        if not isinstance(op, Pure):
+            return None
         if (
             isinstance(op, ModuleOp)
             or isinstance(op, FuncOp)
