@@ -40,7 +40,7 @@ from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith, ConstantOp
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.hw import HW
-from ..passes.dead_code_elimination import DeadCodeElimination
+from ..passes.transfer_dead_code_elimination import TransferDeadCodeElimination
 
 import xdsl.dialects.comb as comb
 from xdsl.ir import Operation
@@ -259,7 +259,7 @@ VERBOSE = 1  # todo: make it a cmd line arg
 
 def eliminate_dead_code(func: FuncOp) -> FuncOp:
     new_module = ModuleOp([func.clone()])
-    DeadCodeElimination().apply(ctx, new_module)
+    TransferDeadCodeElimination().apply(ctx, new_module)
     assert isinstance(new_module.ops.first, FuncOp)
     return new_module.ops.first
 
@@ -644,10 +644,8 @@ def synthesize_transfer_function(
                 )
 
     new_solution_set: SolutionSet = solution_set.construct_new_solution_set(
-        candidates_sp, candidates_p, candidates_c
+        candidates_sp, candidates_p, candidates_c, concrete_func, helper_funcs, ctx
     )
-    new_solution_set.remove_unsound_solutions(concrete_func, helper_funcs, ctx)
-    new_solution_set = new_solution_set.construct_new_solution_set([], [], [])
 
     if solution_size == 0:
         print_set_of_funcs_to_file(
