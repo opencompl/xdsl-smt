@@ -820,7 +820,12 @@ def main() -> None:
         )
     else:
         solution_set: SolutionSet = SizedSolutionSet(
-            solution_size, [], print_to_cpp, eliminate_dead_code, solution_eval_func
+            solution_size,
+            [],
+            print_to_cpp,
+            eliminate_dead_code,
+            solution_eval_func,
+            logger,
         )
 
     eval_func = main_eval_func(
