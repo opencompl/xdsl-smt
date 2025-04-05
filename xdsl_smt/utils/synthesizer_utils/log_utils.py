@@ -3,7 +3,7 @@ from typing import List
 
 from xdsl.dialects.func import FuncOp
 
-from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 
 
 def setup_loggers(output_dir: str, verbose: int):

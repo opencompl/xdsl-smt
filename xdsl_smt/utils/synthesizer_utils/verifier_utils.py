@@ -5,7 +5,7 @@ from xdsl.context import MLContext
 from io import StringIO
 
 from xdsl.utils.hints import isa
-from ..dialects.smt_dialect import (
+from xdsl_smt.dialects.smt_dialect import (
     DefineFunOp,
 )
 from xdsl_smt.dialects.transfer import (
@@ -24,29 +24,29 @@ from xdsl.dialects.builtin import (
     StringAttr,
 )
 from xdsl.dialects.func import FuncOp, ReturnOp
-from ..passes.dead_code_elimination import DeadCodeElimination
-from ..passes.merge_func_results import MergeFuncResultsPass
-from ..passes.transfer_inline import FunctionCallInline
+from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
+from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
+from xdsl_smt.passes.transfer_inline import FunctionCallInline
 import xdsl.dialects.comb as comb
 from xdsl.ir import Operation
-from ..passes.lower_to_smt.lower_to_smt import LowerToSMTPass, SMTLowerer
-from ..passes.lower_effects import LowerEffectPass
-from ..passes.lower_to_smt import (
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMTPass, SMTLowerer
+from xdsl_smt.passes.lower_effects import LowerEffectPass
+from xdsl_smt.passes.lower_to_smt import (
     func_to_smt_patterns,
 )
-from ..utils.transfer_function_util import (
+from xdsl_smt.utils.transfer_function_util import (
     SMTTransferFunction,
     FunctionCollection,
     TransferFunction,
 )
 
-from ..utils.transfer_function_check_util import (
+from xdsl_smt.utils.transfer_function_check_util import (
     forward_soundness_check,
     backward_soundness_check,
 )
-from ..passes.transfer_unroll_loop import UnrollTransferLoop
+from xdsl_smt.passes.transfer_unroll_loop import UnrollTransferLoop
 from xdsl_smt.semantics import transfer_semantics
-from ..traits.smt_printer import print_to_smtlib
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl_smt.semantics.arith_semantics import arith_semantics

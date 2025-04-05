@@ -1,6 +1,6 @@
 import math
 
-from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 
 
 def sound_and_precise_cost(res: CompareResult) -> float:

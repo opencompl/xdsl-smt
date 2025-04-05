@@ -6,10 +6,10 @@ from xdsl.dialects.builtin import i1, IntegerAttr, FunctionType
 from xdsl.parser import Parser
 
 from xdsl.utils.exceptions import VerifyException
-from xdsl_smt.utils.compare_result import CompareResult
-from xdsl_smt.utils.mutation_program import MutationProgram
-from xdsl_smt.utils.synthesizer_context import SynthesizerContext
-from xdsl_smt.utils.random import Random
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.mutation_program import MutationProgram
+from xdsl_smt.utils.synthesizer_utils.synthesizer_context import SynthesizerContext
+from xdsl_smt.utils.synthesizer_utils.random import Random
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,

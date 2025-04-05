@@ -11,7 +11,7 @@ from io import StringIO
 
 from xdsl.utils.hints import isa
 
-from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 from ..dialects.smt_dialect import (
     SMTDialect,
 )
@@ -50,22 +50,28 @@ from ..passes.transfer_lower import LowerToCpp
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 import sys as sys
 
-from ..utils.cost_model import (
+from xdsl_smt.utils.synthesizer_utils.cost_model import (
     decide,
     sound_and_precise_cost,
     precise_cost,
     abduction_cost,
 )
-from ..utils.function_with_condition import FunctionWithCondition
-from ..utils.log_utils import (
+from xdsl_smt.utils.synthesizer_utils.function_with_condition import (
+    FunctionWithCondition,
+)
+from xdsl_smt.utils.synthesizer_utils.log_utils import (
     setup_loggers,
     print_set_of_funcs_to_file,
 )
-from ..utils.mcmc_sampler import MCMCSampler
-from ..utils.mutation_program import MutationProgram
-from ..utils.solution_set import SolutionSet, UnsizedSolutionSet, SizedSolutionSet
-from ..utils.synthesizer_context import SynthesizerContext
-from ..utils.random import Random
+from xdsl_smt.utils.synthesizer_utils.mcmc_sampler import MCMCSampler
+from xdsl_smt.utils.synthesizer_utils.mutation_program import MutationProgram
+from xdsl_smt.utils.synthesizer_utils.solution_set import (
+    SolutionSet,
+    UnsizedSolutionSet,
+    SizedSolutionSet,
+)
+from xdsl_smt.utils.synthesizer_utils.synthesizer_context import SynthesizerContext
+from xdsl_smt.utils.synthesizer_utils.random import Random
 
 # from ..utils.visualize import print_figure
 

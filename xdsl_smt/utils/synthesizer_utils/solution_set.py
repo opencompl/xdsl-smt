@@ -5,13 +5,15 @@ from xdsl.context import MLContext
 from xdsl.dialects.func import FuncOp, CallOp, ReturnOp
 from xdsl.ir import Operation
 
-from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 from abc import ABC, abstractmethod
 import logging
-from xdsl_smt.utils.verifier_utils import verify_transfer_function
+from xdsl_smt.utils.synthesizer_utils.verifier_utils import verify_transfer_function
 
-from xdsl_smt.utils.function_with_condition import FunctionWithCondition
-from xdsl_smt.utils.synthesizer_context import SynthesizerContext
+from xdsl_smt.utils.synthesizer_utils.function_with_condition import (
+    FunctionWithCondition,
+)
+from xdsl_smt.utils.synthesizer_utils.synthesizer_context import SynthesizerContext
 
 
 def rename_functions(lst: list[FunctionWithCondition], prefix: str) -> list[str]:

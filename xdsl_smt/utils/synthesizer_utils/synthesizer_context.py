@@ -1,7 +1,7 @@
 from xdsl.dialects.builtin import i1, IntegerAttr
 from xdsl.dialects.func import FuncOp
 
-from ..dialects.transfer import (
+from xdsl_smt.dialects.transfer import (
     NegOp,
     CmpOp,
     AndOp,
@@ -34,7 +34,7 @@ from ..dialects.transfer import (
 from typing import TypeVar, Generic, Callable
 from xdsl.ir import Operation, SSAValue
 import xdsl.dialects.arith as arith
-from xdsl_smt.utils.random import Random
+from xdsl_smt.utils.synthesizer_utils.random import Random
 
 T = TypeVar("T")
 

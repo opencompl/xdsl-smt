@@ -2,7 +2,7 @@ from os import path
 from subprocess import run, PIPE
 from enum import Enum, auto
 
-from xdsl_smt.utils.compare_result import CompareResult
+from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 
 
 class AbstractDomain(Enum):

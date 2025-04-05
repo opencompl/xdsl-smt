@@ -12,7 +12,7 @@ from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.transfer import Transfer
-from xdsl_smt.utils.verifier_utils import verify_transfer_function
+from xdsl_smt.utils.synthesizer_utils.verifier_utils import verify_transfer_function
 
 
 def parse_file(ctx: MLContext, file: str | None) -> Operation:
