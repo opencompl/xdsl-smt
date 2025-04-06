@@ -254,6 +254,7 @@ DOMAIN_CONSTRAINT = "getConstraint"
 OP_CONSTRAINT = "op_constraint"
 MEET_FUNC = "meet"
 GET_TOP_FUNC = "getTop"
+CONCRETE_OP_FUNC = "concrete_op"
 get_top_func_op: FuncOp | None = None
 TMP_MODULE: list[ModuleOp] = []
 ctx: MLContext
@@ -751,10 +752,18 @@ def main() -> None:
     base_transfers = [FunctionWithCondition(f) for f in ref_funcs]
 
     transfer_func = None
-    crt_func = None
+
+    func_name_to_func: dict[str, FuncOp] = {}
+    for func in module.ops:
+        if isinstance(func, FuncOp):
+            func_name_to_func[func.sym_name.data] = func
+
+    crt_func = func_name_to_func.get(CONCRETE_OP_FUNC, None)
+
     for func in module.ops:
         if isinstance(func, FuncOp) and is_transfer_function(func):
-            if isinstance(func, FuncOp) and "applied_to" in func.attributes:
+            transfer_func = func
+            if crt_func is None and "applied_to" in func.attributes:
                 assert isa(
                     applied_to := func.attributes["applied_to"], ArrayAttr[StringAttr]
                 )
@@ -763,7 +772,6 @@ def main() -> None:
                     concrete_func_name, SYNTH_WIDTH, None
                 )
                 crt_func = concrete_func
-                transfer_func = func
                 break
 
     assert isinstance(
@@ -771,27 +779,19 @@ def main() -> None:
     ), "No transfer function is found in input file"
     assert crt_func is not None, "Failed to get concrete function from input file"
 
-    domain_constraint_func: FuncOp | None = None
-    instance_constraint_func: FuncOp | None = None
-    op_constraint_func: FuncOp | None = None
-    meet_func: FuncOp | None = None
-    get_top_func: FuncOp | None = None
-    # Handle helper funcitons
-    for func in module.ops:
-        if isinstance(func, FuncOp):
-            func_name = func.sym_name.data
-            if func_name == DOMAIN_CONSTRAINT:
-                domain_constraint_func = func
-            elif func_name == INSTANCE_CONSTRAINT:
-                instance_constraint_func = func
-            elif func_name == OP_CONSTRAINT:
-                op_constraint_func = func
-            elif func_name == MEET_FUNC:
-                meet_func = func
-            elif func_name == GET_TOP_FUNC:
-                get_top_func = func
-                global get_top_func_op
-                get_top_func_op = func
+    # Handle helper functions
+    domain_constraint_func: FuncOp | None = func_name_to_func.get(
+        DOMAIN_CONSTRAINT, None
+    )
+    instance_constraint_func: FuncOp | None = func_name_to_func.get(
+        INSTANCE_CONSTRAINT, None
+    )
+    op_constraint_func: FuncOp | None = func_name_to_func.get(OP_CONSTRAINT, None)
+    meet_func: FuncOp | None = func_name_to_func.get(MEET_FUNC, None)
+    get_top_func: FuncOp | None = func_name_to_func.get(GET_TOP_FUNC, None)
+    global get_top_func_op
+    get_top_func_op = get_top_func
+
     if meet_func is None:
         solution_size = 1
 
