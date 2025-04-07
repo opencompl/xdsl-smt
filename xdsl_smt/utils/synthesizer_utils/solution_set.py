@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Callable
 
 from xdsl.context import MLContext
+from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.func import FuncOp, CallOp, ReturnOp
 from xdsl.ir import Operation
 
@@ -145,14 +146,19 @@ class SolutionSet(ABC):
             )
         return result, part_solution_funcs
 
-    def generate_solution_and_cpp(self) -> tuple[FuncOp, str]:
+    def generate_solution_and_cpp(self) -> tuple[ModuleOp, str]:
         final_solution, part_solutions = self.generate_solution()
+        function_lst: list[FuncOp] = []
         solution_str = ""
         for sol in self.solutions:
-            solution_str += self.lower_to_cpp(self.eliminate_dead_code(sol.func))
+            func_body = self.eliminate_dead_code(sol.func)
+            function_lst.append(func_body)
+            solution_str += self.lower_to_cpp(func_body)
             solution_str += "\n"
             if sol.cond is not None:
-                solution_str += self.lower_to_cpp(self.eliminate_dead_code(sol.cond))
+                func_cond = self.eliminate_dead_code(sol.cond)
+                function_lst.append(func_cond)
+                solution_str += self.lower_to_cpp(func_body)
                 solution_str += "\n"
 
         for sol in part_solutions:
@@ -160,7 +166,12 @@ class SolutionSet(ABC):
             solution_str += "\n"
         solution_str += self.lower_to_cpp(final_solution)
         solution_str += "\n"
-        return final_solution, solution_str
+
+        function_lst += part_solutions
+        function_lst.append(final_solution)
+        final_module = ModuleOp([])
+        final_module.body.block.add_ops(function_lst)
+        return final_module, solution_str
 
     def remove_unsound_solutions(
         self, concrete_op: FuncOp, helper_funcs: list[FuncOp], ctx: MLContext
