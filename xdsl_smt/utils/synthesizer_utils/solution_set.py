@@ -29,7 +29,7 @@ def verify_function(
     concrete_op: FuncOp,
     helper_funcs: list[FuncOp],
     ctx: MLContext,
-) -> bool:
+) -> int:
     cur_helper = [func.func]
     if func.cond is not None:
         cur_helper.append(func.cond)
@@ -349,8 +349,11 @@ class UnsizedSolutionSet(SolutionSet):
             if most_unsol_e == 0:
                 break
 
-            if not verify_function(candidates[index], concrete_op, helper_funcs, ctx):
-                self.logger.info(f"Skip a unsound function")
+            unsound_bit = verify_function(
+                candidates[index], concrete_op, helper_funcs, ctx
+            )
+            if unsound_bit != 0:
+                self.logger.info(f"Skip a unsound function at bit width {unsound_bit}")
                 candidates.pop(index)
                 continue
 

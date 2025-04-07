@@ -334,7 +334,7 @@ def verify_transfer_function(
     helper_funcs: list[FuncOp],
     ctx: MLContext,
     maximal_verify_bits: int = 32,
-) -> bool:
+) -> int:
     (
         module_op,
         func_name_to_func,
@@ -448,5 +448,5 @@ def verify_transfer_function(
             ctx,
         )
         if not result:
-            return False
-    return True
+            return width
+    return 0
