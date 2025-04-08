@@ -8,6 +8,7 @@ from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 class AbstractDomain(Enum):
     KnownBits = auto()
     ConstantRange = auto()
+    IntegerModulo = auto()
 
     def __str__(self) -> str:
         return self.name

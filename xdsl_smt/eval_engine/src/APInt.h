@@ -40,7 +40,6 @@ public:
     clearUnusedBits();
   }
 
-  /// Copy Constructor.
   APInt(const APInt &that) : BitWidth(that.BitWidth) { VAL = that.VAL; }
 
   static APInt getZero(unsigned numBits) { return APInt(numBits, 0); }
@@ -1049,7 +1048,7 @@ inline APInt APInt::rotr(unsigned rotateAmt) const {
 inline APInt APInt::multiplicativeInverse() const {
   // Use Newton's method.
   APInt Factor = *this;
-  APInt T;
+  APInt T(BitWidth, 0);
   while (!(T = *this * Factor).isOne())
     Factor *= 2 - T;
   return Factor;
@@ -1091,9 +1090,10 @@ inline APInt APInt::sfloordiv_ov(const APInt &RHS, bool &Overflow) const {
 } // namespace A
 
 template <unsigned int N> class Vec {
+  static_assert(N != 0, "Vec must include at least one element");
+
 public:
   A::APInt v[N];
-  unsigned int getN() const { return N; }
 
   template <typename... Args> Vec(Args... args) {
     static_assert(sizeof...(args) == N, "Number of arguments must match N");
@@ -1103,12 +1103,93 @@ public:
       v[i] = arr[i];
   }
 
-  Vec(const A::APInt *x) {
+  Vec(unsigned int bw) {
+    const A::APInt z = A::APInt(bw, 0);
     for (unsigned int i = 0; i < N; ++i)
-      v[i] = x[i];
+      v[i] = z;
+  }
+
+  Vec(const Vec<N> &other) {
+    for (unsigned int i = 0; i < N; ++i)
+      v[i] = other.v[i];
+  }
+
+  Vec &operator=(const Vec<N> &other) {
+    if (this != &other)
+      for (unsigned int i = 0; i < N; ++i)
+        v[i] = other.v[i];
+
+    return *this;
+  }
+
+  bool operator==(const Vec<N> &other) const {
+    for (unsigned int i = 0; i < N; ++i)
+      if (v[i] != other.v[i])
+        return false;
+
+    return true;
   }
 
   const A::APInt &operator[](unsigned int i) const { return v[i]; }
+  A::APInt &operator[](unsigned int i) { return v[i]; }
 };
+
+namespace IM {
+constexpr unsigned char primes[32] = {
+    2,  3,  5,  7,  11, 13, 17, 19, 23, 29,  31,  37,  41,  43,  47,  53,
+    59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131};
+
+inline unsigned long modInv(long a, long b) {
+  long b0 = b, t, q;
+  long x0 = 0, x1 = 1;
+  if (b == 1)
+    return 1;
+  while (a > 1) {
+    q = a / b;
+    t = b, b = a % b, a = t;
+    t = x0, x0 = x1 - q * x0, x1 = t;
+  }
+  return static_cast<unsigned long>((x1 < 0) ? x1 + b0 : x1);
+}
+
+template <unsigned int N> A::APInt crt(const Vec<N> &x, const A::APInt p) {
+  unsigned long crt = 0;
+
+  for (unsigned int i = 0; i < N; ++i) {
+    if (x[i] == primes[i])
+      continue;
+    unsigned long pp = p.getZExtValue() / primes[i];
+    crt += x[i].getZExtValue() * modInv(static_cast<long>(pp), primes[i]) * pp;
+  }
+
+  return A::APInt(x[0].getBitWidth(), crt % p.getZExtValue());
+}
+
+template <unsigned int N> A::APInt prod(const Vec<N> &x) {
+  unsigned long p = 1;
+  for (unsigned int i = 0; i < N; ++i)
+    if (x.v[i] != primes[i])
+      p *= primes[i];
+
+  return A::APInt(64, p);
+}
+
+template <unsigned int N> Vec<N> fromConcrete(const A::APInt &x) {
+  Vec<N> r(x.getBitWidth());
+
+  for (unsigned int i = 0; i < N; ++i)
+    r[i] = x.urem(primes[i]);
+
+  return r;
+}
+
+template <unsigned int N> Vec<N> bottom(unsigned int bw) {
+  Vec<N> x(bw);
+  for (unsigned int i = 0; i < N; ++i)
+    x[i] = primes[i] + 1;
+
+  return x;
+}
+} // namespace IM
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef AbstVal_H
 #define AbstVal_H
 
-#include <iostream>
+#include <cassert>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -10,20 +10,20 @@
 #include "APInt.h"
 
 template <typename Domain, unsigned int N> class AbstVal {
-protected:
-  explicit AbstVal(const Vec<N> &x)
-      : v(x.v, x.v + x.getN()), bw(x[0].getBitWidth()) {}
-
 public:
   typedef Vec<N> (*XferFn)(Vec<N>, Vec<N>);
+  Vec<N> v;
 
-  std::vector<A::APInt> v;
-  unsigned int bw;
+protected:
+  explicit AbstVal(const Vec<N> &x) : v(x) {}
 
+public:
   // static ctors
   static const Domain bottom(unsigned int bw) { return Domain::bottom(bw); }
   static const Domain top(unsigned int bw) { return Domain::top(bw); }
-  static const std::vector<Domain> enumVals() { return Domain::enumVals(); }
+  static const std::vector<Domain> enumVals(unsigned int bw) {
+    return Domain::enumVals(bw);
+  }
 
   static const Domain fromConcrete(const A::APInt &x) {
     return Domain::fromConcrete(x);
@@ -42,40 +42,29 @@ public:
   }
 
   // normal methods
-  bool isTop() const { return *this == top(bw); }
-  bool isBottom() const { return *this == bottom(bw); }
+  bool operator==(const AbstVal &rhs) const { return v == rhs.v; }
+  unsigned int bw() const { return v[0].getBitWidth(); }
+  bool isTop() const { return *this == top(bw()); }
+  bool isBottom() const { return *this == bottom(bw()); }
   bool isSuperset(const Domain &rhs) const { return meet(rhs) == rhs; }
+  // TODO this should be for every val in v
   unsigned int distance(const Domain &rhs) const {
     return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
   }
 
-  bool operator==(const AbstVal &rhs) const {
-    for (unsigned int i = 0; i < N; ++i)
-      if (v[i] != rhs.v[i])
-        return false;
-
-    return true;
-  };
-
   // methods delegated to derived class
-  bool isConstant() const {
-    return static_cast<const Domain *>(this)->isConstant();
-  };
-  const A::APInt getConstant() const {
-    return static_cast<const Domain *>(this)->getConstant();
-  };
   const Domain meet(const Domain &rhs) const {
     return static_cast<const Domain *>(this)->meet(rhs);
-  };
+  }
   const Domain join(const Domain &rhs) const {
     return static_cast<const Domain *>(this)->join(rhs);
-  };
+  }
   const std::vector<unsigned int> toConcrete() const {
     return static_cast<const Domain *>(this)->toConcrete();
-  };
+  }
   const std::string display() const {
     return static_cast<Domain>(this)->display();
-  };
+  }
 };
 
 class KnownBits : public AbstVal<KnownBits, 2> {
@@ -83,6 +72,15 @@ private:
   A::APInt zero() const { return v[0]; }
   A::APInt one() const { return v[1]; }
   bool hasConflict() const { return zero().intersects(one()); }
+
+  bool isConstant() const {
+    return zero().popcount() + one().popcount() == bw();
+  }
+
+  const A::APInt getConstant() const {
+    assert(isConstant());
+    return one();
+  }
 
 public:
   explicit KnownBits(const Vec<2> &vC) : AbstVal<KnownBits, 2>(vC) {}
@@ -94,20 +92,17 @@ public:
 
     std::stringstream ss;
 
-    for (unsigned int i = bw; i > 0; --i)
+    for (unsigned int i = bw(); i > 0; --i)
       ss << (one()[i - 1] ? '1' : zero()[i - 1] ? '0' : '?');
 
     if (isConstant())
-      ss << getConstant().getZExtValue();
+      ss << " const: " << getConstant().getZExtValue();
 
     if (KnownBits::isTop())
       ss << " (top)";
 
     return ss.str();
   }
-
-  bool isConstant() const { return zero().popcount() + one().popcount() == bw; }
-  const A::APInt getConstant() const { return zero(); }
 
   const KnownBits meet(const KnownBits &rhs) const {
     return KnownBits({zero() | rhs.zero(), one() | rhs.one()});
@@ -122,9 +117,9 @@ public:
     const unsigned int z = static_cast<unsigned int>(zero().getZExtValue());
     const unsigned int o = static_cast<unsigned int>(one().getZExtValue());
     const unsigned int min =
-        static_cast<unsigned int>(A::APInt::getZero(bw).getZExtValue());
+        static_cast<unsigned int>(A::APInt::getZero(bw()).getZExtValue());
     const unsigned int max =
-        static_cast<unsigned int>(A::APInt::getMaxValue(bw).getZExtValue());
+        static_cast<unsigned int>(A::APInt::getMaxValue(bw()).getZExtValue());
 
     for (unsigned int i = min; i <= max; ++i)
       if ((z & i) == 0 && (o & ~i) == 0)
@@ -176,6 +171,13 @@ private:
   A::APInt lower() const { return v[0]; }
   A::APInt upper() const { return v[1]; }
 
+  bool isConstant() const { return lower() == upper(); }
+
+  const A::APInt getConstant() const {
+    assert(isConstant());
+    return lower();
+  }
+
 public:
   explicit ConstantRange(const Vec<2> &vC) : AbstVal<ConstantRange, 2>(vC) {}
 
@@ -194,14 +196,11 @@ public:
     return ss.str();
   }
 
-  bool isConstant() const { return lower() == upper(); }
-  const A::APInt getConstant() const { return lower(); }
-
   const ConstantRange meet(const ConstantRange &rhs) const {
     A::APInt l = rhs.lower().ugt(lower()) ? rhs.lower() : lower();
     A::APInt u = rhs.upper().ult(upper()) ? rhs.upper() : upper();
     if (l.ugt(u))
-      return bottom(bw);
+      return bottom(bw());
     return ConstantRange({std::move(l), std::move(u)});
   }
 
@@ -257,6 +256,200 @@ public:
     }
 
     return ret;
+  }
+};
+
+template <unsigned int N>
+class IntegerModulo : public AbstVal<IntegerModulo<N>, N> {
+private:
+  unsigned long crt;
+  unsigned long p;
+  unsigned int numTs;
+
+  const Vec<N> residues() const { return this->v; }
+
+  bool isConstant() const { return numTs == 0; }
+  const A::APInt getConstant() const {
+    assert(isConstant());
+    return A::APInt(this->bw(), crt);
+  }
+
+  bool isBadBottom() const {
+    const unsigned long max = A::APInt::getMaxValue(this->bw()).getZExtValue();
+
+    if (numTs == 0 && crt > max)
+      return true;
+
+    return false;
+  }
+
+  bool isBadSingleton() const {
+    const unsigned long max = A::APInt::getMaxValue(this->bw()).getZExtValue();
+
+    if (numTs != 0 && crt + p > max)
+      return true;
+
+    return false;
+  }
+
+  explicit IntegerModulo(const Vec<N> &v_, unsigned long crt_, unsigned long p_,
+                         unsigned int numTs_)
+      : AbstVal<IntegerModulo, N>(v_), crt(crt_), p(p_), numTs(numTs_) {}
+
+  explicit IntegerModulo(const Vec<N> &vC, bool fixBadVals)
+      : AbstVal<IntegerModulo, N>(vC) {
+    unsigned int numTs_ = 0;
+    unsigned long p_ = 1;
+    for (unsigned int i = 0; i < N; ++i)
+      if (residues()[i] == IM::primes[i])
+        numTs_ += 1;
+      else
+        p_ *= IM::primes[i];
+
+    numTs = numTs_;
+    p = p_;
+    unsigned long crt_ = 0;
+
+    for (unsigned int i = 0; i < N; ++i) {
+      if (residues()[i] == IM::primes[i])
+        continue;
+      unsigned long pp = p / IM::primes[i];
+      crt_ += residues()[i].getZExtValue() *
+              IM::modInv(static_cast<long>(pp), IM::primes[i]) * pp;
+    }
+
+    crt = crt_ % p;
+
+    if (fixBadVals) {
+      if (isBadBottom())
+        this->v = bottom(this->bw()).v;
+      else if (isBadSingleton()) {
+        this->v = fromConcrete(A::APInt(this->bw(), crt)).v;
+      }
+    }
+  }
+
+public:
+  explicit IntegerModulo(const Vec<N> &vC) : IntegerModulo(vC, true) {}
+
+  const std::string display() const {
+    if (IntegerModulo::isBottom()) {
+      return "(bottom)";
+    }
+
+    std::stringstream ss;
+
+    ss << "mods: ";
+    for (unsigned int i = 0; i < N; ++i)
+      if (residues()[i] == IM::primes[i])
+        ss << "T ";
+      else
+        ss << residues()[i].getZExtValue() << " ";
+
+    if (IntegerModulo::isTop())
+      ss << "(top)";
+
+    return ss.str();
+  }
+
+  const IntegerModulo meet(const IntegerModulo &rhs) const {
+    Vec<N> x(this->bw());
+
+    for (unsigned int i = 0; i < N; ++i) {
+      if (residues()[i] == rhs.residues()[i])
+        x[i] = residues()[i];
+      else if (residues()[i] == IM::primes[i])
+        x[i] = rhs.residues()[i];
+      else if (rhs.residues()[i] == IM::primes[i])
+        x[i] = residues()[i];
+      else
+        return bottom(this->bw());
+    }
+
+    return IntegerModulo(x, false);
+  }
+
+  const IntegerModulo join(const IntegerModulo &rhs) const {
+    Vec<N> x(this->bw());
+
+    for (unsigned int i = 0; i < N; ++i)
+      if (residues()[i] == rhs.residues()[i])
+        x[i] = residues()[i];
+      else if (residues()[i] == IM::primes[i] + 1)
+        x[i] = rhs.residues()[i];
+      else if (rhs.residues()[i] == IM::primes[i] + 1)
+        x[i] = residues()[i];
+      else
+        x[i] = IM::primes[i];
+
+    return IntegerModulo(x, false);
+  }
+
+  const std::vector<unsigned int> toConcrete() const {
+    const unsigned long max = A::APInt::getMaxValue(this->bw()).getZExtValue();
+
+    std::vector<unsigned int> r;
+    for (unsigned long x = crt; x <= max; x += p)
+      r.push_back(static_cast<unsigned int>(x));
+
+    return r;
+  }
+
+  static IntegerModulo fromConcrete(const A::APInt &x) {
+    Vec<N> r(x.getBitWidth());
+    unsigned long p = 1;
+
+    for (unsigned int i = 0; i < N; ++i) {
+      r[i] = x.urem(IM::primes[i]);
+      p *= IM::primes[i];
+    }
+
+    return IntegerModulo(r, x.getZExtValue(), p, 0);
+  }
+
+  static IntegerModulo top(unsigned int bw) {
+    Vec<N> x(bw);
+    for (unsigned int i = 0; i < N; ++i)
+      x[i] = IM::primes[i];
+
+    return IntegerModulo(x, 0, 1, N);
+  }
+
+  static IntegerModulo bottom(unsigned int bw) {
+    Vec<N> x(bw);
+    unsigned long p = 1;
+    for (unsigned int i = 0; i < N; ++i) {
+      x[i] = IM::primes[i] + 1;
+      p *= IM::primes[i];
+    }
+
+    return IntegerModulo(x, 0, p, 0);
+  }
+
+  static std::vector<IntegerModulo> const enumVals(unsigned int bw) {
+    std::vector<IntegerModulo> r;
+    Vec<N> x(bw);
+
+    while (true) {
+      IntegerModulo x_im(x, false);
+      if (!x_im.isBadBottom() && !x_im.isBadSingleton())
+        r.push_back(x_im);
+
+      if (x_im.isTop())
+        break;
+
+      for (unsigned int i = 0; i < N; ++i) {
+        if (x[i] != IM::primes[i]) {
+          for (unsigned int j = 0; j < i; ++j)
+            x[j] = 0;
+
+          x[i] += 1;
+          break;
+        }
+      }
+    }
+
+    return r;
   }
 };
 

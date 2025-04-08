@@ -9,6 +9,7 @@ from xdsl_smt.eval_engine.eval import eval_transfer_func, AbstractDomain
 
 class TestInput(NamedTuple):
     concrete_op: str
+    op_constraint: str | None
     domain: AbstractDomain
     functions: list[tuple[str, str]]
     expected_outputs: list[str]
@@ -23,6 +24,14 @@ cnc_udiv = 'extern "C" APInt concrete_op(APInt a, APInt b) {return a.udiv(b);}'
 cnc_urem = 'extern "C" APInt concrete_op(APInt a, APInt b) {return a.urem(b);}'
 cnc_umin = 'extern "C" APInt concrete_op(APInt a,APInt b) {return APIntOps::umin(a,b);}'
 cnc_umax = 'extern "C" APInt concrete_op(APInt a,APInt b) {return APIntOps::umax(a,b);}'
+
+add_nsw_op_constraint = """
+extern "C" bool op_constraint(APInt a, APInt b) {
+  bool f;
+  a.uadd_ov(b, f);
+  return !f;
+}
+"""
 
 kb_and = (
     "kb_and",
@@ -89,11 +98,50 @@ extern "C" Vec<2> cr_sub(const Vec<2> arg0, const Vec<2> arg1) {
 """,
 )
 
+im_add_nsw = (
+    "im_add_nsw",
+    """
+const static unsigned int N = 6;
+extern "C" Vec<N> im_add_nsw(const Vec<N> &lhs, const Vec<N> &rhs) {
+  const unsigned int bw = lhs[0].getBitWidth();
+  const APInt lhs_p = IM::prod(lhs);
+  const APInt rhs_p = IM::prod(rhs);
+  const APInt lhs_crt = IM::crt(lhs, lhs_p);
+  const APInt rhs_crt = IM::crt(rhs, rhs_p);
+
+  bool of = false;
+  const APInt crt_sum = lhs_crt.uadd_ov(rhs_crt, of);
+  if (of)
+    return IM::bottom<N>(bw);
+
+  crt_sum.uadd_ov(lhs_p, of);
+  Vec<N> small_lhs = of ? IM::fromConcrete<N>(lhs_crt) : lhs;
+  crt_sum.uadd_ov(rhs_p, of);
+  Vec<N> small_rhs = of ? IM::fromConcrete<N>(rhs_crt) : rhs;
+
+  Vec<N> x(bw);
+  for (unsigned int i = 0; i < N; ++i)
+    if (small_lhs[i] != IM::primes[i] && small_rhs[i] != IM::primes[i])
+      x[i] = (small_lhs[i] + small_rhs[i]).urem(IM::primes[i]);
+    else
+      x[i] = IM::primes[i];
+
+  return x;
+}
+          """,
+)
+
 
 def test(input: TestInput) -> None:
     names, srcs = zip(*input.functions)
+    helpers = (
+        [input.concrete_op]
+        if input.op_constraint is None
+        else [input.concrete_op, input.op_constraint]
+    )
+
     results = eval_transfer_func(
-        list(names), list(srcs), [], [], [input.concrete_op], input.domain, 4
+        list(names), list(srcs), [], [], helpers, input.domain, 4
     )
 
     for n, r, e in zip(names, results, input.expected_outputs):
@@ -109,6 +157,7 @@ def test(input: TestInput) -> None:
 
 kb_or_test = TestInput(
     cnc_or,
+    None,
     AbstractDomain.KnownBits,
     [kb_xor, kb_and, kb_or],
     [
@@ -120,6 +169,7 @@ kb_or_test = TestInput(
 
 kb_and_test = TestInput(
     cnc_and,
+    None,
     AbstractDomain.KnownBits,
     [kb_xor, kb_and, kb_or],
     [
@@ -131,6 +181,7 @@ kb_and_test = TestInput(
 
 kb_xor_test = TestInput(
     cnc_xor,
+    None,
     AbstractDomain.KnownBits,
     [kb_xor, kb_and, kb_or],
     [
@@ -142,6 +193,7 @@ kb_xor_test = TestInput(
 
 kb_add_test = TestInput(
     cnc_add,
+    None,
     AbstractDomain.KnownBits,
     [kb_xor, kb_and, kb_or],
     [
@@ -153,6 +205,7 @@ kb_add_test = TestInput(
 
 cr_add_test = TestInput(
     cnc_add,
+    None,
     AbstractDomain.ConstantRange,
     [cr_add, cr_sub],
     [
@@ -163,11 +216,22 @@ cr_add_test = TestInput(
 
 cr_sub_test = TestInput(
     cnc_sub,
+    None,
     AbstractDomain.ConstantRange,
     [cr_sub, cr_add],
     [
         "all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0	basep: 20864",
         "all: 18769	s: 12224	e: 9179	p: 30596	unsolved:6920	us: 3420	ue: 375	up: 22212	basep: 20864",
+    ],
+)
+
+im_add_nsw_test = TestInput(
+    cnc_add,
+    add_nsw_op_constraint,
+    AbstractDomain.IntegerModulo,
+    [im_add_nsw],
+    [
+        "all: 2971	s: 2971	e: 2971	p: 0	unsolved:2182	us: 2182	ue: 2182	up: 0	basep: 3974",
     ],
 )
 
@@ -179,3 +243,4 @@ if __name__ == "__main__":
     test(kb_add_test)
     test(cr_add_test)
     test(cr_sub_test)
+    test(im_add_nsw_test)
