@@ -35,7 +35,7 @@ from xdsl.dialects.builtin import (
     ArrayAttr,
     StringAttr,
 )
-from xdsl.dialects.func import Func, FuncOp, ReturnOp
+from xdsl.dialects.func import Func, FuncOp, ReturnOp, CallOp
 from ..dialects.transfer import Transfer
 from xdsl.dialects.arith import Arith, ConstantOp
 from xdsl.dialects.comb import Comb
@@ -279,8 +279,29 @@ def eliminate_dead_code(func: FuncOp) -> FuncOp:
     return func_op
 
 
-def is_ref_function(func: FuncOp) -> bool:
-    return func.sym_name.data.startswith("ref_")
+def is_base_function(func: FuncOp) -> bool:
+    # if "is_base" in func.attributes:
+    #     base = func.attributes["is_base"]
+    #     assert isinstance(base, IntegerAttr)
+    #     return base.value.data == -1
+    # return False
+    return func.sym_name.data.startswith("part_solution_")
+
+
+def construct_top_func(transfer: FuncOp, get_top: FuncOp) -> FuncOp:
+    func = FuncOp("top_transfer_function", transfer.function_type)
+    func.attributes["applied_to"] = transfer.attributes["applied_to"]
+    func.attributes["CPPCLASS"] = transfer.attributes["CPPCLASS"]
+    func.attributes["is_forward"] = transfer.attributes["is_forward"]
+    block = func.body.block
+    args = func.args
+
+    call_top_op = CallOp("getTop", [args[0]], func.function_type.outputs.data)
+    assert len(call_top_op.results) == 1
+    top_res = call_top_op.results[0]
+    return_op = ReturnOp(top_res)
+    block.add_ops([call_top_op, return_op])
+    return func
 
 
 def eval_transfer_func_helper(
@@ -765,13 +786,6 @@ def main() -> None:
     context_cond.use_full_int_ops()
     context_cond.use_full_i1_ops()
 
-    ref_funcs: list[FuncOp] = []
-    for func in module.ops:
-        if isinstance(func, FuncOp) and is_ref_function(func):
-            ref_funcs.append(func)
-
-    base_transfers = [FunctionWithCondition(f) for f in ref_funcs]
-
     transfer_func = None
 
     func_name_to_func: dict[str, FuncOp] = {}
@@ -782,7 +796,11 @@ def main() -> None:
     crt_func = func_name_to_func.get(CONCRETE_OP_FUNC, None)
 
     for func in module.ops:
-        if isinstance(func, FuncOp) and is_transfer_function(func):
+        if (
+            isinstance(func, FuncOp)
+            and is_transfer_function(func)
+            and not is_base_function(func)
+        ):
             transfer_func = func
             if crt_func is None and "applied_to" in func.attributes:
                 assert isa(
@@ -835,6 +853,32 @@ def main() -> None:
         print_to_cpp(func) for func in helper_funcs[1:]
     ]
 
+    base_bodys: dict[str, FuncOp] = {}
+    base_conds: dict[str, FuncOp] = {}
+    base_transfers: list[FunctionWithCondition] = []
+    for func in module.ops:
+        if isinstance(func, FuncOp) and is_base_function(func):
+            func_name = func.sym_name.data
+            if func_name.endswith("_body"):
+                main_name = func_name[: -len("_body")]
+                if main_name in base_conds:
+                    base_transfers.append(
+                        FunctionWithCondition(func, base_conds.pop(main_name))
+                    )
+                else:
+                    base_bodys[main_name] = func
+            elif func_name.endswith("_cond"):
+                main_name = func_name[: -len("_cond")]
+                if main_name in base_bodys:
+                    base_transfers.append(
+                        FunctionWithCondition(base_bodys.pop(main_name), func)
+                    )
+                else:
+                    base_conds[main_name] = func
+    assert len(base_conds) == 0
+    for _, func in base_bodys.items():
+        base_transfers.append(FunctionWithCondition(func))
+
     solution_eval_func = solution_set_eval_func(
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
@@ -843,12 +887,16 @@ def main() -> None:
 
     if solution_size == 0:
         solution_set: SolutionSet = UnsizedSolutionSet(
-            [], print_to_cpp, solution_eval_func, logger, eliminate_dead_code
+            base_transfers,
+            print_to_cpp,
+            solution_eval_func,
+            logger,
+            eliminate_dead_code,
         )
     else:
         solution_set: SolutionSet = SizedSolutionSet(
             solution_size,
-            [],
+            base_transfers,
             print_to_cpp,
             eliminate_dead_code,
             solution_eval_func,
@@ -860,6 +908,14 @@ def main() -> None:
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
         helper_funcs_cpp,
+    )
+
+    # eval the initial solutions in the solution set
+    tmp_top = FunctionWithCondition(construct_top_func(transfer_func, get_top_func))
+    tmp_top.set_func_name("tmp_top")
+    init_cmp_res = solution_set.eval_improve([tmp_top])
+    print(
+        f"init_solution\t{init_cmp_res[0].get_sound_prop() * 100:.4f}%\t{init_cmp_res[0].get_exact_prop() * 100:.4f}%"
     )
 
     # current_prog_len = 10
