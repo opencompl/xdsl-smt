@@ -35,7 +35,7 @@ def verify_function(
     if func.cond is not None:
         cur_helper.append(func.cond)
     return verify_transfer_function(
-        func.get_function(), cur_helper + helper_funcs, ctx, 16
+        func.get_function(), cur_helper + helper_funcs, ctx, 32
     )
 
 
