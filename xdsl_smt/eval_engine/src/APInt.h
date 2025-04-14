@@ -178,9 +178,8 @@ public:
   }
 
   APInt &operator=(APInt &&that) {
-    VAL = that.BitWidth;
+    VAL = that.VAL;
     BitWidth = that.BitWidth;
-    that.BitWidth = 0;
     return *this;
   }
 
