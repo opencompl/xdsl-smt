@@ -1,3 +1,5 @@
+"""This file defines simple canonicalization patterns for the smt_utils dialect."""
+
 from xdsl.ir import OpResult
 from xdsl.pattern_rewriter import (
     PatternRewriter,

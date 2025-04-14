@@ -1,3 +1,5 @@
+"""This file defines simple canonicalization patterns for the memory dialect."""
+
 from typing import TypeVar
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import (
