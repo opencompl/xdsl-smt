@@ -1,7 +1,7 @@
 """
 Lowers dialects to the SMT dialect
-This pass can be extended with additional `RewritePattern`s to
-handle more dialects.
+This pass uses the SMTLowerer to lower MLIR dialects to the semantics dialects.
+It should be extended using the SMTLowerer class.
 """
 
 from __future__ import annotations

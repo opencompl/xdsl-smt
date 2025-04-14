@@ -1,3 +1,11 @@
+"""
+This folder contains the passes to lower MLIR dialects to our semantics dialects.
+Each file contains the rewrite patterns or semantics lowerings for a specific
+dialect.
+smt_lowerer.py and smt_lowerer_patterns.py define the generic infrastructure to
+lower the dialects to the semantics dialects.
+"""
+
 from .lower_to_smt import *
 
 from .func_to_smt import (

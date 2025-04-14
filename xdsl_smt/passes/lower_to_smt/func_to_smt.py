@@ -1,3 +1,8 @@
+"""
+Define the lowering rewrite patterns to convert the func dialect to the semantics
+dialects.
+"""
+
 from xdsl.ir import Operation, SSAValue
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -13,6 +18,8 @@ from xdsl_smt.dialects.smt_dialect import DefineFunOp, ReturnOp
 
 
 class ReturnPattern(SMTLoweringRewritePattern):
+    """Lower a `func.return` to an SMT return operation."""
+
     def rewrite(
         self,
         op: Operation,
@@ -63,3 +70,4 @@ func_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {
     func.FuncOp: FuncToSMTPattern(),
     func.ReturnOp: ReturnPattern(),
 }
+"""The set of patterns to lower the func dialect to the semantics dialect."""

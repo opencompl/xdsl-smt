@@ -1,3 +1,9 @@
+"""
+Lower operations, regions, types, and attributes to their semantics representations.
+This is done using the SMTLowerer class, which contains the set of all lowerings as
+peephole rewrites.
+"""
+
 from __future__ import annotations
 from functools import reduce
 from xdsl.ir import Attribute, Operation, SSAValue, Region
@@ -72,6 +78,7 @@ class SMTLowerer:
     def lower_operation(
         op: Operation, effect_state: SSAValue | None
     ) -> SSAValue | None:
+        """Lower a single operation to the semantics dialects."""
         if isinstance(op, pdl.PatternOp) and SMTLowerer.dynamic_semantics_enabled:
             return effect_state
         if type(op) in SMTLowerer.rewrite_patterns:
