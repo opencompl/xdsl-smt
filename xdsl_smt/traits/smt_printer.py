@@ -1,3 +1,8 @@
+"""
+Utilities to print SMT-LIB expressions written in xDSL to the
+SMT-LIB format.
+"""
+
 from __future__ import annotations
 from abc import abstractmethod
 from collections import deque
