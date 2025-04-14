@@ -1,4 +1,4 @@
-from scripts.python_utils import unsound, profile
+from python_utils import unsound, profile
 import matplotlib.pyplot as plt
 
 output_folder = "./data/outputs"
