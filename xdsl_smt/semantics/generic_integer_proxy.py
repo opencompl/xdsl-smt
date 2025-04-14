@@ -1,3 +1,8 @@
+"""
+This files contains utilities to manipulate integer-based semantics for the
+arithmetic dialect.
+"""
+
 from xdsl.ir import SSAValue, Attribute, Region, Block
 from dataclasses import dataclass
 from typing import Tuple
@@ -13,6 +18,12 @@ from xdsl_smt.dialects.smt_dialect import BoolType
 
 @dataclass
 class IntegerProxy:
+    """
+    Provide utilities to manipulate integer-based semantics.
+    In particular, contains references to the pow2 and andi functions, if they
+    are already defined in the IR.
+    """
+
     pow2_fun: SSAValue | None = None
     andi_fun: SSAValue | None = None
 
