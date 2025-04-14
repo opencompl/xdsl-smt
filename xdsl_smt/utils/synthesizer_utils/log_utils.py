@@ -24,6 +24,14 @@ def setup_loggers(output_dir: str, verbose: int):
         debug_handler.setFormatter(formatter)
         logger.addHandler(debug_handler)
 
+    critical_handler = logging.FileHandler(output_dir + "/critial.cpp", mode="w")
+    critical_handler.setLevel(logging.CRITICAL)
+    logger.addHandler(critical_handler)
+
+    error_handler = logging.FileHandler(output_dir + "/error.mlir", mode="w")
+    error_handler.setLevel(logging.ERROR)
+    logger.addHandler(error_handler)
+
     return logger
 
 

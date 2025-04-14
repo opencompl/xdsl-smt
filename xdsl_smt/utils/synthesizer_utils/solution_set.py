@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import io
 from typing import Callable
 
 from xdsl.context import MLContext
@@ -364,6 +366,22 @@ class UnsizedSolutionSet(SolutionSet):
             )
             if unsound_bit != 0:
                 self.logger.info(f"Skip a unsound function at bit width {unsound_bit}")
+                if unsound_bit == 4:
+                    func_str, helper_str = candidates[index].get_function_str(
+                        self.lower_to_cpp, self.eliminate_dead_code
+                    )
+                    func_op = candidates[index].get_function()
+                    for s in helper_str:
+                        self.logger.critical(s + "\n")
+                    self.logger.critical(func_str)
+                    str_output = io.StringIO()
+                    print(candidates[index].func, file=str_output)
+                    if candidates[index].cond is not None:
+                        print(candidates[index].cond, file=str_output)
+                    print(func_op, file=str_output)
+                    func_op_str = str_output.getvalue()
+                    self.logger.error(func_op_str)
+                    exit(0)
                 candidates.pop(index)
                 continue
 
