@@ -1,3 +1,5 @@
+"""This file defines simple canonicalization patterns for the smt.array dialect."""
+
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
