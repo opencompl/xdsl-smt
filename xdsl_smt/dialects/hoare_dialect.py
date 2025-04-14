@@ -1,3 +1,8 @@
+"""
+Defines a dialect for Hoare logic annotations.
+For now, it only supports requires and ensures annotations.
+"""
+
 from xdsl.ir import Dialect, Operation, Region
 from xdsl.irdl import (
     operand_def,

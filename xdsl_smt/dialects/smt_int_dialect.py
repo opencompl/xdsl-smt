@@ -1,3 +1,5 @@
+"""Defines the `smt_int` dialect, based on the int SMT theory."""
+
 from typing import TypeVar, IO
 from ..traits.effects import Pure
 from xdsl.dialects.builtin import (

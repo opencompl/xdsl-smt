@@ -1,3 +1,7 @@
+"""
+Defines the `ub` dialect, which represents delayed UB (poison) semantics.
+"""
+
 from __future__ import annotations
 from typing_extensions import TypeVar
 from typing import Annotated, Generic, Sequence, ClassVar

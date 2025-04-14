@@ -1,3 +1,5 @@
+"""Defines the `smt_bv` dialect, based on the SMT-LIB bitvector theory."""
+
 from __future__ import annotations
 
 from typing import TypeVar, IO, overload
@@ -113,12 +115,10 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     traits = traits_def(traits.Pure())
 
     @overload
-    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
-        ...
+    def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None: ...
 
     @overload
-    def __init__(self, value: IntegerAttr[IntegerType] | BitVectorValue) -> None:
-        ...
+    def __init__(self, value: IntegerAttr[IntegerType] | BitVectorValue) -> None: ...
 
     def __init__(
         self,

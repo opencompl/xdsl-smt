@@ -1,3 +1,7 @@
+"""
+Defines dataflow analysis operations that can be used in the PDL dialect.
+"""
+
 from xdsl.dialects.builtin import StringAttr
 from xdsl.ir import Attribute, Dialect
 from xdsl.irdl import (

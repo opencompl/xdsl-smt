@@ -1,3 +1,8 @@
+"""
+Defines the index dialect, which represent computations on address-size integers.
+This dialect should be moved to xDSL when possible.
+"""
+
 from __future__ import annotations
 from xdsl.ir import Attribute, Dialect, OpResult
 from xdsl.irdl import (

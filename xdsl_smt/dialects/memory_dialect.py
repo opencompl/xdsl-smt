@@ -1,3 +1,8 @@
+"""
+The `memory` dialect defines an abstraction over the low-level LLVM memory semantics.
+It manipulates memory block explicitly, which makes it easier to reason about aliasing.
+"""
+
 from xdsl.ir import ParametrizedAttribute, TypeAttribute, SSAValue, Dialect, Attribute
 from xdsl.irdl import (
     IRDLOperation,

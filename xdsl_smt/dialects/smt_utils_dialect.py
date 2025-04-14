@@ -1,3 +1,5 @@
+"""Defines the `smt_utils` dialect, which allows to manipulate pair datatypes."""
+
 from __future__ import annotations
 
 from functools import reduce

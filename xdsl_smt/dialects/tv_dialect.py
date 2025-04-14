@@ -1,3 +1,8 @@
+"""
+Defines the `tv` dialect, which is used to represent translation validation
+queries explicitely in the IR.
+"""
+
 from typing import Sequence
 from xdsl.ir import Dialect, SSAValue
 from xdsl.irdl import (
