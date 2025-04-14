@@ -1,3 +1,5 @@
+"""Define utilities to convert z3 expressions to the SMT dialect."""
+
 from typing import Any, TypeAlias
 from xdsl.ir import Attribute, Operation, SSAValue
 from z3 import (

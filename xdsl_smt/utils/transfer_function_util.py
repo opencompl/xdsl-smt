@@ -1,3 +1,5 @@
+"""Define utilities to manipulate transfer functions defined in MLIR IR."""
+
 from dataclasses import dataclass, field
 from typing import Callable
 

@@ -1,3 +1,5 @@
+"""Define utility functions to check the correctness of transfer functions."""
+
 from xdsl.utils.hints import isa
 
 from xdsl.dialects.builtin import ModuleOp, IntegerAttr, AnyArrayAttr
@@ -442,10 +444,10 @@ def get_forall_abs_res_prime_constraint(
     This constraint is called abs_res_prime constraint
     """
     forall_abs_res_prime_constraint_block = Block()
-    crt_args_with_poison: list[
-        SSAValue
-    ] = insert_argument_instances_to_block_with_effect(
-        concrete_func, int_attr, forall_abs_res_prime_constraint_block
+    crt_args_with_poison: list[SSAValue] = (
+        insert_argument_instances_to_block_with_effect(
+            concrete_func, int_attr, forall_abs_res_prime_constraint_block
+        )
     )
     crt_arg_first_ops: list[FirstOp] = [FirstOp(arg) for arg in crt_args_with_poison]
     crt_args: list[SSAValue] = [arg.res for arg in crt_arg_first_ops]
