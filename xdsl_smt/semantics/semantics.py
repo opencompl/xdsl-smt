@@ -1,3 +1,10 @@
+"""
+Define the data structures to represent semantics of operations, attributes, and types.
+These structures are used to manipulate the semantics of operations when attributes are
+also defined as ssa values.
+Otherwise, semantics should be defined using the `SMTRewritePattern` class.
+"""
+
 from __future__ import annotations
 
 from abc import abstractmethod

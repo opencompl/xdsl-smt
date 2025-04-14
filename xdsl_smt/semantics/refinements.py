@@ -1,3 +1,7 @@
+"""
+This file contains the usual refinements we are using in our semantics.
+"""
+
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
