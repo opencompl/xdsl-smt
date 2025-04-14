@@ -1,3 +1,5 @@
+"""Define utilities to convert transfer functions defined in MLIR IR to SMT-LIB."""
+
 from xdsl.ir import Operation, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 

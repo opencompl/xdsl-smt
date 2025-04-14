@@ -1,3 +1,7 @@
+"""
+Define utilities to lower `arith` and `transfer` operations to C++ code.
+"""
+
 from ..dialects.transfer import (
     AbstractValueType,
     GetOp,

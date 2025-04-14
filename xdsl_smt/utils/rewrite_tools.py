@@ -1,3 +1,5 @@
+"""Define utilities to rewrite operations."""
+
 from typing import Iterable
 
 from xdsl.ir import Operation, OpResult
