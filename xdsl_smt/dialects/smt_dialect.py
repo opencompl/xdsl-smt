@@ -1,3 +1,5 @@
+"""Defines the `smt` dialect, based on the core SMT theory."""
+
 from __future__ import annotations
 
 from typing import Sequence, TypeVar, IO

@@ -1,3 +1,8 @@
+"""
+Defines the `smt.synth` dialect, which represnts constants that should be synthesized
+by the SMT solver.
+"""
+
 from xdsl.ir import Attribute, Dialect, OpResult
 from xdsl.irdl import irdl_op_definition, IRDLOperation, result_def
 

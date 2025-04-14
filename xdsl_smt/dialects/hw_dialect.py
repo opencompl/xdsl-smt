@@ -1,3 +1,7 @@
+"""
+Defines the `hw.constant` operation. This should be moved to xDSL when possible.
+"""
+
 from typing import ClassVar
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl.ir import Dialect, OpResult

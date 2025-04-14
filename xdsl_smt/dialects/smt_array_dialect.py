@@ -1,3 +1,5 @@
+"""Defines the `smt_array` dialect, based on the SMT-LIB array theory."""
+
 from __future__ import annotations
 
 from typing_extensions import TypeVar

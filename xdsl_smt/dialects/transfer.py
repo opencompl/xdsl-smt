@@ -1,3 +1,8 @@
+"""
+Defines the `transfer` dialect, which is used to represent operations used in
+transfer functions.
+"""
+
 from __future__ import annotations
 from abc import ABC
 

@@ -1,3 +1,8 @@
+"""
+Defines the operations of the LLVM dialect that are missing from
+the xDSL implementation.
+"""
+
 # pyright: reportConstantRedefinition=false
 from __future__ import annotations
 
