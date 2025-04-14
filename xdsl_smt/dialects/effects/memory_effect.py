@@ -1,3 +1,10 @@
+"""
+The memory effect dialect defines the high-level effects that can be performed on
+memory, such as allocation, deallocation, reading and writing. It also defines a
+pointer type.
+It is expected to follow the LLVM memory model.
+"""
+
 from xdsl.utils.hints import isa
 from xdsl.ir import TypeAttribute, ParametrizedAttribute, Dialect, SSAValue
 from xdsl.irdl import (

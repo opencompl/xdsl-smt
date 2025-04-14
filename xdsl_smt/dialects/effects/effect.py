@@ -1,3 +1,9 @@
+"""
+The `effect` dialect defines the `effect.state` type, which is used to represent
+the current state of the world. This state is passed around in the program, and every
+effect should pass it as operand to the operation that modifies it.
+"""
+
 from xdsl.ir import ParametrizedAttribute, TypeAttribute, Dialect
 from xdsl.irdl import (
     irdl_attr_definition,

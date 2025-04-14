@@ -1,3 +1,8 @@
+"""
+The `ub_effect` dialect defines the operations to trigger immediate undefined
+behavior.
+"""
+
 from xdsl.ir import Dialect, SSAValue
 from xdsl.irdl import (
     irdl_op_definition,
