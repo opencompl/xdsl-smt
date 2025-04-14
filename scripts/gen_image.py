@@ -15,12 +15,19 @@ def get_info_file():
     return output_folder + "/" + test_name + "/" + INFO_FILE
 
 
+def get_image_file():
+    return output_folder + "/" + test_name + "/" + test_name + ".png"
+
+
 def main():
     debug_file = get_debug_file()
     info_file = get_info_file()
     unsound.plot(debug_file, test_name)
     profile.plot(debug_file)
     plt.show()
+    image_path = get_image_file()
+    plt.savefig(image_path)
+    print("Result figure is saved at: " + image_path + "\n")
 
 
 main()
