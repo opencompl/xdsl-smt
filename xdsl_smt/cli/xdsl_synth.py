@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+Given an input program and another input program with holes, synthesize
+constants that makes the second program a refinement of the first one.
+"""
+
 import argparse
 import sys
 from typing import Sequence
@@ -148,14 +153,14 @@ def move_synth_constants_to_arguments(func: FuncOp) -> Sequence[Attribute]:
 
 def remove_effect_states(func: DefineFunOp) -> None:
     effect_state = func.body.blocks[0].args[-1]
-    assert (
-        len(effect_state.uses) == 1
-    ), "xdsl-synth does not handle operations effects yet"
+    assert len(effect_state.uses) == 1, (
+        "xdsl-synth does not handle operations effects yet"
+    )
     use = list(effect_state.uses)[0]
     user = use.operation
-    assert isinstance(
-        user, ReturnOp
-    ), "xdsl-synth does not handle operations with effects yet"
+    assert isinstance(user, ReturnOp), (
+        "xdsl-synth does not handle operations with effects yet"
+    )
     Rewriter.replace_op(user, ReturnOp(user.ret[:-1]))
     func.body.blocks[0].erase_arg(effect_state)
     assert isinstance(ret := func.ret.type, FunctionType)

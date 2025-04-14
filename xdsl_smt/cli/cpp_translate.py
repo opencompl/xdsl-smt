@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+"""Translate a transfer function to C++ code."""
+
 import argparse
 from typing import cast
 import sys

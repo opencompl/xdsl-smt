@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+"""
+Synthesize an equivalent function for a given function.
+The input function may have holes that will be filled with constants synthesized
+by the SMT solver.
+"""
+
 import sys
 import argparse
 import re
