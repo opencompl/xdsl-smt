@@ -1,3 +1,9 @@
+"""
+This file contains utilities to load a set of semantics.
+It is used to load the default set of semantics we used in the project,
+that is then used by the SMTLowerer.
+"""
+
 from xdsl.ir import Attribute, Operation
 from xdsl.dialects import arith
 from xdsl_smt.semantics.generic_integer_proxy import IntegerProxy
@@ -39,11 +45,13 @@ from xdsl_smt.dialects import smt_int_dialect as smt_int
 
 
 def load_vanilla_semantics_with_transfer(transfer_width: int):
+    """Load our usual set of semantics with the transfer semantics."""
     load_vanilla_semantics()
     load_transfer_type_lowerer(transfer_width)
 
 
 def load_vanilla_semantics():
+    """Load our usual set of semantics."""
     SMTLowerer.type_lowerers = {
         IntegerType: IntegerTypeSemantics(),
         IndexType: IndexTypeSemantics(),
@@ -64,6 +72,7 @@ def load_vanilla_semantics():
 
 
 def load_transfer_type_lowerer(transfer_width: int):
+    """Load the transfer type semantics."""
     SMTLowerer.type_lowerers = {
         **SMTLowerer.type_lowerers,
         **{TransIntegerType: TransferIntegerTypeSemantics(transfer_width)},
@@ -71,11 +80,13 @@ def load_transfer_type_lowerer(transfer_width: int):
 
 
 def load_dynamic_semantics(semantics: dict[type[Operation], OperationSemantics]):
+    """Load semantics defined in PDL."""
     SMTLowerer.dynamic_semantics_enabled = True
     SMTLowerer.op_semantics = {**SMTLowerer.op_semantics, **semantics}
 
 
 def load_int_semantics(integer_proxy: IntegerProxy):
+    """Load arith semantics that use the integer theory."""
     semantics = {
         arith.ConstantOp: IntConstantSemantics(integer_proxy),
         arith.SelectOp: IntSelectSemantics(integer_proxy),

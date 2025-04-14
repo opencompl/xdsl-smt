@@ -1,3 +1,8 @@
+"""
+Define the lowering rewrite patterns to convert the llvm dialect to the semantics
+dialects.
+"""
+
 from xdsl.dialects.builtin import FunctionType, IntegerType
 from xdsl.dialects.llvm import LLVMVoidType
 from xdsl.ir import SSAValue
@@ -20,6 +25,8 @@ from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 
 
 class ReturnPattern(RewritePattern):
+    """Lower an `llvm.return` to an SMT return operation."""
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: llvm.ReturnOp, rewriter: PatternRewriter):
         if not op.arg:

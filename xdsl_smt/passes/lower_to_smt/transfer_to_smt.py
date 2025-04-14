@@ -1,3 +1,7 @@
+"""
+Define the semantics lowering patterns for the transfer dialect.
+"""
+
 from __future__ import annotations
 
 from abc import abstractmethod
@@ -83,8 +87,7 @@ class SMTPureLoweringPattern(Generic[_OpType], SMTLoweringRewritePattern):
         self,
         op: _OpType,
         rewriter: PatternRewriter,
-    ):
-        ...
+    ): ...
 
     def rewrite(
         self: SMTPureLoweringPattern[_OpType],

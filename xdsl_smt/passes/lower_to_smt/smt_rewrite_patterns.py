@@ -1,3 +1,8 @@
+"""
+A rewrite pattern that is used to represent semantics.
+Compared to rewrite patterns, it expects and returns an effect state.
+"""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from xdsl.ir import Operation, SSAValue
