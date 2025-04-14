@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+
+"""
+The main entry point for testing and running passes on the dialects defined
+in the project.
+"""
+
 import argparse
 
 from xdsl.ir import Dialect

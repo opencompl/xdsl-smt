@@ -1,3 +1,5 @@
+"""Check the correctness and precision of a transfer function."""
+
 import argparse
 import subprocess
 
@@ -824,9 +826,9 @@ def main() -> None:
                         op.detach()
 
                     if "int_attr" in op.attributes:
-                        transfer_function_name_to_concrete_function_name[
-                            func_name
-                        ] = get_dynamic_concrete_function_name(concrete_func_name)
+                        transfer_function_name_to_concrete_function_name[func_name] = (
+                            get_dynamic_concrete_function_name(concrete_func_name)
+                        )
                         continue
 
                     if concrete_func_name not in concrete_func_names:
@@ -849,9 +851,9 @@ def main() -> None:
                         if len(applied_to.data) >= 2:
                             concrete_func_name += str(extra)
                         concrete_func_names.add(concrete_func_name)
-                    transfer_function_name_to_concrete_function_name[
-                        func_name
-                    ] = concrete_funcs[-1].sym_name.data
+                    transfer_function_name_to_concrete_function_name[func_name] = (
+                        concrete_funcs[-1].sym_name.data
+                    )
 
                 # Not a transfer function but still a dynamic function
                 elif "int_attr" in op.attributes:
