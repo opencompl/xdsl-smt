@@ -9,6 +9,12 @@ from xdsl.pattern_rewriter import PatternRewriter
 
 @dataclass(frozen=True)
 class LoadIntSemanticsPass(ModulePass):
+    """
+    Load the integer-based semantics for the arith dialect. It also defines the Pow2
+    function in the IR.
+    `lower-to-smt` will then use these semantics to lower the operations.
+    """
+
     name = "load-int-semantics"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:

@@ -76,6 +76,11 @@ class LowerToBoolOp(RewritePattern):
 
 @dataclass(frozen=True)
 class LowerEffectPass(ModulePass):
+    """
+    Lower the `effect` and `ub` dialects into the `smt` dialect.
+    This pass should not be used in the presence of memory effects.
+    """
+
     name = "lower-effects"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:

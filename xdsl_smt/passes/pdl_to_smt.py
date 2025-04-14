@@ -73,9 +73,9 @@ class PDLToSMTRewriteContext:
 
 def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
     assert isinstance(value, ErasedSSAValue), "Error in rewriting logic"
-    assert isinstance(
-        (type_op := value.old_value.owner), TypeOp
-    ), "Error in rewriting logic"
+    assert isinstance((type_op := value.old_value.owner), TypeOp), (
+        "Error in rewriting logic"
+    )
     type = type_op.constantType
     if type is None:
         raise Exception("Cannot handle non-constant types")
@@ -463,9 +463,9 @@ class ComputationOpRewrite(RewritePattern):
             or type(op) in SMTLowerer.rewrite_patterns
         ):
             new_effects = SMTLowerer.lower_operation(op, None)
-            assert (
-                new_effects is None
-            ), "Operations used as computations in PDL should not have effects"
+            assert new_effects is None, (
+                "Operations used as computations in PDL should not have effects"
+            )
 
 
 @dataclass
@@ -574,6 +574,12 @@ class PDLToSMTLowerer:
 
 @dataclass(frozen=True)
 class PDLToSMT(ModulePass):
+    """
+    Lower the PDL dialect to the SMT dialect.
+    Only operations that define semantics using the `OperationSemantics` class are
+    supported.
+    """
+
     name = "pdl-to-smt"
 
     pdl_lowerer: ClassVar[PDLToSMTLowerer] = PDLToSMTLowerer({}, {}, {})

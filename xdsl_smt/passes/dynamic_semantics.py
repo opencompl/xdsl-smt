@@ -12,6 +12,12 @@ from xdsl_smt.semantics.semantics import OperationSemantics
 
 @dataclass(frozen=True)
 class DynamicSemantics(ModulePass):
+    """
+    Defines the semantics of an operation using the PDL dialect.
+    This loads the semantics of the operation in the SMTLowerer, so they can be
+    used in the `lower-to-smt` pass.
+    """
+
     name = "dynamic-semantics"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:

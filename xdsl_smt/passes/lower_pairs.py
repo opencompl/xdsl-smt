@@ -91,6 +91,10 @@ class RemovePairArgsCall(RewritePattern):
 
 
 def remove_pairs_from_function_return(module: ModuleOp):
+    """
+    Remove pairs from function return values.
+    This will duplicate the function into two functions, one for each element of the pair.
+    """
     funcs = list[DefineFunOp]()
     for op in module.walk():
         if isinstance(op, DefineFunOp):
@@ -270,6 +274,12 @@ class LowerEqPattern(RewritePattern):
 
 
 class LowerPairs(ModulePass):
+    """
+    Lower the `smt_utils` dialects into the `smt` dialect.
+    In particular, this splits function arguments into two arguments, and split
+    functions returning pairs into two functions (one for each element of the pair).
+    """
+
     name = "lower-pairs"
 
     def apply(self, ctx: MLContext, op: ModuleOp):

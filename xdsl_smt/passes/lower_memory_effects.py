@@ -278,6 +278,10 @@ class LowerGenericOp(RewritePattern):
 
 @dataclass(frozen=True)
 class LowerMemoryEffectsPass(ModulePass):
+    """
+    Lower the `mem_effect` dialect to the `smt` and `memory` dialects.
+    """
+
     name = "lower-memory-effects"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:
