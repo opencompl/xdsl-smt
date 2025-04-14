@@ -110,6 +110,10 @@ class ConstRangeForOpPattern(RewritePattern):
 
 @dataclass(frozen=True)
 class UnrollTransferLoop(ModulePass):
+    """
+    Unroll `transfer.ConstRangeForOp` loops with constant bounds.
+    """
+
     name = "unrollTransferLoop"
 
     width: int

@@ -129,6 +129,11 @@ class LowerSetMemoryOp(RewritePattern):
 
 @dataclass(frozen=True)
 class LowerEffectsWithMemoryPass(ModulePass):
+    """
+    Lower the `ub` and `effect` dialects to the `smt` and `memory` dialects.
+    `mem_effect` operations should not appear in the IR before this pass.
+    """
+
     name = "lower-effects-with-memory"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:

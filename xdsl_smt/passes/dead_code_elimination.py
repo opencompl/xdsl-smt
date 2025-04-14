@@ -15,6 +15,11 @@ class RemoveDeadPattern(RewritePattern):
 
 
 class DeadCodeElimination(ModulePass):
+    """
+    Defines a simple dead code elimination pass.
+    It eliminates every operation that is not used and has no side effects.
+    """
+
     name = "dce"
 
     def apply(self, ctx: MLContext, op: ModuleOp):

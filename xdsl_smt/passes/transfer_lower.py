@@ -89,6 +89,8 @@ def addDispatcher(fout: TextIO, is_forward: bool):
 
 @dataclass(frozen=True)
 class LowerToCpp(ModulePass):
+    """Lower `transfer` operations to C++ code."""
+
     name = "trans_lower"
     fout: TextIO = None
 

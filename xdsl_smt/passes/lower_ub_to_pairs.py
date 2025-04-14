@@ -127,6 +127,10 @@ class LowerMatchOp(RewritePattern):
 
 @dataclass(frozen=True)
 class LowerUBToPairs(ModulePass):
+    """
+    Lower the `ub` dialect to pairs of values in the `smt` dialects.
+    """
+
     name = "lower-ub-to-pairs"
 
     def apply(self, ctx: MLContext, op: ModuleOp) -> None:

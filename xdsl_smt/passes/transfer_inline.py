@@ -68,6 +68,10 @@ class SMTCallInlinePattern(RewritePattern):
 
 @dataclass(frozen=True)
 class FunctionCallInline(ModulePass):
+    """
+    Inline all functions calls in the module.
+    """
+
     name = "callInline"
 
     is_SMT_call: bool

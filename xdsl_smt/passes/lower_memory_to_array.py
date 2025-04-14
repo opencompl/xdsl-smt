@@ -227,6 +227,8 @@ class GetFreshBlockIDPattern(RewritePattern):
 
 
 class LowerMemoryToArrayPass(ModulePass):
+    """Lower the `memory` dialect to the `smt` dialects."""
+
     name = "lower-memory-to-array"
 
     def apply(self, ctx: MLContext, op: ModuleOp):

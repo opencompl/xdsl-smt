@@ -36,6 +36,8 @@ class RenameOpResult(RewritePattern):
 
 @dataclass(frozen=True)
 class RenameValuesPass(ModulePass):
+    """Change the name hints of function results and arguments to autogen_0, autogen_1, etc."""
+
     name = "rename_op_result"
 
     def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
