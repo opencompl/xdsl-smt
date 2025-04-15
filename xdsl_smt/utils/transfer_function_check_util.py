@@ -716,6 +716,105 @@ def backward_precision_check(
     int_attr: dict[int, int],
 ) -> list[Operation]:
     assert not transfer_function.is_forward
+    """
+    Return a list of operations that checks the soundness for a backward transfer function. First, by applying
+    the backwards transfer function, we can get the abstract domain of i-th operand. Next, we check if the abstract
+    result includes all concrete result.
+    """
+    assert not transfer_function.is_forward
+    operationNo = transfer_function.operationNo
+    abstract_func = transfer_function.transfer_function
+    concrete_func = transfer_function.concrete_function
+    abs_op_constraint = transfer_function.abstract_constraint
+    op_constraint = transfer_function.op_constraint
+    is_abstract_arg = transfer_function.is_abstract_arg
+
+    effect = ConstantBoolOp(False)
+    assert abstract_func is not None
+    assert concrete_func is not None
+    arg_widths = get_argument_widths_with_effect(concrete_func)
+    result_width = get_result_width(concrete_func)
+
+    # replace the only abstract arg in transfer_function with bv with result_width
+    assert sum(is_abstract_arg) == 1
+    abs_arg_idx = is_abstract_arg.index(True)
+    old_abs_arg = abstract_func.body.block.args[abs_arg_idx]
+    assert isinstance(old_abs_arg.type, Attribute)
+    new_abs_arg_type = replace_abstract_value_width(old_abs_arg.type, result_width)
+    new_abs_arg = abstract_func.body.block.insert_arg(new_abs_arg_type, abs_arg_idx)
+    abstract_func.body.block.args[abs_arg_idx + 1].replace_by(new_abs_arg)
+    abstract_func.body.block.erase_arg(old_abs_arg)
+
+    abs_arg_ops = get_argument_instances_with_effect(abstract_func, int_attr)
+    abs_args: list[SSAValue] = [arg.res for arg in abs_arg_ops]
+
+    crt_arg_ops = get_argument_instances_with_effect(concrete_func, int_attr)
+    crt_args_with_poison: list[SSAValue] = [arg.res for arg in crt_arg_ops]
+    crt_arg_first_ops = [FirstOp(arg) for arg in crt_args_with_poison]
+    crt_args: list[SSAValue] = [arg.res for arg in crt_arg_first_ops]
+
+    constant_bv_0 = ConstantOp(0, 1)
+    constant_bv_1 = ConstantOp(1, 1)
+
+    call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
+        abstract_func, abs_args, effect.res
+    )
+    call_crt_func_op, call_crt_func_first_op = call_function_with_effect(
+        concrete_func, crt_args_with_poison, effect.res
+    )
+    call_crt_func_res_op = FirstOp(call_crt_func_first_op.res)
+
+    abs_domain_constraints_ops = call_function_and_assert_result_with_effect(
+        domain_constraint.getFunctionByWidth(result_width),
+        [abs_args[0]],
+        constant_bv_1,
+        effect.res,
+    )
+
+    """
+    Notice here: 
+    abs_res'0, abs_res'1 is the operand
+    arg0field0, arg0field1 is the actually result 
+    """
+
+    """
+    Sound
+    ForAll([arg0inst, arg1inst],
+            Implies(And(getInstanceConstraint(arg0inst, abs_res'0, abs_res'1), 
+                    getInstanceConstraint(concrete_op(arg0inst, arg1inst), arg0field0, arg0field1)))
+    This constraint is called abs_res_prime constraint
+    """
+
+
+    """
+    hasNoCounterexample
+    """
+
+
+    """
+    more precise
+    """
+
+    """
+    abs_arg_include_crt_res_constraint_ops = (
+        call_function_and_assert_result_with_effect(
+            instance_constraint.getFunctionByWidth(result_width),
+            [abs_args[0], call_crt_func_res_op.res],
+            constant_bv_1,
+            effect.res,
+        )
+    )
+
+    abs_result_not_include_crt_arg_constraint_ops = (
+        call_function_and_assert_result_with_effect(
+            instance_constraint.getFunctionByWidth(arg_widths[operationNo]),
+            [call_abs_func_first_op.res, crt_args[operationNo]],
+            constant_bv_0,
+            effect.res,
+        )
+    )
+    """
+
     return [CheckSatOp()]
 
 
