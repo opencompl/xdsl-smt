@@ -29,6 +29,7 @@ from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectsWithMemoryPass
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
+from xdsl_smt.passes.transfer_inline import FunctionCallInline
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -117,6 +118,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
         self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)
         self.register_pass(LowerUBToPairs.name, lambda: LowerUBToPairs)
+        self.register_pass(FunctionCallInline.name, lambda: FunctionCallInline)
 
     def register_all_targets(self):
         super().register_all_targets()

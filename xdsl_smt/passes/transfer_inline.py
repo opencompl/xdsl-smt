@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -72,10 +72,10 @@ class FunctionCallInline(ModulePass):
     Inline all functions calls in the module.
     """
 
-    name = "callInline"
+    name = "function-call-inline"
 
-    is_SMT_call: bool
-    func_name_to_func: dict[str, func.FuncOp]
+    is_SMT_call: bool = True
+    func_name_to_func: dict[str, func.FuncOp] = field(default_factory=dict)
 
     def apply(self, ctx: MLContext, op: ModuleOp):
         if self.is_SMT_call:

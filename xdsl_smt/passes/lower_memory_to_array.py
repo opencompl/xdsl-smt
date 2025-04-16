@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from typing import cast
 from xdsl.passes import ModulePass
 from xdsl.context import MLContext
 
 from xdsl.ir import Attribute, Operation, SSAValue, ParametrizedAttribute
-from xdsl.dialects.builtin import ModuleOp
+from xdsl.dialects.builtin import ModuleOp, ArrayAttr
 from xdsl.pattern_rewriter import (
     RewritePattern,
     PatternRewriter,
@@ -77,6 +78,9 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
         return memory_block_type
     elif isinstance(attr, mem.BytesType):
         return bytes_type
+    elif isinstance(attr, ArrayAttr):
+        attr = cast(ArrayAttr[Attribute], attr)
+        return ArrayAttr([recursively_convert_attr(sub_attr) for sub_attr in attr.data])
 
     if isinstance(attr, ParametrizedAttribute):
         return attr.new(
@@ -232,12 +236,13 @@ class LowerMemoryToArrayPass(ModulePass):
     name = "lower-memory-to-array"
 
     def apply(self, ctx: MLContext, op: ModuleOp):
-        for sub_op in op.body.ops:
-            if isinstance(sub_op, smt.DefineFunOp):
-                raise Exception(
-                    "Cannot lower memory operations when functions are present. "
-                    "Please run the 'inline-functions' pass first."
-                )
+        if len(op.ops) != 1 or not isinstance(next(op.ops.__iter__()), smt.DefineFunOp):
+            for sub_op in op.body.ops:
+                if isinstance(sub_op, smt.DefineFunOp):
+                    raise Exception(
+                        "Cannot lower memory operations when functions are present. "
+                        "Please run the 'inline-functions' pass first."
+                    )
 
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
