@@ -1,4 +1,6 @@
-from xdsl.dialects.builtin import ModuleOp
+from xdsl.utils.hints import isa
+
+from xdsl.dialects.builtin import ModuleOp, IntegerAttr, AnyArrayAttr
 
 from .transfer_function_util import (
     replace_abstract_value_width,
@@ -25,11 +27,11 @@ from ..dialects.smt_dialect import (
     XorOp,
     EqOp,
     IteOp,
+    DistinctOp,
+    DeclareConstOp,
 )
-from ..dialects.smt_bitvector_dialect import (
-    ConstantOp,
-)
-from ..dialects.smt_utils_dialect import FirstOp
+from ..dialects.smt_bitvector_dialect import ConstantOp, NotOp, OrOp as BVOrOp
+from ..dialects.smt_utils_dialect import FirstOp, PairType
 from xdsl.dialects.func import FuncOp
 from ..dialects.transfer import AbstractValueType
 from xdsl.ir import Operation, SSAValue, Attribute, Block, Region
@@ -357,6 +359,7 @@ def backward_soundness_check(
 
 
 def counterexample_check(
+    concrete_func: DefineFunOp,
     counter_func: FuncOp,
     smt_counter_func: DefineFunOp,
     domain_constraint: FunctionCollection,
@@ -367,9 +370,26 @@ def counterexample_check(
     are described by the parameter counter_func. For example, if one bit in demanded bits is zero, it must not change
     the operation result.
     """
+    result_width = get_result_width(concrete_func)
     is_abstract_arg: list[bool] = [
-        isinstance(arg, AbstractValueType) for arg in counter_func.args
+        isinstance(arg.type, AbstractValueType) for arg in counter_func.args
     ]
+
+    # Assert of the counter example:
+    """
+    It starts with the abstract value result from the concrete function,
+    and follows two concrete values in the abstract value
+    """
+    # replace the only abstract arg in transfer_function with bv with result_width
+    assert sum(is_abstract_arg) == 1
+    abs_arg_idx = is_abstract_arg.index(True)
+    old_abs_arg = smt_counter_func.body.block.args[abs_arg_idx]
+    assert isinstance(old_abs_arg.type, Attribute)
+    new_abs_arg_type = replace_abstract_value_width(old_abs_arg.type, result_width)
+    new_abs_arg = smt_counter_func.body.block.insert_arg(new_abs_arg_type, abs_arg_idx)
+    smt_counter_func.body.block.args[abs_arg_idx + 1].replace_by(new_abs_arg)
+    smt_counter_func.body.block.erase_arg(old_abs_arg)
+
     effect = ConstantBoolOp(False)
     arg_ops = get_argument_instances_with_effect(smt_counter_func, int_attr)
     args: list[SSAValue] = [arg.res for arg in arg_ops]
@@ -709,10 +729,110 @@ def forward_precision_check(
     )
 
 
+def get_forall_abs_res_no_counterexample(
+    abs_val: SSAValue,
+    abs_input: SSAValue,
+    counter_func: FuncOp,
+    smt_counter_func: DefineFunOp,
+    int_attr: dict[int, int],
+    other_operand: list[int],
+) -> list[Operation]:
+    """
+    Forall([arg0, areg1],
+        ~Counterexample(abs_val, arg0, arg1...))
+    """
+
+    effect = ConstantBoolOp(False)
+    forall_abs_res_no_counterexample_block = Block()
+    args: list[SSAValue] = insert_argument_instances_to_block_with_effect(
+        smt_counter_func, {}, forall_abs_res_no_counterexample_block
+    )
+
+    assert args[0].type == abs_val.type
+    args[0] = abs_val
+
+    assert args[1].type == abs_input.type
+    args[1] = abs_input
+
+    constant_bv_0 = ConstantOp(0, 1)
+    constant_bv_1 = ConstantOp(1, 1)
+    other_operand_constant_ops = []
+    for operand_idx in other_operand:
+        other_operand_constant_ops.append(DeclareConstOp(args[operand_idx].type))
+        args[operand_idx] = other_operand_constant_ops[-1].res
+
+    (
+        forall_abs_res_no_counterexample_ops,
+        forall_abs_res_no_counterexample_eq,
+    ) = call_function_and_eq_result_with_effect(
+        smt_counter_func, args, constant_bv_0, effect.res
+    )
+
+    forall_abs_res_no_counterexample_yield = YieldOp(
+        forall_abs_res_no_counterexample_eq.res
+    )
+
+    forall_abs_res_no_counterexample_block.add_ops(
+        [constant_bv_0, constant_bv_1]
+        + forall_abs_res_no_counterexample_ops
+        + [forall_abs_res_no_counterexample_yield]
+    )
+
+    forall_abs_res_no_counterexample = ForallOp.from_variables(
+        [], Region(forall_abs_res_no_counterexample_block)
+    )
+    forall_abs_res_no_counterexample_assert = AssertOp(
+        forall_abs_res_no_counterexample.res
+    )
+
+    return (
+        [effect]
+        + other_operand_constant_ops
+        + [
+            forall_abs_res_no_counterexample,
+            forall_abs_res_no_counterexample_assert,
+        ]
+    )
+
+
+def get_demanded_bits_is_precise(
+    abs_res_prime: SSAValue, abs_res: SSAValue
+) -> list[Operation]:
+    assert isinstance(abs_res_prime.type, PairType)
+    assert isinstance(abs_res.type, PairType)
+    abs_res_prime_demanded_bits = FirstOp(abs_res_prime)
+    abs_res_demanded_bits = FirstOp(abs_res)
+    assert abs_res_prime_demanded_bits.res.type == abs_res_demanded_bits.res.type
+    not_abs_res_prime_demanded_bits = NotOp(abs_res_prime_demanded_bits.res)
+    not_abs_res_demanded_bits = NotOp(abs_res_demanded_bits.res)
+    or_result = BVOrOp(
+        not_abs_res_prime_demanded_bits.res, not_abs_res_demanded_bits.res
+    )
+    or_result_eq_not_abs_res_prime_demanded_bits = EqOp(
+        or_result.res, not_abs_res_prime_demanded_bits.res
+    )
+    distinct_op = DistinctOp(abs_res_prime_demanded_bits.res, abs_res_demanded_bits.res)
+    assert_ops = [
+        AssertOp(or_result_eq_not_abs_res_prime_demanded_bits.res),
+        AssertOp(distinct_op.res),
+    ]
+
+    return [
+        abs_res_prime_demanded_bits,
+        abs_res_demanded_bits,
+        not_abs_res_prime_demanded_bits,
+        not_abs_res_demanded_bits,
+        or_result,
+        or_result_eq_not_abs_res_prime_demanded_bits,
+        distinct_op,
+    ] + assert_ops
+
+
 def backward_precision_check(
     transfer_function: SMTTransferFunction,
     domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
+    counterexample_func: FuncOp,
     int_attr: dict[int, int],
 ) -> list[Operation]:
     assert not transfer_function.is_forward
@@ -720,6 +840,9 @@ def backward_precision_check(
     Return a list of operations that checks the soundness for a backward transfer function. First, by applying
     the backwards transfer function, we can get the abstract domain of i-th operand. Next, we check if the abstract
     result includes all concrete result.
+
+    Notice: this function is specially optimized for demanded bits.
+    Other constraints needs to be checked if it's extended to other domain
     """
     assert not transfer_function.is_forward
     operationNo = transfer_function.operationNo
@@ -728,6 +851,7 @@ def backward_precision_check(
     abs_op_constraint = transfer_function.abstract_constraint
     op_constraint = transfer_function.op_constraint
     is_abstract_arg = transfer_function.is_abstract_arg
+    precision_util = transfer_function.precision_util
 
     effect = ConstantBoolOp(False)
     assert abstract_func is not None
@@ -745,77 +869,75 @@ def backward_precision_check(
     abstract_func.body.block.args[abs_arg_idx + 1].replace_by(new_abs_arg)
     abstract_func.body.block.erase_arg(old_abs_arg)
 
+    # replace the specified abstract input in precision_util with bv with result_width
+    assert "abs_input" in counterexample_func.attributes
+    abs_input_attr = counterexample_func.attributes["abs_input"]
+    assert isinstance(abs_input_attr, IntegerAttr)
+    abs_input = abs_input_attr.value.data
+    old_abs_input_arg = precision_util.body.block.args[abs_input]
+    new_abs_input_arg_type = replace_abstract_value_width(
+        old_abs_input_arg.type, result_width
+    )
+    new_abs_input_arg = precision_util.body.block.insert_arg(
+        new_abs_input_arg_type, abs_input
+    )
+    precision_util.body.block.args[abs_input + 1].replace_by(new_abs_input_arg)
+    precision_util.body.block.erase_arg(old_abs_input_arg)
+
+    # Handle other operand part
+    other_operand: list[int] = []
+    if "other_operand" in counterexample_func.attributes:
+        other_operand_attr = counterexample_func.attributes["other_operand"]
+        assert isa(other_operand_attr, AnyArrayAttr)
+        for attr in other_operand_attr.data:
+            assert isinstance(attr, IntegerAttr)
+            other_operand.append(attr.value.data)
+
     abs_arg_ops = get_argument_instances_with_effect(abstract_func, int_attr)
     abs_args: list[SSAValue] = [arg.res for arg in abs_arg_ops]
-
-    crt_arg_ops = get_argument_instances_with_effect(concrete_func, int_attr)
-    crt_args_with_poison: list[SSAValue] = [arg.res for arg in crt_arg_ops]
-    crt_arg_first_ops = [FirstOp(arg) for arg in crt_args_with_poison]
-    crt_args: list[SSAValue] = [arg.res for arg in crt_arg_first_ops]
-
-    constant_bv_0 = ConstantOp(0, 1)
-    constant_bv_1 = ConstantOp(1, 1)
+    """
+    Notice here:
+    abs_res'0, abs_res'1 is the operand
+    arg0field0, arg0field1 is the actually result
+    """
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
         abstract_func, abs_args, effect.res
     )
-    call_crt_func_op, call_crt_func_first_op = call_function_with_effect(
-        concrete_func, crt_args_with_poison, effect.res
+
+    abs_res_prime_ops, abs_res_prime = get_result_instance_with_effect(abstract_func)
+
+    """
+    abs_res' hasNoCounterexample
+    call get_forall_abs_res_no_counterexample
+    """
+    forall_abs_res_no_counterexample_ops = get_forall_abs_res_no_counterexample(
+        abs_res_prime,
+        abs_args[abs_arg_idx],
+        counterexample_func,
+        precision_util,
+        int_attr,
+        other_operand,
     )
-    call_crt_func_res_op = FirstOp(call_crt_func_first_op.res)
-
-    abs_domain_constraints_ops = call_function_and_assert_result_with_effect(
-        domain_constraint.getFunctionByWidth(result_width),
-        [abs_args[0]],
-        constant_bv_1,
-        effect.res,
-    )
-
-    """
-    Notice here: 
-    abs_res'0, abs_res'1 is the operand
-    arg0field0, arg0field1 is the actually result 
-    """
-
-    """
-    Sound
-    ForAll([arg0inst, arg1inst],
-            Implies(And(getInstanceConstraint(arg0inst, abs_res'0, abs_res'1), 
-                    getInstanceConstraint(concrete_op(arg0inst, arg1inst), arg0field0, arg0field1)))
-    This constraint is called abs_res_prime constraint
-    """
-
-
-    """
-    hasNoCounterexample
-    """
-
 
     """
     more precise
+    For two demanded bits, abs_res' is more precise than abs_res -> abs_res' contains more zeros than abs_res
     """
 
-    """
-    abs_arg_include_crt_res_constraint_ops = (
-        call_function_and_assert_result_with_effect(
-            instance_constraint.getFunctionByWidth(result_width),
-            [abs_args[0], call_crt_func_res_op.res],
-            constant_bv_1,
-            effect.res,
-        )
+    is_more_precise_ops = get_demanded_bits_is_precise(
+        abs_res_prime, call_abs_func_first_op.res
     )
 
-    abs_result_not_include_crt_arg_constraint_ops = (
-        call_function_and_assert_result_with_effect(
-            instance_constraint.getFunctionByWidth(arg_widths[operationNo]),
-            [call_abs_func_first_op.res, crt_args[operationNo]],
-            constant_bv_0,
-            effect.res,
-        )
+    return (
+        [effect]
+        + abs_arg_ops
+        + [call_abs_func_op, call_abs_func_first_op]
+        + abs_res_prime_ops
+        + forall_abs_res_no_counterexample_ops
+        + is_more_precise_ops
+        + [CheckSatOp()]
     )
-    """
-
-    return [CheckSatOp()]
 
 
 def print_module_until_op(module: ModuleOp, cur_op: Operation):

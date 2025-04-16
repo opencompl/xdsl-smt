@@ -410,6 +410,11 @@ class SMTTransferFunction:
     Except for the basic soundness property checker, if there are other scenarios making the transfer function unsound
     """
 
+    precision_util: DefineFunOp | None
+    """
+    A util function used only in backward precision check for now
+    """
+
     int_attr_arg: list[int] | None
 
     int_attr_constraint: DefineFunOp | None
