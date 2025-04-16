@@ -756,10 +756,10 @@ def get_forall_abs_res_no_counterexample(
 
     constant_bv_0 = ConstantOp(0, 1)
     constant_bv_1 = ConstantOp(1, 1)
-    other_operand_constant_ops = []
+    other_operand_constant_ops: list[Operation] = []
     for operand_idx in other_operand:
         other_operand_constant_ops.append(DeclareConstOp(args[operand_idx].type))
-        args[operand_idx] = other_operand_constant_ops[-1].res
+        args[operand_idx] = other_operand_constant_ops[-1].results[0]
 
     (
         forall_abs_res_no_counterexample_ops,

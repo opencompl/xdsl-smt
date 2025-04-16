@@ -440,7 +440,7 @@ def get_dynamic_functions(
     ctx: MLContext,
 ) -> dict[str, DefineFunOp]:
     result: dict[str, DefineFunOp] = {}
-    for func_name, func in dynamic_functions.items():
+    for _, func in dynamic_functions.items():
         func = func.clone()
         args: list[BlockArgument] = []
         module.body.block.add_op(func)
@@ -517,6 +517,7 @@ def soundness_counterexample_check(
         )
         assert soundness_counterexample_func_name is not None
         counterexample_func_name = soundness_counterexample_func_name.data
+        assert smt_transfer_function.concrete_function is not None
         added_ops = counterexample_check(
             smt_transfer_function.concrete_function,
             func_name_to_func[counterexample_func_name],
