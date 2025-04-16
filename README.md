@@ -161,6 +161,7 @@ public:
   const std::string display() const;
   const NewDomain meet(const NewDomain &rhs) const;
   const NewDomain join(const NewDomain &rhs) const;
+  unsigned int distance(const NewDomain &rhs) const;
   const std::vector<unsigned int> toConcrete() const;
 
   static NewDomain fromConcrete(const A::APInt &x);
@@ -174,6 +175,7 @@ Here's a list of the methods required for every domain domain:
 * `NewDomain(const Vec<2> &v_)`: this constructor is for synthesiszed transfer functions to create instances of `NewDomain` in the evaluation engine
 * `display()`: is not used by the evaluation engine (and as such is not strictly required), but is handy for debugging
 * `meet(const NewDomain &)`, and `join(const NewDomain &)`: should follow their respective definitions, in the lattice of the abstract domain
+* `distance(const NewDomain &)` is a metric in the eval engine to determine how similar synthesized results are to a perfect result
 * `toConcrete()`: is the gamma function, which enumerates all of the concrete values represented by the abstract value as a `std::vector<unsigned int>`
 * `top(unsigned int bw)`, and `bottom(unsigned int bw)`: should also follow their definitions of full set and empty set
 * `fromConcrete(const APInt &x)`: takes a concrete value and constructs the abstract value holding only that concrete value

@@ -47,10 +47,6 @@ public:
   bool isTop() const { return *this == top(bw()); }
   bool isBottom() const { return *this == bottom(bw()); }
   bool isSuperset(const Domain &rhs) const { return meet(rhs) == rhs; }
-  // TODO this should be for every val in v
-  unsigned int distance(const Domain &rhs) const {
-    return (v[0] ^ rhs.v[0]).popcount() + (v[1] ^ rhs.v[1]).popcount();
-  }
 
   // methods delegated to derived class
   const Domain meet(const Domain &rhs) const {
@@ -61,6 +57,9 @@ public:
   }
   const std::vector<unsigned int> toConcrete() const {
     return static_cast<const Domain *>(this)->toConcrete();
+  }
+  unsigned int distance(const Domain &rhs) const {
+    return Domain::distance(rhs);
   }
   const std::string display() const {
     return static_cast<Domain>(this)->display();
@@ -126,6 +125,10 @@ public:
         ret.push_back(i);
 
     return ret;
+  }
+
+  unsigned int distance(const KnownBits &rhs) const {
+    return (zero() ^ rhs.zero()).popcount() + (one() ^ rhs.one()).popcount();
   }
 
   static KnownBits fromConcrete(const A::APInt &x) {
@@ -220,6 +223,12 @@ public:
     std::vector<unsigned int> ret(u - l);
     std::iota(ret.begin(), ret.end(), l);
     return ret;
+  }
+
+  unsigned int distance(const ConstantRange &rhs) const {
+    return static_cast<unsigned int>(
+        (lower() - rhs.lower().abs() + upper() - rhs.upper().abs())
+            .getZExtValue());
   }
 
   static ConstantRange fromConcrete(const A::APInt &x) {
@@ -393,6 +402,15 @@ public:
       r.push_back(static_cast<unsigned int>(x));
 
     return r;
+  }
+
+  unsigned int distance(const IntegerModulo &rhs) const {
+    unsigned int d = 0;
+    for (unsigned int i = 0; i < N; ++i)
+      if (residues()[i] != rhs.residues()[i])
+        d += 1;
+
+    return d;
   }
 
   static IntegerModulo fromConcrete(const A::APInt &x) {
