@@ -14,6 +14,8 @@ from ..dialects.smt_dialect import (
 from ..dialects.smt_bitvector_dialect import (
     SMTBitVectorDialect,
     ConstantOp,
+    BitVectorType,
+    ConcatOp,
 )
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
@@ -108,15 +110,38 @@ def solve_vector_width(maximal_bits: int):
     return list(range(4, 5))
 
 
+def fix_bit_width_in_verify_pattern(module: ModuleOp):
+    for op in module.body.block.ops:
+        if len(op.operands) == 2:
+            if isinstance(op, ConcatOp):
+                op_0_type = op.operands[0].type
+                op_1_type = op.operands[1].type
+                assert isinstance(op_0_type, BitVectorType)
+                assert isinstance(op_1_type, BitVectorType)
+                new_bitwidth = op_0_type.width.data + op_1_type.width.data
+                new_bitvector_type = BitVectorType.from_int(new_bitwidth)
+                op.results[0].type = new_bitvector_type
+            if op.operands[0].type != op.operands[1].type:
+                op_1_owner = op.operands[1].owner
+                if isinstance(op_1_owner, ConstantOp):
+                    value = op_1_owner.value.value.data
+                    op_0_type = op.operands[0].type
+                    assert isinstance(op_0_type, BitVectorType)
+                    new_constant_op = ConstantOp.from_int_value(
+                        value, op_0_type.width.data
+                    )
+                    module.body.block.insert_op_before(new_constant_op, op)
+                    op.operands[1].replace_by(new_constant_op.res)
+
+
 def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     cloned_op = op.clone()
     stream = StringIO()
     LowerPairs().apply(ctx, cloned_op)
     CanonicalizePass().apply(ctx, cloned_op)
     DeadCodeElimination().apply(ctx, cloned_op)
-
+    fix_bit_width_in_verify_pattern(cloned_op)
     print_to_smtlib(cloned_op, stream)
-    # print(stream.getvalue())
     res = subprocess.run(
         ["z3", "-in"],
         capture_output=True,
@@ -407,6 +432,49 @@ def get_dynamic_transfer_function(
     return fix_defining_op_return_type(resultFunc)
 
 
+def get_dynamic_functions(
+    dynamic_functions: dict[str, FuncOp],
+    width: int,
+    module: ModuleOp,
+    int_attr: dict[int, int],
+    ctx: MLContext,
+) -> dict[str, DefineFunOp]:
+    result: dict[str, DefineFunOp] = {}
+    for _, func in dynamic_functions.items():
+        func = func.clone()
+        args: list[BlockArgument] = []
+        module.body.block.add_op(func)
+        for arg_idx, val in int_attr.items():
+            bv_constant = ConstantOp(val, width)
+            assert isinstance(func.body.block.first_op, Operation)
+            func.body.block.insert_op_before(bv_constant, func.body.block.first_op)
+            args.append(func.body.block.args[arg_idx])
+            args[-1].replace_by(bv_constant.res)
+        for arg in args:
+            func.body.block.erase_arg(arg)
+        new_args_type = [arg.type for arg in func.body.block.args]
+        new_function_type = FunctionType.from_lists(
+            new_args_type, func.function_type.outputs.data
+        )
+        func.function_type = new_function_type
+
+        for op in func.body.block.ops:
+            op_lst: list[Operation] = []
+            if len(op.results) > 0:
+                for use in op.results[0].uses:
+                    op_lst.append(use.operation)
+                parent_op_lst = [tmp_op.parent_op() for tmp_op in op_lst]
+                if len(parent_op_lst) > 0:
+                    assert all(i == parent_op_lst[0] for i in parent_op_lst)
+
+    lower_to_smt_module(module, width, ctx)
+    for op in module.body.block.ops:
+        if isinstance(op, DefineFunOp):
+            assert op.fun_name is not None
+            result[op.fun_name.data] = fix_defining_op_return_type(op)
+    return result
+
+
 def soundness_check(
     smt_transfer_function: SMTTransferFunction,
     domain_constraint: FunctionCollection,
@@ -450,7 +518,9 @@ def soundness_counterexample_check(
         )
         assert soundness_counterexample_func_name is not None
         counterexample_func_name = soundness_counterexample_func_name.data
+        assert smt_transfer_function.concrete_function is not None
         added_ops = counterexample_check(
+            smt_transfer_function.concrete_function,
             func_name_to_func[counterexample_func_name],
             smt_transfer_function.soundness_counterexample,
             domain_constraint,
@@ -459,7 +529,6 @@ def soundness_counterexample_check(
         query_module.body.block.add_ops(added_ops)
         FunctionCallInline(True, {}).apply(ctx, query_module)
         # LowerToSMTPass().apply(ctx, query_module)
-
         print(
             "Unable to find soundness counterexample: ",
             verify_pattern(ctx, query_module),
@@ -470,6 +539,7 @@ def precision_check(
     smt_transfer_function: SMTTransferFunction,
     domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
+    func_name_to_func: dict[str, FuncOp],
     int_attr: dict[int, int],
     ctx: MLContext,
 ):
@@ -482,18 +552,29 @@ def precision_check(
             int_attr,
         )
     else:
-        added_ops: list[Operation] = backward_precision_check(
-            smt_transfer_function,
-            domain_constraint,
-            instance_constraint,
-            int_attr,
-        )
+        if smt_transfer_function.precision_util is not None:
+            assert smt_transfer_function.precision_util is not None
+            precision_util_func_name = smt_transfer_function.precision_util.fun_name
+            assert precision_util_func_name is not None
+            counterexample_func_name = precision_util_func_name.data
+            added_ops: list[Operation] = backward_precision_check(
+                smt_transfer_function,
+                domain_constraint,
+                instance_constraint,
+                func_name_to_func[counterexample_func_name],
+                int_attr,
+            )
+        else:
+            assert False and "empty precision util function!"
+
     query_module.body.block.add_ops(added_ops)
 
     FunctionCallInline(True, {}).apply(ctx, query_module)
     assert module_op_validity_check(query_module)
-
-    print("Precision Check result:", verify_pattern(ctx, query_module))
+    print(
+        "Precision Check result:",
+        verify_pattern(ctx, query_module),
+    )
 
 
 def verify_smt_transfer_function(
@@ -504,6 +585,7 @@ def verify_smt_transfer_function(
     transfer_function: TransferFunction,
     func_name_to_func: dict[str, FuncOp],
     dynamic_transfer_functions: dict[str, FuncOp],
+    dynamic_functions: dict[str, FuncOp],
     ctx: MLContext,
 ) -> None:
     # Soundness check
@@ -524,6 +606,7 @@ def verify_smt_transfer_function(
         if not verify_pattern(ctx, query_module):
             # start to create dynamic concrete function
             # and update smt_transfer_function
+            resetConcreteFunction = False
             if smt_transfer_function.concrete_function is None:
                 dynamic_concrete_function_module = ModuleOp([])
                 dynamic_concrete_function_module.body.block.add_ops(
@@ -536,6 +619,7 @@ def verify_smt_transfer_function(
                         )
                     ]
                 )
+                resetConcreteFunction = True
                 lower_to_smt_module(dynamic_concrete_function_module, width, ctx)
                 assert len(dynamic_concrete_function_module.ops) == 1
                 assert isinstance(
@@ -546,20 +630,70 @@ def verify_smt_transfer_function(
 
             assert smt_transfer_function.concrete_function is not None
 
+            resetTransferFunction = False
+
             if smt_transfer_function.transfer_function is None:
                 # dynamic create transfer_function with given int_attr
                 dynamic_transfer_function_module = ModuleOp([])
                 smt_transfer_function.transfer_function = get_dynamic_transfer_function(
                     dynamic_transfer_functions[
                         smt_transfer_function.transfer_function_name
-                    ],
+                    ].clone(),
                     width,
                     dynamic_transfer_function_module,
                     int_attr,
                     ctx,
                 )
+                resetTransferFunction = True
 
             assert smt_transfer_function.transfer_function is not None
+
+            dynamic_functions_name_to_functions = {}
+            resetSoundnessCounterExample = False
+            resetPercisionUtil = False
+            if len(dynamic_functions) > 0 and len(int_attr) > 0:
+                dynamic_functions_module = ModuleOp([])
+                dynamic_functions_name_to_functions = get_dynamic_functions(
+                    dynamic_functions, width, dynamic_functions_module, int_attr, ctx
+                )
+                # Fix soundness_counterexample and precision_util
+                if (
+                    smt_transfer_function.soundness_counterexample is None
+                    and "soundness_counterexample"
+                    in transfer_function.transfer_function.attributes
+                ):
+                    soundness_counterexample_func_name_attr = (
+                        transfer_function.transfer_function.attributes[
+                            "soundness_counterexample"
+                        ]
+                    )
+                    assert isinstance(
+                        soundness_counterexample_func_name_attr, StringAttr
+                    )
+                    soundness_counterexample_func_name = (
+                        soundness_counterexample_func_name_attr.data
+                    )
+                    smt_transfer_function.soundness_counterexample = (
+                        dynamic_functions_name_to_functions[
+                            soundness_counterexample_func_name
+                        ]
+                    )
+                    resetSoundnessCounterExample = True
+
+                if (
+                    smt_transfer_function.precision_util is None
+                    and "precision_util"
+                    in transfer_function.transfer_function.attributes
+                ):
+                    precision_util_func_name_attr = (
+                        transfer_function.transfer_function.attributes["precision_util"]
+                    )
+                    assert isinstance(precision_util_func_name_attr, StringAttr)
+                    precision_util_func_name = precision_util_func_name_attr.data
+                    smt_transfer_function.precision_util = (
+                        dynamic_functions_name_to_functions[precision_util_func_name]
+                    )
+                    resetPercisionUtil = True
 
             if True:
                 soundness_check(
@@ -582,9 +716,18 @@ def verify_smt_transfer_function(
                     smt_transfer_function,
                     domain_constraint,
                     instance_constraint,
+                    func_name_to_func,
                     int_attr,
                     ctx,
                 )
+            if resetConcreteFunction:
+                smt_transfer_function.concrete_function = None
+            if resetTransferFunction:
+                smt_transfer_function.transfer_function = None
+            if resetSoundnessCounterExample:
+                smt_transfer_function.soundness_counterexample = None
+            if resetPercisionUtil:
+                smt_transfer_function.precision_util = None
 
         hasNext = next_int_attr_arg(int_attr, width)
         if not hasNext:
@@ -661,51 +804,60 @@ def main() -> None:
         concrete_func_names: set[str] = set()
         transfer_function_name_to_concrete_function_name: dict[str, str] = {}
         dynamic_transfer_functions: dict[str, FuncOp] = {}
+        dynamic_functions: dict[str, FuncOp] = {}
 
         # add concrete operations for every transfer functions
         for op in smt_module.ops:
             # op is a transfer function
-            if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                assert isa(
-                    applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
-                )
-                assert isinstance(applied_to.data[0], StringAttr)
-                concrete_func_name = applied_to.data[0].data
-                func_name = op.sym_name.data
-
-                if need_replace_int_attr(op):
-                    func_name = op.sym_name.data
-                    dynamic_transfer_functions[func_name] = op
-                    op.detach()
-
-                if "int_attr" in op.attributes:
-                    transfer_function_name_to_concrete_function_name[
-                        func_name
-                    ] = get_dynamic_concrete_function_name(concrete_func_name)
-                    continue
-
-                if concrete_func_name not in concrete_func_names:
-                    extra = None
+            if isinstance(op, FuncOp):
+                if "applied_to" in op.attributes:
                     assert isa(
                         applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
                     )
                     assert isinstance(applied_to.data[0], StringAttr)
-                    if len(applied_to.data) > 1:
-                        extra = applied_to.data[1]
-                        assert (
-                            isinstance(extra, IntegerAttr)
-                            and "only support for integer attr for the second applied arg for now"
+                    concrete_func_name = applied_to.data[0].data
+                    func_name = op.sym_name.data
+
+                    if need_replace_int_attr(op):
+                        func_name = op.sym_name.data
+                        dynamic_transfer_functions[func_name] = op
+                        op.detach()
+
+                    if "int_attr" in op.attributes:
+                        transfer_function_name_to_concrete_function_name[
+                            func_name
+                        ] = get_dynamic_concrete_function_name(concrete_func_name)
+                        continue
+
+                    if concrete_func_name not in concrete_func_names:
+                        extra = None
+                        assert isa(
+                            applied_to := op.attributes["applied_to"],
+                            ArrayAttr[Attribute],
                         )
-                        extra = extra.value.data
-                    concrete_funcs.append(
-                        get_concrete_function(concrete_func_name, width, extra)
-                    )
-                    if len(applied_to.data) >= 2:
-                        concrete_func_name += str(extra)
-                    concrete_func_names.add(concrete_func_name)
-                transfer_function_name_to_concrete_function_name[
-                    func_name
-                ] = concrete_funcs[-1].sym_name.data
+                        assert isinstance(applied_to.data[0], StringAttr)
+                        if len(applied_to.data) > 1:
+                            extra = applied_to.data[1]
+                            assert (
+                                isinstance(extra, IntegerAttr)
+                                and "only support for integer attr for the second applied arg for now"
+                            )
+                            extra = extra.value.data
+                        concrete_funcs.append(
+                            get_concrete_function(concrete_func_name, width, extra)
+                        )
+                        if len(applied_to.data) >= 2:
+                            concrete_func_name += str(extra)
+                        concrete_func_names.add(concrete_func_name)
+                    transfer_function_name_to_concrete_function_name[
+                        func_name
+                    ] = concrete_funcs[-1].sym_name.data
+
+                # Not a transfer function but still a dynamic function
+                elif "int_attr" in op.attributes:
+                    func_name = op.sym_name.data
+                    dynamic_functions[func_name] = op
+                    op.detach()
 
         smt_module.body.block.add_ops(concrete_funcs)
         lower_to_smt_module(smt_module, width, ctx)
@@ -763,9 +915,20 @@ def main() -> None:
                 soundness_counterexample_func_name = (
                     soundness_counterexample_func_name_attr.data
                 )
-                soundness_counterexample = func_name_to_smt_func[
-                    soundness_counterexample_func_name
-                ]
+                if soundness_counterexample_func_name not in dynamic_functions:
+                    soundness_counterexample = func_name_to_smt_func[
+                        soundness_counterexample_func_name
+                    ]
+
+            precision_util = None
+            if "precision_util" in transfer_function.transfer_function.attributes:
+                precision_util_func_name_attr = (
+                    transfer_function.transfer_function.attributes["precision_util"]
+                )
+                assert isinstance(precision_util_func_name_attr, StringAttr)
+                precision_util_func_name = precision_util_func_name_attr.data
+                if precision_util_func_name not in dynamic_functions:
+                    precision_util = func_name_to_smt_func[precision_util_func_name]
 
             int_attr_arg = None
             int_attr_constraint = None
@@ -791,6 +954,7 @@ def main() -> None:
                 abs_op_constraint,
                 op_constraint,
                 soundness_counterexample,
+                precision_util,
                 int_attr_arg,
                 int_attr_constraint,
                 smt_transfer_function,
@@ -805,5 +969,6 @@ def main() -> None:
                 transfer_function,
                 func_name_to_func,
                 dynamic_transfer_functions,
+                dynamic_functions,
                 ctx,
             )
