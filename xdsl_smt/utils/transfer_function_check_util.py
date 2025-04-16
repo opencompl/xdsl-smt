@@ -845,18 +845,15 @@ def backward_precision_check(
     Other constraints needs to be checked if it's extended to other domain
     """
     assert not transfer_function.is_forward
-    operationNo = transfer_function.operationNo
     abstract_func = transfer_function.transfer_function
     concrete_func = transfer_function.concrete_function
-    abs_op_constraint = transfer_function.abstract_constraint
-    op_constraint = transfer_function.op_constraint
     is_abstract_arg = transfer_function.is_abstract_arg
     precision_util = transfer_function.precision_util
 
     effect = ConstantBoolOp(False)
     assert abstract_func is not None
     assert concrete_func is not None
-    arg_widths = get_argument_widths_with_effect(concrete_func)
+    assert precision_util is not None
     result_width = get_result_width(concrete_func)
 
     # replace the only abstract arg in transfer_function with bv with result_width
