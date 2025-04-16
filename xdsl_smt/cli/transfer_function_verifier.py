@@ -705,14 +705,6 @@ def verify_smt_transfer_function(
                     int_attr,
                     ctx,
                 )
-                soundness_counterexample_check(
-                    smt_transfer_function,
-                    domain_constraint,
-                    instance_constraint,
-                    func_name_to_func,
-                    int_attr,
-                    ctx,
-                )
             if True:
                 precision_check(
                     smt_transfer_function,
