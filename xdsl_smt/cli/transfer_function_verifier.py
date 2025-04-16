@@ -470,7 +470,7 @@ def get_dynamic_functions(
     lower_to_smt_module(module, width, ctx)
     for op in module.body.block.ops:
         if isinstance(op, DefineFunOp):
-            assert isinstance(op, DefineFunOp)
+            assert op.fun_name is not None
             result[op.fun_name.data] = fix_defining_op_return_type(op)
     return result
 

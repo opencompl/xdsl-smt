@@ -812,7 +812,7 @@ def get_demanded_bits_is_precise(
         or_result.res, not_abs_res_prime_demanded_bits.res
     )
     distinct_op = DistinctOp(abs_res_prime_demanded_bits.res, abs_res_demanded_bits.res)
-    assert_ops = [
+    assert_ops: list[Operation] = [
         AssertOp(or_result_eq_not_abs_res_prime_demanded_bits.res),
         AssertOp(distinct_op.res),
     ]
