@@ -406,23 +406,9 @@ def verify_transfer_function(
         if func_name in func_name_to_smt_func:
             smt_transfer_function = func_name_to_smt_func[func_name]
 
-        abs_op_constraint = None
-        if "abs_op_constraint" in transfer_function_obj.transfer_function.attributes:
-            abs_op_constraint_name_attr = (
-                transfer_function_obj.transfer_function.attributes["abs_op_constraint"]
-            )
-            assert isinstance(abs_op_constraint_name_attr, StringAttr)
-            abs_op_constraint_name = abs_op_constraint_name_attr.data
-            abs_op_constraint = func_name_to_smt_func[abs_op_constraint_name]
+        abs_op_constraint = func_name_to_smt_func.get("abs_op_constraint", None)
 
-        op_constraint = None
-        if "op_constraint" in transfer_function_obj.transfer_function.attributes:
-            op_constraint_func_name_attr = (
-                transfer_function_obj.transfer_function.attributes["op_constraint"]
-            )
-            assert isinstance(op_constraint_func_name_attr, StringAttr)
-            op_constraint_func_name = op_constraint_func_name_attr.data
-            op_constraint = func_name_to_smt_func[op_constraint_func_name]
+        op_constraint = func_name_to_smt_func.get("op_constraint", None)
 
         soundness_counterexample = None
         int_attr_arg = None
