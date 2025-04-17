@@ -1,4 +1,4 @@
-from python_utils import unsound, profile
+from python_utils import unsound, profile, precision
 import matplotlib.pyplot as plt
 
 output_folder = "./data/outputs"
@@ -24,6 +24,8 @@ def main():
     info_file = get_info_file()
     unsound.plot(debug_file, test_name)
     profile.plot(debug_file)
+    # todo: the following plot will cover the above two plots
+    precision.plot(info_file)
     plt.show()
     image_path = get_image_file()
     plt.savefig(image_path)

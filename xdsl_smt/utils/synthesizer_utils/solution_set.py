@@ -397,7 +397,7 @@ class UnsizedSolutionSet(SolutionSet):
                     log_str = "Add a existing transformer (cond)"
                     num_cond_solutions += 1
             self.logger.info(
-                f"{log_str}. Exact: {result[index].get_exact_prop() * 100:.2f}%, Precision: {result[index].get_bitwise_precision() * 100:.2f}%"
+                f"{log_str}. After adding, Exact: {result[index].get_exact_prop() * 100:.2f}%, Precision: {result[index].get_bitwise_precision() * 100:.2f}%"
             )
             self.solutions.append(candidates.pop(index))
 
@@ -427,7 +427,7 @@ class UnsizedSolutionSet(SolutionSet):
         self.precise_set = []
         for cand, res in top_k:
             self.logger.info(
-                f"unsolved_exact: {res.get_unsolved_exact_prop() * 100:.2f}%, sound: {res.get_sound_prop() * 100:.2f}%"
+                f"\tunsolved_exact: {res.get_unsolved_exact_prop() * 100:.2f}%, sound: {res.get_sound_prop() * 100:.2f}%"
             )
             self.precise_set.append(cand)
         self.solutions_size = len(self.solutions)
@@ -447,6 +447,7 @@ class UnsizedSolutionSet(SolutionSet):
             for k, v in dict2.items():
                 dict1[k] = dict1.get(k, 0) + v
 
+        self.logger.info(f"Improvement by each individual function")
         for i in range(len(self.solutions)):
             cmp_results: list[CompareResult] = self.eval_func(
                 [self.solutions[i]],
@@ -454,7 +455,7 @@ class UnsizedSolutionSet(SolutionSet):
             )
             res = cmp_results[0]
             self.logger.info(
-                f"func {i}: #exact {res.exacts - res.unsolved_exacts} -> {res.exacts}, new exact%: {res.get_new_exact_prop()}, prec: {res.base_edit_dis} -> {res.edit_dis}, prec improve%: {res.get_prec_improve_avg()}, cond?: {self.solutions[i].cond is not None}"
+                f"\tfunc {i}: #exact {res.exacts - res.unsolved_exacts} -> {res.exacts}, new exact%: {res.get_new_exact_prop()}, prec: {res.base_edit_dis} -> {res.edit_dis}, prec improve%: {res.get_prec_improve_avg()}, cond?: {self.solutions[i].cond is not None}"
             )
             if res.get_new_exact_prop() > 0.005:
                 d_int, d_i1 = SynthesizerContext.count_op_frequency(
@@ -466,5 +467,6 @@ class UnsizedSolutionSet(SolutionSet):
         context.update_i1_weights(freq_i1)
         context.update_int_weights(freq_int)
 
+        self.logger.info("Current Weights:")
         for key, value in context.int_weights.items():
-            self.logger.info(f"{key}: {value}")
+            self.logger.info(f"\t{key}: {value}")
