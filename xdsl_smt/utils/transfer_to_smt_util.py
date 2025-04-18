@@ -147,27 +147,44 @@ def count_lzeros(b: SSAValue) -> list[Operation]:
     name = str(b)
     tmp_count_lzeros = BitVec("tmp_" + name + "_count_lzeros", width)
     leftmostBit = get_leftmost_bit(b, solver)
-    solver.add(leftmostBit == 1 << tmp_count_lzeros)
+    constraint:
+        if b == 0 then tmp_count_lzeros == -1 (get_all_ones)
+        else leftmostBit == 1 << tmp_count_lzeros
+    solver.add(constraint)
     return b.size() - 1 - tmp_count_lzeros
     """
     assert isinstance(b.type, smt_bv.BitVectorType)
     tmp_count_lzeros = smt.DeclareConstOp(b.type)
+    constant_one = get_constant_with_bit_vector(1, b.type)[0]
+    const_zero = get_constant_with_bit_vector(0, b.type)[0]
+    b_eq_0 = smt.EqOp(const_zero.results[0], b)
+    neg_one_op = get_all_ones(b.type)[0]
+    neg_one_eq_lzeros = smt.EqOp(neg_one_op.results[0], tmp_count_lzeros.results[0])
+    true_branch_constraint = [neg_one_op, neg_one_eq_lzeros]
     leftMostBit_op = get_leftmost_bit(b)
     leftMostBit = leftMostBit_op[-1].results[0]
-    constant_one = get_constant_with_bit_vector(1, b.type)[0]
-    constraint: list[Operation] = [
+    false_branch_constraint: list[Operation] = [
         smt_bv.ShlOp(constant_one.results[0], tmp_count_lzeros.results[0])
     ]
-    constraint.append(smt.EqOp.get(leftMostBit, constraint[-1].results[0]))
-    constraint.append(smt.AssertOp.get(constraint[-1].results[0]))
+    false_branch_constraint.append(
+        smt.EqOp.get(leftMostBit, false_branch_constraint[-1].results[0])
+    )
+    ite_op = smt.IteOp(
+        b_eq_0.results[0],
+        true_branch_constraint[-1].results[0],
+        false_branch_constraint[-1].results[0],
+    )
+    assert_op = smt.AssertOp(ite_op.res)
     constant_width = get_constant_with_bit_vector(b.type.width.data, b.type)[0]
     width_minus_one = smt_bv.SubOp(constant_width.results[0], constant_one.results[0])
     res = smt_bv.SubOp(width_minus_one.results[0], tmp_count_lzeros.results[0])
     return (
         [tmp_count_lzeros]
+        + [const_zero, constant_one, b_eq_0]
+        + true_branch_constraint
         + leftMostBit_op
-        + [constant_one]
-        + constraint
+        + false_branch_constraint
+        + [ite_op, assert_op]
         + [constant_width, width_minus_one, res]
     )
 
