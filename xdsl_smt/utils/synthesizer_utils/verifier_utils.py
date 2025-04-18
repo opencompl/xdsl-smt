@@ -421,6 +421,7 @@ def verify_transfer_function(
             abs_op_constraint,
             op_constraint,
             soundness_counterexample,
+            None,
             int_attr_arg,
             int_attr_constraint,
             smt_transfer_function,
