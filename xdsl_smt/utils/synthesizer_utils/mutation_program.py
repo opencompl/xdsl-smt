@@ -26,18 +26,17 @@ class MutationProgram:
     """
 
     func: FuncOp
-    ops: list[Operation]
+    old_op: None | Operation
+    new_op: None | Operation
 
-    def __init__(self, func: FuncOp, ops: list[Operation] | None = None):
-        if ops is None:
-            ops = list(func.body.block.ops)
+    def __init__(self, func: FuncOp):
         self.func = func
-        self.ops = ops
+        self.old_op = None
+        self.new_op = None
 
-    def clone(self):
-        new_func = self.func.clone()
-        new_ops = list(new_func.body.block.ops)
-        return MutationProgram(new_func, new_ops)
+    @property
+    def ops(self):
+        return list(self.func.body.block.ops)
 
     @staticmethod
     def not_in_main_body(op: Operation):
@@ -86,16 +85,34 @@ class MutationProgram:
 
         return modifiable_ops
 
-    def replace_operation(self, old_op: Operation, new_op: Operation):
+    def remove_history(self):
+        assert self.old_op is not None
+        assert self.new_op is not None
+        self.old_op.erase()
+        self.new_op = None
+        self.old_op = None
+
+    def revert_operation(self):
+        assert self.old_op is not None
+        assert self.new_op is not None
+        self.replace_operation(self.new_op, self.old_op, False)
+        self.new_op.erase()
+        self.new_op = None
+        self.old_op = None
+
+    def replace_operation(self, old_op: Operation, new_op: Operation, history: bool):
         """
         Replace the old_op with the given new operation.
         """
+        if history:
+            self.old_op = old_op
+            self.new_op = new_op
+
         block = self.func.body.block
         block.insert_op_before(new_op, old_op)
         if len(old_op.results) > 0 and len(new_op.results) > 0:
             old_op.results[0].replace_by(new_op.results[0])
         block.detach_op(old_op)
-        self.ops = list(block.ops)
 
     def get_valid_bool_operands(self, x: int) -> tuple[list[SSAValue], int]:
         """

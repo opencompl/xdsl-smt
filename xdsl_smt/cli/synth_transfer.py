@@ -2,6 +2,7 @@ import argparse
 import logging
 import os.path
 import time
+import sys
 from typing import cast, Callable
 
 from xdsl.context import MLContext
@@ -12,16 +13,9 @@ from io import StringIO
 from xdsl.utils.hints import isa
 
 from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
-from ..dialects.smt_dialect import (
-    SMTDialect,
-)
-from ..dialects.smt_bitvector_dialect import (
-    SMTBitVectorDialect,
-    ConstantOp,
-)
-from xdsl_smt.dialects.transfer import (
-    TransIntegerType,
-)
+from ..dialects.smt_dialect import SMTDialect
+from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.transfer import TransIntegerType
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 import xdsl_smt.eval_engine.eval as eval_engine
@@ -48,7 +42,6 @@ from xdsl.ir import Operation
 from ..passes.transfer_lower import LowerToCpp
 
 from xdsl_smt.semantics.comb_semantics import comb_semantics
-import sys as sys
 
 from xdsl_smt.utils.synthesizer_utils.cost_model import (
     decide,
@@ -64,7 +57,6 @@ from xdsl_smt.utils.synthesizer_utils.log_utils import (
     print_set_of_funcs_to_file,
 )
 from xdsl_smt.utils.synthesizer_utils.mcmc_sampler import MCMCSampler
-from xdsl_smt.utils.synthesizer_utils.mutation_program import MutationProgram
 from xdsl_smt.utils.synthesizer_utils.solution_set import (
     SolutionSet,
     UnsizedSolutionSet,
@@ -72,8 +64,6 @@ from xdsl_smt.utils.synthesizer_utils.solution_set import (
 )
 from xdsl_smt.utils.synthesizer_utils.synthesizer_context import SynthesizerContext
 from xdsl_smt.utils.synthesizer_utils.random import Random
-
-# from ..utils.visualize import print_figure
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -182,6 +172,7 @@ def get_concrete_function(
     concrete_op_name: str, width: int, extra: int | None
 ) -> FuncOp:
     # iterate all semantics and find corresponding comb operation
+
     result = None
     for k in comb_semantics.keys():
         if k.name == concrete_op_name:
@@ -229,12 +220,6 @@ def print_concrete_function_to_cpp(func: FuncOp) -> str:
     return sio.getvalue()
 
 
-def print_to_cpp(func: FuncOp) -> str:
-    sio = StringIO()
-    LowerToCpp(sio).apply(ctx, cast(ModuleOp, func))
-    return sio.getvalue()
-
-
 def get_default_op_constraint(concrete_func: FuncOp):
     cond_type = FunctionType.from_lists(concrete_func.function_type.inputs.data, [i1])
     func = FuncOp("op_constraint", cond_type)
@@ -255,6 +240,7 @@ TOTAL_ROUNDS = 10000
 INV_TEMP = 200
 SOLUTION_SIZE = 8
 NUM_ITERS = 100
+NUM_ABD_PROCS = 0
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 OP_CONSTRAINT = "op_constraint"
@@ -272,12 +258,25 @@ VERBOSE = 1  # todo: make it a cmd line arg
 
 
 def eliminate_dead_code(func: FuncOp) -> FuncOp:
-    new_module = ModuleOp([func.clone()])
-    TransferDeadCodeElimination().apply(ctx, new_module)
-    func_op = new_module.ops.first
-    assert isinstance(func_op, FuncOp)
-    func_op.detach()
-    return func_op
+    """
+    WARNING: this function modifies the func passed to it in place!
+    """
+    TransferDeadCodeElimination().apply(ctx, cast(ModuleOp, func))
+    return func
+
+
+def print_to_cpp(func: FuncOp) -> str:
+    """
+    This function eliminates dead code before lowering to cpp
+    and it makes a copy of the function so it does not modify in place
+    """
+    sio = StringIO()
+    region = func.body.clone()
+    cloned_func = FuncOp(func.sym_name.data, func.function_type, region=region)
+    TransferDeadCodeElimination().apply(ctx, cast(ModuleOp, cloned_func))
+    LowerToCpp(sio).apply(ctx, cast(ModuleOp, cloned_func))
+
+    return sio.getvalue()
 
 
 def is_base_function(func: FuncOp) -> bool:
@@ -324,7 +323,7 @@ def eval_transfer_func_helper(
     helper_func_srcs: list[str] = []
     assert get_top_func_op is not None
     for fc in transfer:
-        caller_str, helper_strs = fc.get_function_str(print_to_cpp, eliminate_dead_code)
+        caller_str, helper_strs = fc.get_function_str(print_to_cpp)
         transfer_func_names.append(fc.func_name)
         transfer_func_srcs.append(caller_str)
         helper_func_srcs += helper_strs
@@ -332,7 +331,7 @@ def eval_transfer_func_helper(
     base_func_names: list[str] = []
     base_func_srcs: list[str] = []
     for fc in base:
-        caller_str, helper_strs = fc.get_function_str(print_to_cpp, eliminate_dead_code)
+        caller_str, helper_strs = fc.get_function_str(print_to_cpp)
         base_func_names.append(fc.func_name)
         base_func_srcs.append(caller_str)
         helper_func_srcs += helper_strs
@@ -348,11 +347,6 @@ def eval_transfer_func_helper(
     )
 
 
-"""
-This function returns a simplified eval_func receiving transfer functions and base functions
-"""
-
-
 def solution_set_eval_func(
     domain: eval_engine.AbstractDomain,
     bitwidth: int,
@@ -364,14 +358,12 @@ def solution_set_eval_func(
     ],
     list[CompareResult],
 ]:
+    """
+    This function returns a simplified eval_func receiving transfer functions and base functions
+    """
     return lambda transfer=list[FunctionWithCondition], base=list[
         FunctionWithCondition
     ]: (eval_transfer_func_helper(transfer, base, domain, bitwidth, helper_funcs))
-
-
-"""
-This function returns a simplified eval_func only receiving transfer names and sources
-"""
 
 
 def main_eval_func(
@@ -380,6 +372,9 @@ def main_eval_func(
     bitwidth: int,
     helper_funcs: list[str],
 ) -> Callable[[list[FunctionWithCondition]], list[CompareResult]]:
+    """
+    This function returns a simplified eval_func only receiving transfer names and sources
+    """
     return lambda transfers=list[FunctionWithCondition]: (
         eval_transfer_func_helper(
             transfers, base_transfers, domain, bitwidth, helper_funcs
@@ -404,11 +399,11 @@ def build_eval_list(
     """
     lst: list[FunctionWithCondition] = []
     for i in sp:
-        fwc = FunctionWithCondition(mcmc_proposals[i])
+        fwc = FunctionWithCondition(mcmc_proposals[i].clone())
         fwc.set_func_name(f"{mcmc_proposals[i].sym_name.data}{i}")
         lst.append(fwc)
     for i in p:
-        fwc = FunctionWithCondition(mcmc_proposals[i])
+        fwc = FunctionWithCondition(mcmc_proposals[i].clone())
         fwc.set_func_name(f"{mcmc_proposals[i].sym_name.data}{i}")
         lst.append(fwc)
     for i in c:
@@ -459,11 +454,6 @@ def mcmc_setup(
     return sp_range, p_range, c_range, num_programs, prec_set_after_distribute
 
 
-"""
-Given ith_iter, performs total_rounds mcmc sampling
-"""
-
-
 def synthesize_transfer_function(
     # Necessary items
     ith_iter: int,
@@ -489,6 +479,9 @@ def synthesize_transfer_function(
     inv_temp: int,
     outputs_folder: str,
 ) -> SolutionSet:
+    """
+    Given ith_iter, performs total_rounds mcmc sampling
+    """
     mcmc_samplers: list[MCMCSampler] = []
 
     sp_range, p_range, c_range, num_programs, prec_set_after_distribute = mcmc_setup(
@@ -499,7 +492,7 @@ def synthesize_transfer_function(
 
     for i in range(num_programs):
         if i in sp_range:
-            sampler = MCMCSampler(
+            spl = MCMCSampler(
                 func,
                 context_regular
                 if i < (sp_range.start + sp_range.stop) // 2
@@ -509,7 +502,7 @@ def synthesize_transfer_function(
                 random_init_program=True,
             )
         elif i in p_range:
-            sampler = MCMCSampler(
+            spl = MCMCSampler(
                 func,
                 context_regular
                 if i < (p_range.start + p_range.stop) // 2
@@ -519,7 +512,7 @@ def synthesize_transfer_function(
                 random_init_program=True,
             )
         else:
-            sampler = MCMCSampler(
+            spl = MCMCSampler(
                 func,
                 context_cond,
                 abduction_cost,
@@ -528,107 +521,82 @@ def synthesize_transfer_function(
                 is_cond=True,
             )
 
-        mcmc_samplers.append(sampler)
+        mcmc_samplers.append(spl)
 
-    # Get the cost of initial programs
-    transfers: list[FuncOp] = []
-    for i in range(num_programs):
-        transfers.append(mcmc_samplers[i].get_current().clone())
+    transfers = [spl.get_current() for spl in mcmc_samplers]
     func_with_cond_lst = build_eval_list(
         transfers, sp_range, p_range, c_range, prec_set_after_distribute
     )
 
-    if solution_size == 0:
-        cmp_results: list[CompareResult] = solution_set.eval_improve(func_with_cond_lst)
-    else:
-        cmp_results: list[CompareResult] = eval_func(func_with_cond_lst)
-    for i in range(num_programs):
-        mcmc_samplers[i].current_cmp = cmp_results[i]
+    cmp_results = (
+        solution_set.eval_improve(func_with_cond_lst)
+        if solution_size == 0
+        else eval_func(func_with_cond_lst)
+    )
 
-    cost_data: list[list[float]] = [
-        [mcmc_samplers[i].compute_current_cost()] for i in range(num_programs)
+    for i, cmp in enumerate(cmp_results):
+        mcmc_samplers[i].current_cmp = cmp
+
+    cost_data = [[spl.compute_current_cost()] for spl in mcmc_samplers]
+
+    # These 3 lists store "good" transformers during the search
+    sound_most_exact_tfs = [
+        (spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers
     ]
-    """
-    These 3 lists store "good" transformers during the search
-    """
-    sound_most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-    most_exact_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-    lowest_cost_tfs: list[tuple[MutationProgram, CompareResult, int]] = []
-    for i in range(num_programs):
-        mcmc_samplers[i].current_cmp = cmp_results[i]
-        sound_most_exact_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
-        most_exact_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
-        lowest_cost_tfs.append((mcmc_samplers[i].current, cmp_results[i], 0))
+    most_exact_tfs = [(spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers]
+    lowest_cost_tfs = [(spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers]
+
     # MCMC start
     logger.info(
         f"Iter {ith_iter}: Start {num_programs} MCMC. Each one is run for {total_rounds} steps..."
     )
 
     for rnd in range(total_rounds):
-        transfers: list[FuncOp] = []
-        for i in range(num_programs):
-            _: float = mcmc_samplers[i].sample_next()
-            proposed_solution = mcmc_samplers[i].get_proposed()
-            assert proposed_solution is not None
-            transfers.append(proposed_solution.clone())
+        transfers = [spl.sample_next().get_current() for spl in mcmc_samplers]
 
         func_with_cond_lst = build_eval_list(
             transfers, sp_range, p_range, c_range, prec_set_after_distribute
         )
 
         start = time.time()
-        if solution_size == 0:
-            cmp_results: list[CompareResult] = solution_set.eval_improve(
-                func_with_cond_lst
-            )
-        else:
-            cmp_results: list[CompareResult] = eval_func(func_with_cond_lst)
+        cmp_results = (
+            solution_set.eval_improve(func_with_cond_lst)
+            if solution_size == 0
+            else eval_func(func_with_cond_lst)
+        )
         end = time.time()
         used_time = end - start
 
-        for i in range(num_programs):
-            spl_i = mcmc_samplers[i]
-            res_i = cmp_results[i]
-            proposed_cost = spl_i.compute_cost(res_i)
-            current_cost = spl_i.compute_current_cost()
-            p = random.random()
-            decision = decide(p, inv_temp, current_cost, proposed_cost)
+        for i, (spl, res) in enumerate(zip(mcmc_samplers, cmp_results)):
+            proposed_cost = spl.compute_cost(res)
+            current_cost = spl.compute_current_cost()
+            decision = decide(random.random(), inv_temp, current_cost, proposed_cost)
             if decision:
-                spl_i.accept_proposed(res_i)
-                assert spl_i.get_proposed() is None
-                tmp_tuple = (spl_i.current, res_i, rnd)
-                need_print = False
+                spl.accept_proposed(res)
+                # tmp_tuple = (spl.current.func.clone(), res, rnd)
                 # Update sound_most_exact_tfs
-                if (
-                    res_i.is_sound()
-                    and res_i.exacts > sound_most_exact_tfs[i][1].exacts
-                ):
-                    sound_most_exact_tfs[i] = tmp_tuple
-                    need_print = True
+                if res.is_sound() and res.exacts > sound_most_exact_tfs[i][1].exacts:
+                    sound_most_exact_tfs[i] = (spl.current.func.clone(), res, rnd)
                 # Update most_exact_tfs
-                if res_i.unsolved_exacts > most_exact_tfs[i][1].unsolved_exacts:
-                    most_exact_tfs[i] = tmp_tuple
-                    need_print = True
+                if res.unsolved_exacts > most_exact_tfs[i][1].unsolved_exacts:
+                    most_exact_tfs[i] = (spl.current.func.clone(), res, rnd)
                 # Update lowest_cost_tfs
-                if proposed_cost < spl_i.compute_cost(lowest_cost_tfs[i][1]):
-                    lowest_cost_tfs[i] = tmp_tuple
-                    need_print = True
+                if proposed_cost < spl.compute_cost(lowest_cost_tfs[i][1]):
+                    lowest_cost_tfs[i] = (spl.current.func.clone(), res, rnd)
 
-                # disable it temporarily
-                if need_print:
-                    pass
-                    # print_func_to_file(
-                    #     mcmc_samplers[i].current_cmp, eliminate_dead_code(mcmc_samplers[i].current.func), iter, rnd, i, OUTPUTS_FOLDER
-                    # )
             else:
-                spl_i.reject_proposed()
-                pass
-        for i in range(num_programs):
-            res = mcmc_samplers[i].current_cmp
-            res_cost = mcmc_samplers[i].compute_current_cost()
+                spl.reject_proposed()
+
+        for i, spl in enumerate(mcmc_samplers):
+            res_cost = spl.compute_current_cost()
+            sound_prop = spl.current_cmp.get_sound_prop() * 100
+            exact_prop = spl.current_cmp.get_unsolved_exact_prop() * 100
+            avg_edit = spl.current_cmp.get_unsolved_edit_dis_avg()
+
             logger.debug(
-                f"{ith_iter}_{rnd}_{i}\t{res.get_sound_prop() * 100:.2f}%\t{res.get_unsolved_exact_prop() * 100:.2f}%\t{res.get_unsolved_edit_dis_avg():.3f}\t{res_cost:.3f}"
+                f"{ith_iter}_{rnd}_{i}\t{sound_prop:.2f}%\t{exact_prop:.2f}%\t{avg_edit:.3f}\t{res_cost:.3f}"
             )
+
             cost_data[i].append(res_cost)
 
         logger.debug(f"Used Time: {used_time:.2f}")
@@ -655,14 +623,12 @@ def synthesize_transfer_function(
                 sound_most_exact_tfs[i][1].is_sound()
                 and sound_most_exact_tfs[i][1].unsolved_exacts > 0
             ):
-                candidates_sp.append(
-                    FunctionWithCondition(sound_most_exact_tfs[i][0].func.clone())
-                )
+                candidates_sp.append(FunctionWithCondition(sound_most_exact_tfs[i][0]))
             if (
                 not most_exact_tfs[i][1].is_sound()
                 and most_exact_tfs[i][1].unsolved_exacts > 0
             ):
-                candidates_p.append(most_exact_tfs[i][0].func.clone())
+                candidates_p.append(most_exact_tfs[i][0])
         for i in c_range:
             if (
                 sound_most_exact_tfs[i][1].is_sound()
@@ -671,19 +637,15 @@ def synthesize_transfer_function(
                 candidates_c.append(
                     FunctionWithCondition(
                         prec_set_after_distribute[i - sp_size - p_size],
-                        sound_most_exact_tfs[i][0].func.clone(),
+                        sound_most_exact_tfs[i][0],
                     )
                 )
     else:
         for i in range(num_programs):
             if sound_most_exact_tfs[i][1].is_sound():
-                candidates_sp.append(
-                    FunctionWithCondition(sound_most_exact_tfs[i][0].func.clone())
-                )
+                candidates_sp.append(FunctionWithCondition(sound_most_exact_tfs[i][0]))
             if lowest_cost_tfs[i][1].is_sound():
-                candidates_sp.append(
-                    FunctionWithCondition(lowest_cost_tfs[i][0].func.clone())
-                )
+                candidates_sp.append(FunctionWithCondition(lowest_cost_tfs[i][0]))
 
     new_solution_set: SolutionSet = solution_set.construct_new_solution_set(
         candidates_sp, candidates_p, candidates_c, concrete_func, helper_funcs, ctx
@@ -712,14 +674,24 @@ def save_solution(solution_module: ModuleOp, solution_str: str, outputs_folder: 
         print(solution_module, file=fout)
 
 
-def main() -> None:
+def run(
+    num_programs: int = NUM_PROGRAMS,
+    total_rounds: int = TOTAL_ROUNDS,
+    program_length: int = PROGRAM_LENGTH,
+    inv_temp: int = INV_TEMP,
+    bitwidth: int = SYNTH_WIDTH,
+    solution_size: int = SOLUTION_SIZE,
+    num_iters: int = NUM_ITERS,
+    condition_length: int = CONDITION_LENGTH,
+    num_abd_procs: int = NUM_ABD_PROCS,
+    random_seed: int | None = None,
+    random_number_file: str | None = None,
+    transfer_functions: str | None = None,
+    weighted_dsl: bool = False,
+    outputs_folder: str = OUTPUTS_FOLDER,
+) -> CompareResult | None:
     global ctx
     ctx = MLContext()
-    arg_parser = argparse.ArgumentParser()
-    register_all_arguments(arg_parser)
-    args = arg_parser.parse_args()
-
-    # Register all dialects
     ctx.load_dialect(Arith)
     ctx.load_dialect(Builtin)
     ctx.load_dialect(Func)
@@ -731,42 +703,7 @@ def main() -> None:
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
 
-    # Parse the files
-    module = parse_file(ctx, args.transfer_functions)
-    random_number_file = args.random_file
-    random_seed = args.random_seed
-    num_programs = args.num_programs
-    total_rounds = args.total_rounds
-    program_length = args.program_length
-    condition_length = args.condition_length
-    inv_temp = args.inv_temp
-    bitwidth = args.bitwidth
-    solution_size = args.solution_size
-    num_iters = args.num_iters
-    weighted_dsl = args.weighted_dsl
-    num_abd_procs = args.num_abd_procs
-    outputs_folder = args.outputs_folder
-
-    if num_programs is None:
-        num_programs = NUM_PROGRAMS
-    if total_rounds is None:
-        total_rounds = TOTAL_ROUNDS
-    if program_length is None:
-        program_length = PROGRAM_LENGTH
-    if inv_temp is None:
-        inv_temp = INV_TEMP
-    if bitwidth is None:
-        bitwidth = SYNTH_WIDTH
-    if solution_size is None:
-        solution_size = SOLUTION_SIZE
-    if num_iters is None:
-        num_iters = NUM_ITERS
-    if condition_length is None:
-        condition_length = CONDITION_LENGTH
-    if num_abd_procs is None:
-        num_abd_procs = 0
-    if outputs_folder is None:
-        outputs_folder = OUTPUTS_FOLDER
+    module = parse_file(ctx, transfer_functions)
 
     assert isinstance(module, ModuleOp)
 
@@ -892,6 +829,7 @@ def main() -> None:
     for _, func in base_bodys.items():
         base_transfers.append(FunctionWithCondition(func))
 
+    # TODO remove hardcoded domains
     solution_eval_func = solution_set_eval_func(
         eval_engine.AbstractDomain.KnownBits,
         bitwidth,
@@ -916,6 +854,7 @@ def main() -> None:
             logger,
         )
 
+    # TODO remove hardcoded domains
     eval_func = main_eval_func(
         base_transfers,
         eval_engine.AbstractDomain.KnownBits,
@@ -995,6 +934,46 @@ def main() -> None:
     solution_result = cmp_results[0]
     print(
         f"last_solution\t{solution_result.get_sound_prop() * 100:.2f}%\t{solution_result.get_exact_prop() * 100:.2f}%"
+    )
+
+
+def main() -> None:
+    arg_parser = argparse.ArgumentParser()
+    register_all_arguments(arg_parser)
+    args = arg_parser.parse_args()
+
+    num_programs = NUM_PROGRAMS if args.num_programs is None else args.num_programs
+    total_rounds = TOTAL_ROUNDS if args.total_rounds is None else args.total_rounds
+    program_length = (
+        PROGRAM_LENGTH if args.program_length is None else args.program_length
+    )
+    inv_temp = INV_TEMP if args.inv_temp is None else args.inv_temp
+    bitwidth = SYNTH_WIDTH if args.bitwidth is None else args.bitwidth
+    solution_size = SOLUTION_SIZE if args.solution_size is None else args.solution_size
+    num_iters = NUM_ITERS if args.num_iters is None else args.num_iters
+    condition_length = (
+        CONDITION_LENGTH if args.condition_length is None else args.condition_length
+    )
+    num_abd_procs = NUM_ABD_PROCS if args.num_abd_procs is None else args.num_abd_procs
+    outputs_folder = (
+        OUTPUTS_FOLDER if args.outputs_folder is None else args.outputs_folder
+    )
+
+    run(
+        num_programs=num_programs,
+        total_rounds=total_rounds,
+        program_length=program_length,
+        inv_temp=inv_temp,
+        bitwidth=bitwidth,
+        solution_size=solution_size,
+        num_iters=num_iters,
+        condition_length=condition_length,
+        num_abd_procs=num_abd_procs,
+        random_seed=args.random_seed,
+        random_number_file=args.random_file,
+        transfer_functions=args.transfer_functions,
+        weighted_dsl=args.weighted_dsl,
+        outputs_folder=outputs_folder,
     )
 
 
