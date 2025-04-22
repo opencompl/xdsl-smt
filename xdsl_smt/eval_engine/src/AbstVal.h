@@ -226,9 +226,9 @@ public:
   }
 
   unsigned int distance(const ConstantRange &rhs) const {
-    return static_cast<unsigned int>(
-        (lower() - rhs.lower().abs() + upper() - rhs.upper().abs())
-            .getZExtValue());
+    unsigned long ld = A::APIntOps::abdu(lower(), rhs.lower()).getZExtValue();
+    unsigned long ud = A::APIntOps::abdu(upper(), rhs.upper()).getZExtValue();
+    return static_cast<unsigned int>(ld + ud);
   }
 
   static ConstantRange fromConcrete(const A::APInt &x) {

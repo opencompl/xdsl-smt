@@ -209,8 +209,8 @@ cr_add_test = TestInput(
     AbstractDomain.ConstantRange,
     [cr_add, cr_sub],
     [
-        "all: 18769	s: 18769	e: 18769	p: 203302	unsolved:6920	us: 6920	ue: 6920	up: 37416	basep: 213798",
-        "all: 18769	s: 12224	e: 9179	p: 199030	unsolved:6920	us: 3420	ue: 375	up: 51924	basep: 213798",
+        "all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0	basep: 63648",
+        "all: 18769	s: 12224	e: 9179	p: 75432	unsolved:6920	us: 3420	ue: 375	up: 53340	basep: 63648",
     ],
 )
 
@@ -220,8 +220,8 @@ cr_sub_test = TestInput(
     AbstractDomain.ConstantRange,
     [cr_sub, cr_add],
     [
-        "all: 18769	s: 18769	e: 18769	p: 203302	unsolved:6920	us: 6920	ue: 6920	up: 37416	basep: 213798",
-        "all: 18769	s: 12224	e: 9179	p: 199574	unsolved:6920	us: 3420	ue: 375	up: 52092	basep: 213798",
+        "all: 18769	s: 18769	e: 18769	p: 0	unsolved:6920	us: 6920	ue: 6920	up: 0	basep: 63648",
+        "all: 18769	s: 12224	e: 9179	p: 75432	unsolved:6920	us: 3420	ue: 375	up: 53340	basep: 63648",
     ],
 )
 
