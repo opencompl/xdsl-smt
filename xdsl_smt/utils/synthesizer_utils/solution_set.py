@@ -300,11 +300,6 @@ class SizedSolutionSet(SolutionSet):
         )
 
 
-"""
-This class maintains a list of solutions without a specified size
-"""
-
-
 class UnsizedSolutionSet(SolutionSet):
     def __init__(
         self,
@@ -330,6 +325,25 @@ class UnsizedSolutionSet(SolutionSet):
             is_perfect,
         )
 
+    """
+    This class maintains a list of solutions without a specified size
+    """
+
+    def handle_inconsistent_result(self, f: FunctionWithCondition):
+        func_str, helper_str = f.get_function_str(self.lower_to_cpp)
+        func_op = f.get_function()
+        for s in helper_str:
+            self.logger.critical(s + "\n")
+        self.logger.critical(func_str)
+        str_output = io.StringIO()
+        print(f.func, file=str_output)
+        if f.cond is not None:
+            print(f.cond, file=str_output)
+        print(func_op, file=str_output)
+        func_op_str = str_output.getvalue()
+        self.logger.error(func_op_str)
+        raise Exception("Inconsistent between eval engine and verifier")
+
     def construct_new_solution_set(
         self,
         new_candidates_sp: list[FunctionWithCondition],
@@ -347,66 +361,43 @@ class UnsizedSolutionSet(SolutionSet):
         self.solutions = []
         self.logger.info("Reset solution set...")
         num_cond_solutions = 0
-        greedy_by_edit_dis = True  # default
+
         while len(candidates) > 0:
-            index = 0
-            max_prec_improve = 0
             result = self.eval_improve(candidates)
-            for ith_result in range(len(result)):
-                if result[ith_result].unsolved_cases == 0:
-                    self.is_perfect = True
-                    break
-                if greedy_by_edit_dis:
-                    improve = (
-                        result[ith_result].base_edit_dis - result[ith_result].edit_dis
-                    )
-                else:
-                    improve = result[ith_result].unsolved_exacts
-                if improve > max_prec_improve:
-                    index = ith_result
-                    max_prec_improve = improve
-            if max_prec_improve == 0:
+            cand, max_improve_res = max(
+                zip(candidates, result), key=lambda x: x[1].get_improve()
+            )
+            if max_improve_res.unsolved_cases == 0:
+                self.is_perfect = True
+                break
+            if max_improve_res.get_improve() == 0:
                 break
 
-            unsound_bit = verify_function(
-                candidates[index], concrete_op, helper_funcs, ctx
-            )
+            unsound_bit = verify_function(cand, concrete_op, helper_funcs, ctx)
             if unsound_bit != 0:
                 self.logger.info(f"Skip a unsound function at bit width {unsound_bit}")
+                # Todo: Remove hard encoded bitwidth
                 if unsound_bit == 4:
-                    func_str, helper_str = candidates[index].get_function_str(
-                        self.lower_to_cpp
-                    )
-                    func_op = candidates[index].get_function()
-                    for s in helper_str:
-                        self.logger.critical(s + "\n")
-                    self.logger.critical(func_str)
-                    str_output = io.StringIO()
-                    print(candidates[index].func, file=str_output)
-                    if candidates[index].cond is not None:
-                        print(candidates[index].cond, file=str_output)
-                    print(func_op, file=str_output)
-                    func_op_str = str_output.getvalue()
-                    self.logger.error(func_op_str)
-                    exit(0)
-                candidates.pop(index)
+                    self.handle_inconsistent_result(cand)
+                candidates.remove(cand)
                 continue
 
-            if candidates[index] in new_candidates_sp:
+            if cand in new_candidates_sp:
                 log_str = "Add a new transformer"
-            elif candidates[index] in new_candidates_c:
+            elif cand in new_candidates_c:
                 log_str = "Add a new transformer (cond)"
                 num_cond_solutions += 1
             else:
-                if candidates[index].cond is None:
+                if cand.cond is None:
                     log_str = "Add a existing transformer"
                 else:
                     log_str = "Add a existing transformer (cond)"
                     num_cond_solutions += 1
             self.logger.info(
-                f"{log_str}. After adding, Exact: {result[index].get_exact_prop() * 100:.2f}%, Precision: {result[index].get_bitwise_precision() * 100:.2f}%"
+                f"{log_str}. After adding, Exact: {max_improve_res.get_exact_prop() * 100:.2f}%, Precision: {max_improve_res.get_bitwise_precision() * 100:.2f}%"
             )
-            self.solutions.append(candidates.pop(index))
+            candidates.remove(cand)
+            self.solutions.append(cand)
 
         self.logger.info(
             f"The number of solutions after reseting: {len(self.solutions)}"
@@ -426,7 +417,7 @@ class UnsizedSolutionSet(SolutionSet):
         sorted_pairs = sorted(
             zip(precise_candidates, result),
             reverse=True,
-            key=lambda pair: pair[1].base_edit_dis - pair[1].unsolved_edit_dis,
+            key=lambda x: x[1].get_improve(),
         )
         K = 15
         top_k = sorted_pairs[:K]

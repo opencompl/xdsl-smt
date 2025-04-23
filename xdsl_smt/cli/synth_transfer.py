@@ -470,8 +470,6 @@ def synthesize_transfer_function(
     random: Random,
     solution_set: SolutionSet,
     logger: logging.Logger,
-    # Evalate transfer functions
-    eval_func: Callable[[list[FunctionWithCondition]], list[CompareResult]],
     concrete_func: FuncOp,
     helper_funcs: list[FuncOp],
     ctx: MLContext,
@@ -534,11 +532,7 @@ def synthesize_transfer_function(
         transfers, sp_range, p_range, c_range, prec_set_after_distribute
     )
 
-    cmp_results = (
-        solution_set.eval_improve(func_with_cond_lst)
-        if solution_size == 0
-        else eval_func(func_with_cond_lst)
-    )
+    cmp_results = solution_set.eval_improve(func_with_cond_lst)
 
     for i, cmp in enumerate(cmp_results):
         mcmc_samplers[i].current_cmp = cmp
@@ -569,11 +563,7 @@ def synthesize_transfer_function(
         )
 
         start = time.time()
-        cmp_results = (
-            solution_set.eval_improve(func_with_cond_lst)
-            if solution_size == 0
-            else eval_func(func_with_cond_lst)
-        )
+        cmp_results = solution_set.eval_improve(func_with_cond_lst)
         end = time.time()
         used_time = end - start
 
@@ -864,13 +854,6 @@ def run(
             logger,
         )
 
-    eval_func = main_eval_func(
-        base_transfers,
-        domain,
-        bitwidth,
-        helper_funcs_cpp,
-    )
-
     # eval the initial solutions in the solution set
 
     init_cmp_res = solution_set.eval_improve([])
@@ -904,7 +887,6 @@ def run(
             random,
             solution_set,
             logger,
-            eval_func,
             crt_func,
             helper_funcs[1:],
             ctx,

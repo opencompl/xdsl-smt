@@ -88,3 +88,10 @@ class CompareResult:
         return (self.base_edit_dis - self.edit_dis) / (
             self.bitwidth * 2 * self.all_cases
         )
+
+    def get_improve(self):
+        greedy_by_edit_dis = True  # default
+        if greedy_by_edit_dis:
+            return self.base_edit_dis - self.unsolved_edit_dis
+        else:
+            return self.unsolved_exacts
