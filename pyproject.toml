@@ -36,6 +36,7 @@ superoptimize = "xdsl_smt.cli.superoptimize:main"
 syn-test = "xdsl_smt.cli.syn_test:main"
 synth-transfer = "xdsl_smt.cli.synth_transfer:main"
 eval-test = "xdsl_smt.cli.eval_test:main"
+benchmark-synth = "xdsl_smt.benchmark.benchmark:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
