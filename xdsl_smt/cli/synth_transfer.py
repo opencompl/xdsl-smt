@@ -414,7 +414,7 @@ def build_eval_list(
         lst.append(fwc)
     for i in c:
         prec_func = prec_func_after_distribute[i - c.start].clone()
-        fwc = FunctionWithCondition(prec_func, mcmc_proposals[i])
+        fwc = FunctionWithCondition(prec_func, mcmc_proposals[i].clone())
         fwc.set_func_name(f"{prec_func.sym_name.data}_abd_{i}")
         lst.append(fwc)
 
@@ -547,10 +547,14 @@ def synthesize_transfer_function(
 
     # These 3 lists store "good" transformers during the search
     sound_most_exact_tfs = [
-        (spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers
+        (spl.current.func.clone(), spl.current_cmp, 0) for spl in mcmc_samplers
     ]
-    most_exact_tfs = [(spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers]
-    lowest_cost_tfs = [(spl.current.func, spl.current_cmp, 0) for spl in mcmc_samplers]
+    most_exact_tfs = [
+        (spl.current.func.clone(), spl.current_cmp, 0) for spl in mcmc_samplers
+    ]
+    lowest_cost_tfs = [
+        (spl.current.func.clone(), spl.current_cmp, 0) for spl in mcmc_samplers
+    ]
 
     # MCMC start
     logger.info(
