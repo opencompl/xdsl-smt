@@ -40,20 +40,28 @@ class AbstractValueTypeSemantics(TypeSemantics):
     """Lower all types in an abstract value to SMT types
     But the last element is useless, this makes GetOp easier"""
 
+    def lower_type(self, ty: Attribute) -> Attribute:
+        """
+        If the input type is already a smt type, skip lowering
+        """
+        if ty.name.startswith("smt"):
+            return ty
+        return SMTLowerer.lower_type(ty)
+
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, transfer.AbstractValueType) or isinstance(
             type, transfer.TupleType
         )
         curTy = type.get_fields()[-1]
         isIntegerTy = isinstance(curTy, IntegerType)
-        curLoweredTy = SMTLowerer.lower_type(curTy)
+        curLoweredTy = self.lower_type(curTy)
         if isIntegerTy:
             assert isattr(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
             curLoweredTy = curLoweredTy.first
         result: AnyPairType = PairType(curLoweredTy, BoolType())
         for ty in reversed(type.get_fields()[:-1]):
             isIntegerTy = isinstance(ty, IntegerType)
-            curLoweredTy = SMTLowerer.lower_type(ty)
+            curLoweredTy = self.lower_type(ty)
             if isIntegerTy:
                 assert isattr(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
                 curLoweredTy = curLoweredTy.first

@@ -4,30 +4,28 @@ from xdsl.context import MLContext
 
 from io import StringIO
 
-from xdsl.utils.hints import isa
 from xdsl_smt.dialects.smt_dialect import (
     DefineFunOp,
+    BoolType,
+    ConstantBoolOp,
 )
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
     TupleType,
+    GetOp,
+    MakeOp,
 )
-from xdsl.ir.core import Attribute
 from xdsl.dialects.builtin import (
     ModuleOp,
     IntegerAttr,
     IntegerType,
-    i1,
     FunctionType,
-    ArrayAttr,
-    StringAttr,
 )
 from xdsl.dialects.func import FuncOp, ReturnOp
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
-import xdsl.dialects.comb as comb
 from xdsl.ir import Operation
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMTPass, SMTLowerer
 from xdsl_smt.passes.lower_effects import LowerEffectPass
@@ -81,55 +79,6 @@ def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
     if res.returncode != 0:
         raise Exception(res.stderr)
     return "unsat" in res.stdout
-
-
-def get_concrete_function(
-    concrete_op_name: str, width: int, extra: int | None
-) -> FuncOp:
-    """
-    Given a name of one concrete operation, return a function with only that operation
-    """
-
-    # iterate all semantics and find corresponding comb operation
-    result = None
-    for k in comb_semantics.keys():
-        if k.name == concrete_op_name:
-            # generate a function with the only comb operation
-            # for now, we only handle binary operations and mux
-            intTy = IntegerType(width)
-            func_name = concrete_op_name.replace(".", "_")
-
-            if concrete_op_name == "comb.mux":
-                funcTy = FunctionType.from_lists([i1, intTy, intTy], [intTy])
-                result = FuncOp(func_name, funcTy)
-                combOp = k(*result.args)
-            elif concrete_op_name == "comb.icmp":
-                funcTy = FunctionType.from_lists([intTy, intTy], [i1])
-                func_name += str(extra)
-                result = FuncOp(func_name, funcTy)
-                assert extra is not None
-                combOp = comb.ICmpOp(result.args[0], result.args[1], extra)
-            elif concrete_op_name == "comb.concat":
-                funcTy = FunctionType.from_lists(
-                    [intTy, intTy], [IntegerType(width * 2)]
-                )
-                result = FuncOp(func_name, funcTy)
-                combOp = comb.ConcatOp.from_int_values(result.args)
-            else:
-                funcTy = FunctionType.from_lists([intTy, intTy], [intTy])
-                result = FuncOp(func_name, funcTy)
-                if issubclass(k, comb.VariadicCombOperation):
-                    combOp = k.create(operands=result.args, result_types=[intTy])
-                else:
-                    combOp = k(*result.args)
-
-            assert isinstance(combOp, Operation)
-            returnOp = ReturnOp(combOp.results[0])
-            result.body.block.add_ops([combOp, returnOp])
-    assert result is not None and (
-        "Cannot find the concrete function for" + concrete_op_name
-    )
-    return result
 
 
 def lower_to_smt_module(module: ModuleOp, width: int, ctx: MLContext):
@@ -197,6 +146,36 @@ def generate_int_attr_arg(int_attr_arg: list[int] | None) -> dict[int, int]:
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 TMP_MODULE: list[ModuleOp] = []
+
+
+def add_poison_to_concrete_function(concrete_func: FuncOp) -> FuncOp:
+    """
+    Input: a concrete function with shape (trans.integer, trans.integer) -> trans.integer
+    Output: a new function with shape (tuple<trans.integer, bool>
+    """
+    result_func = concrete_func.clone()
+    block = result_func.body.block
+    # Add poison to every args
+    new_arg_type = TupleType([TransIntegerType(), BoolType()])
+    while isinstance(result_func.args[0].type, TransIntegerType):
+        new_arg = block.insert_arg(new_arg_type, len(result_func.args))
+        new_get_op = GetOp(new_arg, 0)
+        assert block.first_op is not None
+        block.insert_op_before(new_get_op, block.first_op)
+        result_func.args[0].replace_by(new_get_op.result)
+        block.erase_arg(result_func.args[0])
+    last_op = block.last_op
+    assert last_op is not None
+    poison_val = ConstantBoolOp(False)
+    new_return_val = MakeOp([last_op.operands[0], poison_val.res])
+    block.insert_ops_before([poison_val, new_return_val], last_op)
+    last_op.operands[0] = new_return_val.result
+    new_args_type = [arg.type for arg in result_func.args]
+    new_return_type = new_return_val.result.type
+    result_func.function_type = FunctionType.from_lists(
+        new_args_type, [new_return_type]
+    )
+    return result_func
 
 
 def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
@@ -272,12 +251,16 @@ def verify_smt_transfer_function(
 
 
 def build_init_module(
-    transfer_function: FuncOp, helper_funcs: list[FuncOp], ctx: MLContext
+    transfer_function: FuncOp,
+    concrete_func: FuncOp,
+    helper_funcs: list[FuncOp],
+    ctx: MLContext,
 ):
     func_name_to_func: dict[str, FuncOp] = {}
     module_op = ModuleOp([])
     module_op.body.block.add_ops(
-        [transfer_function.clone()] + [func.clone() for func in helper_funcs]
+        [transfer_function.clone(), add_poison_to_concrete_function(concrete_func)]
+        + [func.clone() for func in helper_funcs]
     )
     domain_constraint: FunctionCollection | None = None
     instance_constraint: FunctionCollection | None = None
@@ -314,7 +297,7 @@ def build_init_module(
     assert transfer_function_obj is not None
 
     func_name_to_func[transfer_function.sym_name.data] = transfer_function
-    if len(func_name_to_func) != len(helper_funcs) + 1:
+    if len(func_name_to_func) != len(helper_funcs) + 2:
         print(
             [func.sym_name.data for func in helper_funcs]
             + [transfer_function.sym_name.data]
@@ -331,6 +314,7 @@ def build_init_module(
 
 def verify_transfer_function(
     transfer_function: FuncOp,
+    concrete_func: FuncOp,
     helper_funcs: list[FuncOp],
     ctx: MLContext,
     maximal_verify_bits: int = 32,
@@ -341,10 +325,9 @@ def verify_transfer_function(
         transfer_function_obj,
         domain_constraint,
         instance_constraint,
-    ) = build_init_module(transfer_function, helper_funcs, ctx)
+    ) = build_init_module(transfer_function, concrete_func, helper_funcs, ctx)
 
     FunctionCallInline(False, func_name_to_func).apply(ctx, module_op)
-
     for width in solve_vector_width(maximal_verify_bits):
         smt_module = module_op.clone()
 
@@ -352,38 +335,10 @@ def verify_transfer_function(
         unrollTransferLoop = UnrollTransferLoop(width)
         assert isinstance(smt_module, ModuleOp)
         unrollTransferLoop.apply(ctx, smt_module)
-        concrete_func_name: str | None = None
-        concrete_func: FuncOp | None = None
-        for op in smt_module.ops:
-            # op is a transfer function
-            if isinstance(op, FuncOp) and "applied_to" in op.attributes:
-                assert isa(
-                    applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
-                )
-                assert isinstance(applied_to.data[0], StringAttr)
-                concrete_func_name = applied_to.data[0].data
-
-                extra = None
-                assert isa(
-                    applied_to := op.attributes["applied_to"], ArrayAttr[Attribute]
-                )
-                assert isinstance(applied_to.data[0], StringAttr)
-                if len(applied_to.data) > 1:
-                    extra = applied_to.data[1]
-                    assert (
-                        isinstance(extra, IntegerAttr)
-                        and "only support for integer attr for the second applied arg for now"
-                    )
-                    extra = extra.value.data
-                concrete_func = get_concrete_function(concrete_func_name, width, extra)
-                concrete_func_name = concrete_func.sym_name.data
-
-                if len(applied_to.data) >= 2:
-                    concrete_func_name += str(extra)
+        concrete_func_name: str = concrete_func.sym_name.data
 
         assert concrete_func is not None
         assert concrete_func_name is not None
-        smt_module.body.block.add_op(concrete_func)
         lower_to_smt_module(smt_module, width, ctx)
 
         func_name_to_smt_func: dict[str, DefineFunOp] = {}
