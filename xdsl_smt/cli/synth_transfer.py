@@ -12,6 +12,7 @@ from io import StringIO
 
 from xdsl.utils.hints import isa
 
+from xdsl_smt.passes.transfer_inline import FunctionCallInline
 from xdsl_smt.utils.synthesizer_utils.compare_result import CompareResult
 from ..dialects.smt_dialect import SMTDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -236,6 +237,15 @@ def get_default_op_constraint(concrete_func: FuncOp):
     return func
 
 
+def get_default_abs_op_constraint(abstract_func: FuncOp):
+    cond_type = FunctionType.from_lists(abstract_func.function_type.inputs.data, [i1])
+    func = FuncOp("abs_op_constraint", cond_type)
+    true_op: ConstantOp = ConstantOp(IntegerAttr.from_int_and_width(1, 1), i1)
+    return_op = ReturnOp(true_op)
+    func.body.block.add_ops([true_op, return_op])
+    return func
+
+
 SYNTH_WIDTH = 4
 TEST_SET_SIZE = 1000
 CONCRETE_VAL_PER_TEST_CASE = 10
@@ -251,6 +261,7 @@ NUM_ABD_PROCS = 0
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 OP_CONSTRAINT = "op_constraint"
+ABS_OP_CONSTRAINT = "abs_op_constraint"
 MEET_FUNC = "meet"
 GET_TOP_FUNC = "getTop"
 CONCRETE_OP_FUNC = "concrete_op"
@@ -740,6 +751,7 @@ def run(
     for func in module.ops:
         if isinstance(func, FuncOp):
             func_name_to_func[func.sym_name.data] = func
+    FunctionCallInline(False, func_name_to_func).apply(ctx, module)
 
     crt_func = func_name_to_func.get(CONCRETE_OP_FUNC, None)
 
@@ -774,6 +786,9 @@ def run(
         INSTANCE_CONSTRAINT, None
     )
     op_constraint_func: FuncOp | None = func_name_to_func.get(OP_CONSTRAINT, None)
+    abs_op_constraint_func: FuncOp | None = func_name_to_func.get(
+        ABS_OP_CONSTRAINT, None
+    )
     meet_func: FuncOp | None = func_name_to_func.get(MEET_FUNC, None)
     get_top_func: FuncOp | None = func_name_to_func.get(GET_TOP_FUNC, None)
     global get_top_func_op
@@ -787,6 +802,8 @@ def run(
 
     if op_constraint_func is None:
         op_constraint_func = get_default_op_constraint(crt_func)
+    if abs_op_constraint_func is None:
+        abs_op_constraint_func = get_default_abs_op_constraint(transfer_func)
     assert instance_constraint_func is not None
     assert domain_constraint_func is not None
     assert meet_func is not None
@@ -797,6 +814,7 @@ def run(
         instance_constraint_func,
         domain_constraint_func,
         op_constraint_func,
+        abs_op_constraint_func,
         get_top_func,
     ]
 

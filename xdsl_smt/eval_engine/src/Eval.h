@@ -23,6 +23,7 @@ private:
   // types
   typedef std::function<A::APInt(A::APInt, A::APInt)> ConcOpFn;
   typedef std::function<bool(A::APInt, A::APInt)> OpConstraintFn;
+  typedef std::function<bool(Domain, Domain)> AbsOpConstraintFn;
 
   // members
   std::unique_ptr<llvm::orc::LLJIT> jit;
@@ -30,6 +31,7 @@ private:
   std::vector<typename Domain::XferFn> xferFns;
   std::vector<typename Domain::XferFn> baseFns;
   std::optional<OpConstraintFn> opCon;
+  std::optional<AbsOpConstraintFn> absOpCon;
   ConcOpFn concOp;
 
   // methods
@@ -92,12 +94,21 @@ public:
     llvm::Expected<llvm::orc::ExecutorAddr> mOpCons =
         jit->lookup("op_constraint");
 
+    llvm::Expected<llvm::orc::ExecutorAddr> mAbsOpCons =
+        jit->lookup("abs_op_constraint");
+
     opCon =
         !mOpCons
             ? std::nullopt
             : std::optional(mOpCons.get().toPtr<bool(A::APInt, A::APInt)>());
 
+    absOpCon =
+        !mAbsOpCons
+            ? std::nullopt
+            : std::optional(mAbsOpCons.get().toPtr<bool(Domain, Domain)>());
+
     llvm::consumeError(mOpCons.takeError());
+    llvm::consumeError(mAbsOpCons.takeError());
   }
 
   const Results eval() {
@@ -106,6 +117,11 @@ public:
 
     for (Domain lhs : fullLattice) {
       for (Domain rhs : fullLattice) {
+
+        // If we have an abs_op_constraint and it returns false, we skip this pair
+        if (absOpCon && !absOpCon.value()(lhs, rhs)){
+          continue;
+        }
         Domain best_abstract_res = toBestAbst(lhs, rhs);
         // we skip a (lhs, rhs) if there are no concrete values that satisfy
         // op_constraint
