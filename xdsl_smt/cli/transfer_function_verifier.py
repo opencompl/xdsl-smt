@@ -34,7 +34,6 @@ from xdsl.dialects.builtin import (
     FunctionType,
     ArrayAttr,
     StringAttr,
-    AnyArrayAttr,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from ..dialects.transfer import Transfer
@@ -78,6 +77,7 @@ from xdsl_smt.semantics.transfer_semantics import (
     TransferIntegerTypeSemantics,
 )
 from xdsl_smt.semantics.comb_semantics import comb_semantics
+from xdsl.rewriter import Rewriter
 import sys as sys
 
 
@@ -120,7 +120,7 @@ def fix_bit_width_in_verify_pattern(module: ModuleOp):
                 assert isinstance(op_1_type, BitVectorType)
                 new_bitwidth = op_0_type.width.data + op_1_type.width.data
                 new_bitvector_type = BitVectorType.from_int(new_bitwidth)
-                op.results[0].type = new_bitvector_type
+                Rewriter.replace_value_with_new_type(op.results[0], new_bitvector_type)
             if op.operands[0].type != op.operands[1].type:
                 op_1_owner = op.operands[1].owner
                 if isinstance(op_1_owner, ConstantOp):
@@ -324,7 +324,7 @@ def get_int_attr_arg(func: FuncOp) -> list[int]:
     int_attr: list[int] = []
     assert "int_attr" in func.attributes
     func_int_attr = func.attributes["int_attr"]
-    assert isa(func_int_attr, AnyArrayAttr)
+    assert isa(func_int_attr, ArrayAttr)
     for attr in func_int_attr.data:
         assert isinstance(attr, IntegerAttr)
         int_attr.append(attr.value.data)

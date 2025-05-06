@@ -126,11 +126,11 @@ def remove_pairs_from_function_return(module: ModuleOp):
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
             firstRet = ReturnOp(firstOp.res)
             Rewriter.replace_op(firstBlockTerminator, firstRet)
-            new_type = FunctionType.from_attrs(
+            firstFunc_new_type = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
                 ArrayAttr[Attribute]([output.first]),
             )
-            Rewriter.replace_value_with_new_type(firstFunc.ret, new_type)
+            Rewriter.replace_value_with_new_type(firstFunc.ret, firstFunc_new_type)
             if firstFunc.fun_name:
                 firstFunc.attributes["fun_name"] = StringAttr(
                     firstFunc.fun_name.data + "_first"
@@ -145,13 +145,11 @@ def remove_pairs_from_function_return(module: ModuleOp):
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
-            Rewriter.replace_value_with_new_type(
-                secondFunc.ret,
-                FunctionType.from_attrs(
-                    secondFunc.func_type.inputs,
-                    ArrayAttr[Attribute]([output.second]),
-                ),
+            secondFunc_new_type = FunctionType.from_attrs(
+                secondFunc.func_type.inputs,
+                ArrayAttr[Attribute]([output.second]),
             )
+            Rewriter.replace_value_with_new_type(secondFunc.ret, secondFunc_new_type)
             if secondFunc.fun_name:
                 secondFunc.attributes["fun_name"] = StringAttr(
                     secondFunc.fun_name.data + "_second"
@@ -165,11 +163,11 @@ def remove_pairs_from_function_return(module: ModuleOp):
                 call = use.operation
                 assert isinstance(call, CallOp)
                 callFirst = CallOp.create(
-                    result_types=[firstFunc.ret.type.outputs.data[0]],
+                    result_types=[firstFunc_new_type.outputs.data[0]],
                     operands=[firstFunc.ret] + list(call.args),
                 )
                 callSecond = CallOp.create(
-                    result_types=[secondFunc.ret.type.outputs.data[0]],
+                    result_types=[secondFunc_new_type.outputs.data[0]],
                     operands=[secondFunc.ret] + list(call.args),
                 )
                 mergeCalls = PairOp(callFirst.res[0], callSecond.res[0])

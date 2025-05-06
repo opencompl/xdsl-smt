@@ -93,7 +93,7 @@ class UnaryIntOp(IRDLOperation, Pure):
 class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.int.constant"
     res: OpResult = result_def(SMTIntType)
-    value: IntegerAttr[IntegerType] = attr_def(IntegerAttr)
+    value: IntegerAttr[IntegerType] = attr_def(IntegerAttr[IntegerType])
 
     def __init__(self, value: int | IntegerAttr[IntegerType]):
         assert isinstance(value, int)

@@ -2,7 +2,6 @@ from typing import cast
 from xdsl_smt.semantics.semantics import OperationSemantics
 from typing import Mapping, Sequence, Any
 from xdsl.ir import SSAValue, Attribute, Region, Operation
-from xdsl.rewriter import InsertPoint
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.interpreters.pdl import (
     PDLMatcher,

@@ -1,6 +1,6 @@
 from xdsl.utils.hints import isa
 
-from xdsl.dialects.builtin import ModuleOp, IntegerAttr, AnyArrayAttr
+from xdsl.dialects.builtin import ModuleOp, IntegerAttr, ArrayAttr
 
 from .transfer_function_util import (
     replace_abstract_value_width,
@@ -885,7 +885,7 @@ def backward_precision_check(
     other_operand: list[int] = []
     if "other_operand" in counterexample_func.attributes:
         other_operand_attr = counterexample_func.attributes["other_operand"]
-        assert isa(other_operand_attr, AnyArrayAttr)
+        assert isa(other_operand_attr, ArrayAttr)
         for attr in other_operand_attr.data:
             assert isinstance(attr, IntegerAttr)
             other_operand.append(attr.value.data)
