@@ -8,7 +8,7 @@ from xdsl.interpreters.pdl import (
     PDLMatcher,
     PDLRewriteFunctions,
 )
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.dialects import arith, pdl
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.interpreter import Interpreter, impl, register_impls
@@ -99,7 +99,7 @@ class PDLSemantics(OperationSemantics):
             if isinstance(constraint_op, pdl.ApplyNativeConstraintOp):
                 assert matcher.check_native_constraints(constraint_op)
         # Create the context of the rewriting
-        ctx = MLContext()
+        ctx = Context()
         ctx.load_dialect(arith.Arith)
         ctx.load_dialect(pdl.PDL)
         ctx.load_dialect(SMTDialect)

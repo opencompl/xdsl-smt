@@ -1,7 +1,7 @@
 import argparse
 import subprocess
 
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.parser import Parser
 
 from io import StringIO
@@ -94,7 +94,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(ctx: MLContext, file: str | None) -> Operation:
+def parse_file(ctx: Context, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
         file = "<stdin>"
@@ -134,7 +134,7 @@ def fix_bit_width_in_verify_pattern(module: ModuleOp):
                     op.operands[1].replace_by(new_constant_op.res)
 
 
-def verify_pattern(ctx: MLContext, op: ModuleOp) -> bool:
+def verify_pattern(ctx: Context, op: ModuleOp) -> bool:
     cloned_op = op.clone()
     stream = StringIO()
     LowerPairs().apply(ctx, cloned_op)
@@ -238,7 +238,7 @@ def get_concrete_function(
     return result
 
 
-def lower_to_smt_module(module: ModuleOp, width: int, ctx: MLContext):
+def lower_to_smt_module(module: ModuleOp, width: int, ctx: Context):
     # lower to SMT
     SMTLowerer.rewrite_patterns = {
         **func_to_smt_patterns,
@@ -380,10 +380,10 @@ def next_int_attr_arg(intAttr: dict[int, int], width: int) -> bool:
 INSTANCE_CONSTRAINT = "getInstanceConstraint"
 DOMAIN_CONSTRAINT = "getConstraint"
 TMP_MODULE: list[ModuleOp] = []
-ctx: MLContext
+ctx: Context
 
 
-def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp:
+def create_smt_function(func: FuncOp, width: int, ctx: Context) -> DefineFunOp:
     """
     Input: a function with type FuncOp
     Return: the function lowered to SMT dialect with specified width
@@ -401,7 +401,7 @@ def create_smt_function(func: FuncOp, width: int, ctx: MLContext) -> DefineFunOp
 
 
 def get_dynamic_transfer_function(
-    func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int], ctx: MLContext
+    func: FuncOp, width: int, module: ModuleOp, int_attr: dict[int, int], ctx: Context
 ) -> DefineFunOp:
     """
     If the transfer function has a non-empty int_attr dictionary, it replaces function arguments by constant operation
@@ -437,7 +437,7 @@ def get_dynamic_functions(
     width: int,
     module: ModuleOp,
     int_attr: dict[int, int],
-    ctx: MLContext,
+    ctx: Context,
 ) -> dict[str, DefineFunOp]:
     result: dict[str, DefineFunOp] = {}
     for _, func in dynamic_functions.items():
@@ -480,7 +480,7 @@ def soundness_check(
     domain_constraint: FunctionCollection,
     instance_constraint: FunctionCollection,
     int_attr: dict[int, int],
-    ctx: MLContext,
+    ctx: Context,
 ):
     query_module = ModuleOp([])
     if smt_transfer_function.is_forward:
@@ -509,7 +509,7 @@ def soundness_counterexample_check(
     instance_constraint: FunctionCollection,
     func_name_to_func: dict[str, FuncOp],
     int_attr: dict[int, int],
-    ctx: MLContext,
+    ctx: Context,
 ):
     if smt_transfer_function.soundness_counterexample is not None:
         query_module = ModuleOp([])
@@ -541,7 +541,7 @@ def precision_check(
     instance_constraint: FunctionCollection,
     func_name_to_func: dict[str, FuncOp],
     int_attr: dict[int, int],
-    ctx: MLContext,
+    ctx: Context,
 ):
     query_module = ModuleOp([])
     if smt_transfer_function.is_forward:
@@ -586,7 +586,7 @@ def verify_smt_transfer_function(
     func_name_to_func: dict[str, FuncOp],
     dynamic_transfer_functions: dict[str, FuncOp],
     dynamic_functions: dict[str, FuncOp],
-    ctx: MLContext,
+    ctx: Context,
 ) -> None:
     # Soundness check
     query_module = ModuleOp([])
@@ -736,7 +736,7 @@ def verify_smt_transfer_function(
 
 def main() -> None:
     global ctx
-    ctx = MLContext()
+    ctx = Context()
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()

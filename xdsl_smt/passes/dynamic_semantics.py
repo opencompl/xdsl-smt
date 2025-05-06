@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from xdsl.passes import ModulePass
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.ir import Operation
 
 from xdsl.dialects.builtin import ModuleOp
@@ -14,7 +14,7 @@ from xdsl_smt.semantics.semantics import OperationSemantics
 class DynamicSemantics(ModulePass):
     name = "dynamic-semantics"
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def apply(self, ctx: Context, op: ModuleOp) -> None:
         pdl_module = op
         patterns = [op for op in pdl_module.walk() if isinstance(op, pdl.PatternOp)]
         semantics: dict[type[Operation], OperationSemantics] = {}

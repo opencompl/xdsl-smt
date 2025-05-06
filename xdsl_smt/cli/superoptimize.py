@@ -5,7 +5,7 @@ import argparse
 import re
 import subprocess as sp
 
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
 
@@ -70,7 +70,7 @@ def replace_synth_with_constants(
 
 
 def main() -> None:
-    ctx = MLContext()
+    ctx = Context()
     ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)

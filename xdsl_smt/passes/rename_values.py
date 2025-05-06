@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from xdsl.passes import ModulePass
 
 from xdsl.ir import Operation
-from xdsl.context import MLContext
+from xdsl.context import Context
 
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -38,7 +38,7 @@ class RenameOpResult(RewritePattern):
 class RenameValuesPass(ModulePass):
     name = "rename_op_result"
 
-    def apply(self, ctx: MLContext, op: builtin.ModuleOp) -> None:
+    def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier([RenameOpResult()]),
             walk_regions_first=True,

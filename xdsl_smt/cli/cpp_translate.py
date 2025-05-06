@@ -4,7 +4,7 @@ import argparse
 from typing import cast
 import sys
 
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.ir import Operation
 from xdsl.parser import Parser
 
@@ -28,7 +28,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_file(ctx: MLContext, file: str | None) -> Operation:
+def parse_file(ctx: Context, file: str | None) -> Operation:
     if file is None:
         f = sys.stdin
         file = "<stdin>"
@@ -73,7 +73,7 @@ def checkFunctionValidity(func: FuncOp) -> bool:
 
 
 def main() -> None:
-    ctx = MLContext()
+    ctx = Context()
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()

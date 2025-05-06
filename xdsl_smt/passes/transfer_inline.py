@@ -10,7 +10,7 @@ from xdsl_smt.dialects.smt_dialect import CallOp, DefineFunOp, ReturnOp
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects import func
 from xdsl.ir import Operation
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.ir import Operation, SSAValue
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
@@ -73,7 +73,7 @@ class FunctionCallInline(ModulePass):
     is_SMT_call: bool
     func_name_to_func: dict[str, func.FuncOp]
 
-    def apply(self, ctx: MLContext, op: ModuleOp):
+    def apply(self, ctx: Context, op: ModuleOp):
         if self.is_SMT_call:
             walker = PatternRewriteWalker(SMTCallInlinePattern(), walk_reverse=True)
         else:

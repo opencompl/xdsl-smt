@@ -8,7 +8,7 @@ from xdsl.pattern_rewriter import (
 from ..dialects import transfer
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import SSAValue
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
 
@@ -114,7 +114,7 @@ class UnrollTransferLoop(ModulePass):
 
     width: int
 
-    def apply(self, ctx: MLContext, op: ModuleOp):
+    def apply(self, ctx: Context, op: ModuleOp):
         walker = PatternRewriteWalker(
             ConstRangeForOpPattern(self.width), walk_reverse=True
         )

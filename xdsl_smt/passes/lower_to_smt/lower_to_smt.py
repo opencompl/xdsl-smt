@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from xdsl.passes import ModulePass
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.dialects.builtin import ModuleOp, ArrayAttr
 
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import (
@@ -21,7 +21,7 @@ from xdsl_smt.passes.lower_to_smt.smt_lowerer import (
 class LowerToSMTPass(ModulePass):
     name = "lower-to-smt"
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def apply(self, ctx: Context, op: ModuleOp) -> None:
         # HACK: This is a temporary solution to get access to the operand types
         # during the lowering.
         # This should be fixed once we have a better lowering scheme that ressemble

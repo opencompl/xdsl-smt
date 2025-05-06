@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from xdsl.ir import SSAValue, ParametrizedAttribute, Attribute, Operation
 from xdsl.passes import ModulePass
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.pattern_rewriter import (
     PatternRewriteWalker,
     GreedyRewritePatternApplier,
@@ -280,7 +280,7 @@ class LowerGenericOp(RewritePattern):
 class LowerMemoryEffectsPass(ModulePass):
     name = "lower-memory-effects"
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def apply(self, ctx: Context, op: ModuleOp) -> None:
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [

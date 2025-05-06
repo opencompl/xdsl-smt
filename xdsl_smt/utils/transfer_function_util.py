@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Callable
 
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.utils.hints import isa
 from ..dialects.smt_dialect import (
     DefineFunOp,
@@ -325,8 +325,8 @@ class FunctionCollection:
     """
 
     main_func: FuncOp
-    create_smt: Callable[[FuncOp, int, MLContext], DefineFunOp]
-    ctx: MLContext
+    create_smt: Callable[[FuncOp, int, Context], DefineFunOp]
+    ctx: Context
     smt_funcs: dict[int, DefineFunOp] = field(default_factory=dict)
 
     def getFunctionByWidth(self, width: int) -> DefineFunOp:

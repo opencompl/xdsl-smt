@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from xdsl.passes import ModulePass
-from xdsl.context import MLContext
+from xdsl.context import Context
 
 from xdsl.ir import Attribute, Operation, SSAValue, ParametrizedAttribute
 from xdsl.dialects.builtin import ModuleOp
@@ -229,7 +229,7 @@ class GetFreshBlockIDPattern(RewritePattern):
 class LowerMemoryToArrayPass(ModulePass):
     name = "lower-memory-to-array"
 
-    def apply(self, ctx: MLContext, op: ModuleOp):
+    def apply(self, ctx: Context, op: ModuleOp):
         for sub_op in op.body.ops:
             if isinstance(sub_op, smt.DefineFunOp):
                 raise Exception(

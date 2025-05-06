@@ -7,7 +7,7 @@ It also duplicate arguments that are pairs, into two arguments.
 from typing import cast
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     PatternRewriteWalker,
@@ -278,7 +278,7 @@ class LowerEqPattern(RewritePattern):
 class LowerPairs(ModulePass):
     name = "lower-pairs"
 
-    def apply(self, ctx: MLContext, op: ModuleOp):
+    def apply(self, ctx: Context, op: ModuleOp):
         # Remove pairs from function arguments.
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(

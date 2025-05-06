@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from xdsl.ir import Operation, Attribute, ParametrizedAttribute
 from xdsl.utils.isattr import isattr
 from xdsl.passes import ModulePass
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
@@ -78,7 +78,7 @@ class LowerToBoolOp(RewritePattern):
 class LowerEffectPass(ModulePass):
     name = "lower-effects"
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def apply(self, ctx: Context, op: ModuleOp) -> None:
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [LowerTriggerOp(), LowerToBoolOp(), LowerGenericOp()]

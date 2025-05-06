@@ -25,7 +25,7 @@ from ..dialects import smt_bitvector_dialect as smt_bv
 from ..dialects import smt_utils_dialect as smt_utils
 
 from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
-from xdsl.context import MLContext
+from xdsl.context import Context
 
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
@@ -159,7 +159,7 @@ class OperandRewrite(RewritePattern):
 
 @dataclass
 class OperationRewrite(RewritePattern):
-    ctx: MLContext
+    ctx: Context
     rewrite_context: PDLToSMTRewriteContext
 
     @op_type_rewrite_pattern
@@ -521,7 +521,7 @@ class PDLToSMTLowerer:
                     "composed of non-deleted operations, then deleted operations"
                 )
 
-    def lower_to_smt(self, module: ModuleOp, ctx: MLContext) -> None:
+    def lower_to_smt(self, module: ModuleOp, ctx: Context) -> None:
         patterns = [sub_op for sub_op in module.walk() if isinstance(sub_op, PatternOp)]
         n_patterns = len(patterns)
         if n_patterns > 1:
@@ -578,5 +578,5 @@ class PDLToSMT(ModulePass):
 
     pdl_lowerer: ClassVar[PDLToSMTLowerer] = PDLToSMTLowerer({}, {}, {})
 
-    def apply(self, ctx: MLContext, op: ModuleOp) -> None:
+    def apply(self, ctx: Context, op: ModuleOp) -> None:
         self.pdl_lowerer.lower_to_smt(op, ctx)

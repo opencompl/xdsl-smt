@@ -1,6 +1,6 @@
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import Operation
-from xdsl.context import MLContext
+from xdsl.context import Context
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
 from ..traits.effects import Pure
@@ -17,6 +17,6 @@ class RemoveDeadPattern(RewritePattern):
 class DeadCodeElimination(ModulePass):
     name = "dce"
 
-    def apply(self, ctx: MLContext, op: ModuleOp):
+    def apply(self, ctx: Context, op: ModuleOp):
         walker = PatternRewriteWalker(RemoveDeadPattern(), walk_reverse=True)
         walker.rewrite_module(op)
