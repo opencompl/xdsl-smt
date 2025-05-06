@@ -22,7 +22,6 @@ from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
 from xdsl.utils.isattr import isattr
-from xdsl.parser import AnyIntegerAttr
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
@@ -87,7 +86,7 @@ class ConstantOpSemantics(OperationSemantics):
         if isinstance(const_value, SSAValue):
             return ((const_value,), effect_state)
 
-        assert isattr(const_value, AnyIntegerAttr)
+        assert isattr(const_value, IntegerAttr)
         const_value = const_value.value.data
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)

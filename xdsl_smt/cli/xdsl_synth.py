@@ -159,7 +159,9 @@ def remove_effect_states(func: DefineFunOp) -> None:
     Rewriter.replace_op(user, ReturnOp(user.ret[:-1]))
     func.body.blocks[0].erase_arg(effect_state)
     assert isinstance(ret := func.ret.type, FunctionType)
-    func.ret.type = FunctionType.from_lists(ret.inputs.data[:-1], ret.outputs.data[:-1])
+    Rewriter.replace_value_with_new_type(
+        func.ret, FunctionType.from_lists(ret.inputs.data[:-1], ret.outputs.data[:-1])
+    )
 
 
 def main() -> None:

@@ -6,7 +6,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.ir import Attribute, Operation, SSAValue
 from xdsl.irdl import IRDLOperation
-from xdsl.dialects.builtin import AnyIntegerAttr, IntegerAttr, IntegerType
+from xdsl.dialects.builtin import IntegerAttr, IntegerType
 import xdsl.dialects.comb as comb
 
 from xdsl_smt.dialects import hw_dialect as hw
@@ -48,7 +48,7 @@ class ConstantSemantics(OperationSemantics):
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
-            assert isa(value_value, AnyIntegerAttr)
+            assert isa(value_value, IntegerAttr)
             value_value = IntegerAttrSemantics().get_semantics(value_value, rewriter)
         poison_op = smt.ConstantBoolOp(False)
         rewriter.insert_op_before_matched_op(poison_op)
@@ -121,7 +121,7 @@ class ICmpSemantics(SimplePurePoisonSemantics):
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
         predicate_value = attributes["predicate"]
         if isinstance(predicate_value, Attribute):
-            assert isa(predicate_value, AnyIntegerAttr)
+            assert isa(predicate_value, IntegerAttr)
             predicate_value = IntegerAttrSemantics().get_semantics(
                 predicate_value, rewriter
             )

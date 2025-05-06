@@ -55,11 +55,11 @@ class ExtPDLRewriteFunctions(PDLRewriteFunctions):
             if pdl_op.op == op.repl_operation:
                 continue
             (new_op,) = interpreter.get_values((pdl_op.op,))
-            rewriter.insert_op(new_op, InsertPoint.before(old))
 
         # Do the replacement itself (and store the new values)
         if op.repl_operation is not None:
             (new_op,) = interpreter.get_values((op.repl_operation,))
+            new_op.detach()
             rewriter.replace_op(old, new_op)
             self.new_vals = new_op.results
         elif len(op.repl_values):

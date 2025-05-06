@@ -13,7 +13,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.rewriter import InsertPoint
 
-from xdsl.dialects.builtin import ModuleOp, AnyArrayAttr
+from xdsl.dialects.builtin import ModuleOp, ArrayAttr
 from xdsl_smt.dialects import (
     smt_utils_dialect as smt_utils,
     smt_dialect as smt,
@@ -33,8 +33,8 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
         return type(attr).new(
             [recursively_convert_attr(param) for param in attr.parameters]
         )
-    if isattr(attr, AnyArrayAttr):
-        return AnyArrayAttr((recursively_convert_attr(value) for value in attr.data))
+    if isattr(attr, ArrayAttr):
+        return ArrayAttr((recursively_convert_attr(value) for value in attr.data))
     return attr
 
 
@@ -46,13 +46,13 @@ class LowerGenericOp(RewritePattern):
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
         for result in op.results:
             if (new_type := recursively_convert_attr(result.type)) != result.type:
-                rewriter.modify_value_type(result, new_type)
+                rewriter.replace_value_with_new_type(result, new_type)
 
         for region in op.regions:
             for block in region.blocks:
                 for arg in block.args:
                     if (new_type := recursively_convert_attr(arg.type)) != arg.type:
-                        rewriter.modify_value_type(arg, new_type)
+                        rewriter.replace_value_with_new_type(arg, new_type)
 
         has_done_action = False
         for name, attr in op.attributes.items():

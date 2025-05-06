@@ -5,7 +5,7 @@ from typing import Mapping, Sequence
 from xdsl.ir import SSAValue, Attribute, Operation
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerType, AnyIntegerAttr, IntegerAttr
+from xdsl.dialects.builtin import IntegerType, IntegerAttr
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
@@ -150,8 +150,7 @@ class IntConstantSemantics(GenericIntSemantics):
         value_value = attributes["value"]
 
         if isinstance(value_value, Attribute):
-            assert isa(value_value, AnyIntegerAttr)
-            assert isinstance(value_value.type, IntegerType)
+            assert isa(value_value, IntegerAttr[IntegerType])
             assert isinstance(value_value.type.width.data, int)
             width_attr = value_value.type.width.data
             literal = smt_int.ConstantOp(
@@ -355,8 +354,8 @@ class IntCmpiSemantics(GenericIntBinarySemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> SSAValue:
-        if isinstance(attributes["predicate"], IntegerAttr):
-            predicate_attr: IntegerAttr[IntegerType] = attributes["predicate"]
+        if isa(attributes["predicate"], IntegerAttr[IntegerType]):
+            predicate_attr = attributes["predicate"]
         elif isinstance(attributes["predicate"], OpResult):
             op = attributes["predicate"].op
             assert isinstance(op, smt_int.ConstantOp)

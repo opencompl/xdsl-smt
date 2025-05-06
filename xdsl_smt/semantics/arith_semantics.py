@@ -2,9 +2,8 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 from xdsl.ir import Operation, SSAValue, Attribute
-from xdsl.parser import AnyIntegerAttr
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.dialects.builtin import IntegerType
+from xdsl.dialects.builtin import IntegerType, IntegerAttr
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
@@ -59,7 +58,7 @@ class ConstantSemantics(OperationSemantics):
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         value_value = attributes["value"]
         if isinstance(value_value, Attribute):
-            assert isa(value_value, AnyIntegerAttr)
+            assert isa(value_value, IntegerAttr)
             value_value = IntegerAttrSemantics().get_semantics(value_value, rewriter)
 
         no_poison = smt.ConstantBoolOp.from_bool(False)
@@ -547,7 +546,7 @@ class CmpiSemantics(SimplePurePoisonSemantics):
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
         predicate_opcode = attributes["predicate"]
         if not isinstance(predicate_opcode, SSAValue):
-            assert isa(predicate_opcode, AnyIntegerAttr)
+            assert isa(predicate_opcode, IntegerAttr)
             predicate_opcode = IntegerAttrSemantics().get_semantics(
                 predicate_opcode, rewriter
             )

@@ -2,9 +2,9 @@
 
 "builtin.module"() ({
   "func.func"() ({
-  ^0(%x : ui4):
-  %y = "arith.constant"() {value = 3 : ui4} : () -> ui4
-  %z = "arith.muli"(%x,%y): (ui4,ui4) -> ui4
-  "func.return"(%z) : (ui4) -> ()
-  }) {"sym_name" = "test", "function_type" = (ui4) -> ui4, "sym_visibility" = "private"} : () -> ()
+  ^0(%x : i4):
+  %y = "arith.constant"() {value = 3 : i4} : () -> i4
+  %z = "arith.muli"(%x,%y): (i4,i4) -> i4
+  "func.return"(%z) : (i4) -> ()
+  }) {"sym_name" = "test", "function_type" = (i4) -> i4, "sym_visibility" = "private"} : () -> ()
 }) : () -> ()

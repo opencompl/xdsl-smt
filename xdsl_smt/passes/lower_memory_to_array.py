@@ -92,15 +92,15 @@ class LowerGenericOp(RewritePattern):
     """
 
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-        for result in op.results:
+        for result in tuple(op.results):
             if (new_type := recursively_convert_attr(result.type)) != result.type:
-                rewriter.modify_value_type(result, new_type)
+                rewriter.replace_value_with_new_type(result, new_type)
 
         for region in op.regions:
             for block in region.blocks:
-                for arg in block.args:
+                for arg in tuple(block.args):
                     if (new_type := recursively_convert_attr(arg.type)) != arg.type:
-                        rewriter.modify_value_type(arg, new_type)
+                        rewriter.replace_value_with_new_type(arg, new_type)
 
         has_done_action = False
         for name, attr in op.attributes.items():

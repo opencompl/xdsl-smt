@@ -63,9 +63,11 @@ class RemovePairArgsFunction(RewritePattern):
         old_typ = op.ret.type
         assert isinstance(old_typ, FunctionType)
         new_inputs = [arg.type for arg in block.args]
-        op.ret.type = FunctionType.from_attrs(
+        new_type = FunctionType.from_attrs(
             ArrayAttr[Attribute](new_inputs), old_typ.outputs
         )
+        if new_type != op.ret.type:
+            rewriter.replace_value_with_new_type(op.ret, new_type)
 
 
 class RemovePairArgsCall(RewritePattern):
@@ -124,10 +126,11 @@ def remove_pairs_from_function_return(module: ModuleOp):
             firstBlock.insert_op_before(firstOp, firstBlockTerminator)
             firstRet = ReturnOp(firstOp.res)
             Rewriter.replace_op(firstBlockTerminator, firstRet)
-            firstFunc.ret.type = FunctionType.from_attrs(
+            new_type = FunctionType.from_attrs(
                 firstFunc.func_type.inputs,
                 ArrayAttr[Attribute]([output.first]),
             )
+            Rewriter.replace_value_with_new_type(firstFunc.ret, new_type)
             if firstFunc.fun_name:
                 firstFunc.attributes["fun_name"] = StringAttr(
                     firstFunc.fun_name.data + "_first"
@@ -142,9 +145,12 @@ def remove_pairs_from_function_return(module: ModuleOp):
             secondBlock.insert_op_before(secondOp, secondBlockTerminator)
             secondRet = ReturnOp(secondOp.res)
             Rewriter.replace_op(secondBlockTerminator, secondRet)
-            secondFunc.ret.type = FunctionType.from_attrs(
-                secondFunc.func_type.inputs,
-                ArrayAttr[Attribute]([output.second]),
+            Rewriter.replace_value_with_new_type(
+                secondFunc.ret,
+                FunctionType.from_attrs(
+                    secondFunc.func_type.inputs,
+                    ArrayAttr[Attribute]([output.second]),
+                ),
             )
             if secondFunc.fun_name:
                 secondFunc.attributes["fun_name"] = StringAttr(

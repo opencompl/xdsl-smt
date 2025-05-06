@@ -10,7 +10,7 @@ from xdsl.dialects.builtin import (
     NoneAttr,
     IntegerType,
     DYNAMIC_INDEX,
-    AnyArrayAttr,
+    ArrayAttr,
 )
 from xdsl.pattern_rewriter import PatternRewriter
 
@@ -181,7 +181,7 @@ class LoadSemantics(OperationSemantics):
         assert effect_state is not None
 
         # HACK to get the old operands
-        assert isa(old_operands := attributes["__operand_types"], AnyArrayAttr)
+        assert isa(old_operands := attributes["__operand_types"], ArrayAttr)
 
         operand_values, poison = combine_poison_values(operands, rewriter)
         pointer, *indices = operand_values
@@ -238,7 +238,7 @@ class StoreSemantics(OperationSemantics):
         assert effect_state is not None
 
         # HACK to get the old operands
-        assert isa(old_operands := attributes["__operand_types"], AnyArrayAttr)
+        assert isa(old_operands := attributes["__operand_types"], ArrayAttr)
 
         (pointer, *indices), poison = combine_poison_values(operands[1:], rewriter)
         value = operands[0]
