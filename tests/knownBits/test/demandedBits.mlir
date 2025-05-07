@@ -49,7 +49,7 @@
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer):
     %concrete_res0 = "transfer.xor"(%inst,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.xor"(%inst1,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
-    %absres =  "func.call"(%arg0) {callee = @XORImpl0} : (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %absres =  "func.call"(%arg0) {callee = @XORImplOperand0} : (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
 
     %precond = "func.call"(%absres, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %postcond = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
@@ -79,12 +79,12 @@
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>):
     "func.return"(%arg0) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "XORImpl1", operationNo=0, applied_to=["comb.xor"], is_forward=false, CPPCLASS=["circt::comb::XorOp"], precision_util="precision_counterXor", soundness_counterexample="counterXor"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "XORImplOperand1", operationNo=0, applied_to=["comb.xor"], is_forward=false, CPPCLASS=["circt::comb::XorOp"], precision_util="precision_counterXor", soundness_counterexample="counterXor"} : () -> ()
 
   "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>):
     "func.return"(%arg0) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "XORImpl0", operationNo=1, applied_to=["comb.xor"], is_forward=false, CPPCLASS=["circt::comb::XorOp"], precision_util="precision_counterXor", soundness_counterexample="counterXor"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "XORImplOperand0", operationNo=1, applied_to=["comb.xor"], is_forward=false, CPPCLASS=["circt::comb::XorOp"], precision_util="precision_counterXor", soundness_counterexample="counterXor"} : () -> ()
 
 
 "func.func"() ({
@@ -92,7 +92,7 @@
     %concrete_res0 = "transfer.and"(%inst,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.and"(%inst1,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AndImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AndImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -155,7 +155,7 @@
     %result_1 = "transfer.and"(%neg_op1_0, %arg0_0) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%result_1) : (!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, operationNo=0, sym_name = "AndImpl0", applied_to=["comb.and"], CPPCLASS=["circt::comb::AndOp"],is_forward=false, precision_util="precision_counterAnd0", soundness_counterexample="counterAnd0"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, operationNo=0, sym_name = "AndImplOperand0", applied_to=["comb.and"], CPPCLASS=["circt::comb::AndOp"],is_forward=false, precision_util="precision_counterAnd0", soundness_counterexample="counterAnd0"} : () -> ()
 
 
 "func.func"() ({
@@ -191,7 +191,7 @@
     %concrete_res0 = "transfer.and"(%operand,%inst):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.and"(%operand,%inst1):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AndImpl1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AndImplOperand1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -228,7 +228,7 @@
     %result_1 = "transfer.and"(%neg_and, %arg0_0) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%result_1) : (!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AndImpl1", operationNo=1, applied_to=["comb.and"], CPPCLASS=["circt::comb::AndOp"],is_forward=false, precision_util="precision_counterAnd1", soundness_counterexample="counterAnd1"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AndImplOperand1", operationNo=1, applied_to=["comb.and"], CPPCLASS=["circt::comb::AndOp"],is_forward=false, precision_util="precision_counterAnd1", soundness_counterexample="counterAnd1"} : () -> ()
 
 
 "func.func"() ({
@@ -263,7 +263,7 @@
     %concrete_res0 = "transfer.or"(%inst,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.or"(%inst1,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @OrImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @OrImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -298,7 +298,7 @@
     %result_1 = "transfer.and"(%neg_op1_1, %arg0_0) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%result_1) : (!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "OrImpl0", applied_to=["comb.or"], operationNo=0, CPPCLASS=["circt::comb::OrOp"],is_forward=false, precision_util="precision_counterOr0", soundness_counterexample="counterOr0"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "OrImplOperand0", applied_to=["comb.or"], operationNo=0, CPPCLASS=["circt::comb::OrOp"],is_forward=false, precision_util="precision_counterOr0", soundness_counterexample="counterOr0"} : () -> ()
 
 
 "func.func"() ({
@@ -333,7 +333,7 @@
     %concrete_res0 = "transfer.or"(%operand, %inst):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.or"(%operand, %inst1):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @OrImpl1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @OrImplOperand1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -370,7 +370,7 @@
     %result_1 = "transfer.and"(%neg_and, %arg0_0) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     %result = "transfer.make"(%result_1) : (!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "OrImpl1", applied_to=["comb.or"], operationNo=1, CPPCLASS=["circt::comb::OrOp"],is_forward=false, precision_util="precision_counterOr1", soundness_counterexample="counterOr1"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "OrImplOperand1", applied_to=["comb.or"], operationNo=1, CPPCLASS=["circt::comb::OrOp"],is_forward=false, precision_util="precision_counterOr1", soundness_counterexample="counterOr1"} : () -> ()
 
 "func.func"() ({
   ^bb0(%operationNo:i1, %arg0: !transfer.abs_value<[!transfer.integer]>, %op0: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %op1: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %carryZero: !transfer.integer, %carryOne: !transfer.integer):
@@ -456,7 +456,7 @@
     %concrete_res0 = "transfer.add"(%inst, %operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.add"(%inst1, %operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AddImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AddImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -491,7 +491,7 @@
     %result = "func.call"(%const0, %arg0, %op0, %op1, %transfer_const1, %transfer_const0) {callee = @determineLiveOperandBitsAddCarry} : (i1, !transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AddImpl0", applied_to=["comb.add"], operationNo=0, CPPCLASS=["circt::comb::AddOp"],is_forward=false, precision_util="precision_counterAdd0", soundness_counterexample="counterAdd0"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AddImplOperand0", applied_to=["comb.add"], operationNo=0, CPPCLASS=["circt::comb::AddOp"],is_forward=false, precision_util="precision_counterAdd0", soundness_counterexample="counterAdd0"} : () -> ()
 
 
 "func.func"() ({
@@ -499,7 +499,7 @@
     %concrete_res0 = "transfer.add"(%operand, %inst):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.add"(%operand, %inst1):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AddImpl1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @AddImplOperand1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -561,14 +561,14 @@
     %result = "func.call"(%const1, %arg0, %op0, %op1, %transfer_const1, %transfer_const0) {callee = @determineLiveOperandBitsAddCarry} : (i1, !transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AddImpl1", applied_to=["comb.add"], operationNo=0, CPPCLASS=["circt::comb::AddOp"],is_forward=false, precision_util="precision_counterAdd1", soundness_counterexample="counterAdd1"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "AddImplOperand1", applied_to=["comb.add"], operationNo=0, CPPCLASS=["circt::comb::AddOp"],is_forward=false, precision_util="precision_counterAdd1", soundness_counterexample="counterAdd1"} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer, %op0: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %op1: !transfer.tuple<[!transfer.integer,!transfer.integer]>):
     %concrete_res0 = "transfer.sub"(%inst, %operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.sub"(%inst1, %operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @SubImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @SubImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -633,14 +633,14 @@
     %result = "func.call"(%const0, %arg0, %op0, %newOp, %transfer_const0, %transfer_const1) {callee = @determineLiveOperandBitsAddCarry} : (i1, !transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "SubImpl0", applied_to=["comb.sub"], operationNo=0, CPPCLASS=["circt::comb::SubOp"],is_forward=false, precision_util="precision_counterSub0", soundness_counterexample="counterSub0"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "SubImplOperand0", applied_to=["comb.sub"], operationNo=0, CPPCLASS=["circt::comb::SubOp"],is_forward=false, precision_util="precision_counterSub0", soundness_counterexample="counterSub0"} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer, %op0: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %op1: !transfer.tuple<[!transfer.integer,!transfer.integer]>):
     %concrete_res0 = "transfer.sub"(%operand, %inst):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.sub"(%operand, %inst1):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %crt_res_in_abs_res = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
-    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @SubImpl1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
+    %abs_arg =  "func.call"(%arg0, %op0, %op1) {callee = @SubImplOperand1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>
     %crt_arg_in_abs_arg = "func.call"(%abs_arg, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %const0 = "arith.constant"() {value=0:i1}: () -> i1
     %const1 = "arith.constant"() {value=1:i1}: () -> i1
@@ -705,7 +705,7 @@
     %result = "func.call"(%const1, %arg0, %op0, %newOp, %transfer_const0, %transfer_const1) {callee = @determineLiveOperandBitsAddCarry} : (i1, !transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
-  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "SubImpl1", applied_to=["comb.sub"], CPPCLASS=["circt::comb::SubOp"], operationNo=1,is_forward=false, precision_util="precision_counterSub1", soundness_counterexample="counterSub1"} : () -> ()
+  }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>,!transfer.tuple<[!transfer.integer,!transfer.integer]>) -> !transfer.abs_value<[!transfer.integer]>, sym_name = "SubImplOperand1", applied_to=["comb.sub"], CPPCLASS=["circt::comb::SubOp"], operationNo=1,is_forward=false, precision_util="precision_counterSub1", soundness_counterexample="counterSub1"} : () -> ()
 
   "func.func"() ({
   ^bb0(%arg0: !transfer.tuple<[i1,i1]>):
@@ -775,7 +775,7 @@
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>,%cond_kb: !transfer.tuple<[i1,i1]>, %cond:i1, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer):
     %concrete_res0 = "transfer.select"(%cond, %inst,%operand):(i1,!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.select"(%cond, %inst1,%operand):(i1,!transfer.integer,!transfer.integer) ->!transfer.integer
-    %absres =  "func.call"(%arg0, %cond_kb) {callee = @MUXImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
+    %absres =  "func.call"(%arg0, %cond_kb) {callee = @MUXImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
 
     %precond = "func.call"(%absres, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %postcond = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
@@ -819,13 +819,13 @@
     %result = "func.call"(%arg0, %cond, %const0) {callee = @MUXImplHelper} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>, i1) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
-, precision_util="precision_counterMux0", soundness_counterexample="counterMux0", sym_name = "MUXImpl0", operationNo=1,is_forward=false, applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
+, precision_util="precision_counterMux0", soundness_counterexample="counterMux0", sym_name = "MUXImplOperand0", operationNo=1,is_forward=false, applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>,%cond_kb: !transfer.tuple<[i1,i1]>, %cond:i1, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer):
     %concrete_res0 = "transfer.select"(%cond, %operand,%inst):(i1,!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.select"(%cond, %operand,%inst1):(i1,!transfer.integer,!transfer.integer) ->!transfer.integer
-    %absres =  "func.call"(%arg0, %cond_kb) {callee = @MUXImpl1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
+    %absres =  "func.call"(%arg0, %cond_kb) {callee = @MUXImplOperand1} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
 
     %precond = "func.call"(%absres, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %postcond = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
@@ -870,7 +870,7 @@
     %result = "func.call"(%arg0, %cond, %const1) {callee = @MUXImplHelper} : (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>, i1) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.tuple<[i1,i1]>) -> !transfer.abs_value<[!transfer.integer]>
-  , precision_util="precision_counterMux1", soundness_counterexample="counterMux1",sym_name = "MUXImpl1", operationNo=2,is_forward=false, applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
+  , precision_util="precision_counterMux1", soundness_counterexample="counterMux1",sym_name = "MUXImplOperand1", operationNo=2,is_forward=false, applied_to=["comb.mux"], CPPCLASS=["circt::comb::MuxOp"]} : () -> ()
 
 "func.func"() ({
 ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %op0: !transfer.tuple<[!transfer.integer,!transfer.integer]>, %len:!transfer.integer,%low_bit :!transfer.integer):
@@ -941,7 +941,7 @@
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer):
     %concrete_res0 = "transfer.concat"(%inst,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.concat"(%inst1,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
-    %absres =  "func.call"(%arg0, %inst, %operand) {callee = @ConcatImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
+    %absres =  "func.call"(%arg0, %inst, %operand) {callee = @ConcatImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     %precond = "func.call"(%absres, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %postcond = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
@@ -980,13 +980,13 @@
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,
   !transfer.integer) -> !transfer.abs_value<[!transfer.integer]>,
-   sym_name = "ConcatImpl0", precision_util="precision_counterConcat0", soundness_counterexample="counterConcat0", applied_to=["comb.concat"], operationNo=0, CPPCLASS=["circt::comb::ConcatOp"],is_forward=false} : () -> ()
+   sym_name = "ConcatImplOperand0", precision_util="precision_counterConcat0", soundness_counterexample="counterConcat0", applied_to=["comb.concat"], operationNo=0, CPPCLASS=["circt::comb::ConcatOp"],is_forward=false} : () -> ()
 
 "func.func"() ({
   ^bb0(%arg0: !transfer.abs_value<[!transfer.integer]>, %inst: !transfer.integer, %inst1: !transfer.integer, %operand: !transfer.integer):
     %concrete_res0 = "transfer.concat"(%inst,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
     %concrete_res1 = "transfer.concat"(%inst1,%operand):(!transfer.integer,!transfer.integer) ->!transfer.integer
-    %absres =  "func.call"(%arg0, %inst, %operand) {callee = @ConcatImpl0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
+    %absres =  "func.call"(%arg0, %inst, %operand) {callee = @ConcatImplOperand0} : (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
 
     %precond = "func.call"(%absres, %inst, %inst1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
     %postcond = "func.call"(%arg0, %concrete_res0, %concrete_res1) {callee = @inSameEq} : (!transfer.abs_value<[!transfer.integer]>, !transfer.integer, !transfer.integer) -> i1
@@ -1024,7 +1024,7 @@
     %result = "transfer.make"(%result_0) : (!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>
     "func.return"(%result) : (!transfer.abs_value<[!transfer.integer]>) -> ()
   }) {function_type = (!transfer.abs_value<[!transfer.integer]>,!transfer.integer,!transfer.integer) -> !transfer.abs_value<[!transfer.integer]>,
-   sym_name = "ConcatImpl1", applied_to=["comb.concat"],
+   sym_name = "ConcatImplOperand1", applied_to=["comb.concat"],
    operationNo=1, CPPCLASS=["circt::comb::ConcatOp"],is_forward=false, precision_util="precision_counterConcat1", soundness_counterexample="counterConcat1"} : () -> ()
 
 }) {"builtin.NEED_VERIFY"=[["XOR","XORImpl"]]}: () -> ()
