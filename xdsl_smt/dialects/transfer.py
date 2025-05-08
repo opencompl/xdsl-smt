@@ -223,6 +223,26 @@ class MulOp(BinOp):
 
 
 @irdl_op_definition
+class SDivOp(BinOp):
+    name = "transfer.sdiv"
+
+
+@irdl_op_definition
+class UDivOp(BinOp):
+    name = "transfer.udiv"
+
+
+@irdl_op_definition
+class SRemOp(BinOp):
+    name = "transfer.srem"
+
+
+@irdl_op_definition
+class URemOp(BinOp):
+    name = "transfer.urem"
+
+
+@irdl_op_definition
 class ShlOp(BinOp):
     name = "transfer.shl"
 
@@ -700,6 +720,10 @@ Transfer = Dialect(
         MakeOp,
         NegOp,
         MulOp,
+        SDivOp,
+        UDivOp,
+        SRemOp,
+        URemOp,
         ShlOp,
         AShrOp,
         LShrOp,
