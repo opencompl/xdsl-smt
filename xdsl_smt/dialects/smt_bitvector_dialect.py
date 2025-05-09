@@ -456,7 +456,6 @@ class XNorOp(BinaryBVOp, SimpleSMTLibOp):
 #                                  Predicate                                   #
 ################################################################################
 
-_UPOpT = TypeVar("_UPOpT", bound="UnaryPredBVOp")
 _BPOpT = TypeVar("_BPOpT", bound="BinaryPredBVOp")
 
 
@@ -466,10 +465,6 @@ class UnaryPredBVOp(IRDLOperation, Pure):
 
     def __init__(self, operand: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[operand])
-
-    @classmethod
-    def get(cls: type[_UPOpT], operand: SSAValue) -> _UPOpT:
-        return cls.create(result_types=[BoolType()], operands=[operand])
 
 
 class BinaryPredBVOp(IRDLOperation, Pure):

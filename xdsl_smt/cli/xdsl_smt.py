@@ -43,7 +43,7 @@ from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
-from xdsl_smt.passes.smt_extend import SMTExpand
+from xdsl_smt.passes.smt_expand import SMTExpand
 
 from ..passes.pdl_to_smt import PDLToSMT
 

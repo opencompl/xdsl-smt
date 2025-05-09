@@ -39,13 +39,15 @@ from xdsl_smt.dialects.smt_bitvector_dialect import (
     SgtOp,
     SubOp,
     SltOp,
+    SgeOp,
 )
 
-from ..dialects.smt_dialect import (
+from xdsl_smt.dialects.smt_dialect import (
     EqOp,
     OrOp,
     AndOp,
     NotOp,
+    DistinctOp,
 )
 from .dead_code_elimination import DeadCodeElimination
 
@@ -53,105 +55,83 @@ from .dead_code_elimination import DeadCodeElimination
 class LowerSaddOverflowOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
-        self, saddOverflowOp: SaddOverflowOp, rewriter: PatternRewriter
+        self, sadd_overflow_op: SaddOverflowOp, rewriter: PatternRewriter
     ):
-        bv_type = saddOverflowOp.lhs.type
+        bv_type = sadd_overflow_op.lhs.type
         assert isinstance(bv_type, BitVectorType)
         width = bv_type.width.data
 
-        const_zero = ConstantOp.from_int_value(0, width)
-        const_min = ConstantOp.from_int_value(1 << (width - 1), width)
-        const_max = ConstantOp.from_int_value((1 << (width - 1)) - 1, width)
+        lhs = sadd_overflow_op.lhs
+        rhs = sadd_overflow_op.rhs
+        add_op = AddOp(lhs, rhs)
 
-        const_ops = [const_zero, const_max, const_min]
+        const_zero_op = ConstantOp(0, width)
 
-        lhs = saddOverflowOp.lhs
-        rhs = saddOverflowOp.rhs
+        lhs_non_negative_op = SgeOp(lhs, const_zero_op.res)
+        rhs_non_negative_op = SgeOp(rhs, const_zero_op.res)
+        result_non_negative_op = SgeOp(add_op.res, const_zero_op.res)
 
-        # Case1: a>0 && b>0 && (a+b>MAX_SINT) == (a > MAX_SINT - b) -> overflow
-        lhs_gt_zero = SgtOp(lhs, const_zero.res)
-        rhs_gt_zero = SgtOp(rhs, const_zero.res)
-        max_minus_rhs = SubOp(const_max.res, rhs)
-        lhs_gt_op = SgtOp(lhs, max_minus_rhs.res)
-
-        case1_and_op1 = AndOp(lhs_gt_zero.res, rhs_gt_zero.res)
-        case1_and_op = AndOp(case1_and_op1.res, lhs_gt_op.res)
-
-        case1_ops = [
-            lhs_gt_zero,
-            rhs_gt_zero,
-            max_minus_rhs,
-            lhs_gt_op,
-            case1_and_op1,
-            case1_and_op,
-        ]
-
-        # Case2: a<0 && b<0 && (a+b<MIN_SINT) == (a < MIN_SINT - b) -> overflow
-        lhs_lt_zero = SltOp(lhs, const_zero.res)
-        rhs_lt_zero = SltOp(rhs, const_zero.res)
-        min_minus_rhs = SubOp(const_min.res, rhs)
-        lhs_lt_op = SltOp(lhs, min_minus_rhs.res)
-
-        case2_and_op1 = AndOp(lhs_lt_zero.res, rhs_lt_zero.res)
-        case2_and_op = AndOp(case2_and_op1.res, lhs_lt_op.res)
-
-        case2_ops = [
-            lhs_lt_zero,
-            rhs_lt_zero,
-            min_minus_rhs,
-            lhs_lt_op,
-            case2_and_op1,
-            case2_and_op,
-        ]
-
-        last_or_op = OrOp(case1_and_op.res, case2_and_op.res)
+        lhs_sign_eq_rhs_sign_op = EqOp(lhs_non_negative_op.res, rhs_non_negative_op.res)
+        result_sign_ne_lhs_sign_op = DistinctOp(
+            lhs_sign_eq_rhs_sign_op.res, result_non_negative_op.res
+        )
+        overflow_op = AndOp(lhs_sign_eq_rhs_sign_op.res, result_sign_ne_lhs_sign_op.res)
         rewriter.replace_op(
-            saddOverflowOp, const_ops + case1_ops + case2_ops + [last_or_op]
+            sadd_overflow_op,
+            [
+                const_zero_op,
+                add_op,
+                lhs_non_negative_op,
+                rhs_non_negative_op,
+                result_non_negative_op,
+                lhs_sign_eq_rhs_sign_op,
+                result_sign_ne_lhs_sign_op,
+                overflow_op,
+            ],
         )
 
 
 class LowerSmulOverflowOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
-        self, smulOverflow: SmulOverflowOp, rewriter: PatternRewriter
+        self, smul_overflow_op: SmulOverflowOp, rewriter: PatternRewriter
     ):
         # We already have an operation for checking SmulNoOverflowOp and SmulNoUnderflowOp
         # NoOverflow && NoUnderflow -> NoOverflow at all. We just use this condition
         # NoOverflow here might include overflows from both direction
 
-        nooverflow_op = SmulNoOverflowOp(smulOverflow.lhs, smulOverflow.rhs)
-        nounderflow_op = SmulNoUnderflowOp(smulOverflow.lhs, smulOverflow.rhs)
+        nooverflow_op = SmulNoOverflowOp(smul_overflow_op.lhs, smul_overflow_op.rhs)
+        nounderflow_op = SmulNoUnderflowOp(smul_overflow_op.lhs, smul_overflow_op.rhs)
         and_op = AndOp(nooverflow_op.res, nounderflow_op.res)
         not_op = NotOp(and_op.res)
         rewriter.replace_op(
-            smulOverflow, [nooverflow_op, nounderflow_op, and_op, not_op]
+            smul_overflow_op, [nooverflow_op, nounderflow_op, and_op, not_op]
         )
-        pass
 
 
 class LowerUmulOverflowOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
-        self, umulOverflow: UmulOverflowOp, rewriter: PatternRewriter
+        self, umul_overflow_op: UmulOverflowOp, rewriter: PatternRewriter
     ):
         # We already have an operation for checking UmulNoOverflow
-        nooverflow_op = UmulNoOverflowOp(umulOverflow.lhs, umulOverflow.rhs)
+        nooverflow_op = UmulNoOverflowOp(umul_overflow_op.lhs, umul_overflow_op.rhs)
         not_op = NotOp(nooverflow_op.res)
-        rewriter.replace_op(umulOverflow, [nooverflow_op, not_op])
+        rewriter.replace_op(umul_overflow_op, [nooverflow_op, not_op])
 
 
 class LowerUaddOverflowOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
-        self, uaddOverflow: UaddOverflowOp, rewriter: PatternRewriter
+        self, uadd_overflow_op: UaddOverflowOp, rewriter: PatternRewriter
     ):
-        lhs = uaddOverflow.lhs
+        lhs = uadd_overflow_op.lhs
 
         # If the added result is less than any operand, there is an uadd overflow
-        uadd_op = AddOp(lhs, uaddOverflow.rhs)
+        uadd_op = AddOp(lhs, uadd_overflow_op.rhs)
         cmp_op = UltOp(uadd_op.res, lhs)
 
-        rewriter.replace_op(uaddOverflow, [uadd_op, cmp_op])
+        rewriter.replace_op(uadd_overflow_op, [uadd_op, cmp_op])
 
 
 class LowerNegOverflowOpPattern(RewritePattern):
