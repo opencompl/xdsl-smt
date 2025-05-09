@@ -459,6 +459,14 @@ class XNorOp(BinaryBVOp, SimpleSMTLibOp):
 _BPOpT = TypeVar("_BPOpT", bound="BinaryPredBVOp")
 
 
+class UnaryPredBVOp(IRDLOperation, Pure):
+    res: OpResult = result_def(BoolType)
+    operand: Operand = operand_def(BitVectorType)
+
+    def __init__(self, operand: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[operand])
+
+
 class BinaryPredBVOp(IRDLOperation, Pure):
     res: OpResult = result_def(BoolType)
     lhs: Operand = operand_def(BitVectorType)
@@ -660,6 +668,78 @@ class SmulNoUnderflowOp(BinaryPredBVOp, SimpleSMTLibOp):
         return "bvsmul_noudfl"
 
 
+@irdl_op_definition
+class NegOverflowOp(UnaryPredBVOp, SimpleSMTLibOp):
+    """
+    [[(bvnego s)]] := bv2int([[s]]) == -2^(m - 1)
+
+    We define an extra rewriting pass to implement it because Z3 doesn't support it
+    """
+
+    name = "smt.bv.nego"
+
+    def op_name(self) -> str:
+        return "bvnego"
+
+
+@irdl_op_definition
+class UaddOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    """
+    [[(bvuaddo s t)]] := (bv2nat([[s]]) + bv2nat([[t]])) >= 2^m
+
+    We define an extra rewriting pass to implement it because Z3 doesn't support it
+    """
+
+    name = "smt.bv.uaddo"
+
+    def op_name(self) -> str:
+        return "bvuaddo"
+
+
+@irdl_op_definition
+class SaddOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    """
+    [[(bvsaddo s t)]] := (bv2int([[s]]) + bv2int([[t]])) >= 2^(m - 1) or
+                         (bv2int([[s]]) + bv2int([[t]])) < -2^(m - 1)
+
+    We define an extra rewriting pass to implement it because Z3 doesn't support it
+    """
+
+    name = "smt.bv.saddo"
+
+    def op_name(self) -> str:
+        return "bvsaddo"
+
+
+@irdl_op_definition
+class UmulOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    """
+    [[(bvumulo s t)]] := (bv2nat([[s]]) * bv2nat([[t]])) >= 2^m
+
+    We define an extra rewriting pass to implement it because Z3 doesn't support it
+    """
+
+    name = "smt.bv.umulo"
+
+    def op_name(self) -> str:
+        return "bvumulo"
+
+
+@irdl_op_definition
+class SmulOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    """
+    [[(bvsmulo s t)]] := (bv2int([[s]]) * bv2int([[t]])) >= 2^(m - 1) or
+                         (bv2int([[s]]) * bv2int([[t]])) < -2^(m - 1)
+
+    We define an extra rewriting pass to implement it because Z3 doesn't support it
+    """
+
+    name = "smt.bv.smulo"
+
+    def op_name(self) -> str:
+        return "bvsmulo"
+
+
 ################################################################################
 #                                  Predicate                                   #
 ################################################################################
@@ -824,6 +904,12 @@ SMTBitVectorDialect = Dialect(
         SltOp,
         SgeOp,
         SgtOp,
+        # Overflow Predicate
+        NegOverflowOp,
+        UaddOverflowOp,
+        SaddOverflowOp,
+        UmulOverflowOp,
+        SmulOverflowOp,
         UmulNoOverflowOp,
         SmulNoOverflowOp,
         SmulNoUnderflowOp,
