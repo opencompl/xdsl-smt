@@ -1,6 +1,6 @@
 // RUN: xdsl-smt "%s" -p=smt-expand | filecheck "%s"
 
-// Lower pairs from a "smt.declare_const" operation.
+// Lower from a "smt.bv.umulo" operation.
 
 builtin.module {
   %x = "smt.declare_const"() : () -> !smt.bv.bv<32>
