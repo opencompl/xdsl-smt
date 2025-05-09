@@ -36,15 +36,11 @@ from xdsl_smt.dialects.smt_bitvector_dialect import (
     SaddOverflowOp,
     SmulNoOverflowOp,
     SmulNoUnderflowOp,
-    SgtOp,
-    SubOp,
-    SltOp,
     SgeOp,
 )
 
 from xdsl_smt.dialects.smt_dialect import (
     EqOp,
-    OrOp,
     AndOp,
     NotOp,
     DistinctOp,
