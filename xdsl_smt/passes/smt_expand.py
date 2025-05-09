@@ -67,6 +67,9 @@ class LowerSaddOverflowOpPattern(RewritePattern):
 
         const_zero_op = ConstantOp(0, width)
 
+        # Here we use LLVM's implementation:
+        # Overflow = isNonNegative() == RHS.isNonNegative() &&
+        #              Res.isNonNegative() != isNonNegative();
         lhs_non_negative_op = SgeOp(lhs, const_zero_op.res)
         rhs_non_negative_op = SgeOp(rhs, const_zero_op.res)
         result_non_negative_op = SgeOp(add_op.res, const_zero_op.res)
