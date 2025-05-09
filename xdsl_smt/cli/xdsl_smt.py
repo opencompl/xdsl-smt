@@ -43,7 +43,7 @@ from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
-from xdsl_smt.passes.smt_extend import SMTExtend
+from xdsl_smt.passes.smt_extend import SMTExpand
 
 from ..passes.pdl_to_smt import PDLToSMT
 
@@ -112,7 +112,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(MergeFuncResultsPass.name, lambda: MergeFuncResultsPass)
         self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)
         self.register_pass(LowerUBToPairs.name, lambda: LowerUBToPairs)
-        self.register_pass(SMTExtend.name, lambda: SMTExtend)
+        self.register_pass(SMTExpand.name, lambda: SMTExpand)
 
     def register_all_targets(self):
         super().register_all_targets()

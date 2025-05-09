@@ -169,8 +169,8 @@ class LowerNegOverflowOpPattern(RewritePattern):
         rewriter.replace_op(negOverflow, [const_op, eq_op])
 
 
-class SMTExtend(ModulePass):
-    name = "smt-extend"
+class SMTExpand(ModulePass):
+    name = "smt-expand"
 
     def apply(self, ctx: Context, op: ModuleOp):
         # Remove pairs from function arguments.
