@@ -45,7 +45,7 @@ from xdsl_smt.dialects.smt_dialect import (
     NotOp,
     DistinctOp,
 )
-from .dead_code_elimination import DeadCodeElimination
+from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 
 
 class LowerSaddOverflowOpPattern(RewritePattern):
