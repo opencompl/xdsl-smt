@@ -374,18 +374,18 @@ class SShlOverflowOpSemantics(OperationSemantics):
         # ShAmt >= countl_zero()
         countl_zero_ops = count_lzeros(operand)
         lzero_operand = countl_zero_ops[-1].results[0]
-        shift_amount_gt_lzero = smt_bv.UgeOp(shift_amount, lzero_operand)
+        shift_amount_ge_lzero = smt_bv.UgeOp(shift_amount, lzero_operand)
 
         # ShAmt >= countl_one()
         countl_one_ops = count_lones(operand)
         lone_operand = countl_one_ops[-1].results[0]
-        shift_amount_gt_lone = smt_bv.UgeOp(shift_amount, lone_operand)
+        shift_amount_ge_lone = smt_bv.UgeOp(shift_amount, lone_operand)
 
         # isNonNegative()&&ShAmt >= countl_zero()
-        and_op = smt.AndOp(is_non_negative_operand, shift_amount_gt_lzero.res)
+        and_op = smt.AndOp(is_non_negative_operand, shift_amount_ge_lzero.res)
 
         # isNonNegative()&&ShAmt >= countl_zero() || ShAmt >= countl_one()
-        or_op = smt.OrOp(and_op.res, shift_amount_gt_lone.res)
+        or_op = smt.OrOp(and_op.res, shift_amount_ge_lone.res)
 
         final_or_op = smt.OrOp(shift_amount_ge_bitwidth.res, or_op.res)
 
@@ -393,9 +393,9 @@ class SShlOverflowOpSemantics(OperationSemantics):
             [bv_width, shift_amount_ge_bitwidth]
             + is_non_negative_ops
             + countl_zero_ops
-            + [shift_amount_gt_lzero]
+            + [shift_amount_ge_lzero]
             + countl_one_ops
-            + [shift_amount_gt_lone]
+            + [shift_amount_ge_lone]
             + [and_op, or_op, final_or_op]
         )
 
