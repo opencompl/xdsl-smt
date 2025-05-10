@@ -376,7 +376,7 @@ class SShlOverflowOpSemantics(OperationSemantics):
         lzero_operand = countl_zero_ops[-1].results[0]
         shift_amount_gt_lzero = smt_bv.UgeOp(shift_amount, lzero_operand)
 
-        # ShAmt >= countl_zero()
+        # ShAmt >= countl_one()
         countl_one_ops = count_lones(operand)
         lone_operand = countl_one_ops[-1].results[0]
         shift_amount_gt_lone = smt_bv.UgeOp(shift_amount, lone_operand)
