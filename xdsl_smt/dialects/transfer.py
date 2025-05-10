@@ -263,8 +263,28 @@ class UMulOverflowOp(PredicateOp):
 
 
 @irdl_op_definition
-class ShlOverflowOp(PredicateOp):
-    name = "transfer.shl_overflow"
+class SMulOverflowOp(PredicateOp):
+    name = "transfer.smul_overflow"
+
+
+@irdl_op_definition
+class UShlOverflowOp(PredicateOp):
+    name = "transfer.ushl_overflow"
+
+
+@irdl_op_definition
+class SShlOverflowOp(PredicateOp):
+    name = "transfer.sshl_overflow"
+
+
+@irdl_op_definition
+class UAddOverflowOp(PredicateOp):
+    name = "transfer.uadd_overflow"
+
+
+@irdl_op_definition
+class SAddOverflowOp(PredicateOp):
+    name = "transfer.sadd_overflow"
 
 
 @irdl_op_definition
@@ -741,7 +761,11 @@ Transfer = Dialect(
         UMaxOp,
         UMinOp,
         UMulOverflowOp,
-        ShlOverflowOp,
+        SMulOverflowOp,
+        UAddOverflowOp,
+        SAddOverflowOp,
+        UShlOverflowOp,
+        SShlOverflowOp,
         SelectOp,
         IsPowerOf2Op,
         IsAllOnesOp,
