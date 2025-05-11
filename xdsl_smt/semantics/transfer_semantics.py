@@ -33,6 +33,7 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_rones,
     reverse_bits,
     is_non_negative,
+    is_negative,
 )
 
 
@@ -354,7 +355,7 @@ class SShlOverflowOpSemantics(OperationSemantics):
             Overflow = ShAmt >= countl_one();
 
         overflow should be ShAmt >= getBitWidth() ||
-            (isNonNegative()&&ShAmt >= countl_zero() || ShAmt >= countl_one())
+            (isNonNegative()&&ShAmt >= countl_zero() || isNegative()&&ShAmt >= countl_one())
         """
         assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
         width = lhs_type.width
@@ -376,6 +377,10 @@ class SShlOverflowOpSemantics(OperationSemantics):
         lzero_operand = countl_zero_ops[-1].results[0]
         shift_amount_ge_lzero = smt_bv.UgeOp(shift_amount, lzero_operand)
 
+        # isNegative()
+        is_negative_ops = is_negative(operand)
+        is_negative_operand = is_negative_ops[-1].results[0]
+
         # ShAmt >= countl_one()
         countl_one_ops = count_lones(operand)
         lone_operand = countl_one_ops[-1].results[0]
@@ -384,8 +389,11 @@ class SShlOverflowOpSemantics(OperationSemantics):
         # isNonNegative()&&ShAmt >= countl_zero()
         and_op = smt.AndOp(is_non_negative_operand, shift_amount_ge_lzero.res)
 
-        # isNonNegative()&&ShAmt >= countl_zero() || ShAmt >= countl_one()
-        or_op = smt.OrOp(and_op.res, shift_amount_ge_lone.res)
+        # isNegative()&&ShAmt >= countl_one()
+        and1_op = smt.AndOp(is_negative_operand, shift_amount_ge_lone.res)
+
+        # isNonNegative()&&ShAmt >= countl_zero() || isNegative()&&ShAmt >= countl_one()
+        or_op = smt.OrOp(and_op.res, and1_op.res)
 
         final_or_op = smt.OrOp(shift_amount_ge_bitwidth.res, or_op.res)
 
@@ -394,9 +402,10 @@ class SShlOverflowOpSemantics(OperationSemantics):
             + is_non_negative_ops
             + countl_zero_ops
             + [shift_amount_ge_lzero]
+            + is_negative_ops
             + countl_one_ops
             + [shift_amount_ge_lone]
-            + [and_op, or_op, final_or_op]
+            + [and_op, and1_op, or_op, final_or_op]
         )
 
         bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.res)
