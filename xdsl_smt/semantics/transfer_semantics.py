@@ -32,6 +32,8 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     count_lones,
     count_rones,
     reverse_bits,
+    is_non_negative,
+    is_negative,
 )
 
 
@@ -203,6 +205,16 @@ class TrivialOpSemantics(OperationSemantics):
         return ((new_op.results[0],), effect_state)
 
 
+def smt_bool_to_bv1(bool_val: SSAValue) -> tuple[SSAValue, list[Operation]]:
+    """
+    Given a SMT bool variable, this functions return 1 or 0 on bv1
+    """
+    b1 = smt_bv.ConstantOp.from_int_value(1, 1)
+    b0 = smt_bv.ConstantOp.from_int_value(0, 1)
+    ite_op = smt.IteOp(bool_val, b1.res, b0.res)
+    return ite_op.res, [b1, b0, ite_op]
+
+
 class UMulOverflowOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -212,20 +224,16 @@ class UMulOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        suml_nooverflow = smt_bv.UmulNoOverflowOp.get(operands[0], operands[1])
+        umul_overflow = smt_bv.UmulOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(umul_overflow.res)
 
-        b1 = smt_bv.ConstantOp.from_int_value(1, 1)
-        b0 = smt_bv.ConstantOp.from_int_value(0, 1)
-        bool_to_bv = smt.IteOp(suml_nooverflow.res, b0.res, b1.res)
         poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bool_to_bv.res, poison_op.res)
-        rewriter.insert_op_before_matched_op(
-            [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
-        )
+        res = PairOp(bv_res, poison_op.res)
+        rewriter.insert_op_before_matched_op([umul_overflow] + ops + [poison_op, res])
         return ((res.res,), effect_state)
 
 
-class ShlOverflowOpSemantics(OperationSemantics):
+class SMulOverflowOpSemantics(OperationSemantics):
     def get_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -234,19 +242,179 @@ class ShlOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        smul_overflow = smt_bv.SmulOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(smul_overflow.res)
+
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res = PairOp(bv_res, poison_op.res)
+        rewriter.insert_op_before_matched_op([smul_overflow] + ops + [poison_op, res])
+        return ((res.res,), effect_state)
+
+
+class UAddOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        uadd_overflow = smt_bv.UaddOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(uadd_overflow.res)
+
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res = PairOp(bv_res, poison_op.res)
+        rewriter.insert_op_before_matched_op([uadd_overflow] + ops + [poison_op, res])
+        return ((res.res,), effect_state)
+
+
+class SAddOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        sadd_overflow = smt_bv.SaddOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(sadd_overflow.res)
+
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res = PairOp(bv_res, poison_op.res)
+        rewriter.insert_op_before_matched_op([sadd_overflow] + ops + [poison_op, res])
+        return ((res.res,), effect_state)
+
+
+class UShlOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        """
+        Overflow = ShAmt >= getBitWidth();
+        if (Overflow)
+          return APInt(BitWidth, 0);
+        Overflow = ShAmt > countl_zero();
+
+        overflow should be ShAmt >= getBitWidth() ||  ShAmt > countl_zero()
+        Can't be replaced by ShAmt > countl_zero() because countl_zero() <=getBitWidth()
+        """
         assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
         width = lhs_type.width
         const_value = width
         bv_width = smt_bv.ConstantOp(const_value, width)
 
-        b1 = smt_bv.ConstantOp.from_int_value(1, 1)
-        b0 = smt_bv.ConstantOp.from_int_value(0, 1)
-        cmp_op = smt_bv.UgeOp(operands[1], bv_width.res)
-        bool_to_bv = smt.IteOp(cmp_op.res, b1.res, b0.res)
+        operand = operands[0]
+        shift_amount = operands[1]
+
+        shift_amount_ge_bitwidth = smt_bv.UgeOp(shift_amount, bv_width.res)
+        countl_zero_ops = count_lzeros(operand)
+        lzero_operand = countl_zero_ops[-1].results[0]
+        shift_amount_gt_lzero = smt_bv.UgtOp(shift_amount, lzero_operand)
+        or_op = smt.OrOp(shift_amount_ge_bitwidth.res, shift_amount_gt_lzero.res)
+
+        overflow_ops = (
+            [bv_width, shift_amount_ge_bitwidth]
+            + countl_zero_ops
+            + [shift_amount_gt_lzero, or_op]
+        )
+
+        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(or_op.res)
+
         poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bool_to_bv.res, poison_op.res)
+        res = PairOp(bv_res, poison_op.res)
+
         rewriter.insert_op_before_matched_op(
-            [bv_width, b0, b1, cmp_op, bool_to_bv, poison_op, res]
+            overflow_ops + bool_to_bv1_ops + [poison_op, res]
+        )
+        return ((res.res,), effect_state)
+
+
+class SShlOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        """
+        Overflow = ShAmt >= getBitWidth();
+        if (Overflow)
+            return APInt(BitWidth, 0);
+        if (isNonNegative()) // Don't allow sign change.
+            Overflow = ShAmt >= countl_zero();
+        else
+            Overflow = ShAmt >= countl_one();
+
+        overflow should be ShAmt >= getBitWidth() ||
+            (isNonNegative()&&ShAmt >= countl_zero() || isNegative()&&ShAmt >= countl_one())
+        """
+        assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
+        width = lhs_type.width
+        const_value = width
+        bv_width = smt_bv.ConstantOp(const_value, width)
+
+        operand = operands[0]
+        shift_amount = operands[1]
+
+        # ShAmt >= getBitWidth()
+        shift_amount_ge_bitwidth = smt_bv.UgeOp(shift_amount, bv_width.res)
+
+        # isNonNegative()
+        is_non_negative_ops = is_non_negative(operand)
+        is_non_negative_operand = is_non_negative_ops[-1].results[0]
+
+        # ShAmt >= countl_zero()
+        countl_zero_ops = count_lzeros(operand)
+        lzero_operand = countl_zero_ops[-1].results[0]
+        shift_amount_ge_lzero = smt_bv.UgeOp(shift_amount, lzero_operand)
+
+        # isNegative()
+        is_negative_ops = is_negative(operand)
+        is_negative_operand = is_negative_ops[-1].results[0]
+
+        # ShAmt >= countl_one()
+        countl_one_ops = count_lones(operand)
+        lone_operand = countl_one_ops[-1].results[0]
+        shift_amount_ge_lone = smt_bv.UgeOp(shift_amount, lone_operand)
+
+        # isNonNegative()&&ShAmt >= countl_zero()
+        and_op = smt.AndOp(is_non_negative_operand, shift_amount_ge_lzero.res)
+
+        # isNegative()&&ShAmt >= countl_one()
+        and1_op = smt.AndOp(is_negative_operand, shift_amount_ge_lone.res)
+
+        # isNonNegative()&&ShAmt >= countl_zero() || isNegative()&&ShAmt >= countl_one()
+        or_op = smt.OrOp(and_op.res, and1_op.res)
+
+        final_or_op = smt.OrOp(shift_amount_ge_bitwidth.res, or_op.res)
+
+        overflow_ops = (
+            [bv_width, shift_amount_ge_bitwidth]
+            + is_non_negative_ops
+            + countl_zero_ops
+            + [shift_amount_ge_lzero]
+            + is_negative_ops
+            + countl_one_ops
+            + [shift_amount_ge_lone]
+            + [and_op, and1_op, or_op, final_or_op]
+        )
+
+        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.res)
+
+        poison_op = smt.ConstantBoolOp.from_bool(False)
+        res = PairOp(bv_res, poison_op.res)
+
+        rewriter.insert_op_before_matched_op(
+            overflow_ops + bool_to_bv1_ops + [poison_op, res]
         )
         return ((res.res,), effect_state)
 
@@ -678,7 +846,11 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.RepeatOp: RepeatOpSemantics(),
     transfer.ExtractOp: ExtractOpSemantics(),
     transfer.UMulOverflowOp: UMulOverflowOpSemantics(),
-    transfer.ShlOverflowOp: ShlOverflowOpSemantics(),
+    transfer.SMulOverflowOp: SMulOverflowOpSemantics(),
+    transfer.UAddOverflowOp: UAddOverflowOpSemantics(),
+    transfer.SAddOverflowOp: SAddOverflowOpSemantics(),
+    transfer.UShlOverflowOp: UShlOverflowOpSemantics(),
+    transfer.SShlOverflowOp: SShlOverflowOpSemantics(),
     transfer.CmpOp: CmpOpSemantics(),
     transfer.GetOp: GetOpSemantics(),
     transfer.MakeOp: MakeOpSemantics(),

@@ -249,3 +249,19 @@ def count_rones(b: SSAValue) -> tuple[list[Operation], list[Operation]]:
     neg_b = smt_bv.NotOp.get(b)
     tmpRes = count_rzeros(neg_b.results[0])
     return [neg_b] + tmpRes[0], tmpRes[1]
+
+
+def is_non_negative(val: SSAValue) -> list[Operation]:
+    assert isinstance(val_type := val.type, smt_bv.BitVectorType)
+    width = val_type.width
+    const_zero = smt_bv.ConstantOp(0, width)
+    val_sge_zero = smt_bv.SgeOp(val, const_zero.res)
+    return [const_zero, val_sge_zero]
+
+
+def is_negative(val: SSAValue) -> list[Operation]:
+    assert isinstance(val_type := val.type, smt_bv.BitVectorType)
+    width = val_type.width
+    const_zero = smt_bv.ConstantOp(0, width)
+    val_slt_zero = smt_bv.SltOp(val, const_zero.res)
+    return [const_zero, val_slt_zero]
