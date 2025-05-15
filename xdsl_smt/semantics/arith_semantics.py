@@ -7,13 +7,27 @@ from xdsl.dialects.builtin import IntegerType, IntegerAttr
 from xdsl.utils.hints import isa
 from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
-from xdsl_smt.semantics.semantics import OperationSemantics
+from xdsl_smt.semantics.semantics import AttributeSemantics, OperationSemantics
 
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects.effects import ub_effect as smt_ub
 import xdsl.dialects.arith as arith
+
+
+class IntegerOverflowAttrSemantics(AttributeSemantics):
+    def get_semantics(
+        self, attribute: Attribute, rewriter: PatternRewriter
+    ) -> SSAValue:
+        assert isinstance(attribute, arith.IntegerOverflowAttr)
+        nuw = rewriter.insert(
+            smt.ConstantBoolOp(arith.IntegerOverflowFlag.NUW in attribute.flags)
+        ).res
+        nsw = rewriter.insert(
+            smt.ConstantBoolOp(arith.IntegerOverflowFlag.NSW in attribute.flags)
+        ).res
+        return rewriter.insert(smt_utils.PairOp(nuw, nsw)).res
 
 
 def get_int_value_and_poison(
@@ -857,4 +871,7 @@ arith_semantics: dict[type[Operation], OperationSemantics] = {
     arith.CeilDivUIOp: CeilDivUISemantics(),
     arith.CeilDivSIOp: CeilDivSISemantics(),
     arith.FloorDivSIOp: FloorDivSISemantics(),
+}
+arith_attribute_semantics: dict[type[Attribute], AttributeSemantics] = {
+    arith.IntegerOverflowAttr: IntegerOverflowAttrSemantics(),
 }
