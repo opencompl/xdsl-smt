@@ -44,6 +44,7 @@ from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
 from xdsl_smt.passes.smt_expand import SMTExpand
+from xdsl_smt.passes.pdl_add_implicit_properties import PDLAddImplicitPropertiesPass
 
 from ..passes.pdl_to_smt import PDLToSMT
 
@@ -113,6 +114,9 @@ class OptMain(xDSLOptMain):
         self.register_pass(LowerMemoryToArrayPass.name, lambda: LowerMemoryToArrayPass)
         self.register_pass(LowerUBToPairs.name, lambda: LowerUBToPairs)
         self.register_pass(SMTExpand.name, lambda: SMTExpand)
+        self.register_pass(
+            PDLAddImplicitPropertiesPass.name, lambda: PDLAddImplicitPropertiesPass
+        )
 
     def register_all_targets(self):
         super().register_all_targets()
