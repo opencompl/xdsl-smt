@@ -34,6 +34,9 @@ from xdsl_smt.utils.transfer_to_smt_util import (
     reverse_bits,
     is_non_negative,
     is_negative,
+    get_high_bits,
+    clear_high_bits,
+    clear_low_bits,
 )
 
 
@@ -107,6 +110,42 @@ class GetAllOnesOpSemantics(OperationSemantics):
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
         width = operands[0].type.width
         const_value = (1 << width.data) - 1
+
+        bv_const = smt_bv.ConstantOp(const_value, width)
+        rewriter.insert_op_before_matched_op(bv_const)
+        return ((bv_const.res,), effect_state)
+
+
+class GetSignedMaxValueOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width
+        const_value = (1 << (width.data - 1)) - 1
+
+        bv_const = smt_bv.ConstantOp(const_value, width)
+        rewriter.insert_op_before_matched_op(bv_const)
+        return ((bv_const.res,), effect_state)
+
+
+class GetSignedMinValueOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        width = operands[0].type.width
+        const_value = 1 << (width.data - 1)
 
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)
@@ -620,6 +659,62 @@ class SetLowBitsOpSemantics(OperationSemantics):
         return ((result[-1].results[0],), effect_state)
 
 
+class SetSignBitOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        operand_type = operand.type
+        assert isinstance(operand_type, smt_bv.BitVectorType)
+        width = operand_type.width.data
+        sign_bit = smt_bv.ConstantOp(1 << (width - 1), width)
+        or_op = smt_bv.OrOp(sign_bit.res, operand)
+        result = [sign_bit, or_op]
+
+        rewriter.insert_op_before_matched_op(result)
+        return ((result[-1].results[0],), effect_state)
+
+
+class ClearSignBitOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        operand_type = operand.type
+        assert isinstance(operand_type, smt_bv.BitVectorType)
+        width = operand_type.width.data
+        signed_max_value = smt_bv.ConstantOp(1 << (width - 1) - 1, width)
+        and_op = smt_bv.AndOp(signed_max_value.res, operand)
+        result = [signed_max_value, and_op]
+
+        rewriter.insert_op_before_matched_op(result)
+        return ((result[-1].results[0],), effect_state)
+
+
+class GetHighBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        result = get_high_bits(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(result)
+        return ((result[-1].results[0],), effect_state)
+
+
 class GetLowBitsOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -630,6 +725,34 @@ class GetLowBitsOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         result = get_low_bits(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(result)
+        return ((result[-1].results[0],), effect_state)
+
+
+class ClearHighBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        result = clear_high_bits(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(result)
+        return ((result[-1].results[0],), effect_state)
+
+
+class ClearLowBitsOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        result = clear_low_bits(operands[0], operands[1])
         rewriter.insert_op_before_matched_op(result)
         return ((result[-1].results[0],), effect_state)
 
@@ -865,10 +988,17 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.UMinOp: UMinOpSemantics(),
     transfer.SetHighBitsOp: SetHighBitsOpSemantics(),
     transfer.SetLowBitsOp: SetLowBitsOpSemantics(),
+    transfer.SetSignBitOp: SetSignBitOpSemantics(),
+    transfer.ClearSignBitOp: ClearSignBitOpSemantics(),
+    transfer.GetHighBitsOp: GetHighBitsOpSemantics(),
     transfer.GetLowBitsOp: GetLowBitsOpSemantics(),
+    transfer.ClearHighBitsOp: ClearHighBitsOpSemantics(),
+    transfer.ClearLowBitsOp: ClearLowBitsOpSemantics(),
     transfer.SelectOp: SelectOpSemantics(),
     transfer.IsPowerOf2Op: IsPowerOf2OpSemantics(),
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
+    transfer.GetSignedMaxValueOp: GetSignedMaxValueOpSemantics(),
+    transfer.GetSignedMinValueOp: GetSignedMinValueOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
     transfer.AddPoisonOp: AddPoisonOpSemantics(),
     transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
