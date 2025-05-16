@@ -394,31 +394,61 @@ class ExtractOp(IRDLOperation):
 
 @irdl_op_definition
 class GetLowBitsOp(BinOp):
+    """
+    GetLowBitsOp(arg, numBits):
+    Get low numBits
+    """
+
     name = "transfer.get_low_bits"
 
 
 @irdl_op_definition
 class GetHighBitsOp(BinOp):
+    """
+    GetHighBitsOp(arg, numBits):
+    Get high numBits
+    """
+
     name = "transfer.get_high_bits"
 
 
 @irdl_op_definition
 class SetHighBitsOp(BinOp):
+    """
+    SetHighBitsOp(arg, numBits):
+    Set high numBits to 1
+    """
+
     name = "transfer.set_high_bits"
 
 
 @irdl_op_definition
 class SetLowBitsOp(BinOp):
+    """
+    SetLowBitsOp(arg, numBits):
+    Set low numBits to 1
+    """
+
     name = "transfer.set_low_bits"
 
 
 @irdl_op_definition
 class ClearHighBitsOp(BinOp):
+    """
+    ClearHighBitsOp(arg, numBits):
+    Set top numBits to 0
+    """
+
     name = "transfer.clear_high_bits"
 
 
 @irdl_op_definition
 class ClearLowBitsOp(BinOp):
+    """
+    ClearLowBitsOp(arg, numBits):
+    Set low numBits to 0
+    """
+
     name = "transfer.clear_low_bits"
 
 
