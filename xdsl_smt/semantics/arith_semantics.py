@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, cast
 from xdsl.ir import Operation, SSAValue, Attribute
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.dialects.builtin import IntegerType, IntegerAttr
@@ -16,18 +18,57 @@ from xdsl_smt.dialects.effects import ub_effect as smt_ub
 import xdsl.dialects.arith as arith
 
 
-class IntegerOverflowAttrSemantics(AttributeSemantics):
-    def get_semantics(
-        self, attribute: Attribute, rewriter: PatternRewriter
-    ) -> SSAValue:
-        assert isinstance(attribute, arith.IntegerOverflowAttr)
+@dataclass
+class IntegerOverflowAttrSemanticsAdaptor:
+    """
+    An adaptor to manipulate integer overflow attribute semantics.
+    """
+
+    value: SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]]
+
+    @staticmethod
+    def from_attribute(
+        attribute: arith.IntegerOverflowAttr, rewriter: PatternRewriter
+    ) -> IntegerOverflowAttrSemanticsAdaptor:
+        """
+        Create an SSA value representing the integer overflow attribute.
+        """
         nuw = rewriter.insert(
             smt.ConstantBoolOp(arith.IntegerOverflowFlag.NUW in attribute.flags)
         ).res
         nsw = rewriter.insert(
             smt.ConstantBoolOp(arith.IntegerOverflowFlag.NSW in attribute.flags)
         ).res
-        return rewriter.insert(smt_utils.PairOp(nuw, nsw)).res
+        res = rewriter.insert(smt_utils.PairOp(nuw, nsw)).res
+        res = cast(SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]], res)
+        return IntegerOverflowAttrSemanticsAdaptor(res)
+
+    def get_nuw_flag(self, rewriter: PatternRewriter) -> SSAValue[smt.BoolType]:
+        """Get the unsigned wrap flag."""
+        res = rewriter.insert(smt_utils.FirstOp(self.value)).res
+        return cast(SSAValue[smt.BoolType], res)
+
+    def get_nsw_flag(self, rewriter: PatternRewriter) -> SSAValue[smt.BoolType]:
+        """Get the signed wrap flag."""
+        res = rewriter.insert(smt_utils.SecondOp(self.value)).res
+        return cast(SSAValue[smt.BoolType], res)
+
+
+class IntegerOverflowAttrSemantics(AttributeSemantics):
+    def get_semantics(
+        self, attribute: Attribute, rewriter: PatternRewriter
+    ) -> SSAValue:
+        assert isinstance(attribute, arith.IntegerOverflowAttr)
+        return IntegerOverflowAttrSemanticsAdaptor.from_attribute(
+            attribute, rewriter
+        ).value
+
+    def get_unbounded_semantics(
+        self, attribute_base: type[Attribute], rewriter: PatternRewriter
+    ) -> SSAValue:
+        return rewriter.insert(
+            smt.DeclareConstOp(smt_utils.PairType(smt.BoolType(), smt.BoolType()))
+        ).res
 
 
 def get_int_value_and_poison(
@@ -177,7 +218,55 @@ def single_binop_semantics(
     return SingleBinopSemantics
 
 
-AddiSemantics = single_binop_semantics(smt_bv.AddOp)
+class AddiSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        lhs = operands[0]
+        rhs = operands[1]
+        res_type = results[0]
+        assert isinstance(res_type, IntegerType)
+
+        # Perform the addition
+        res = rewriter.insert(smt_bv.AddOp(lhs, rhs)).res
+
+        # Convert possible overflow attribute flag to a value
+        overflow_attr = attributes["overflowFlags"]
+        if isinstance(overflow_attr, Attribute):
+            assert isinstance(overflow_attr, arith.IntegerOverflowAttr)
+            overflow_attr = IntegerOverflowAttrSemanticsAdaptor.from_attribute(
+                overflow_attr, rewriter
+            )
+        else:
+            overflow_attr = cast(
+                SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]], overflow_attr
+            )
+            overflow_attr = IntegerOverflowAttrSemanticsAdaptor(overflow_attr)
+
+        # Handle nsw
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        has_nsw = overflow_attr.get_nsw_flag(rewriter)
+        is_overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
+        is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).res
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, is_overflow_and_nsw)
+        ).res
+
+        # Handle nuw
+        has_nuw = overflow_attr.get_nuw_flag(rewriter)
+        is_overflow = rewriter.insert(smt_bv.UaddOverflowOp(lhs, rhs)).res
+        is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).res
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, is_overflow_and_nuw)
+        ).res
+
+        return ((res, poison_condition),)
+
+
 SubiSemantics = single_binop_semantics(smt_bv.SubOp)
 MuliSemantics = single_binop_semantics(smt_bv.MulOp)
 AndiSemantics = single_binop_semantics(smt_bv.AndOp)

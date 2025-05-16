@@ -13,7 +13,9 @@ builtin.module {
         %lhs = pdl.result 0 of %constant0
         %rhs = pdl.result 0 of %constant1
 
-        %add = pdl.operation "arith.addi" (%lhs, %rhs : !pdl.value, !pdl.value) -> (%type : !pdl.type)
+        %no_overflow = pdl.attribute = #arith.overflow<none>
+
+        %add = pdl.operation "arith.addi" (%lhs, %rhs : !pdl.value, !pdl.value) {"overflowFlags" = %no_overflow} -> (%type : !pdl.type)
 
         pdl.rewrite %add {
             %res = pdl.apply_native_rewrite "addi"(%c0, %c1 : !pdl.attribute, !pdl.attribute) : !pdl.attribute

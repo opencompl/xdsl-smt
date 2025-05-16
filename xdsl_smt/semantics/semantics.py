@@ -48,6 +48,16 @@ class AttributeSemantics:
     ) -> SSAValue:
         pass
 
+    @abstractmethod
+    def get_unbounded_semantics(
+        self,
+        attribute_base: type[Attribute],
+        rewriter: PatternRewriter,
+    ) -> SSAValue:
+        raise Exception(
+            f"Cannot define the semantics of an unbounded {attribute_base.name}"
+        )
+
 
 class TypeSemantics:
     """

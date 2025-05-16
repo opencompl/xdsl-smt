@@ -1,4 +1,4 @@
-// RUN: xdsl-tv %s %S/with-args.mlir.output | z3 -in | filecheck "%s"
+// RUN: xdsl-tv %s %S/with-args.mlir.output -opt | z3 -in | filecheck "%s"
 
 // This file uses `with-args.mlir.output`
 

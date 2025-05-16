@@ -45,12 +45,14 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_static_constraints,
 )
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
+from xdsl_smt.passes.smt_expand import SMTExpand
 
 
 def verify_pattern(ctx: Context, op: ModuleOp, opt: bool) -> bool:
     cloned_op = op.clone()
     PDLToSMT().apply(ctx, cloned_op)
     LowerEffectPass().apply(ctx, cloned_op)
+    SMTExpand().apply(ctx, cloned_op)
     if opt:
         LowerPairs().apply(ctx, cloned_op)
         CanonicalizePass().apply(ctx, cloned_op)

@@ -1,4 +1,4 @@
-// RUN: xdsl-synth %s %S/without-synth.mlir.output | filecheck "%s"
+// RUN: xdsl-synth %s %S/without-synth.mlir.output -opt | filecheck "%s"
 
 // This file uses `without-synth.mlir.output`
 
@@ -13,15 +13,13 @@ builtin.module {
 }
 
 // CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (define-fun $test (($arg0 (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
-// CHECK-NEXT:    (let (($y (pair (_ bv4 32) false)))
-// CHECK-NEXT:    (let (($x (pair (_ bv3 32) false)))
-// CHECK-NEXT:    (let (($r1 (pair (bvadd (first $arg0) (first $x)) (or (second $arg0) (second $x)))))
-// CHECK-NEXT:    (pair (bvadd (first $r1) (first $y)) (or (second $r1) (second $y)))))))
-// CHECK-NEXT:  (define-fun $test_0 (($arg0_0 (Pair (_ BitVec 32) Bool))) (Pair (_ BitVec 32) Bool)
-// CHECK-NEXT:    (let (($x (pair (_ bv7 32) false)))
-// CHECK-NEXT:    (pair (bvadd (first $arg0_0) (first $x)) (or (second $arg0_0) (second $x)))))
-// CHECK-NEXT:  (assert (forall (($tmp (Pair (_ BitVec 32) Bool))) (let (($tmp_0 ($test_0 $tmp)))
-// CHECK-NEXT:  (let (($tmp_1 ($test $tmp)))
-// CHECK-NEXT:  (or (and (not (second $tmp_0)) (= (first $tmp_1) (first $tmp_0))) (second $tmp_1))))))
+// CHECK-NEXT:  (define-fun $test_second (($tmp (_ BitVec 32)) ($tmp_0 Bool)) Bool
+// CHECK-NEXT:    $tmp_0)
+// CHECK-NEXT:  (define-fun $test_first (($tmp_1 (_ BitVec 32)) ($tmp_2 Bool)) (_ BitVec 32)
+// CHECK-NEXT:    (bvadd (bvadd $tmp_1 (_ bv3 32)) (_ bv4 32)))
+// CHECK-NEXT:  (define-fun $test_second_0 (($tmp_3 (_ BitVec 32)) ($tmp_4 Bool)) Bool
+// CHECK-NEXT:    $tmp_4)
+// CHECK-NEXT:  (define-fun $test_first_0 (($tmp_5 (_ BitVec 32)) ($tmp_6 Bool)) (_ BitVec 32)
+// CHECK-NEXT:    (bvadd $tmp_5 (_ bv7 32)))
+// CHECK-NEXT:  (assert (forall (($tmp_7 (_ BitVec 32)) ($tmp_8 Bool)) (or (and (not ($test_second_0 $tmp_7 $tmp_8)) (= ($test_first $tmp_7 $tmp_8) ($test_first_0 $tmp_7 $tmp_8))) ($test_second $tmp_7 $tmp_8))))
 // CHECK-NEXT:  (check-sat)
