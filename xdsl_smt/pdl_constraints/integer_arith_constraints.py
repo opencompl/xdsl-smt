@@ -280,6 +280,22 @@ def integer_type_from_width(
     rewriter.replace_matched_op([TypeOp(IntegerType(lhs.value.data))])
 
 
+def merge_overflow_flags(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    (lhs, rhs) = op.args
+    nuw_lhs = rewriter.insert(smt_utils.FirstOp(lhs)).res
+    nuw_rhs = rewriter.insert(smt_utils.FirstOp(rhs)).res
+    nsw_lhs = rewriter.insert(smt_utils.SecondOp(lhs)).res
+    nsw_rhs = rewriter.insert(smt_utils.SecondOp(rhs)).res
+
+    nuw_res = rewriter.insert(smt.AndOp(nuw_lhs, nuw_rhs)).res
+    nsw_res = rewriter.insert(smt.AndOp(nsw_lhs, nsw_rhs)).res
+
+    res = rewriter.insert(smt_utils.PairOp(nuw_res, nsw_res)).res
+    rewriter.replace_matched_op([], [res])
+
+
 def is_constant_factory(constant: int):
     def is_constant(
         op: ApplyNativeConstraintOp,
@@ -522,6 +538,8 @@ integer_arith_native_rewrites: dict[
     # Integer to type conversion
     "get_width": get_width,
     "integer_type_from_width": integer_type_from_width,
+    # Overflow flags
+    "merge_overflow": merge_overflow_flags,
 }
 
 integer_arith_native_constraints = {
