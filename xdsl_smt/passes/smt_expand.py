@@ -12,7 +12,6 @@ but they are defined in SMT-LIB. So we manually rewrite them by using
 existing ones.
 """
 
-
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
@@ -72,7 +71,7 @@ class LowerSaddOverflowOpPattern(RewritePattern):
 
         lhs_sign_eq_rhs_sign_op = EqOp(lhs_non_negative_op.res, rhs_non_negative_op.res)
         result_sign_ne_lhs_sign_op = DistinctOp(
-            lhs_sign_eq_rhs_sign_op.res, result_non_negative_op.res
+            lhs_non_negative_op.res, result_non_negative_op.res
         )
         overflow_op = AndOp(lhs_sign_eq_rhs_sign_op.res, result_sign_ne_lhs_sign_op.res)
         rewriter.replace_op(
