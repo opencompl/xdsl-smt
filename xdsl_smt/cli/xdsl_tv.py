@@ -19,6 +19,7 @@ from xdsl_smt.passes.lower_effects_with_memory import (
 )
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
+from xdsl_smt.passes.smt_expand import SMTExpand
 
 from xdsl_smt.dialects.smt_bitvector_dialect import (
     BitVectorType,
@@ -442,6 +443,15 @@ def main() -> None:
     # Lower memory to arrays
     LowerMemoryToArrayPass().apply(ctx, new_module)
 
+    if args.opt:
+        CanonicalizePass().apply(ctx, new_module)
+        LowerPairs().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+        CommonSubexpressionElimination().apply(ctx, new_module)
+        CanonicalizePass().apply(ctx, new_module)
+
+    # Expand ops not supported by all SMT solvers
+    SMTExpand().apply(ctx, new_module)
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)
         LowerPairs().apply(ctx, new_module)
