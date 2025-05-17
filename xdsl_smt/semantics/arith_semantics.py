@@ -63,9 +63,7 @@ class IntegerOverflowAttrSemantics(AttributeSemantics):
             attribute, rewriter
         ).value
 
-    def get_unbounded_semantics(
-        self, attribute_base: type[Attribute], rewriter: PatternRewriter
-    ) -> SSAValue:
+    def get_unbounded_semantics(self, rewriter: PatternRewriter) -> SSAValue:
         return rewriter.insert(
             smt.DeclareConstOp(smt_utils.PairType(smt.BoolType(), smt.BoolType()))
         ).res
