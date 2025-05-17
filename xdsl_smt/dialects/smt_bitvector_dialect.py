@@ -648,6 +648,8 @@ class SgtOp(BinaryPredBVOp, SimpleSMTLibOp):
 class UmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.umul_noovfl"
 
+    traits = traits_def(traits.Pure())
+
     def op_name(self) -> str:
         return "bvumul_noovfl"
 
@@ -656,6 +658,8 @@ class UmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
 class SmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.smul_noovfl"
 
+    traits = traits_def(traits.Pure())
+
     def op_name(self) -> str:
         return "bvsmul_noovfl"
 
@@ -663,6 +667,8 @@ class SmulNoOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
 @irdl_op_definition
 class SmulNoUnderflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.smul_noudfl"
+
+    traits = traits_def(traits.Pure())
 
     def op_name(self) -> str:
         return "bvsmul_noudfl"
@@ -678,6 +684,8 @@ class NegOverflowOp(UnaryPredBVOp, SimpleSMTLibOp):
 
     name = "smt.bv.nego"
 
+    traits = traits_def(traits.Pure())
+
     def op_name(self) -> str:
         return "bvnego"
 
@@ -691,6 +699,8 @@ class UaddOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     """
 
     name = "smt.bv.uaddo"
+
+    traits = traits_def(traits.Pure())
 
     def op_name(self) -> str:
         return "bvuaddo"
@@ -707,6 +717,8 @@ class SaddOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
 
     name = "smt.bv.saddo"
 
+    traits = traits_def(traits.Pure())
+
     def op_name(self) -> str:
         return "bvsaddo"
 
@@ -720,6 +732,8 @@ class UmulOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     """
 
     name = "smt.bv.umulo"
+
+    traits = traits_def(traits.Pure())
 
     def op_name(self) -> str:
         return "bvumulo"
@@ -735,6 +749,8 @@ class SmulOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     """
 
     name = "smt.bv.smulo"
+
+    traits = traits_def(traits.Pure())
 
     def op_name(self) -> str:
         return "bvsmulo"
