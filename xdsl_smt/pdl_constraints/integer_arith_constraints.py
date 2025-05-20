@@ -165,6 +165,42 @@ def shl_rewrite(
     return single_op_rewrite(op, rewriter, smt_bv.ShlOp, fold_shl)
 
 
+def le_rewrite(
+    op: ApplyNativeRewriteOp, rewriter: PatternRewriter, context: PDLToSMTRewriteContext
+) -> None:
+    lhs, rhs = op.args
+    if isinstance(lhs.owner, smt_bv.ConstantOp) and isinstance(
+        rhs.owner, smt_bv.ConstantOp
+    ):
+        lhs = lhs.owner.value
+        rhs = rhs.owner.value
+        rewriter.replace_matched_op(
+            [
+                smt_bv.ConstantOp(
+                    smt_bv.BitVectorValue(lhs.value.data <= rhs.value.data, 1)
+                )
+            ]
+        )
+        return
+    cmp_res = rewriter.insert(smt_bv.SleOp(lhs, rhs)).res
+    zero = rewriter.insert(smt_bv.ConstantOp(0, 1)).res
+    one = rewriter.insert(smt_bv.ConstantOp(1, 1)).res
+    ite = rewriter.insert(smt.IteOp(cmp_res, one, zero)).res
+    rewriter.replace_matched_op([], [ite])
+
+
+def no_signed_overflow(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    lhs, rhs = op.args
+    overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
+    no_overflow = rewriter.insert(smt.NotOp(overflow)).res
+    rewriter.erase_matched_op()
+    return no_overflow
+
+
 def get_cst_rewrite_factory(constant: int):
     def get_cst_rewrite(
         op: ApplyNativeRewriteOp,
@@ -527,6 +563,7 @@ integer_arith_native_rewrites: dict[
     "ori": ori_rewrite,
     "xori": xori_rewrite,
     "shl": shl_rewrite,
+    "le": le_rewrite,
     "get_minimum_signed_value": get_minimum_signed_value,
     # Get constant attributes
     "get_zero_attr": get_cst_rewrite_factory(0),
@@ -554,6 +591,7 @@ integer_arith_native_constraints = {
     # Predicates
     "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
+    "no_signed_overflow": no_signed_overflow,
     # Integer type equality
     "is_equal_to_width_of_type": is_equal_to_width_of_type,
 }
