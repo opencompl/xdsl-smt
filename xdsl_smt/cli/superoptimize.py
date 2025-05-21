@@ -15,8 +15,7 @@ from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
-import xdsl_smt.dialects.synth_dialect as smt_synth
-from xdsl_smt.dialects.synth_dialect import SMTSynthDialect
+import xdsl_smt.dialects.synth_dialect as synth
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
 from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
@@ -60,9 +59,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 def replace_synth_with_constants(
     program: ModuleOp, values: list[IntegerAttr[IntegerType]]
 ) -> None:
-    synth_ops: list[smt_synth.ConstantOp] = []
+    synth_ops: list[synth.ConstantOp] = []
     for op in program.walk():
-        if isinstance(op, smt_synth.ConstantOp):
+        if isinstance(op, synth.ConstantOp):
             synth_ops.append(op)
 
     for op, value in zip(synth_ops, values):
@@ -83,7 +82,7 @@ def main() -> None:
     ctx.load_dialect(SMTDialect)
     ctx.load_dialect(SMTBitVectorDialect)
     ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(SMTSynthDialect)
+    ctx.load_dialect(synth.SynthDialect)
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
     ctx.load_dialect(LLVM)
@@ -120,7 +119,8 @@ def main() -> None:
             )
             if res.returncode != 0:
                 print(
-                    f"Error while synthesizing program: {res.stderr}", file=sys.stderr
+                    f"Error while synthesizing program: {res.stderr.decode('utf-8')}",
+                    file=sys.stderr,
                 )
                 continue
 

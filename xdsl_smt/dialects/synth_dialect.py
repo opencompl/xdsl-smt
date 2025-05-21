@@ -4,7 +4,7 @@ from xdsl.irdl import irdl_op_definition, IRDLOperation, result_def
 
 @irdl_op_definition
 class ConstantOp(IRDLOperation):
-    name = "smt.synth.constant"
+    name = "synth.constant"
 
     res: OpResult = result_def()
 
@@ -14,4 +14,4 @@ class ConstantOp(IRDLOperation):
     assembly_format = "attr-dict `:` type($res)"
 
 
-SMTSynthDialect = Dialect("smt.synth", [ConstantOp])
+SynthDialect = Dialect("synth", [ConstantOp])

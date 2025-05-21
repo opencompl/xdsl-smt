@@ -11,7 +11,7 @@ from xdsl_smt.semantics.semantics import (
 )
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl.dialects import pdl
-from xdsl_smt.dialects import smt_dialect, smt_bitvector_dialect
+from xdsl_smt.dialects import smt_dialect, smt_bitvector_dialect, synth_dialect
 from xdsl_smt.dialects.smt_utils_dialect import PairType
 from xdsl_smt.semantics.pdl_semantics import PDLSemantics
 from xdsl.traits import IsTerminator
@@ -98,6 +98,7 @@ class SMTLowerer:
         if (
             type(op) in smt_dialect.SMTDialect.operations
             or type(op) in smt_bitvector_dialect.SMTBitVectorDialect.operations
+            or type(op) in synth_dialect.SynthDialect.operations
         ):
             return effect_state
 
