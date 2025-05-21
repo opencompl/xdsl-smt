@@ -103,10 +103,7 @@ def remove_pairs_from_function_return(module: ModuleOp):
         funcs.pop()
 
         if len(func.func_type.outputs.data) != 1:
-            if any(isinstance(t, PairType) for t in func.func_type.outputs.data):
-                raise ValueError(
-                    "lower-pairs do not handle functions with multiple results with pairs yet"
-                )
+            continue
 
         if isinstance((output := func.func_type.outputs.data[0]), PairType):
             output = cast(AnyPairType, output)
