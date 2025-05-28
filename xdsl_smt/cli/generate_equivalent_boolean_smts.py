@@ -3,25 +3,19 @@
 import sys
 import os
 import argparse
-import re
 import subprocess as sp
 from typing import Generator
 
 from xdsl.context import Context
-from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
 
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl_smt.dialects.hw_dialect import HW
-from xdsl_smt.dialects.llvm_dialect import LLVM
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
 from xdsl.dialects.func import Func
-from xdsl.dialects.arith import Arith
-from xdsl.dialects.comb import Comb
 import xdsl_smt.dialects.hw_dialect as hw
 
 
@@ -127,13 +121,15 @@ def main() -> None:
     # presented all the possible inputs. I.e., each key uniquely characterizes a
     # boolean function of arity `args.max_num_args`.
     input_counts = len(list(all_booleans(args.max_num_args)))
-    buckets = {images: [] for images in all_booleans(input_counts)}
+    buckets: dict[tuple[bool, ...], list[bytes]] = {
+        images: [] for images in all_booleans(input_counts)
+    }
 
     try:
         # Put all programs in buckets.
         for program in enumerate_programs(args.max_num_args, args.max_num_ops):
             # Evaluate a program with all possible inputs.
-            images = []
+            results: list[bool] = []
             for values in all_booleans(args.max_num_args):
                 mlir_vals = ",".join(
                     f"#smt.bool_attr<{str(val).lower()}>" for val in values
@@ -154,9 +150,9 @@ def main() -> None:
                     print(program.decode("utf8"))
                     break
                 if res.stdout.strip() == b"True":
-                    images.append(True)
+                    results.append(True)
                 elif res.stdout.strip() == b"False":
-                    images.append(False)
+                    results.append(False)
                 else:
                     print(
                         "Unexpected output:\n" + res.stdout.decode("utf-8"),
@@ -165,7 +161,7 @@ def main() -> None:
                     break
             else:
                 # The loop exited normally (i.e., no `break`).
-                buckets[tuple(images)].append(program)
+                buckets[tuple(results)].append(program)
 
         # Write disk files for each bucket.
         for images, bucket in buckets.items():
