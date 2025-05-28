@@ -47,6 +47,14 @@ class SMTFunctions(InterpreterFunctions):
         assert isinstance(args[1], bool)
         return (args[0] and args[1],)
 
+    @impl(smt.OrOp)
+    def run_or(
+        self, interpreter: Interpreter, op: smt.OrOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isinstance(args[0], bool)
+        assert isinstance(args[1], bool)
+        return (args[0] or args[1],)
+
     @impl(smt.ImpliesOp)
     def run_implies(
         self, interpreter: Interpreter, op: smt.ImpliesOp, args: tuple[Any, ...]

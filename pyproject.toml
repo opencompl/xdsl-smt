@@ -31,6 +31,7 @@ xdsl-translate = "xdsl_smt.cli.xdsl_translate:main"
 verify-pdl = "xdsl_smt.cli.verify_pdl:main"
 verifier = "xdsl_smt.cli.transfer_function_verifier:main"
 cpp-translate = "xdsl_smt.cli.cpp_translate:main"
+generate-equivalent-boolean-smts = "xdsl_smt.cli.generate_equivalent_boolean_smts:main"
 superoptimize = "xdsl_smt.cli.superoptimize:main"
 xdsl-smt-run = "xdsl_smt.cli.xdsl_smt_run:main"
 

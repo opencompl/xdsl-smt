@@ -4,9 +4,11 @@ from collections.abc import Sequence
 
 from xdsl.context import Context
 from xdsl.interpreter import Interpreter
+from xdsl.interpreters.func import FuncFunctions
 from xdsl.parser import Parser
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.tools.command_line_tool import CommandLineTool
+from xdsl.traits import CallableOpInterface
 from xdsl_smt.interpreters.smt import SMTFunctions
 
 
@@ -53,6 +55,7 @@ class xDSLRunMain(CommandLineTool):
         return super().register_all_arguments(arg_parser)
 
     def register_implementations(self, interpreter: Interpreter):
+        interpreter.register_implementations(FuncFunctions())
         interpreter.register_implementations(SMTFunctions())
 
     def run(self):
@@ -64,23 +67,21 @@ class xDSLRunMain(CommandLineTool):
             module.verify()
             interpreter = Interpreter(module, index_bitwidth=self.args.index_bitwidth)
             self.register_implementations(interpreter)
-            function = module.ops.first
-            if not isinstance(function, smt.DefineFunOp):
-                raise ValueError(
-                    "The module must contain a single DefineFunOp as the entry point."
-                )
             parser = Parser(self.ctx, self.args.args, "args")
             runner_args = parser.parse_optional_undelimited_comma_separated_list(
                 parser.parse_optional_attribute, parser.parse_attribute
             )
             if runner_args is None:
                 runner_args = ()
+            op = interpreter.get_op_for_symbol("main")
+            trait = op.get_trait(CallableOpInterface)
+            assert trait is not None
 
             args = tuple(
                 interpreter.value_for_attribute(attr, attr_type)
-                for attr, attr_type in zip(runner_args, function.func_type.inputs)
+                for attr, attr_type in zip(runner_args, trait.get_argument_types(op))
             )
-            result = interpreter.run_ssacfg_region(function.body, args, function.name)
+            result = interpreter.call_op(op, args)
             if result:
                 if len(result) == 1:
                     print(f"{result[0]}")
