@@ -1,7 +1,6 @@
 from typing import Any, cast
 
-from xdsl.dialects.builtin import IntegerAttr
-from xdsl.ir import Attribute, Operation
+from xdsl.ir import Attribute
 
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.interpreter import (
