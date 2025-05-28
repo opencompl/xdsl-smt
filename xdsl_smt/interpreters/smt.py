@@ -38,3 +38,46 @@ class SMTFunctions(InterpreterFunctions):
     ) -> tuple[Any, ...]:
         assert isinstance(args[0], bool)
         return (not args[0],)
+
+    @impl(smt.AndOp)
+    def run_and(
+        self, interpreter: Interpreter, op: smt.AndOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isinstance(args[0], bool)
+        assert isinstance(args[1], bool)
+        return (args[0] and args[1],)
+
+    @impl(smt.ImpliesOp)
+    def run_implies(
+        self, interpreter: Interpreter, op: smt.ImpliesOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isinstance(args[0], bool)
+        assert isinstance(args[1], bool)
+        return (not args[0] or args[1],)
+
+    @impl(smt.XorOp)
+    def run_xor(
+        self, interpreter: Interpreter, op: smt.XorOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isinstance(args[0], bool)
+        assert isinstance(args[1], bool)
+        return (args[0] != args[1],)
+
+    @impl(smt.DistinctOp)
+    def run_distinct(
+        self, interpreter: Interpreter, op: smt.DistinctOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return (args[0] != args[1],)
+
+    @impl(smt.EqOp)
+    def run_eq(
+        self, interpreter: Interpreter, op: smt.EqOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return (args[0] == args[1],)
+
+    @impl(smt.IteOp)
+    def run_ite(
+        self, interpreter: Interpreter, op: smt.IteOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isinstance(args[0], bool)
+        return (args[1] if args[0] else args[2],)
