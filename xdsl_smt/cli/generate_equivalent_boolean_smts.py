@@ -140,14 +140,12 @@ def main() -> None:
                     stdout=sp.PIPE,
                     stderr=sp.PIPE,
                 )
-                # This error case is hit every time we encounter a function with
-                # `arity != args.max_num_args`.
                 if res.returncode != 0:
                     print(
                         f"Error while evaluating program: {res.stderr.decode('utf-8')}",
                         file=sys.stderr,
                     )
-                    print(program.decode("utf8"))
+                    print(program.decode("utf-8"))
                     break
                 if res.stdout.strip() == b"True":
                     results.append(True)
