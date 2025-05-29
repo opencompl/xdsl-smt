@@ -1,15 +1,38 @@
 import argparse
 import sys
 from collections.abc import Sequence
+from typing import Any, Iterable, Literal
 
 from xdsl.context import Context
+from xdsl.dialects.builtin import ModuleOp
 from xdsl.interpreter import Interpreter
 from xdsl.interpreters.func import FuncFunctions
+from xdsl.ir import Attribute
 from xdsl.parser import Parser
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.tools.command_line_tool import CommandLineTool
 from xdsl.traits import CallableOpInterface
 from xdsl_smt.interpreters.smt import SMTFunctions
+
+
+def interpret_module(
+    module: ModuleOp, arguments: Iterable[Attribute], index_bitwidth: Literal[32, 64]
+) -> tuple[Any, ...]:
+    module.verify()
+
+    interpreter = Interpreter(module, index_bitwidth=index_bitwidth)
+    interpreter.register_implementations(FuncFunctions())
+    interpreter.register_implementations(SMTFunctions())
+
+    op = interpreter.get_op_for_symbol("main")
+    trait = op.get_trait(CallableOpInterface)
+    assert trait is not None
+
+    args = tuple(
+        interpreter.value_for_attribute(attr, attr_type)
+        for attr, attr_type in zip(arguments, trait.get_argument_types(op))
+    )
+    return interpreter.call_op(op, args)
 
 
 class xDSLRunMain(CommandLineTool):
@@ -54,34 +77,19 @@ class xDSLRunMain(CommandLineTool):
         )
         return super().register_all_arguments(arg_parser)
 
-    def register_implementations(self, interpreter: Interpreter):
-        interpreter.register_implementations(FuncFunctions())
-        interpreter.register_implementations(SMTFunctions())
-
     def run(self):
         input, file_extension = self.get_input_stream()
         try:
             module = self.parse_chunk(input, file_extension)
             if module is None:
                 return
-            module.verify()
-            interpreter = Interpreter(module, index_bitwidth=self.args.index_bitwidth)
-            self.register_implementations(interpreter)
-            parser = Parser(self.ctx, self.args.args, "args")
-            runner_args = parser.parse_optional_undelimited_comma_separated_list(
-                parser.parse_optional_attribute, parser.parse_attribute
+            arg_parser = Parser(self.ctx, self.args.args, "args")
+            runner_args = arg_parser.parse_optional_undelimited_comma_separated_list(
+                arg_parser.parse_optional_attribute, arg_parser.parse_attribute
             )
             if runner_args is None:
                 runner_args = ()
-            op = interpreter.get_op_for_symbol("main")
-            trait = op.get_trait(CallableOpInterface)
-            assert trait is not None
-
-            args = tuple(
-                interpreter.value_for_attribute(attr, attr_type)
-                for attr, attr_type in zip(runner_args, trait.get_argument_types(op))
-            )
-            result = interpreter.call_op(op, args)
+            result = interpret_module(module, runner_args, self.args.index_bitwidth)
             if result:
                 if len(result) == 1:
                     print(f"{result[0]}")

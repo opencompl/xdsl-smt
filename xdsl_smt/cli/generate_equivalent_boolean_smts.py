@@ -4,30 +4,36 @@ import sys
 import os
 import argparse
 import subprocess as sp
+import time
 from typing import Generator
 
 from xdsl.context import Context
-from xdsl.rewriter import Rewriter
+from xdsl.parser import Parser
 
+from xdsl_smt.dialects.smt_dialect import BoolAttr
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 import xdsl_smt.dialects.synth_dialect as synth
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
+from xdsl.dialects.builtin import Builtin
 from xdsl.dialects.func import Func
-import xdsl_smt.dialects.hw_dialect as hw
+from xdsl_smt.cli.xdsl_smt_run import interpret_module
 
 
-def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
-    program_lines = list[bytes]()
+MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
+SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
+
+
+def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
+    program_lines = list[str]()
     assert enumerator.stdout is not None
     while True:
         output = enumerator.stdout.readline()
 
         # End of program marker
-        if output == b"// -----\n":
-            return b"".join(program_lines)
+        if output == "// -----\n":
+            return "".join(program_lines)
 
         # End of file
         if not output:
@@ -39,17 +45,18 @@ def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
 
 def enumerate_programs(
     max_num_args: int, max_num_ops: int
-) -> Generator[bytes, None, None]:
+) -> Generator[str, None, None]:
     enumerator = sp.Popen(
         [
-            "./mlir-fuzz/build/bin/mlir-enumerate",
-            "mlir-fuzz/dialects/smt.mlir",
+            MLIR_ENUMERATE,
+            SMT_MLIR,
             "--configuration=smt",
             f"--max-num-args={max_num_args}",
             f"--max-num-ops={max_num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
         ],
+        text=True,
         stdin=sp.PIPE,
         stdout=sp.PIPE,
     )
@@ -58,8 +65,27 @@ def enumerate_programs(
         yield program
         # Send a character to the enumerator to continue
         assert enumerator.stdin is not None
-        enumerator.stdin.write(b"a")
+        enumerator.stdin.write("a")
         enumerator.stdin.flush()
+
+
+def get_program_count(max_num_args: int, max_num_ops: int) -> int:
+    return int(
+        sp.run(
+            [
+                MLIR_ENUMERATE,
+                SMT_MLIR,
+                "--configuration=smt",
+                f"--max-num-args={max_num_args}",
+                f"--max-num-ops={max_num_ops}",
+                "--mlir-print-op-generic",
+                "--count",
+            ],
+            text=True,
+            stdout=sp.PIPE,
+            stderr=sp.PIPE,
+        ).stdout
+    )
 
 
 def all_booleans(count: int) -> Generator[tuple[bool, ...], None, None]:
@@ -90,18 +116,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def replace_synth_with_constants(
-    program: ModuleOp, values: list[IntegerAttr[IntegerType]]
-) -> None:
-    synth_ops: list[synth.ConstantOp] = []
-    for op in program.walk():
-        if isinstance(op, synth.ConstantOp):
-            synth_ops.append(op)
-
-    for op, value in zip(synth_ops, values):
-        Rewriter.replace_op(op, hw.ConstantOp(value))
-
-
 def main() -> None:
     ctx = Context()
     ctx.allow_unregistered = True
@@ -121,45 +135,29 @@ def main() -> None:
     # presented all the possible inputs. I.e., each key uniquely characterizes a
     # boolean function of arity `args.max_num_args`.
     input_counts = len(list(all_booleans(args.max_num_args)))
-    buckets: dict[tuple[bool, ...], list[bytes]] = {
+    buckets: dict[tuple[bool, ...], list[str]] = {
         images: [] for images in all_booleans(input_counts)
     }
 
+    start = time.time()
+
     try:
         # Put all programs in buckets.
-        for program in enumerate_programs(args.max_num_args, args.max_num_ops):
+        program_count = get_program_count(args.max_num_args, args.max_num_ops)
+        for i, program in enumerate(
+            enumerate_programs(args.max_num_args, args.max_num_ops)
+        ):
+            percentage = round(i / program_count * 100.0)
+            print(f"{i}/{program_count} ({percentage} %)", end="\r")
+            module = Parser(ctx, program).parse_module(True)
             # Evaluate a program with all possible inputs.
             results: list[bool] = []
             for values in all_booleans(args.max_num_args):
-                mlir_vals = ",".join(
-                    f"#smt.bool_attr<{str(val).lower()}>" for val in values
-                )
-                res = sp.run(
-                    ["xdsl-smt-run", f"--args={mlir_vals}"],
-                    input=program,
-                    stdout=sp.PIPE,
-                    stderr=sp.PIPE,
-                )
-                if res.returncode != 0:
-                    print(
-                        f"Error while evaluating program: {res.stderr.decode('utf-8')}",
-                        file=sys.stderr,
-                    )
-                    print(program.decode("utf-8"))
-                    break
-                if res.stdout.strip() == b"True":
-                    results.append(True)
-                elif res.stdout.strip() == b"False":
-                    results.append(False)
-                else:
-                    print(
-                        "Unexpected output:\n" + res.stdout.decode("utf-8"),
-                        file=sys.stderr,
-                    )
-                    break
-            else:
-                # The loop exited normally (i.e., no `break`).
-                buckets[tuple(results)].append(program)
+                res = interpret_module(module, map(BoolAttr, values), 64)
+                assert len(res) == 1
+                assert isinstance(res[0], bool)
+                results.append(res[0])
+            buckets[tuple(results)].append(program)
 
         # Write disk files for each bucket.
         for images, bucket in buckets.items():
@@ -173,8 +171,10 @@ def main() -> None:
                     f.write(f"// {inputs} -> {output}\n")
                 f.write("\n")
                 for program in bucket:
-                    f.write(program.decode("utf-8"))
+                    f.write(program)
                     f.write("// -----\n")
+
+        print(f"Classified {program_count} programs in {round(time.time() - start)} s.")
 
     except BrokenPipeError as e:
         # The enumerator has terminated
