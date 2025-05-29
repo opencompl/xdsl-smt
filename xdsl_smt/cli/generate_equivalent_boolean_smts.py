@@ -3,6 +3,7 @@
 import sys
 import os
 import argparse
+import itertools
 import subprocess as sp
 import time
 from typing import Generator
@@ -88,16 +89,6 @@ def get_program_count(max_num_args: int, max_num_ops: int) -> int:
     )
 
 
-def all_booleans(count: int) -> Generator[tuple[bool, ...], None, None]:
-    assert count >= 0
-    if count == 0:
-        yield ()
-        return
-    for tail in all_booleans(count - 1):
-        yield (False, *tail)
-        yield (True, *tail)
-
-
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--max-num-args",
@@ -134,9 +125,9 @@ def main() -> None:
     # The set of keys is the set of all possible sequences of outputs when
     # presented all the possible inputs. I.e., each key uniquely characterizes a
     # boolean function of arity `args.max_num_args`.
-    input_counts = len(list(all_booleans(args.max_num_args)))
     buckets: dict[tuple[bool, ...], list[str]] = {
-        images: [] for images in all_booleans(input_counts)
+        images: []
+        for images in itertools.product((False, True), repeat=2**args.max_num_args)
     }
 
     start = time.time()
@@ -152,7 +143,7 @@ def main() -> None:
             module = Parser(ctx, program).parse_module(True)
             # Evaluate a program with all possible inputs.
             results: list[bool] = []
-            for values in all_booleans(args.max_num_args):
+            for values in itertools.product((False, True), repeat=args.max_num_args):
                 res = interpret_module(module, map(BoolAttr, values), 64)
                 assert len(res) == 1
                 assert isinstance(res[0], bool)
@@ -167,14 +158,16 @@ def main() -> None:
             with open(
                 os.path.join(args.out_dir, file_name), "w", encoding="utf-8"
             ) as f:
-                for inputs, output in zip(all_booleans(args.max_num_args), images):
+                for inputs, output in zip(
+                    itertools.product((False, True), repeat=args.max_num_args), images
+                ):
                     f.write(f"// {inputs} -> {output}\n")
                 f.write("\n")
                 for program in bucket:
                     f.write(program)
                     f.write("// -----\n")
 
-        print(f"Classified {program_count} programs in {round(time.time() - start)} s.")
+        print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
 
     except BrokenPipeError as e:
         # The enumerator has terminated
