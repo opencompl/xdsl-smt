@@ -6,6 +6,7 @@ import argparse
 import itertools
 import subprocess as sp
 import time
+from multiprocessing import Pool
 from typing import Generator
 
 from xdsl.context import Context
@@ -89,6 +90,36 @@ def get_program_count(max_num_args: int, max_num_ops: int) -> int:
     )
 
 
+def init_ctx():
+    ctx = Context()
+    ctx.allow_unregistered = True
+    arg_parser = argparse.ArgumentParser()
+    register_all_arguments(arg_parser)
+    args = arg_parser.parse_args()
+
+    # Register all dialects
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(synth.SynthDialect)
+    return args, ctx
+
+
+def classify_program(program: str):
+    args, ctx = init_ctx()
+    module = Parser(ctx, program).parse_module(True)
+    # Evaluate a program with all possible inputs.
+    results: list[bool] = []
+    for values in itertools.product((False, True), repeat=args.max_num_args):
+        res = interpret_module(module, map(BoolAttr, values), 64)
+        assert len(res) == 1
+        assert isinstance(res[0], bool)
+        results.append(res[0])
+    return module, tuple(results)
+
+
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--max-num-args",
@@ -108,24 +139,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
 
 def main() -> None:
-    ctx = Context()
-    ctx.allow_unregistered = True
-    arg_parser = argparse.ArgumentParser()
-    register_all_arguments(arg_parser)
-    args = arg_parser.parse_args()
-
-    # Register all dialects
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
+    args, _ = init_ctx()
 
     # The set of keys is the set of all possible sequences of outputs when
     # presented all the possible inputs. I.e., each key uniquely characterizes a
     # boolean function of arity `args.max_num_args`.
-    buckets: dict[tuple[bool, ...], list[str]] = {
+    buckets: dict[tuple[bool, ...], list[ModuleOp]] = {
         images: []
         for images in itertools.product((False, True), repeat=2**args.max_num_args)
     }
@@ -133,22 +152,21 @@ def main() -> None:
     start = time.time()
 
     try:
-        # Put all programs in buckets.
+        print("Counting programs...")
         program_count = get_program_count(args.max_num_args, args.max_num_ops)
-        for i, program in enumerate(
-            enumerate_programs(args.max_num_args, args.max_num_ops)
-        ):
-            percentage = round(i / program_count * 100.0)
-            print(f"{i}/{program_count} ({percentage} %)", end="\r")
-            module = Parser(ctx, program).parse_module(True)
-            # Evaluate a program with all possible inputs.
-            results: list[bool] = []
-            for values in itertools.product((False, True), repeat=args.max_num_args):
-                res = interpret_module(module, map(BoolAttr, values), 64)
-                assert len(res) == 1
-                assert isinstance(res[0], bool)
-                results.append(res[0])
-            buckets[tuple(results)].append(program)
+
+        print(f"Classifying {program_count} programs...")
+        with Pool() as p:
+            for i, (module, results) in enumerate(
+                p.imap_unordered(
+                    classify_program,
+                    enumerate_programs(args.max_num_args, args.max_num_ops),
+                )
+            ):
+                buckets[results].append(module)
+                percentage = round(i / program_count * 100.0)
+                print(f" {i}/{program_count} ({percentage} %)...", end="\r")
+        print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
 
         # Write disk files for each bucket.
         for images, bucket in buckets.items():
@@ -163,11 +181,9 @@ def main() -> None:
                 ):
                     f.write(f"// {inputs} -> {output}\n")
                 f.write("\n")
-                for program in bucket:
-                    f.write(program)
+                for module in bucket:
+                    f.write(str(module))
                     f.write("// -----\n")
-
-        print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
 
     except BrokenPipeError as e:
         # The enumerator has terminated
