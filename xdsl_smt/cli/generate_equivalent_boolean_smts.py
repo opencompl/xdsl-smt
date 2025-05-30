@@ -143,11 +143,14 @@ def func_len(func: FuncOp) -> int:
 
 
 def value_matches(lhs_value: SSAValue, prog_value: SSAValue) -> bool:
-    # TODO: Take a look at Operation.is_structurally_equivalent
     match lhs_value, prog_value:
         case BlockArgument(index=i), BlockArgument(index=j):
             return i == j
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
+            if i != j:
+                return False
+            # FIXME: Using `Operation.is_structurally_equivalent` does not work.
+            # return lhs_op.is_structurally_equivalent(prog_op)
             if not isinstance(prog_op, type(lhs_op)):
                 return False
             if len(lhs_op.operands) != len(prog_op.operands):
