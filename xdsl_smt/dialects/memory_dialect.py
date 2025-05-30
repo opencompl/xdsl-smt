@@ -10,7 +10,7 @@ from xdsl.irdl import (
 from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
 from xdsl.pattern_rewriter import RewritePattern
 from xdsl.utils.exceptions import VerifyException
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
@@ -329,7 +329,7 @@ class ReadBytesOp(IRDLOperation):
         self.res.name_hint = "read"
 
     def verify_(self):
-        assert isattr(self.res.type, PairType[BitVectorType, BoolType])
+        assert isa(self.res.type, PairType[BitVectorType, BoolType])
         if self.res.type.first.width.data % 8 != 0:
             raise VerifyException("return bitvector must have a multiple of 8 bitwidth")
 

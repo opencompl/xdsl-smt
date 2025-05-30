@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
-from xdsl.ir import Operation
 
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
@@ -21,7 +20,7 @@ from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
@@ -52,14 +51,14 @@ class AbstractValueTypeSemantics(TypeSemantics):
         isIntegerTy = isinstance(curTy, IntegerType)
         curLoweredTy = SMTLowerer.lower_type(curTy)
         if isIntegerTy:
-            assert isattr(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
+            assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
             curLoweredTy = curLoweredTy.first
         result: AnyPairType = PairType(curLoweredTy, BoolType())
         for ty in reversed(type.get_fields()[:-1]):
             isIntegerTy = isinstance(ty, IntegerType)
             curLoweredTy = SMTLowerer.lower_type(ty)
             if isIntegerTy:
-                assert isattr(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
+                assert isa(curLoweredTy, PairType[smt_bv.BitVectorType, BoolType])
                 curLoweredTy = curLoweredTy.first
             result: AnyPairType = PairType(curLoweredTy, result)
         return result
@@ -91,7 +90,7 @@ class ConstantOpSemantics(OperationSemantics):
         if isinstance(const_value, SSAValue):
             return ((const_value,), effect_state)
 
-        assert isattr(const_value, IntegerAttr)
+        assert isa(const_value, IntegerAttr)
         const_value = const_value.value.data
         bv_const = smt_bv.ConstantOp(const_value, width)
         rewriter.insert_op_before_matched_op(bv_const)

@@ -29,7 +29,7 @@ from xdsl.ir import (
     TypeAttribute,
 )
 from xdsl.traits import IsTerminator
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 
 _UBAttrParameter = TypeVar(
     "_UBAttrParameter", bound=Attribute, covariant=True, default=Attribute
@@ -113,7 +113,7 @@ class MatchOp(IRDLOperation):
     def __init__(self, values: Sequence[SSAValue], result_types: Sequence[Attribute]):
         value_types = list[UBOrType[Attribute]]()
         for value in values:
-            if not isattr(value.type, UBOrType[Attribute]):
+            if not isa(value.type, UBOrType[Attribute]):
                 raise ValueError(f"Expected a '{UBOrType.name}' type, got {value.type}")
             value_types.append(value.type)
         value_region = Region(Block((), arg_types=value_types))
@@ -140,7 +140,7 @@ class MatchOp(IRDLOperation):
     def value_types(self) -> Sequence[UBOrType[Attribute]]:
         types = list[UBOrType[Attribute]]()
         for value in self.values:
-            assert isattr(value.type, UBOrType[Attribute])
+            assert isa(value.type, UBOrType[Attribute])
             types.append(value.type)
         return types
 

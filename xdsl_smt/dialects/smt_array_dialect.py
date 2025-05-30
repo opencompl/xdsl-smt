@@ -29,7 +29,7 @@ from xdsl.parser import Parser
 from xdsl.pattern_rewriter import RewritePattern
 from xdsl.printer import Printer
 from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 
 from xdsl_smt.traits.smt_printer import SMTLibSort, SimpleSMTLibOp
 
@@ -100,7 +100,7 @@ class SelectOp(IRDLOperation, SimpleSMTLibOp):
         self, array: SSAValue, index: SSAValue, result_type: Attribute | None = None
     ):
         if result_type is None:
-            if not isattr(array.type, AnyArrayType):
+            if not isa(array.type, AnyArrayType):
                 raise ValueError(
                     f"Expected array type, got {array.type} for array operand"
                 )
@@ -130,7 +130,7 @@ class StoreOp(IRDLOperation, SimpleSMTLibOp):
     res: OpResult = result_def(_ARRAY)
 
     def __init__(self, array: SSAValue, index: SSAValue, value: SSAValue):
-        if not isattr(array.type, AnyArrayType):
+        if not isa(array.type, AnyArrayType):
             raise ValueError(f"Expected array type, got {array.type} for array operand")
         super().__init__(result_types=[array.type], operands=[array, index, value])
 
@@ -156,7 +156,7 @@ class StoreOp(IRDLOperation, SimpleSMTLibOp):
         attributes = parser.parse_optional_attr_dict()
         parser.parse_characters(":")
         array_type = parser.parse_type()
-        if not isattr(array_type, ArrayType):
+        if not isa(array_type, ArrayType):
             raise ValueError(f"Expected array type, got {array_type} for array operand")
 
         (array, index, value) = parser.resolve_operands(

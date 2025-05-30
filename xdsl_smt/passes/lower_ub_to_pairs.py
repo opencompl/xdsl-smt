@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from xdsl.ir import Attribute, ParametrizedAttribute, Operation, SSAValue
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl.passes import ModulePass
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
@@ -27,13 +27,13 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
     Recursively convert an attribute to replace all references to the effect state
     into a pair between the ub flag and the memory.
     """
-    if isattr(attr, ub.UBOrType[Attribute]):
+    if isa(attr, ub.UBOrType[Attribute]):
         return smt_utils.PairType(attr.type, smt.BoolType())
     if isinstance(attr, ParametrizedAttribute):
         return type(attr).new(
             [recursively_convert_attr(param) for param in attr.parameters]
         )
-    if isattr(attr, ArrayAttr):
+    if isa(attr, ArrayAttr):
         return ArrayAttr((recursively_convert_attr(value) for value in attr.data))
     return attr
 
@@ -70,7 +70,7 @@ class LowerGenericOp(RewritePattern):
 class LowerUBOp(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ub.UBOp, rewriter: PatternRewriter):
-        assert isattr(op.res.type, ub.UBOrType[Attribute])
+        assert isa(op.res.type, ub.UBOrType[Attribute])
         inhabitant = create_inhabitant(op.res.type.type, rewriter)
         if inhabitant is None:
             raise ValueError(f"Type {op.res.type.type} does not have an inhabitant.")
@@ -82,7 +82,7 @@ class LowerUBOp(RewritePattern):
 class LowerFromOp(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ub.FromOp, rewriter: PatternRewriter):
-        assert isattr(op.res.type, ub.UBOrType[Attribute])
+        assert isa(op.res.type, ub.UBOrType[Attribute])
         ub_flag = smt.ConstantBoolOp(False)
         pair = smt_utils.PairOp(op.value, ub_flag.res)
         rewriter.replace_matched_op([ub_flag, pair])

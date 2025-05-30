@@ -11,7 +11,7 @@ from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     op_type_rewrite_pattern,
 )
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 
 from xdsl_smt.dialects import (
     smt_dialect as smt,
@@ -184,7 +184,7 @@ class SetBlockIsLivePattern(RewritePattern):
 class ReadBytesPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: mem.ReadBytesOp, rewriter: PatternRewriter):
-        assert isattr(
+        assert isa(
             res_type := op.res.type, smt_utils.PairType[BitVectorType, smt.BoolType]
         )
         if res_type.first.width.data != 8:
@@ -199,7 +199,7 @@ class ReadBytesPattern(RewritePattern):
 class WriteBytesPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: mem.WriteBytesOp, rewriter: PatternRewriter):
-        assert isattr(
+        assert isa(
             val_type := op.value.type, smt_utils.PairType[BitVectorType, smt.BoolType]
         )
         if val_type.first.width.data != 8:

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from xdsl.ir import Operation, Attribute, ParametrizedAttribute
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl.passes import ModulePass
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
@@ -27,7 +27,7 @@ def recursively_convert_attr(attr: Attribute) -> Attribute:
         return type(attr).new(
             [recursively_convert_attr(param) for param in attr.parameters]
         )
-    if isattr(attr, ArrayAttr):
+    if isa(attr, ArrayAttr):
         return ArrayAttr((recursively_convert_attr(value) for value in attr.data))
     return attr
 

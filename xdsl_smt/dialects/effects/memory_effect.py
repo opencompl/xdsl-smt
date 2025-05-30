@@ -8,7 +8,7 @@ from xdsl.irdl import (
     IRDLOperation,
     traits_def,
 )
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.effects.effect import StateType
@@ -102,7 +102,7 @@ class WriteOp(IRDLOperation):
     traits = traits_def(Pure())
 
     def verify_(self):
-        assert isattr(self.value.type, PairType[BitVectorType, BoolType])
+        assert isa(self.value.type, PairType[BitVectorType, BoolType])
         if self.value.type.first.width.data % 8 != 0:
             raise VerifyException("written size must be a multiple of 8")
 

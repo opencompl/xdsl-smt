@@ -8,7 +8,7 @@ from xdsl.builder import Builder, ImplicitBuilder
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType, UltOp
 import xdsl_smt.dialects.smt_dialect as smt
 
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.dialects.memory_dialect import BlockIDType
 from xdsl_smt.dialects.smt_dialect import (
@@ -107,7 +107,7 @@ def get_block_ids_from_value(
     """Get all block ids that are used in the value."""
     if isinstance(val.type, BlockIDType):
         return [val]
-    if isattr(val.type, AnyPairType):
+    if isa(val.type, AnyPairType):
         with ImplicitBuilder(Builder(insert_point)):
             first = FirstOp(val).res
             second = SecondOp(val).res

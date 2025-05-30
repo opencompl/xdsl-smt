@@ -57,6 +57,7 @@ class xDSLRunMain(CommandLineTool):
 
     def register_all_dialects(self):
         super().register_all_dialects()
+        del self.ctx._registered_dialects["smt"]  # pyright: ignore[reportPrivateUsage]
         self.ctx.register_dialect("smt", lambda: smt.SMTDialect)
 
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):

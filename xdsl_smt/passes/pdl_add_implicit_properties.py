@@ -38,8 +38,8 @@ def add_implicitely_matched_attribute(
     is satisfying the property definition.
     """
     # For now, only handle properties that are of a given attribute type.
-    base = prop_def.constr.get_unique_base()
-    if base is None:
+    base = prop_def.constr.get_bases()
+    if base is None or len(base) != 1:
         raise ValueError(
             f"Property {prop_name} of operation {op.opName} does not have a unique "
             "base type."
@@ -47,7 +47,7 @@ def add_implicitely_matched_attribute(
 
     # Create a new attribute matcher
     attr_op = rewriter.insert(pdl.AttributeOp(None))
-    attr_op.attributes["baseType"] = StringAttr(base.name)
+    attr_op.attributes["baseType"] = StringAttr(next(iter(base)).name)
 
     # Update the operation to add the attribute
     new_op = pdl.OperationOp(

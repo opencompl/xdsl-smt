@@ -12,7 +12,7 @@ from xdsl.ir import (
     TypeAttribute,
 )
 from xdsl.utils.exceptions import VerifyException
-from xdsl.utils.isattr import isattr
+from xdsl.utils.hints import isa
 from xdsl.irdl import (
     operand_def,
     result_def,
@@ -73,7 +73,7 @@ class PairOp(IRDLOperation, Pure, SimpleSMTLibOp):
         return super().__init__(result_types=[result_type], operands=[first, second])
 
     def verify_(self):
-        assert isattr(res_typ := self.res.type, PairType)
+        assert isa(res_typ := self.res.type, PairType)
         if res_typ.first != self.first.type or res_typ.second != self.second.type:
             raise VerifyException(
                 f"{self.name} result type is incompatible with operand types."
@@ -104,7 +104,7 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     def __init__(self, pair: SSAValue, pair_type: AnyPairType | None = None) -> None:
         if pair_type is None:
-            if not isattr(pair.type, AnyPairType):
+            if not isa(pair.type, AnyPairType):
                 raise VerifyException(
                     f"{self.name} operand is expected to be a {PairType.name} type"
                 )
@@ -112,7 +112,7 @@ class FirstOp(IRDLOperation, Pure, SimpleSMTLibOp):
         super().__init__(result_types=[pair_type.first], operands=[pair])
 
     def verify_(self):
-        assert isattr(pair_type := self.pair.type, AnyPairType)
+        assert isa(pair_type := self.pair.type, AnyPairType)
         if self.res.type != pair_type.first:
             raise VerifyException(
                 f"{self.name} result type is incompatible with operand types."
@@ -146,7 +146,7 @@ class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
 
     def __init__(self, pair: SSAValue, pair_type: AnyPairType | None = None) -> None:
         if pair_type is None:
-            if not isattr(pair.type, AnyPairType):
+            if not isa(pair.type, AnyPairType):
                 raise VerifyException(
                     f"{self.name} operand is expected to be a {PairType.name} type"
                 )
@@ -154,7 +154,7 @@ class SecondOp(IRDLOperation, Pure, SimpleSMTLibOp):
         super().__init__(result_types=[pair_type.second], operands=[pair])
 
     def verify_(self):
-        assert isattr(pair_typ := self.pair.type, PairType)
+        assert isa(pair_typ := self.pair.type, PairType)
         if self.res.type != pair_typ.second:
             raise VerifyException(
                 f"{self.name} result type is incompatible with operand types."
