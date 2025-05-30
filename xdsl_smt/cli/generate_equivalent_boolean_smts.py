@@ -7,7 +7,7 @@ import itertools
 import subprocess as sp
 import time
 from multiprocessing import Pool
-from typing import Generator
+from typing import Generator, Iterable
 
 from xdsl.context import Context
 from xdsl.ir import Operation
@@ -147,10 +147,9 @@ def value_matches(lhs_value: SSAValue, prog_value: SSAValue) -> bool:
         case BlockArgument(index=i), BlockArgument(index=j):
             return i == j
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
+            # TODO: Take attributes into account.
             if i != j:
                 return False
-            # FIXME: Using `Operation.is_structurally_equivalent` does not work.
-            # return lhs_op.is_structurally_equivalent(prog_op)
             if not isinstance(prog_op, type(lhs_op)):
                 return False
             if len(lhs_op.operands) != len(prog_op.operands):
@@ -245,8 +244,9 @@ def remove_superfluous(bucket: list[ModuleOp]) -> int:
                     continue
                 # q2 ∈ initial_bucket
                 q2 = get_inner_func(q2m)
-                if func_len(q1) < func_len(q2):
-                    continue
+                # Should be the case because p2 < p1, meaning |p2| <= |p1| and
+                # therefore |q2| <= |q1|.
+                assert func_len(q2) <= func_len(q1)
                 # |q2| <= |q1|
                 if removed[k]:
                     continue
@@ -262,6 +262,60 @@ def remove_superfluous(bucket: list[ModuleOp]) -> int:
     new_bucket = [module for module, remove in zip(bucket, removed) if not remove]
     del bucket[:]
     bucket.extend(new_bucket)
+
+    return removed_count
+
+
+def matches(lhs: ModuleOp, program: ModuleOp) -> bool:
+    # We assume operands have no side-effect.
+
+    lhs_ret = get_inner_func(lhs).get_return_op()
+    assert lhs_ret is not None
+
+    prog = get_inner_func(program)
+    assert len(prog.body.blocks) == 1
+
+    for op in prog.body.blocks[0].ops:
+        if len(lhs_ret.arguments) == len(op.results) and all(
+            map(lambda l, p: value_matches(l, p), lhs_ret.arguments, op.results)
+        ):
+            return True
+    return False
+
+
+def remove_superfluous_2(buckets: Iterable[list[ModuleOp]]) -> int:
+    # We assume all buckets are sorted by program size (this is done by
+    # `remove_superfluous`). The exact order of programs in buckets is used when
+    # arbitrary decisions have to be made. This arbitrary total strict order on
+    # programs of a bucket is denoted by <. It is a superset of the strict order
+    # on programs induced by their sizes. The _canonical representant_ of a
+    # bucket is the first program of that bucket. It is guaranteed to be present
+    # in the superfluous-less bucket.
+
+    removed_count = 0
+
+    for i, program_bucket in enumerate(buckets):
+        remove_indices: list[int] = []
+        for k, program in enumerate(program_bucket):
+            # If we can match the program with any non-canonical representant of
+            # a different bucket, we remove the program.
+            # This is correct because the matched sub-program can be rewriten to
+            # the canonical representant of the LHS's bucket to create a new
+            # program P' whose size does not exceed that of `program`.
+            # Therefore, P' was enumerated. Now, suppose we remove P' from this
+            # bucket. This has to be because it matched an LHS. This LHS cannot
+            # be the canonical representant of a bucket, so there exists a
+            # program P'' in this bucket with P'' != P' and P'' != `program`
+            # that can be obtained from `program` by applying rewrite rules.
+            for j, lhs_bucket in enumerate(buckets):
+                if i == j:
+                    continue
+                if any(map(lambda lhs: matches(lhs, program), lhs_bucket)):
+                    remove_indices.append(k)
+                    removed_count += 1
+                    break
+        for l in reversed(remove_indices):
+            del program_bucket[l]
 
     return removed_count
 
@@ -317,14 +371,20 @@ def main() -> None:
         # Write disk files for each bucket.
         print("Removing superfluous programs...")
         for images, bucket in buckets.items():
-            if not os.path.exists(args.out_dir):
-                os.makedirs(args.out_dir)
-            file_name = "-".join(repr(image) for image in images)
             initial_bucket_size = len(bucket)
             removed_count = remove_superfluous(bucket)
             print(
-                f"Removed {removed_count}/{initial_bucket_size} programs from bucket {file_name}"
+                f"Removed {removed_count}/{initial_bucket_size} programs from bucket {images}"
             )
+        additional_removal_count = remove_superfluous_2(buckets.values())
+        print(
+            f"Removed {additional_removal_count} additional programs from all buckets"
+        )
+
+        for images, bucket in buckets.items():
+            if not os.path.exists(args.out_dir):
+                os.makedirs(args.out_dir)
+            file_name = "-".join(repr(image) for image in images)
             with open(
                 os.path.join(args.out_dir, file_name), "w", encoding="utf-8"
             ) as f:
