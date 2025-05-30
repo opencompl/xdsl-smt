@@ -10,7 +10,14 @@ from multiprocessing import Pool
 from typing import Generator
 
 from xdsl.context import Context
+from xdsl.ir import Operation
+from xdsl.ir.core import BlockArgument, OpResult, SSAValue
 from xdsl.parser import Parser
+from xdsl.pattern_rewriter import (
+    op_type_rewrite_pattern,
+    PatternRewriter,
+    RewritePattern,
+)
 
 from xdsl_smt.dialects.smt_dialect import BoolAttr
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -18,8 +25,8 @@ from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 import xdsl_smt.dialects.synth_dialect as synth
-from xdsl.dialects.builtin import Builtin
-from xdsl.dialects.func import Func
+from xdsl.dialects.builtin import Builtin, ModuleOp
+from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl_smt.cli.xdsl_smt_run import interpret_module
 
 
@@ -120,6 +127,142 @@ def classify_program(program: str):
     return module, tuple(results)
 
 
+def get_inner_func(module: ModuleOp) -> FuncOp:
+    assert len(module.ops) == 1
+    assert isinstance(module.ops.first, FuncOp)
+    return module.ops.first
+
+
+def func_ops(func: FuncOp) -> ...:
+    assert len(func.body.blocks) == 1
+    return func.body.blocks[0].ops
+
+
+def func_len(func: FuncOp) -> int:
+    return len(func_ops(func))
+
+
+def value_matches(lhs_value: SSAValue, prog_value: SSAValue) -> bool:
+    # TODO: Take a look at Operation.is_structurally_equivalent
+    match lhs_value, prog_value:
+        case BlockArgument(index=i), BlockArgument(index=j):
+            return i == j
+        case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
+            if not isinstance(prog_op, type(lhs_op)):
+                return False
+            if len(lhs_op.operands) != len(prog_op.operands):
+                return False
+            for lhs_operand, prog_operand in zip(
+                lhs_op.operands, prog_op.operands, strict=True
+            ):
+                if not value_matches(lhs_operand, prog_operand):
+                    return False
+            return True
+        case _:
+            return False
+
+
+class PeepholeRewriter(RewritePattern):
+    lhs_ret: ReturnOp
+    rhs_ops: list[Operation]
+    rhs_res: tuple[SSAValue, ...]
+
+    def __init__(self, lhs: FuncOp, rhs: FuncOp):
+        assert len(lhs.body.blocks) == 1
+        assert len(rhs.body.blocks) == 1
+
+        lhs_ret = lhs.get_return_op()
+        assert lhs_ret is not None
+        self.lhs_ret = lhs_ret
+
+        rhs_ret = rhs.get_return_op()
+        assert rhs_ret is not None
+        # The last operation is a return.
+        self.rhs_ops = list(rhs.body.blocks[0].ops)[:-1]
+        self.rhs_res = rhs_ret.arguments
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter) -> None:
+        # We assume operands have no side-effect.
+        if len(self.lhs_ret.arguments) != len(op.results):
+            return
+        for lhs_op, prog_op in zip(self.lhs_ret.arguments, op.results, strict=True):
+            if not value_matches(lhs_op, prog_op):
+                return
+        # Add all operations from the LHS
+        # TODO: Make sure `self.rhs_res` still has a meaning when it's used in
+        #  another block.
+        rewriter.replace_matched_op([op.clone() for op in self.rhs_ops], self.rhs_res)
+
+
+def try_rewrite(lhs: ModuleOp, rhs: ModuleOp, program: ModuleOp) -> ModuleOp | None:
+    new_program = program.clone()
+    for op in func_ops(get_inner_func(new_program)):
+        rewriter = PatternRewriter(op)
+        PeepholeRewriter(get_inner_func(lhs), get_inner_func(rhs)).match_and_rewrite(
+            op, rewriter
+        )
+        if rewriter.has_done_action:
+            # print(get_inner_func(lhs))
+            # print(get_inner_func(rhs))
+            # print(get_inner_func(program))
+            # print(get_inner_func(new_program))
+            # print()
+            return new_program
+    return None
+
+
+def remove_superfluous(bucket: list[ModuleOp]) -> int:
+    # Programs appear in the bucket by increasing number of operations. The
+    # exact order of programs in the bucket is used when arbitrary decisions
+    # have to be made. This arbitrary total strict order on programs is denoted
+    # by <. It is a superset of the strict order on program induced by their
+    # sizes.
+    bucket.sort(key=lambda m: func_len(get_inner_func(m)))
+
+    # Remove any program that can be rewriten into another program of the bucket
+    # using a single rewrite rule that arises from other programs of the bucket.
+    removed_count = 0
+    removed = [False] * len(bucket)
+    for k, q1m in enumerate(bucket):
+        print(f" {k}/{len(bucket)}, removed {removed_count}", end="\r")
+        q1 = get_inner_func(q1m)
+        for i, p1m in enumerate(bucket):
+            p1 = get_inner_func(p1m)
+            if func_len(p1) >= func_len(q1):
+                break
+            # |p1| < |q1|
+            for p2m in bucket[:i]:
+                # p2 < p1
+                q2m = try_rewrite(p1m, p2m, q1m)
+                if q2m is None:
+                    continue
+                # q1 ~>_p1^p2 q2
+                if len(list(filter(q2m.is_structurally_equivalent, bucket))) != 0:
+                    continue
+                # q2 ∈ initial_bucket
+                q2 = get_inner_func(q2m)
+                if func_len(q1) < func_len(q2):
+                    continue
+                # |q2| <= |q1|
+                if removed[k]:
+                    continue
+                removed[k] = True
+                removed_count += 1
+                # If |q1| = |q2|, is it possible that we later discover that
+                # q2 ~>_p'1^p'2 q1 for some p'2 < p'1, and thus remove q2 as
+                # well?
+                # No. We must have (p'1, p'2) = (p2, p1), and thus p'1 < p'2,
+                # which prevents us from getting to this point.
+
+    # Mutate the argument
+    new_bucket = [module for module, remove in zip(bucket, removed) if not remove]
+    del bucket[:]
+    bucket.extend(new_bucket)
+
+    return removed_count
+
+
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--max-num-args",
@@ -169,10 +312,16 @@ def main() -> None:
         print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
 
         # Write disk files for each bucket.
+        print("Removing superfluous programs...")
         for images, bucket in buckets.items():
             if not os.path.exists(args.out_dir):
                 os.makedirs(args.out_dir)
             file_name = "-".join(repr(image) for image in images)
+            initial_bucket_size = len(bucket)
+            removed_count = remove_superfluous(bucket)
+            print(
+                f"Removed {removed_count}/{initial_bucket_size} programs from bucket {file_name}"
+            )
             with open(
                 os.path.join(args.out_dir, file_name), "w", encoding="utf-8"
             ) as f:
