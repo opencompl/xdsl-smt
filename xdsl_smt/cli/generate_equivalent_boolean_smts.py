@@ -287,6 +287,25 @@ def main() -> None:
                 print(f" {i}/{program_count} ({percentage} %)...", end="\r")
         print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
 
+        # Remove duplicates.
+        print("Removing duplicate programs...")
+        progress = 0
+        duplicate_count = 0
+        for bucket in buckets.values():
+            for k, program in reversed(list(enumerate(bucket))):
+                for other in bucket[:k]:
+                    if str(program).splitlines()[2:] == str(other).splitlines()[2:]:
+                        duplicate_count += 1
+                        del bucket[k]
+                        break
+                progress += 1
+                print(
+                    f" {progress}/{program_count} (removed {duplicate_count})", end="\r"
+                )
+        print(
+            f"Removed {duplicate_count} duplicate programs ({program_count - duplicate_count} remaining programs)."
+        )
+
         # Write disk files for each bucket.
         print("Removing superfluous programs...")
         removed_count = remove_superfluous(buckets.values())
