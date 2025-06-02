@@ -10,7 +10,7 @@ from multiprocessing import Pool
 from typing import Generator, Iterable
 
 from xdsl.context import Context
-from xdsl.ir.core import BlockArgument, OpResult, SSAValue
+from xdsl.ir.core import BlockArgument, BlockOps, OpResult, SSAValue
 from xdsl.parser import Parser
 
 from xdsl_smt.dialects.smt_dialect import BoolAttr
@@ -145,9 +145,8 @@ def get_inner_func(module: ModuleOp) -> FuncOp:
     return module.ops.first
 
 
-def func_ops(func: FuncOp) -> ...:
-    assert len(func.body.blocks) == 1
-    return func.body.blocks[0].ops
+def func_ops(func: FuncOp) -> BlockOps:
+    return func.body.block.ops
 
 
 def func_len(func: FuncOp) -> int:
@@ -155,21 +154,23 @@ def func_len(func: FuncOp) -> int:
 
 
 def value_matches(
-    argument_values: list[SSAValue | None], lhs_value: SSAValue, prog_value: SSAValue
+    lhs_value: SSAValue,
+    prog_value: SSAValue,
+    left_argument_values: list[SSAValue | None] | None,
 ) -> bool:
     match lhs_value, prog_value:
         case BlockArgument(index=i), x:
-            # We "unify" the LHS argument with the corresponding program
-            # value.
-            if len(argument_values) <= i:
-                print(argument_values, lhs_value, i)
-            if argument_values[i] is None:
-                argument_values[i] = x
+            # If `left_argument_values is None`, then we should match the LHS as
+            # is.
+            if left_argument_values is None:
+                return isinstance(x, BlockArgument) and x.index == i
+            # `left_argument_values is not None`: we "unify" the LHS argument
+            # with the corresponding program value.
+            expected_value = left_argument_values[i]
+            if expected_value is None:
+                left_argument_values[i] = x
                 return True
-            # TODO: Use `is_structurally_equivalent` here instead? Does it
-            # handle block arguments properly? E.g., `%arg0` is not the same as
-            # `%arg1`.
-            return argument_values[i] == x
+            return value_matches(expected_value, x, None)
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
             # TODO: Take attributes into account.
             if i != j:
@@ -181,7 +182,7 @@ def value_matches(
             for lhs_operand, prog_operand in zip(
                 lhs_op.operands, prog_op.operands, strict=True
             ):
-                if not value_matches(argument_values, lhs_operand, prog_operand):
+                if not value_matches(lhs_operand, prog_operand, left_argument_values):
                     return False
             return True
         case _:
@@ -189,7 +190,7 @@ def value_matches(
 
 
 def program_contains_lhs(program: FuncOp, lhs: FuncOp) -> bool:
-    # TODO: Do we want to make this optimization. As long as our programs aren't
+    # TODO: Do we want to make this optimization? Since our programs aren't
     #  guaranteed to be DAGs, I'm not sure.
     # if func_len(lhs) > func_len(program):
     #     return False
@@ -197,14 +198,11 @@ def program_contains_lhs(program: FuncOp, lhs: FuncOp) -> bool:
     lhs_ret = lhs.get_return_op()
     assert lhs_ret is not None
 
-    prog = program
-    assert len(prog.body.blocks) == 1
-
-    for op in prog.body.blocks[0].ops:
+    for op in func_ops(program):
         argument_values: list[SSAValue | None] = [None] * len(lhs.args)
         if len(lhs_ret.arguments) == len(op.results) and all(
             map(
-                lambda l, p: value_matches(argument_values, l, p),
+                lambda l, p: value_matches(l, p, argument_values),
                 lhs_ret.arguments,
                 op.results,
             )
@@ -221,7 +219,7 @@ def is_program_superfluous(
 ) -> bool:
     for i, bucket in enumerate(buckets):
         for k, lhs in enumerate(bucket):
-            # Don't try to find a canonical representative in the program.
+            # We don't try to find canonical representatives in programs.
             if k == 0:
                 continue
             # Don't try to match a program with itself, or with any further
@@ -295,7 +293,7 @@ def main() -> None:
         print(f"Removed {removed_count} programs from all buckets")
 
         remaining_count = sum(len(bucket) for bucket in buckets.values())
-        print(f"Remaining programs: {remaining_count}")
+        print(f"Remaining programs: {remaining_count}.")
 
         for images, bucket in buckets.items():
             if not os.path.exists(args.out_dir):
