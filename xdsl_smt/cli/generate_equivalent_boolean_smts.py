@@ -24,6 +24,41 @@ from xdsl.dialects.func import Func, FuncOp
 from xdsl_smt.cli.xdsl_smt_run import interpret_module
 
 
+def register_all_arguments(arg_parser: argparse.ArgumentParser):
+    arg_parser.add_argument(
+        "--max-num-args",
+        type=int,
+        help="maximum number of arguments in the generated MLIR programs",
+    )
+    arg_parser.add_argument(
+        "--max-num-ops",
+        type=int,
+        help="maximum number of operations in the MLIR programs that are generated",
+    )
+    arg_parser.add_argument(
+        "--out-dir",
+        type=str,
+        help="the directory in which to write the result files",
+    )
+
+
+def init_ctx():
+    ctx = Context()
+    ctx.allow_unregistered = True
+    arg_parser = argparse.ArgumentParser()
+    register_all_arguments(arg_parser)
+    args = arg_parser.parse_args()
+
+    # Register all dialects
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(synth.SynthDialect)
+    return args, ctx
+
+
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
 
@@ -89,23 +124,6 @@ def get_program_count(max_num_args: int, max_num_ops: int) -> int:
             stderr=sp.PIPE,
         ).stdout
     )
-
-
-def init_ctx():
-    ctx = Context()
-    ctx.allow_unregistered = True
-    arg_parser = argparse.ArgumentParser()
-    register_all_arguments(arg_parser)
-    args = arg_parser.parse_args()
-
-    # Register all dialects
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
-    return args, ctx
 
 
 def classify_program(program: str):
@@ -239,24 +257,6 @@ def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
     print("\033[2K", end="\r")
 
     return removed_count
-
-
-def register_all_arguments(arg_parser: argparse.ArgumentParser):
-    arg_parser.add_argument(
-        "--max-num-args",
-        type=int,
-        help="maximum number of arguments in the generated MLIR programs",
-    )
-    arg_parser.add_argument(
-        "--max-num-ops",
-        type=int,
-        help="maximum number of operations in the MLIR programs that are generated",
-    )
-    arg_parser.add_argument(
-        "--out-dir",
-        type=str,
-        help="the directory in which to write the result files",
-    )
 
 
 def main() -> None:
