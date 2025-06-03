@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
-import os
 import argparse
 import itertools
+import os
 import subprocess as sp
+import sys
 import time
 from multiprocessing import Pool
 from typing import Generator, Iterable
@@ -14,14 +14,15 @@ from xdsl.ir import Attribute
 from xdsl.ir.core import BlockArgument, BlockOps, OpResult, SSAValue
 from xdsl.parser import Parser
 
+import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects.smt_dialect import BoolAttr
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-import xdsl_smt.dialects.synth_dialect as synth
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp
+
 from xdsl_smt.cli.xdsl_smt_run import arity, build_interpreter, interpret
 
 
