@@ -15,10 +15,10 @@ from xdsl.ir.core import BlockArgument, BlockOps, OpResult, SSAValue
 from xdsl.parser import Parser
 
 import xdsl_smt.dialects.synth_dialect as synth
-from xdsl_smt.dialects.smt_dialect import BoolAttr
+from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
+from xdsl_smt.dialects.smt_dialect import BoolAttr, SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp
@@ -261,6 +261,58 @@ def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
     return removed_count
 
 
+def pretty_print_value(x: SSAValue, nested: bool = False):
+    infix = isinstance(x, OpResult) and (
+        isinstance(x.op, smt.BinaryBoolOp)
+        or isinstance(x.op, smt.BinaryTOp)
+        or isinstance(x.op, smt.IteOp)
+    )
+    if infix and nested:
+        print("(", end="")
+    match x:
+        case BlockArgument(index=i):
+            print(("x", "y", "z")[i], end="")
+        case OpResult(op=smt.NotOp(arg=arg), index=0):
+            print("¬", end="")
+            pretty_print_value(arg, True)
+        case OpResult(op=smt.AndOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" ∧ ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=smt.OrOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" ∨ ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" → ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" ≠ ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" = ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=smt.XorOp(lhs=lhs, rhs=rhs), index=0):
+            pretty_print_value(lhs, True)
+            print(" ⊕ ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(
+            op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
+        ):
+            pretty_print_value(cond, True)
+            print(" ? ", end="")
+            pretty_print_value(true_val, True)
+            print(" : ", end="")
+            pretty_print_value(false_val, True)
+        case _:
+            raise ValueError("Unknown value:", x)
+    if infix and nested:
+        print(")", end="")
+
+
 def main() -> None:
     args, _ = init_ctx()
 
@@ -279,6 +331,7 @@ def main() -> None:
         program_count = get_program_count(args.max_num_args, args.max_num_ops)
 
         print(f"Classifying {program_count} programs...")
+        actual_program_count = 0
         with Pool() as p:
             for i, (module, results) in enumerate(
                 p.imap_unordered(
@@ -289,9 +342,11 @@ def main() -> None:
                 buckets[results].append(module)
                 percentage = round(i / program_count * 100.0)
                 print(f" {i}/{program_count} ({percentage} %)...", end="\r")
-        print(f"Classified {program_count} programs in {int(time.time() - start)} s.")
+                actual_program_count += 1
+        print(
+            f"Classified {actual_program_count} programs in {int(time.time() - start)} s."
+        )
 
-        # Remove duplicates.
         print("Removing duplicate programs...")
         progress = 0
         duplicate_count = 0
@@ -310,7 +365,6 @@ def main() -> None:
             f"Removed {duplicate_count} duplicate programs ({program_count - duplicate_count} remaining programs)."
         )
 
-        # Write disk files for each bucket.
         print("Removing superfluous programs...")
         removed_count = remove_superfluous(buckets.values())
         print(f"Removed {removed_count} programs from all buckets")
@@ -333,6 +387,19 @@ def main() -> None:
                 for module in bucket:
                     f.write(str(module))
                     f.write("\n// -----\n")
+
+        print("Summary of the generated buckets below:\n")
+        for images, bucket in buckets.items():
+            for inputs, output in zip(
+                itertools.product((0, 1), repeat=args.max_num_args), images
+            ):
+                print(f"\t{inputs} ↦ {int(output)}")
+            for program in bucket:
+                ret = get_inner_func(program).get_return_op()
+                assert ret is not None
+                pretty_print_value(ret.arguments[0])
+                print()
+            print()
 
     except BrokenPipeError as e:
         # The enumerator has terminated
