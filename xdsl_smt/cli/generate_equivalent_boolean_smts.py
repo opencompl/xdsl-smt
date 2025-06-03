@@ -42,6 +42,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         type=str,
         help="the directory in which to write the result files",
     )
+    arg_parser.add_argument(
+        "--summary",
+        dest="summary",
+        action="store_true",
+        help="if present, prints a human-readable summary of the buckets",
+    )
 
 
 def init_ctx():
@@ -291,7 +297,7 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
         print("(", end="")
     match x:
         case BlockArgument(index=i):
-            print(("x", "y", "z")[i], end="")
+            print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
         case OpResult(op=smt.NotOp(arg=arg), index=0):
             print("¬", end="")
             pretty_print_value(arg, True)
@@ -408,18 +414,19 @@ def main() -> None:
                     f.write(str(module))
                     f.write("\n// -----\n")
 
-        print("Summary of the generated buckets below:\n")
-        for images, bucket in buckets.items():
-            for inputs, output in zip(
-                itertools.product((0, 1), repeat=args.max_num_args), images
-            ):
-                print(f"\t{inputs} ↦ {int(output)}")
-            for program in bucket:
-                ret = get_inner_func(program).get_return_op()
-                assert ret is not None
-                pretty_print_value(ret.arguments[0])
+        if args.summary:
+            print("Summary of the generated buckets below:\n")
+            for images, bucket in buckets.items():
+                for inputs, output in zip(
+                    itertools.product((0, 1), repeat=args.max_num_args), images
+                ):
+                    print(f"\t{inputs} ↦ {int(output)}")
+                for program in bucket:
+                    ret = get_inner_func(program).get_return_op()
+                    assert ret is not None
+                    pretty_print_value(ret.arguments[0])
+                    print()
                 print()
-            print()
 
     except BrokenPipeError as e:
         # The enumerator has terminated
