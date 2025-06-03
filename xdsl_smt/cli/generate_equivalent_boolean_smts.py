@@ -10,6 +10,7 @@ from multiprocessing import Pool
 from typing import Generator, Iterable
 
 from xdsl.context import Context
+from xdsl.ir import Attribute
 from xdsl.ir.core import BlockArgument, BlockOps, OpResult, SSAValue
 from xdsl.parser import Parser
 
@@ -21,7 +22,7 @@ from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl.dialects.builtin import Builtin, ModuleOp
 from xdsl.dialects.func import Func, FuncOp
-from xdsl_smt.cli.xdsl_smt_run import interpret_module
+from xdsl_smt.cli.xdsl_smt_run import arity, build_interpreter, interpret
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -132,7 +133,9 @@ def classify_program(program: str):
     # Evaluate a program with all possible inputs.
     results: list[bool] = []
     for values in itertools.product((False, True), repeat=args.max_num_args):
-        res = interpret_module(module, map(BoolAttr, values), 64)
+        interpreter = build_interpreter(module, 64)
+        arguments: list[Attribute] = [BoolAttr(val) for val in values]
+        res = interpret(interpreter, arguments[: arity(interpreter)])
         assert len(res) == 1
         assert isinstance(res[0], bool)
         results.append(res[0])

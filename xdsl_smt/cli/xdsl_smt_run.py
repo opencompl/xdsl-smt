@@ -1,7 +1,7 @@
 import argparse
 import sys
 from collections.abc import Sequence
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 from xdsl.context import Context
 from xdsl.dialects.builtin import ModuleOp
@@ -15,29 +15,44 @@ from xdsl.traits import CallableOpInterface
 from xdsl_smt.interpreters.smt import SMTFunctions
 
 
-def interpret_module(
-    module: ModuleOp, arguments: Iterable[Attribute], index_bitwidth: Literal[32, 64]
-) -> tuple[Any, ...]:
+def build_interpreter(module: ModuleOp, index_bitwidth: Literal[32, 64]) -> Interpreter:
     module.verify()
 
     interpreter = Interpreter(module, index_bitwidth=index_bitwidth)
     interpreter.register_implementations(FuncFunctions())
     interpreter.register_implementations(SMTFunctions())
 
+    return interpreter
+
+
+def arity(interpreter: Interpreter) -> int:
     op = interpreter.get_op_for_symbol("main")
     trait = op.get_trait(CallableOpInterface)
     assert trait is not None
+    return len(trait.get_argument_types(op))
+
+
+def interpret(
+    interpreter: Interpreter, arguments: Sequence[Attribute]
+) -> tuple[Any, ...]:
+    op = interpreter.get_op_for_symbol("main")
+    trait = op.get_trait(CallableOpInterface)
+    assert trait is not None
+    argument_types = trait.get_argument_types(op)
+
+    if len(arguments) != len(argument_types):
+        raise ValueError(
+            f"Wrong number of arguments provided (expected {len(argument_types)}, found {len(arguments)})"
+        )
 
     args = tuple(
         interpreter.value_for_attribute(attr, attr_type)
-        for attr, attr_type in zip(arguments, trait.get_argument_types(op))
+        for attr, attr_type in zip(arguments, argument_types)
     )
     return interpreter.call_op(op, args)
 
 
 class xDSLRunMain(CommandLineTool):
-    interpreter: Interpreter
-
     def __init__(
         self,
         description: str = "xDSL-SMT runner",
@@ -90,7 +105,8 @@ class xDSLRunMain(CommandLineTool):
             )
             if runner_args is None:
                 runner_args = ()
-            result = interpret_module(module, runner_args, self.args.index_bitwidth)
+            interpreter = build_interpreter(module, self.args.index_bitwidth)
+            result = interpret(interpreter, runner_args)
             if result:
                 if len(result) == 1:
                     print(f"{result[0]}")
