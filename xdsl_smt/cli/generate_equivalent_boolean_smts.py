@@ -153,11 +153,11 @@ def func_ops(func: FuncOp) -> BlockOps:
     return func.body.block.ops
 
 
-def func_len(func: FuncOp) -> int:
-    return len(func_ops(func))
+def module_size(module: ModuleOp) -> int:
+    return len(func_ops(get_inner_func(module)))
 
 
-def value_matches(
+def unify_value(
     lhs_value: SSAValue,
     prog_value: SSAValue,
     left_argument_values: list[SSAValue | None] | None,
@@ -174,7 +174,7 @@ def value_matches(
             if expected_value is None:
                 left_argument_values[i] = x
                 return True
-            return value_matches(expected_value, x, None)
+            return unify_value(expected_value, x, None)
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
             # TODO: Take attributes into account.
             if i != j:
@@ -186,27 +186,46 @@ def value_matches(
             for lhs_operand, prog_operand in zip(
                 lhs_op.operands, prog_op.operands, strict=True
             ):
-                if not value_matches(lhs_operand, prog_operand, left_argument_values):
+                if not unify_value(lhs_operand, prog_operand, left_argument_values):
                     return False
             return True
         case _:
             return False
 
 
+def program_is_specialization(program: FuncOp, lhs: FuncOp) -> bool:
+    prog_ret = program.get_return_op()
+    assert prog_ret is not None
+
+    lhs_ret = lhs.get_return_op()
+    assert lhs_ret is not None
+
+    argument_values: list[SSAValue | None] = [None] * len(lhs.args)
+    return len(prog_ret.arguments) == len(lhs_ret.arguments) and all(
+        map(
+            lambda l, p: unify_value(l, p, argument_values),
+            lhs_ret.arguments,
+            prog_ret.arguments,
+        )
+    )
+
+
 def program_contains_lhs(program: FuncOp, lhs: FuncOp) -> bool:
-    # TODO: Do we want to make this optimization? Since our programs aren't
-    #  guaranteed to be DAGs, I'm not sure.
-    # if func_len(lhs) > func_len(program):
-    #     return False
+    # We handle this separately because what we do below is testing whether the
+    # result of some operation in the program can be expressed in terms of the
+    # LHS. Here, we test specifically whether the return values of the program
+    # can be expressed in terms of the LHS
+    if program_is_specialization(program, lhs):
+        return True
 
     lhs_ret = lhs.get_return_op()
     assert lhs_ret is not None
 
     for op in func_ops(program):
         argument_values: list[SSAValue | None] = [None] * len(lhs.args)
-        if len(lhs_ret.arguments) == len(op.results) and all(
+        if len(op.results) == len(lhs_ret.arguments) and all(
             map(
-                lambda l, p: value_matches(l, p, argument_values),
+                lambda l, p: unify_value(l, p, argument_values),
                 lhs_ret.arguments,
                 op.results,
             )
@@ -223,14 +242,15 @@ def is_program_superfluous(
 ) -> bool:
     for i, bucket in enumerate(buckets):
         for k, lhs in enumerate(bucket):
-            # We don't try to find canonical representatives in programs.
-            if k == 0:
-                continue
             # Don't try to match a program with itself, or with any further
             # program in its bucket.
             if i == program_bucket and k >= program_index:
                 break
-            if program_contains_lhs(get_inner_func(program), get_inner_func(lhs)):
+            # We do now allow matching a program against its canonical
+            # representative.
+            if k != 0 and program_contains_lhs(
+                get_inner_func(program), get_inner_func(lhs)
+            ):
                 return True
     return False
 
@@ -241,7 +261,7 @@ def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
     # program of that bucket that is allowed to appear as a strict subprogram of
     # any program.
     for bucket in buckets:
-        bucket.sort(key=lambda m: func_len(get_inner_func(m)))
+        bucket.sort(key=lambda m: module_size(m))
 
     removed_count = 0
     for i, bucket in enumerate(buckets):
