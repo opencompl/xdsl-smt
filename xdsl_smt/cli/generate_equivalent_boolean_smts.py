@@ -101,8 +101,12 @@ def func_ops(func: FuncOp) -> BlockOps:
     return func.body.block.ops
 
 
-def module_size(module: ModuleOp) -> int:
-    return len(func_ops(get_inner_func(module)))
+def program_size(program: ModuleOp) -> int:
+    size = 0
+    for op in func_ops(get_inner_func(program)):
+        if not isinstance(op, smt.ConstantBoolOp):
+            size += 1
+    return size
 
 
 def enumerate_programs(
@@ -249,7 +253,7 @@ def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
     # program of that bucket that is allowed to appear as a strict subprogram of
     # any program.
     for bucket in buckets:
-        bucket.sort(key=lambda m: module_size(m))
+        bucket.sort(key=lambda m: program_size(m))
 
     removed_count = 0
     for i, bucket in enumerate(buckets):
