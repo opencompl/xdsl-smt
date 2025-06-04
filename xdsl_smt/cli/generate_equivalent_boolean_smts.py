@@ -375,6 +375,17 @@ def main() -> None:
             f"Classified {actual_program_count} programs in {int(time.time() - start)} s."
         )
 
+        print("Removing duplicate programs...")
+        for i, bucket in enumerate(buckets.values()):
+            print(f" {i}/{len(buckets)} buckets done...", end="\r")
+            for program in bucket:
+                del get_inner_func(program).attributes["seed"]
+            bucket[:] = {str(program): program for program in bucket}.values()
+        remaining_count = sum(len(bucket) for bucket in buckets.values())
+        print(
+            f"Removed {actual_program_count - remaining_count} duplicate programs ({remaining_count} remaining programs)."
+        )
+
         print("Removing superfluous programs...")
         removed_count = remove_superfluous(buckets.values())
         print(f"Removed {removed_count} programs from all buckets")
