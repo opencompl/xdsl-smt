@@ -435,6 +435,8 @@ def main() -> None:
         pass
     except Exception as e:
         print(f"Error while enumerating programs: {e}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("Interrupted by user", file=sys.stderr)
 
 
 if __name__ == "__main__":
