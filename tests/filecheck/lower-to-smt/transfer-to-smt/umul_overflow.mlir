@@ -16,7 +16,7 @@
 // CHECK-NEXT:      %r_1 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 1>} : () -> !smt.bv.bv<1>
 // CHECK-NEXT:      %r_2 = "smt.bv.constant"() {value = #smt.bv.bv_val<1: 1>} : () -> !smt.bv.bv<1>
 // CHECK-NEXT:      %r_3 = "smt.ite"(%r, %r_2, %r_1) : (!smt.bool, !smt.bv.bv<1>, !smt.bv.bv<1>) -> !smt.bv.bv<1>
-// CHECK-NEXT:      %r_4 = "smt.constant_bool"() {value = #smt.bool_attr<false>} : () -> !smt.bool
+// CHECK-NEXT:      %r_4 = "smt.constant"() <{value = false}> : () -> !smt.bool
 // CHECK-NEXT:      %r_5 = "smt.utils.pair"(%r_3, %r_4) : (!smt.bv.bv<1>, !smt.bool) -> !smt.utils.pair<!smt.bv.bv<1>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%r_5, %1) : (!smt.utils.pair<!smt.bv.bv<1>, !smt.bool>, !effect.state) -> ()
 // CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.bv.bv<8>, !smt.bv.bv<8>, !effect.state) -> (!smt.utils.pair<!smt.bv.bv<1>, !smt.bool>, !effect.state))

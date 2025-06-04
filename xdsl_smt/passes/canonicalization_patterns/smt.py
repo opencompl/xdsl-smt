@@ -16,7 +16,7 @@ def get_bool_constant(value: SSAValue) -> bool | None:
         return None
     if not isinstance((constant := value.op), smt.ConstantBoolOp):
         return None
-    return constant.value.data
+    return constant.value.value.data != 0
 
 
 def get_bv_constant(value: SSAValue) -> int | None:

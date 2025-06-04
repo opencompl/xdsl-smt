@@ -5,7 +5,7 @@ from typing import Sequence, TypeVar, IO
 from xdsl import traits
 from xdsl.traits import IsTerminator, HasCanonicalizationPatternsTrait
 from xdsl.irdl import (
-    attr_def,
+    prop_def,
     opt_attr_def,
     operand_def,
     result_def,
@@ -22,7 +22,6 @@ from xdsl.ir import (
     Block,
     Dialect,
     OpResult,
-    Data,
     Operation,
     ParametrizedAttribute,
     Attribute,
@@ -30,9 +29,7 @@ from xdsl.ir import (
     Region,
     TypeAttribute,
 )
-from xdsl.parser import AttrParser
-from xdsl.printer import Printer
-from xdsl.dialects.builtin import FunctionType, StringAttr
+from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -525,43 +522,25 @@ class BinaryTOp(IRDLOperation, Pure):
             raise VerifyException("Operands must have the same type")
 
 
-@irdl_attr_definition
-class BoolAttr(Data[bool]):
-    """Boolean value."""
-
-    name = "smt.bool_attr"
-
-    @classmethod
-    def parse_parameter(cls, parser: AttrParser) -> bool:
-        with parser.in_angle_brackets():
-            if parser.parse_optional_keyword("true"):
-                return True
-            if parser.parse_optional_keyword("false"):
-                return False
-            parser.raise_error("'true' or 'false' expected")
-
-    def print_parameter(self, printer: Printer) -> None:
-        printer.print("<true>" if self.data else "<false>")
-
-
 @irdl_op_definition
 class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     """Boolean constant."""
 
-    name = "smt.constant_bool"
+    name = "smt.constant"
 
     res: OpResult = result_def(BoolType)
-    value: BoolAttr = attr_def(BoolAttr)
+    value: BoolAttr = prop_def(BoolAttr)
 
     traits = traits_def(traits.Pure())
 
     def __init__(self, value: bool):
         super().__init__(
-            result_types=[BoolType()], attributes={"value": BoolAttr(value)}
+            result_types=[BoolType()],
+            properties={"value": IntegerAttr(-1 if value else 0, 1)},
         )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        if self.value.data:
+        if self.value.value.data:
             print("true", file=stream, end="")
         else:
             print("false", file=stream, end="")
@@ -569,7 +548,8 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     @staticmethod
     def from_bool(value: bool) -> ConstantBoolOp:
         return ConstantBoolOp.create(
-            result_types=[BoolType([])], attributes={"value": BoolAttr(value)}
+            result_types=[BoolType([])],
+            properties={"value": IntegerAttr(-1 if value else 0, 1)},
         )
 
 
@@ -823,5 +803,5 @@ SMTDialect = Dialect(
         IteOp,
         EvalOp,
     ],
-    [BoolType, BoolAttr],
+    [BoolType],
 )

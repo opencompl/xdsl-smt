@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from xdsl.ir import Attribute
 
+from xdsl.dialects.builtin import IntegerAttr
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.interpreter import (
     Interpreter,
@@ -21,16 +22,22 @@ class SMTFunctions(InterpreterFunctions):
     @impl_attr(smt.BoolType)
     def bool_attr_value(
         self, interpreter: Interpreter, attr: Attribute, attr_type: smt.BoolType
-    ) -> float:
-        interpreter.interpreter_assert(isinstance(attr, smt.BoolAttr))
-        attr = cast(smt.BoolAttr, attr)
-        return attr.data
+    ) -> bool:
+        interpreter.interpreter_assert(isinstance(attr, IntegerAttr))
+        attr = cast(IntegerAttr, attr)
+        return attr.value.data != 0
 
     @impl_terminator(smt.ReturnOp)
     def run_return(
         self, interpreter: Interpreter, op: smt.ReturnOp, args: tuple[Any, ...]
     ) -> tuple[TerminatorValue, PythonValues]:
         return ReturnedValues(args), ()
+
+    @impl(smt.ConstantBoolOp)
+    def run_constant(
+        self, interpreter: Interpreter, op: smt.ConstantBoolOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return (bool(op.value),)
 
     @impl(smt.NotOp)
     def run_not(

@@ -18,9 +18,9 @@ import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_dialect import BoolAttr, SMTDialect
+from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr
 from xdsl.dialects.func import Func, FuncOp
 
 from xdsl_smt.cli.xdsl_smt_run import arity, build_interpreter, interpret
@@ -141,7 +141,7 @@ def classify_program(program: str):
     results: list[bool] = []
     for values in itertools.product((False, True), repeat=args.max_num_args):
         interpreter = build_interpreter(module, 64)
-        arguments: list[Attribute] = [BoolAttr(val) for val in values]
+        arguments: list[Attribute] = [IntegerAttr.from_bool(val) for val in values]
         res = interpret(interpreter, arguments[: arity(interpreter)])
         assert len(res) == 1
         assert isinstance(res[0], bool)
@@ -298,6 +298,8 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
     match x:
         case BlockArgument(index=i):
             print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+        case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
+            print("⊤" if val else "⊥", end="")
         case OpResult(op=smt.NotOp(arg=arg), index=0):
             print("¬", end="")
             pretty_print_value(arg, True)

@@ -10,7 +10,7 @@
 // CHECK-NEXT:    %memory = memory.get_memory %state
 // CHECK-NEXT:    %bid, %0 = memory.get_fresh_block_id %memory
 // CHECK-NEXT:    %block = memory.get_block %0[%bid]
-// CHECK-NEXT:    %1 = "smt.constant_bool"() {value = #smt.bool_attr<true>} : () -> !smt.bool
+// CHECK-NEXT:    %1 = "smt.constant"() <{value = true}> : () -> !smt.bool
 // CHECK-NEXT:    %block_1 = memory.set_block_live_marker %block, %1
 // CHECK-NEXT:    %block_2 = memory.set_block_size %block_1, %size
 // CHECK-NEXT:    %memory_1 = memory.set_block %block_2, %0[%bid]

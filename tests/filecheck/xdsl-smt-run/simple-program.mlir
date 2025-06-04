@@ -1,4 +1,4 @@
-// RUN: xdsl-smt-run %s --args="#smt.bool_attr<true>" | FileCheck %s
+// RUN: xdsl-smt-run %s --args="true" | FileCheck %s
 
 func.func @main(%t : !smt.bool) -> !smt.bool {
   %u = "smt.not"(%t) : (!smt.bool) -> !smt.bool
