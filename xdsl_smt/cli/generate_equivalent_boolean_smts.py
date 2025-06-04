@@ -50,69 +50,8 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def init_ctx():
-    ctx = Context()
-    ctx.allow_unregistered = True
-    arg_parser = argparse.ArgumentParser()
-    register_all_arguments(arg_parser)
-    args = arg_parser.parse_args()
-
-    # Register all dialects
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
-    return args, ctx
-
-
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
-
-
-def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
-    program_lines = list[str]()
-    assert enumerator.stdout is not None
-    while True:
-        output = enumerator.stdout.readline()
-
-        # End of program marker
-        if output == "// -----\n":
-            return "".join(program_lines)
-
-        # End of file
-        if not output:
-            return None
-
-        # Add the line to the program lines otherwise
-        program_lines.append(output)
-
-
-def enumerate_programs(
-    max_num_args: int, max_num_ops: int
-) -> Generator[str, None, None]:
-    enumerator = sp.Popen(
-        [
-            MLIR_ENUMERATE,
-            SMT_MLIR,
-            "--configuration=smt",
-            f"--max-num-args={max_num_args}",
-            f"--max-num-ops={max_num_ops}",
-            "--pause-between-programs",
-            "--mlir-print-op-generic",
-        ],
-        text=True,
-        stdin=sp.PIPE,
-        stdout=sp.PIPE,
-    )
-
-    while (program := read_program_from_enumerator(enumerator)) is not None:
-        yield program
-        # Send a character to the enumerator to continue
-        assert enumerator.stdin is not None
-        enumerator.stdin.write("a")
-        enumerator.stdin.flush()
 
 
 def get_program_count(max_num_args: int, max_num_ops: int) -> int:
@@ -134,19 +73,22 @@ def get_program_count(max_num_args: int, max_num_ops: int) -> int:
     )
 
 
-def classify_program(program: str):
-    args, ctx = init_ctx()
-    module = Parser(ctx, program).parse_module(True)
-    # Evaluate a program with all possible inputs.
-    results: list[bool] = []
-    for values in itertools.product((False, True), repeat=args.max_num_args):
-        interpreter = build_interpreter(module, 64)
-        arguments: list[Attribute] = [IntegerAttr.from_bool(val) for val in values]
-        res = interpret(interpreter, arguments[: arity(interpreter)])
-        assert len(res) == 1
-        assert isinstance(res[0], bool)
-        results.append(res[0])
-    return module, tuple(results)
+def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
+    program_lines = list[str]()
+    assert enumerator.stdout is not None
+    while True:
+        output = enumerator.stdout.readline()
+
+        # End of program marker
+        if output == "// -----\n":
+            return "".join(program_lines)
+
+        # End of file
+        if not output:
+            return None
+
+        # Add the line to the program lines otherwise
+        program_lines.append(output)
 
 
 def get_inner_func(module: ModuleOp) -> FuncOp:
@@ -161,6 +103,46 @@ def func_ops(func: FuncOp) -> BlockOps:
 
 def module_size(module: ModuleOp) -> int:
     return len(func_ops(get_inner_func(module)))
+
+
+def enumerate_programs(
+    ctx: Context, max_num_args: int, max_num_ops: int
+) -> Generator[ModuleOp, None, None]:
+    enumerator = sp.Popen(
+        [
+            MLIR_ENUMERATE,
+            SMT_MLIR,
+            "--configuration=smt",
+            f"--max-num-args={max_num_args}",
+            f"--max-num-ops={max_num_ops}",
+            "--pause-between-programs",
+            "--mlir-print-op-generic",
+        ],
+        text=True,
+        stdin=sp.PIPE,
+        stdout=sp.PIPE,
+    )
+
+    while (program := read_program_from_enumerator(enumerator)) is not None:
+        yield Parser(ctx, program).parse_module(True)
+        # Send a character to the enumerator to continue
+        assert enumerator.stdin is not None
+        enumerator.stdin.write("a")
+        enumerator.stdin.flush()
+
+
+def classify_program(params: tuple[int, ModuleOp]):
+    (max_num_args, program) = params
+    # Evaluate a program with all possible inputs.
+    results: list[bool] = []
+    for values in itertools.product((False, True), repeat=max_num_args):
+        interpreter = build_interpreter(program, 64)
+        arguments: list[Attribute] = [IntegerAttr.from_bool(val) for val in values]
+        res = interpret(interpreter, arguments[: arity(interpreter)])
+        assert len(res) == 1
+        assert isinstance(res[0], bool)
+        results.append(res[0])
+    return program, tuple(results)
 
 
 def unify_value(
@@ -252,7 +234,7 @@ def is_program_superfluous(
             # program in its bucket.
             if i == program_bucket and k >= program_index:
                 break
-            # We do now allow matching a program against its canonical
+            # We do not allow matching a program against its canonical
             # representative.
             if k != 0 and program_contains_lhs(
                 get_inner_func(program), get_inner_func(lhs)
@@ -342,7 +324,19 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
 
 
 def main() -> None:
-    args, _ = init_ctx()
+    ctx = Context()
+    ctx.allow_unregistered = True
+    arg_parser = argparse.ArgumentParser()
+    register_all_arguments(arg_parser)
+    args = arg_parser.parse_args()
+
+    # Register all dialects
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(synth.SynthDialect)
 
     # The set of keys is the set of all possible sequences of outputs when
     # presented all the possible inputs. I.e., each key uniquely characterizes a
@@ -361,13 +355,18 @@ def main() -> None:
         print(f"Classifying {program_count} programs...")
         actual_program_count = 0
         with Pool() as p:
-            for i, (module, results) in enumerate(
+            for i, (program, results) in enumerate(
                 p.imap_unordered(
                     classify_program,
-                    enumerate_programs(args.max_num_args, args.max_num_ops),
+                    (
+                        (args.max_num_args, program)
+                        for program in enumerate_programs(
+                            ctx, args.max_num_args, args.max_num_ops
+                        )
+                    ),
                 )
             ):
-                buckets[results].append(module)
+                buckets[results].append(program)
                 percentage = round(i / program_count * 100.0)
                 print(f" {i}/{program_count} ({percentage} %)...", end="\r")
                 actual_program_count += 1
@@ -405,8 +404,8 @@ def main() -> None:
                 ):
                     f.write(f"// {inputs} -> {output}\n")
                 f.write("\n")
-                for module in bucket:
-                    f.write(str(module))
+                for program in bucket:
+                    f.write(str(program))
                     f.write("\n// -----\n")
 
         if args.summary:
