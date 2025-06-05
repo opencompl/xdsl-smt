@@ -168,10 +168,11 @@ def unify_value(
                 return True
             return unify_value(expected_value, x, None)
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
-            # TODO: Take attributes into account.
             if i != j:
                 return False
             if not isinstance(prog_op, type(lhs_op)):
+                return False
+            if prog_op.attributes != prog_op.attributes:
                 return False
             if len(lhs_op.operands) != len(prog_op.operands):
                 return False
