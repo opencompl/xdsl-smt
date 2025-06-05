@@ -109,6 +109,23 @@ def program_size(program: ModuleOp) -> int:
     return size
 
 
+def program_weight(program: ModuleOp) -> tuple[int, int]:
+    """
+    Returns a tuple to be ordered in lexicographic order.
+
+    First value is the number of non-constant operations in the program. Second
+    value is the number of function arguments used.
+    """
+    return program_size(program), len(
+        {
+            operand.index
+            for op in func_ops(get_inner_func(program))
+            for operand in op.operands
+            if isinstance(operand, BlockArgument)
+        }
+    )
+
+
 def enumerate_programs(
     ctx: Context, max_num_args: int, max_num_ops: int
 ) -> Generator[ModuleOp, None, None]:
@@ -254,7 +271,7 @@ def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
     # program of that bucket that is allowed to appear as a strict subprogram of
     # any program.
     for bucket in buckets:
-        bucket.sort(key=lambda m: program_size(m))
+        bucket.sort(key=program_weight)
 
     removed_count = 0
     for i, bucket in enumerate(buckets):
