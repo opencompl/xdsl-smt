@@ -145,7 +145,11 @@ def enumerate_programs(
     )
 
     while (program := read_program_from_enumerator(enumerator)) is not None:
-        yield Parser(ctx, program).parse_module(True)
+        module = Parser(ctx, program).parse_module(True)
+        attributes = get_inner_func(module).attributes
+        if "seed" in attributes:
+            del attributes["seed"]
+        yield module
         # Send a character to the enumerator to continue
         assert enumerator.stdin is not None
         enumerator.stdin.write("a")
@@ -399,8 +403,6 @@ def main() -> None:
         print("Removing duplicate programs...")
         for i, bucket in enumerate(buckets.values()):
             print(f" {i}/{len(buckets)} buckets done...", end="\r")
-            for program in bucket:
-                del get_inner_func(program).attributes["seed"]
             bucket[:] = {str(program): program for program in bucket}.values()
         remaining_count = sum(len(bucket) for bucket in buckets.values())
         print(
