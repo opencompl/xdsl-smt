@@ -5,7 +5,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import IO
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.ir import OpResult, SSAValue, Operation
+from xdsl.dialects.smt import BoolType, BitVectorType
+from xdsl.ir import OpResult, SSAValue, Operation, Attribute
 
 
 class SMTLibSort:
@@ -177,6 +178,19 @@ class SMTConversionCtx:
         for let_value in let_values:
             self.names.remove(self.value_to_name[let_value])
             del self.value_to_name[let_value]
+
+    @staticmethod
+    def print_sort_to_smtlib(attr: Attribute, stream: IO[str]):
+        if isinstance(attr, SMTLibSort):
+            attr.print_sort_to_smtlib(stream)
+            return
+        if isinstance(attr, BoolType):
+            print("Bool", file=stream, end="")
+            return
+        if isinstance(attr, BitVectorType):
+            print(f"(_ BitVec {attr.width.data})", file=stream, end="")
+            return
+        raise Exception(f"Unknown SMT-LIB sort: {attr}")
 
 
 def print_to_smtlib(module: ModuleOp, stream: IO[str]) -> None:

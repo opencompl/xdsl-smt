@@ -12,7 +12,6 @@ from xdsl.irdl import (
     var_result_def,
     region_def,
     var_operand_def,
-    irdl_attr_definition,
     irdl_op_definition,
     Operand,
     IRDLOperation,
@@ -23,13 +22,12 @@ from xdsl.ir import (
     Dialect,
     OpResult,
     Operation,
-    ParametrizedAttribute,
     Attribute,
     SSAValue,
     Region,
-    TypeAttribute,
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
+from xdsl.dialects.smt import BoolType
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -39,17 +37,8 @@ from ..traits.smt_printer import (
     SMTLibOp,
     SMTLibScriptOp,
     SimpleSMTLibOp,
-    SMTLibSort,
     SMTConversionCtx,
 )
-
-
-@irdl_attr_definition
-class BoolType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
-    name = "smt.bool"
-
-    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
-        print("Bool", file=stream, end="")
 
 
 @irdl_op_definition
@@ -109,12 +98,11 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(forall (", file=stream, end="")
         for idx, param in enumerate(self.body.block.args):
-            assert isinstance(param.type, SMTLibSort)
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
                 print(" ", file=stream, end="")
             print(f"({param_name} ", file=stream, end="")
-            param.type.print_sort_to_smtlib(stream)
+            ctx.print_sort_to_smtlib(param.type, stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
         ctx.print_expr_to_smtlib(self.return_val, stream)
@@ -154,12 +142,11 @@ class ExistsOp(IRDLOperation, Pure, SMTLibOp):
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print("(exists (", file=stream, end="")
         for idx, param in enumerate(self.body.blocks[0].args):
-            assert isinstance(param.type, SMTLibSort)
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
                 print(" ", file=stream, end="")
             print(f"({param_name} ", file=stream, end="")
-            param.type.print_sort_to_smtlib(stream)
+            ctx.print_sort_to_smtlib(param.type, stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
         ctx.print_expr_to_smtlib(self.return_val, stream)
@@ -275,17 +262,14 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
         for idx, typ in enumerate(self.func_type.inputs):
             if idx != 0:
                 print(" ", file=stream, end="")
-            if not isinstance(typ, SMTLibSort):
-                raise Exception(f"Type {typ} is not an SMTLib type")
             print(f"(", file=stream, end="")
-            typ.print_sort_to_smtlib(stream)
+            ctx.print_sort_to_smtlib(typ, stream)
             print(")", file=stream, end="")
 
         # Print the function return type
         assert len(self.func_type.outputs.data) == 1
         ret_type = self.func_type.outputs.data[0]
-        assert isinstance(ret_type, SMTLibSort)
-        ret_type.print_sort_to_smtlib(stream)
+        ctx.print_sort_to_smtlib(ret_type, stream)
         print(")", file=stream)
 
 
@@ -389,18 +373,15 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
                 print(" ", file=stream, end="")
             arg_name = ctx.get_fresh_name(arg)
             typ = arg.type
-            if not isinstance(typ, SMTLibSort):
-                raise Exception(f"Type {typ} is not an SMTLib type")
             print(f"({arg_name} ", file=stream, end="")
-            typ.print_sort_to_smtlib(stream)
+            ctx.print_sort_to_smtlib(typ, stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
 
         # Print the function return type
         assert len(self.func_type.outputs.data) == 1
         ret_type = self.func_type.outputs.data[0]
-        assert isinstance(ret_type, SMTLibSort)
-        ret_type.print_sort_to_smtlib(stream)
+        ctx.print_sort_to_smtlib(ret_type, stream)
         print("", file=stream)
 
         # Print the function body
@@ -447,9 +428,8 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         name = ctx.get_fresh_name(self.res)
         typ = self.res.type
-        assert isinstance(typ, SMTLibSort)
         print(f"(declare-const {name} ", file=stream, end="")
-        typ.print_sort_to_smtlib(stream)
+        ctx.print_sort_to_smtlib(typ, stream)
         print(")", file=stream)
 
 

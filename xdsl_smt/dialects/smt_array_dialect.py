@@ -31,7 +31,7 @@ from xdsl.printer import Printer
 from xdsl.traits import Pure, HasCanonicalizationPatternsTrait
 from xdsl.utils.hints import isa
 
-from xdsl_smt.traits.smt_printer import SMTLibSort, SimpleSMTLibOp
+from xdsl_smt.traits.smt_printer import SMTConversionCtx, SMTLibSort, SimpleSMTLibOp
 
 
 DomainT = TypeVar("DomainT", bound=Attribute, covariant=True, default=Attribute)
@@ -57,12 +57,10 @@ class ArrayType(
         )
 
     def print_sort_to_smtlib(self, stream: IO[str]):
-        assert isinstance(self.domain, SMTLibSort)
-        assert isinstance(self.range, SMTLibSort)
         print(f"(Array ", file=stream, end="")
-        self.domain.print_sort_to_smtlib(stream)
+        SMTConversionCtx.print_sort_to_smtlib(self.domain, stream)
         print(" ", file=stream, end="")
-        self.range.print_sort_to_smtlib(stream)
+        SMTConversionCtx.print_sort_to_smtlib(self.range, stream)
         print(")", file=stream)
 
     def __init__(self, domain: DomainT, range: RangeT):

@@ -28,7 +28,10 @@ from xdsl.rewriter import InsertPoint
 from xdsl.traits import HasCanonicalizationPatternsTrait
 from xdsl import traits
 
-from .smt_dialect import SMTLibSort, SimpleSMTLibOp
+from xdsl_smt.traits.smt_printer import SMTConversionCtx
+
+from .smt_dialect import SimpleSMTLibOp
+from xdsl_smt.traits.smt_printer import SMTLibSort
 from ..traits.effects import Pure
 
 _F = TypeVar("_F", bound=Attribute, covariant=True, default=Attribute)
@@ -46,12 +49,10 @@ class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort, TypeAttribute
         super().__init__([first, second])
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
-        assert isinstance(self.first, SMTLibSort)
-        assert isinstance(self.second, SMTLibSort)
         print("(Pair ", file=stream, end="")
-        self.first.print_sort_to_smtlib(stream)
+        SMTConversionCtx.print_sort_to_smtlib(self.first, stream)
         print(" ", file=stream, end="")
-        self.second.print_sort_to_smtlib(stream)
+        SMTConversionCtx.print_sort_to_smtlib(self.second, stream)
         print(")", file=stream, end="")
 
 
