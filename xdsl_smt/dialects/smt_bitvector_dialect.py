@@ -10,7 +10,6 @@ from xdsl.ir import (
     OpResult,
     ParametrizedAttribute,
     SSAValue,
-    TypeAttribute,
     VerifyException,
 )
 from xdsl.irdl import (
@@ -30,37 +29,10 @@ from xdsl import traits
 from xdsl.traits import HasCanonicalizationPatternsTrait
 from xdsl.pattern_rewriter import RewritePattern
 
-from ..traits.smt_printer import SMTConversionCtx, SMTLibOp, SMTLibSort, SimpleSMTLibOp
+from ..traits.smt_printer import SMTConversionCtx, SMTLibOp, SimpleSMTLibOp
 from ..traits.effects import Pure
-from .smt_dialect import BoolType
-
-
-@irdl_attr_definition
-class BitVectorType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
-    name = "smt.bv.bv"
-    width: ParameterDef[IntAttr]
-
-    def print_sort_to_smtlib(self, stream: IO[str]):
-        print(f"(_ BitVec {self.width.data})", file=stream, end="")
-
-    def __init__(self, value: int | IntAttr):
-        if isinstance(value, int):
-            value = IntAttr(value)
-        super().__init__([value])
-
-    @staticmethod
-    def from_int(value: int) -> BitVectorType:
-        return BitVectorType(value)
-
-    @classmethod
-    def parse_parameters(cls, parser: AttrParser) -> list[Attribute]:
-        parser.parse_punctuation("<")
-        width = parser.parse_integer()
-        parser.parse_punctuation(">")
-        return [IntAttr(width)]
-
-    def print_parameters(self, printer: Printer) -> None:
-        printer.print("<", self.width.data, ">")
+from xdsl_smt.dialects.smt_dialect import BoolType
+from xdsl.dialects.smt import BitVectorType
 
 
 @irdl_attr_definition
@@ -82,7 +54,7 @@ class BitVectorValue(ParametrizedAttribute):
         return BitVectorValue(value, width)
 
     def get_type(self) -> BitVectorType:
-        return BitVectorType.from_int(self.width.data)
+        return BitVectorType(self.width.data)
 
     def verify(self) -> None:
         if not (0 <= self.value.data < 2**self.width.data):

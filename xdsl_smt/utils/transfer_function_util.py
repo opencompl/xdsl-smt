@@ -238,7 +238,7 @@ def replace_abstract_value_width(
     types.append(abs_val_ty)
     for i in range(len(types)):
         if isinstance(types[i], BitVectorType):
-            types[i] = BitVectorType.from_int(new_width)
+            types[i] = BitVectorType(new_width)
     resultType = types.pop()
     while len(types) > 0:
         resultType = PairType(types.pop(), resultType)

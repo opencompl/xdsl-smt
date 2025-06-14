@@ -11,16 +11,16 @@
 
 // CHECK:	builtin.module {
 // CHECK-NEXT:  %0 = "smt.define_fun"() ({
-// CHECK-NEXT:  ^0(%x : !smt.bv.bv<8>, %y : !smt.bv.bv<8>, %1 : !effect.state):
-// CHECK-NEXT:    %2 = "smt.bv.constant"() {value = #smt.bv.bv_val<8: 8>} : () -> !smt.bv.bv<8>
-// CHECK-NEXT:    %3 = "smt.bv.sub"(%2, %y) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    %4 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 8>} : () -> !smt.bv.bv<8>
-// CHECK-NEXT:    %5 = "smt.bv.constant"() {value = #smt.bv.bv_val<255: 8>} : () -> !smt.bv.bv<8>
-// CHECK-NEXT:    %6 = "smt.bv.ashr"(%5, %3) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    %7 = "smt.bv.shl"(%6, %3) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    %8 = "smt.bv.shl"(%7, %4) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    %9 = "smt.bv.lshr"(%8, %4) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    %r = "smt.bv.and"(%9, %x) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:    "smt.return"(%r, %1) : (!smt.bv.bv<8>, !effect.state) -> ()
-// CHECK-NEXT:  }) {fun_name = "test"} : () -> ((!smt.bv.bv<8>, !smt.bv.bv<8>, !effect.state) -> (!smt.bv.bv<8>, !effect.state))
+// CHECK-NEXT:  ^0(%x : !smt.bv<8>, %y : !smt.bv<8>, %1 : !effect.state):
+// CHECK-NEXT:    %2 = "smt.bv.constant"() {value = #smt.bv.bv_val<8: 8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %3 = "smt.bv.sub"(%2, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    %4 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %5 = "smt.bv.constant"() {value = #smt.bv.bv_val<255: 8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %6 = "smt.bv.ashr"(%5, %3) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    %7 = "smt.bv.shl"(%6, %3) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    %8 = "smt.bv.shl"(%7, %4) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    %9 = "smt.bv.lshr"(%8, %4) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    %r = "smt.bv.and"(%9, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:    "smt.return"(%r, %1) : (!smt.bv<8>, !effect.state) -> ()
+// CHECK-NEXT:  }) {fun_name = "test"} : () -> ((!smt.bv<8>, !smt.bv<8>, !effect.state) -> (!smt.bv<8>, !effect.state))
 // CHECK-NEXT:}

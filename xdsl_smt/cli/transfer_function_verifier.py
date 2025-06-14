@@ -119,7 +119,7 @@ def fix_bit_width_in_verify_pattern(module: ModuleOp):
                 assert isinstance(op_0_type, BitVectorType)
                 assert isinstance(op_1_type, BitVectorType)
                 new_bitwidth = op_0_type.width.data + op_1_type.width.data
-                new_bitvector_type = BitVectorType.from_int(new_bitwidth)
+                new_bitvector_type = BitVectorType(new_bitwidth)
                 Rewriter.replace_value_with_new_type(op.results[0], new_bitvector_type)
             if op.operands[0].type != op.operands[1].type:
                 op_1_owner = op.operands[1].owner

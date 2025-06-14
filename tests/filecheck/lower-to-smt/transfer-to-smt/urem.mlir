@@ -11,8 +11,8 @@
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    %0 = "smt.define_fun"() ({
-// CHECK-NEXT:    ^0(%x : !smt.bv.bv<8>, %y : !smt.bv.bv<8>, %1 : !effect.state):
-// CHECK-NEXT:      %r = "smt.bv.urem"(%x, %y) : (!smt.bv.bv<8>, !smt.bv.bv<8>) -> !smt.bv.bv<8>
-// CHECK-NEXT:      "smt.return"(%r, %1) : (!smt.bv.bv<8>, !effect.state) -> ()
-// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.bv.bv<8>, !smt.bv.bv<8>, !effect.state) -> (!smt.bv.bv<8>, !effect.state))
+// CHECK-NEXT:    ^0(%x : !smt.bv<8>, %y : !smt.bv<8>, %1 : !effect.state):
+// CHECK-NEXT:      %r = "smt.bv.urem"(%x, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:      "smt.return"(%r, %1) : (!smt.bv<8>, !effect.state) -> ()
+// CHECK-NEXT:    }) {fun_name = "test"} : () -> ((!smt.bv<8>, !smt.bv<8>, !effect.state) -> (!smt.bv<8>, !effect.state))
 // CHECK-NEXT:  }

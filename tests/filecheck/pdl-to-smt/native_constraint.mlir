@@ -28,20 +28,20 @@ builtin.module {
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    %0 = "smt.declare_const"() : () -> !smt.bool
-// CHECK-NEXT:    %x = "smt.declare_const"() : () -> !smt.utils.pair<!smt.bv.bv<32>, !smt.bool>
-// CHECK-NEXT:    %c0_attr = "smt.declare_const"() : () -> !smt.bv.bv<32>
-// CHECK-NEXT:    %1 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:    %2 = "smt.eq"(%c0_attr, %1) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
-// CHECK-NEXT:    %3 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bv.bv<32>
-// CHECK-NEXT:    %4 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bool
-// CHECK-NEXT:    %5 = "smt.bv.mul"(%3, %c0_attr) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
-// CHECK-NEXT:    %zero_attr = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv.bv<32>
-// CHECK-NEXT:    %6 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bv.bv<32>
-// CHECK-NEXT:    %7 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv.bv<32>, !smt.bool>) -> !smt.bool
-// CHECK-NEXT:    %8 = "smt.bv.sub"(%zero_attr, %6) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bv.bv<32>
+// CHECK-NEXT:    %x = "smt.declare_const"() : () -> !smt.utils.pair<!smt.bv<32>, !smt.bool>
+// CHECK-NEXT:    %c0_attr = "smt.declare_const"() : () -> !smt.bv<32>
+// CHECK-NEXT:    %1 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:    %2 = "smt.eq"(%c0_attr, %1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
+// CHECK-NEXT:    %3 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
+// CHECK-NEXT:    %4 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
+// CHECK-NEXT:    %5 = "smt.bv.mul"(%3, %c0_attr) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
+// CHECK-NEXT:    %zero_attr = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:    %6 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
+// CHECK-NEXT:    %7 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
+// CHECK-NEXT:    %8 = "smt.bv.sub"(%zero_attr, %6) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
 // CHECK-NEXT:    %9 = "smt.not"(%4) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %10 = "smt.not"(%7) : (!smt.bool) -> !smt.bool
-// CHECK-NEXT:    %11 = "smt.eq"(%5, %8) : (!smt.bv.bv<32>, !smt.bv.bv<32>) -> !smt.bool
+// CHECK-NEXT:    %11 = "smt.eq"(%5, %8) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %12 = "smt.and"(%11, %10) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %13 = "smt.implies"(%9, %12) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %14 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
