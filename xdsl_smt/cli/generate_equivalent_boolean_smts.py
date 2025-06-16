@@ -193,7 +193,7 @@ def unify_value(
                 return False
             if not isinstance(prog_op, type(lhs_op)):
                 return False
-            if prog_op.attributes != prog_op.attributes:
+            if lhs_op.attributes != prog_op.attributes:
                 return False
             if len(lhs_op.operands) != len(prog_op.operands):
                 return False
