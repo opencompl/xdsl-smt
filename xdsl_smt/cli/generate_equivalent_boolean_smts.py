@@ -188,12 +188,19 @@ def unify_value(
                 left_argument_values[i] = x
                 return True
             return unify_value(expected_value, x, None)
+        case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
+            op=smt.ConstantBoolOp(value=pv)
+        ):
+            return lv == pv
+        case (OpResult(op=smt.ConstantBoolOp()), _) | (
+            _,
+            OpResult(op=smt.ConstantBoolOp()),
+        ):
+            return False
         case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
             if i != j:
                 return False
             if not isinstance(prog_op, type(lhs_op)):
-                return False
-            if lhs_op.attributes != prog_op.attributes:
                 return False
             if len(lhs_op.operands) != len(prog_op.operands):
                 return False
