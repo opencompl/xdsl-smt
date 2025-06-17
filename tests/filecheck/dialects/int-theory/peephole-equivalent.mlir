@@ -9,7 +9,7 @@ builtin.module {
       %x_gt_0 = "smt.int.gt"(%x, %zero) : (!smt.int.int, !smt.int.int) -> !smt.bool
       %pow2_x = "smt.call"(%pow2, %x) : ((!smt.int.int) -> (!smt.int.int),!smt.int.int) -> (!smt.int.int)
       %pow2_x_gt_0 = "smt.int.gt"(%pow2_x, %zero) : (!smt.int.int, !smt.int.int) -> !smt.bool
-      %imp = "smt.implies"(%x_gt_0, %pow2_x_gt_0) : (!smt.bool, !smt.bool) -> !smt.bool
+      %imp = smt.implies %x_gt_0, %pow2_x_gt_0
       "smt.yield"(%imp) : (!smt.bool) -> ()
   }): () -> !smt.bool
   %verify_order = "smt.forall"() ({
@@ -18,7 +18,7 @@ builtin.module {
       %pow2_x = "smt.call"(%pow2, %x) : ((!smt.int.int) -> (!smt.int.int),!smt.int.int) -> (!smt.int.int)
       %pow2_y = "smt.call"(%pow2, %y) : ((!smt.int.int) -> (!smt.int.int),!smt.int.int) -> (!smt.int.int)
       %pow2_x_gt_pow2_y = "smt.int.gt"(%pow2_x, %pow2_y) : (!smt.int.int, !smt.int.int) -> !smt.bool
-      %imp = "smt.implies"(%x_gt_y, %pow2_x_gt_pow2_y) : (!smt.bool, !smt.bool) -> !smt.bool
+      %imp = smt.implies %x_gt_y, %pow2_x_gt_pow2_y
       "smt.yield"(%imp) : (!smt.bool) -> ()
   }): () -> !smt.bool
   "smt.assert"(%verify_get_zero) : (!smt.bool) -> ()

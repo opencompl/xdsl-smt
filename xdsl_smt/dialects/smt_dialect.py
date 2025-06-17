@@ -27,7 +27,7 @@ from xdsl.ir import (
     Region,
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
-from xdsl.dialects.smt import BoolType
+from xdsl.dialects.smt import BoolType, ImpliesOp
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -38,6 +38,7 @@ from ..traits.smt_printer import (
     SMTLibScriptOp,
     SimpleSMTLibOp,
     SMTConversionCtx,
+    SimpleSMTLibOpTrait,
 )
 
 
@@ -575,16 +576,8 @@ class ImpliesCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (ImpliesCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class ImpliesOp(BinaryBoolOp, SimpleSMTLibOp):
-    """Boolean implication."""
-
-    name = "smt.implies"
-
-    traits = traits_def(traits.Pure(), ImpliesCanonicalizationPatterns())
-
-    def op_name(self) -> str:
-        return "=>"
+ImpliesOp.traits.add_trait(SimpleSMTLibOpTrait("=>"))
+ImpliesOp.traits.add_trait(ImpliesCanonicalizationPatterns())
 
 
 class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):

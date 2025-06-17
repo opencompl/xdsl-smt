@@ -57,7 +57,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         ub_before_bool = ub_effect.ToBoolOp(state_before)
         ub_after_bool = ub_effect.ToBoolOp(state_after)
         not_ub_after = smt.NotOp(ub_after_bool.res)
-        not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.res)
+        not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.result)
         refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.res)
         rewriter.insert_op_before_matched_op(
             [

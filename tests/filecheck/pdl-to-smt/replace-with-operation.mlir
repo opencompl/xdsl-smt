@@ -36,7 +36,7 @@
 // CHECK-NEXT:    %16 = "smt.not"(%13) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %17 = "smt.eq"(%8, %14) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %18 = "smt.and"(%17, %16) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:    %19 = "smt.implies"(%15, %18) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %19 = smt.implies %15, %18
 // CHECK-NEXT:    %20 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %21 = "smt.and"(%20, %19) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %22 = "smt.or"(%0, %21) : (!smt.bool, !smt.bool) -> !smt.bool

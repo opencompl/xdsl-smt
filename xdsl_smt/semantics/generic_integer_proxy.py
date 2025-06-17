@@ -175,7 +175,7 @@ def insert_and_constraint_pow2(rewriter: PatternRewriter) -> smt.DeclareFunOp:
         x_gt_y_op.res,
         pow_x_gt_y_op.res,
     )
-    yield_op = smt.YieldOp(implies_op.res)
+    yield_op = smt.YieldOp(implies_op.result)
     body.first_block.add_ops(
         [x_gt_y_op, pow_x_op, pow_y_op, pow_x_gt_y_op, implies_op, yield_op]
     )
@@ -233,7 +233,7 @@ def insert_and_constraint_andi(rewriter: PatternRewriter, pow2: SSAValue):
         left_member_op.res,
         right_member_op.res,
     )
-    yield_op = smt.YieldOp(implies_op.res)
+    yield_op = smt.YieldOp(implies_op.result)
     body.first_block.add_ops(
         [
             kp_gt_k_op,

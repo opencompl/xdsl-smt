@@ -43,7 +43,7 @@ builtin.module {
 // CHECK-NEXT:    %10 = "smt.not"(%7) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %11 = "smt.eq"(%5, %8) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %12 = "smt.and"(%11, %10) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:    %13 = "smt.implies"(%9, %12) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %13 = smt.implies %9, %12
 // CHECK-NEXT:    %14 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:    %15 = "smt.and"(%14, %13) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:    %16 = "smt.or"(%0, %15) : (!smt.bool, !smt.bool) -> !smt.bool

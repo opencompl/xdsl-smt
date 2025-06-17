@@ -42,7 +42,7 @@
   "smt.assert"(%eq) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (= $x $y))
 
-  %implies = "smt.implies"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.bool
+  %implies = smt.implies %x, %y
   "smt.assert"(%implies) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (=> $x $y))
 

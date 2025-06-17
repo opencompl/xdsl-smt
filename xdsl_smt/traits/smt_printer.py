@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import IO
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.smt import BoolType, BitVectorType
-from xdsl.ir import OpResult, SSAValue, Operation, Attribute
+from xdsl.ir import OpResult, SSAValue, Operation, Attribute, OpTrait
 
 
 class SMTLibSort:
@@ -29,6 +29,40 @@ class SMTLibOp:
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
         """Print the operation to an SMTLib representation."""
         ...
+
+
+class SMTLibOpTrait(OpTrait):
+    """
+    Mark an operation to be an SMTLib expression.
+    This include only expressions that have no side-effects,
+    unlike script operations.
+    """
+
+    @abstractmethod
+    def print_expr_to_smtlib(
+        self, op: Operation, stream: IO[str], ctx: SMTConversionCtx
+    ) -> None:
+        """Print the operation to an SMTLib representation."""
+        ...
+
+
+@dataclass(frozen=True)
+class SimpleSMTLibOpTrait(SMTLibOpTrait):
+    """
+    Mark an operation to be an SMTLib expression that can be printed
+    as `(expr_name <arg0> <arg1> ... <argN>)`.
+    """
+
+    op_name: str
+
+    def print_expr_to_smtlib(
+        self, op: Operation, stream: IO[str], ctx: SMTConversionCtx
+    ) -> None:
+        print(f"({self.op_name}", file=stream, end="")
+        for operand in op.operands:
+            print(" ", file=stream, end="")
+            ctx.print_expr_to_smtlib(operand, stream)
+        print(")", file=stream, end="")
 
 
 class SMTLibScriptOp(SMTLibOp):
@@ -162,18 +196,27 @@ class SMTConversionCtx:
         let_values = self._expr_operands_topo_sort(val.op)
 
         for idx, let_value in enumerate(let_values):
-            assert isinstance(let_value.owner, SMTLibOp)
             name = self.get_fresh_name(let_value)
             if idx != 0:
                 print(identation, file=stream, end="")
             print(f"(let (({name} ", file=stream, end="")
-            let_value.owner.print_expr_to_smtlib(stream, self)
+            if isinstance(let_value.owner, SMTLibOp):
+                let_value.owner.print_expr_to_smtlib(stream, self)
+            else:
+                assert isinstance(let_value.owner, Operation)
+                assert (trait := let_value.owner.get_trait(SMTLibOpTrait)) is not None
+                trait.print_expr_to_smtlib(let_value.owner, stream, self)
             print(")) ", file=stream)
 
-        assert isinstance(val.op, SMTLibOp)
         if let_values:
             print(identation, file=stream, end="")
-        val.op.print_expr_to_smtlib(stream, self)
+        if isinstance(val.op, SMTLibOp):
+            val.op.print_expr_to_smtlib(stream, self)
+        else:
+            assert isinstance(val.op, Operation)
+            assert (trait := val.op.get_trait(SMTLibOpTrait)) is not None
+            trait.print_expr_to_smtlib(val.op, stream, self)
+
         print(")" * len(let_values), file=stream, end="")
         for let_value in let_values:
             self.names.remove(self.value_to_name[let_value])

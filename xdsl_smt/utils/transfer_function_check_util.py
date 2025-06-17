@@ -581,7 +581,7 @@ def get_forall_crt_res_prime_constraint(
         forall_crt_res_prime_constraint_consequent_eq.res,
     )
     forall_crt_res_prime_constraint_yield = YieldOp(
-        forall_crt_res_prime_constraint_imply.res
+        forall_crt_res_prime_constraint_imply.result
     )
 
     forall_crt_res_prime_constraint_block.add_ops(
