@@ -11,7 +11,7 @@ from typing import Generator
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
-from xdsl.ir.core import BlockArgument, BlockOps, Operation, OpResult, SSAValue
+from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 
 import xdsl_smt.dialects.synth_dialect as synth
