@@ -6,12 +6,12 @@ import os
 import subprocess as sp
 import sys
 import time
-from multiprocessing import Pool
-from typing import Generator, Iterable
+from functools import cmp_to_key
+from typing import Generator
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
-from xdsl.ir.core import BlockArgument, BlockOps, OpResult, SSAValue
+from xdsl.ir.core import BlockArgument, BlockOps, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 
 import xdsl_smt.dialects.synth_dialect as synth
@@ -38,9 +38,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="maximum number of operations in the MLIR programs that are generated",
     )
     arg_parser.add_argument(
-        "--out-dir",
+        "--out-file",
         type=str,
-        help="the directory in which to write the result files",
+        help="the file in which to write the results",
     )
     arg_parser.add_argument(
         "--summary",
@@ -52,25 +52,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
-
-
-def get_program_count(max_num_args: int, max_num_ops: int) -> int:
-    return int(
-        sp.run(
-            [
-                MLIR_ENUMERATE,
-                SMT_MLIR,
-                "--configuration=smt",
-                f"--max-num-args={max_num_args}",
-                f"--max-num-ops={max_num_ops}",
-                "--mlir-print-op-generic",
-                "--count",
-            ],
-            text=True,
-            stdout=sp.PIPE,
-            stderr=sp.PIPE,
-        ).stdout
-    )
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -101,33 +82,29 @@ def func_ops(func: FuncOp) -> BlockOps:
     return func.body.block.ops
 
 
+def formula_size(formula: SSAValue) -> int:
+    match formula:
+        case BlockArgument():
+            return 0
+        case OpResult(op=smt.ConstantBoolOp()):
+            return 0
+        case OpResult(op=op):
+            return 1 + sum(formula_size(operand) for operand in op.operands)
+        case x:
+            raise ValueError(f"Unknown value {x}")
+
+
 def program_size(program: ModuleOp) -> int:
-    size = 0
-    for op in func_ops(get_inner_func(program)):
-        if not isinstance(op, smt.ConstantBoolOp):
-            size += 1
-    return size
-
-
-def program_weight(program: ModuleOp) -> tuple[int, int]:
-    """
-    Returns a tuple to be ordered in lexicographic order.
-
-    First value is the number of non-constant operations in the program. Second
-    value is the number of function arguments used.
-    """
-    return program_size(program), len(
-        {
-            operand.index
-            for op in func_ops(get_inner_func(program))
-            for operand in op.operands
-            if isinstance(operand, BlockArgument)
-        }
-    )
+    ret = get_inner_func(program).get_return_op()
+    assert ret is not None
+    return sum(formula_size(argument) for argument in ret.arguments)
 
 
 def enumerate_programs(
-    ctx: Context, max_num_args: int, max_num_ops: int
+    ctx: Context,
+    max_num_args: int,
+    num_ops: int,
+    illegals: list[ModuleOp],
 ) -> Generator[ModuleOp, None, None]:
     enumerator = sp.Popen(
         [
@@ -135,7 +112,7 @@ def enumerate_programs(
             SMT_MLIR,
             "--configuration=smt",
             f"--max-num-args={max_num_args}",
-            f"--max-num-ops={max_num_ops}",
+            f"--max-num-ops={num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
         ],
@@ -144,30 +121,82 @@ def enumerate_programs(
         stdout=sp.PIPE,
     )
 
+    enumerated: set[str] = set()
+
     while (program := read_program_from_enumerator(enumerator)) is not None:
-        module = Parser(ctx, program).parse_module(True)
-        attributes = get_inner_func(module).attributes
-        if "seed" in attributes:
-            del attributes["seed"]
-        yield module
         # Send a character to the enumerator to continue
         assert enumerator.stdin is not None
         enumerator.stdin.write("a")
         enumerator.stdin.flush()
 
+        module = Parser(ctx, program).parse_module(True)
 
-def classify_program(params: tuple[int, ModuleOp]):
-    (max_num_args, program) = params
-    # Evaluate a program with all possible inputs.
-    results: list[bool] = []
+        if program_size(module) != num_ops:
+            continue
+
+        if any(is_subpattern(pattern, module) for pattern in illegals):
+            continue
+
+        # Deduplication
+        attributes = get_inner_func(module).attributes
+        if "seed" in attributes:
+            del attributes["seed"]
+        s = str(module)
+        if s in enumerated:
+            continue
+        enumerated.add(s)
+
+        yield module
+
+
+def is_same_behavior(max_num_args: int, left: ModuleOp, right: ModuleOp) -> bool:
+    # Evaluate programs with all possible inputs.
+    left_interpreter = build_interpreter(left, 64)
+    right_interpreter = build_interpreter(right, 64)
     for values in itertools.product((False, True), repeat=max_num_args):
-        interpreter = build_interpreter(program, 64)
         arguments: list[Attribute] = [IntegerAttr.from_bool(val) for val in values]
-        res = interpret(interpreter, arguments[: arity(interpreter)])
-        assert len(res) == 1
-        assert isinstance(res[0], bool)
-        results.append(res[0])
-    return program, tuple(results)
+        left_res = interpret(left_interpreter, arguments[: arity(left_interpreter)])
+        right_res = interpret(right_interpreter, arguments[: arity(right_interpreter)])
+        if left_res != right_res:
+            return False
+    return True
+
+
+def compare_value_lexicographically(left: SSAValue, right: SSAValue) -> int:
+    match left, right:
+        case BlockArgument(index=i), BlockArgument(index=j):
+            return i - j
+        case BlockArgument(), OpResult():
+            return -1
+        case OpResult(), BlockArgument():
+            return 1
+        # TODO: Consider constant booleans as not equal.
+        case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
+            if isinstance(lop, type(rop)):
+                return i - j
+            if len(lop.operands) != len(rop.operands):
+                return len(lop.operands) - len(rop.operands)
+            for lo, ro in zip(lop.operands, rop.operands, strict=True):
+                c = compare_value_lexicographically(lo, ro)
+                if c != 0:
+                    return c
+            return 0
+        case l, r:
+            raise ValueError(f"Unknown value: {l} or {r}")
+
+
+def compare_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
+    if program_size(left) < program_size(right):
+        return -1
+    if program_size(right) > program_size(left):
+        return 1
+    left_ret = get_inner_func(left).get_return_op()
+    assert left_ret is not None
+    right_ret = get_inner_func(right).get_return_op()
+    assert right_ret is not None
+    return compare_value_lexicographically(
+        left_ret.arguments[0], right_ret.arguments[0]
+    )
 
 
 def unify_value(
@@ -214,14 +243,15 @@ def unify_value(
             return False
 
 
-def program_is_specialization(program: FuncOp, lhs: FuncOp) -> bool:
-    prog_ret = program.get_return_op()
+def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
+    prog_ret = get_inner_func(program).get_return_op()
     assert prog_ret is not None
 
-    lhs_ret = lhs.get_return_op()
+    lhs_func = get_inner_func(lhs)
+    lhs_ret = lhs_func.get_return_op()
     assert lhs_ret is not None
 
-    argument_values: list[SSAValue | None] = [None] * len(lhs.args)
+    argument_values: list[SSAValue | None] = [None] * len(lhs_func.args)
     return len(prog_ret.arguments) == len(lhs_ret.arguments) and all(
         map(
             lambda l, p: unify_value(l, p, argument_values),
@@ -231,19 +261,22 @@ def program_is_specialization(program: FuncOp, lhs: FuncOp) -> bool:
     )
 
 
-def program_contains_lhs(program: FuncOp, lhs: FuncOp) -> bool:
+def is_subpattern(lhs: ModuleOp, program: ModuleOp) -> bool:
+    """Tests whether an LHS is a subpattern of a program."""
+
     # We handle this separately because what we do below is testing whether the
     # result of some operation in the program can be expressed in terms of the
     # LHS. Here, we test specifically whether the return values of the program
     # can be expressed in terms of the LHS
-    if program_is_specialization(program, lhs):
+    if is_pattern(lhs, program):
         return True
 
-    lhs_ret = lhs.get_return_op()
+    lhs_func = get_inner_func(lhs)
+    lhs_ret = lhs_func.get_return_op()
     assert lhs_ret is not None
 
-    for op in func_ops(program):
-        argument_values: list[SSAValue | None] = [None] * len(lhs.args)
+    for op in func_ops(get_inner_func(program)):
+        argument_values: list[SSAValue | None] = [None] * len(lhs_func.args)
         if len(op.results) == len(lhs_ret.arguments) and all(
             map(
                 lambda l, p: unify_value(l, p, argument_values),
@@ -255,51 +288,60 @@ def program_contains_lhs(program: FuncOp, lhs: FuncOp) -> bool:
     return False
 
 
-def is_program_superfluous(
-    buckets: Iterable[list[ModuleOp]],
-    program: ModuleOp,
-    program_bucket: int,
-    program_index: int,
-) -> bool:
-    for i, bucket in enumerate(buckets):
-        for k, lhs in enumerate(bucket):
-            # Don't try to match a program with itself, or with any further
-            # program in its bucket.
-            if i == program_bucket and k >= program_index:
-                break
-            # We do not allow matching a program against its canonical
-            # representative.
-            if k != 0 and program_contains_lhs(
-                get_inner_func(program), get_inner_func(lhs)
-            ):
-                return True
-    return False
+def create_pattern_from_program(program: ModuleOp) -> str:
+    lines = [
+        "builtin.module {",
+        "  pdl.pattern : benefit(1) {",
+        # TODO: Support not everything being the same type.
+        "    %type = pdl.type",
+    ]
 
+    body_start_index = len(lines)
 
-def remove_superfluous(buckets: Iterable[list[ModuleOp]]) -> int:
-    # This defines a total order on the programs of a bucket. The first program
-    # of a bucket is called its _canonical representative_, and it is the only
-    # program of that bucket that is allowed to appear as a strict subprogram of
-    # any program.
-    for bucket in buckets:
-        bucket.sort(key=program_weight)
+    used_arguments: set[int] = set()
+    used_attributes: set[str] = set()
+    op_ids: dict[Operation, int] = {}
 
-    removed_count = 0
-    for i, bucket in enumerate(buckets):
-        # We can modify `bucket` inside this loop because we loop over a copy.
-        # Since we iterate backwards, we can remove the elements by index.
-        for k, program in reversed(list(enumerate(bucket))[1:]):
-            if is_program_superfluous(buckets, program, i, k):
-                removed_count += 1
-                del bucket[k]
-            print(
-                f"\033[2K Bucket {i}, program {k} (removed {removed_count} in total)",
-                end="\r",
-            )
+    i = 0
+    for i, op in enumerate(get_inner_func(program).body.ops):
+        op_ids[op] = i
+        operands: list[str] = []
+        for operand in op.operands:
+            if isinstance(operand, BlockArgument):
+                used_arguments.add(operand.index)
+                operands.append(f"%arg{operand.index}")
+            elif isinstance(operand, OpResult):
+                operands.append(f"%res{op_ids[operand.op]}.{operand.index}")
+        ins = (
+            f" ({', '.join(operands)} : {', '.join('!pdl.value' for _ in operands)})"
+            if len(operands) != 0
+            else ""
+        )
+        attrs = ""
+        if isinstance(op, smt.ConstantBoolOp):
+            used_attributes.add(str(op.value))
+            attrs = f' {{"value" = %attr.{op.value}}}'
+        outs = (
+            f" -> ({', '.join('%type' for _ in op.results)} : {', '.join('!pdl.type' for _ in op.results)})"
+            if len(op.results) != 0
+            else ""
+        )
+        lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{attrs}{outs}')
+        for j in range(len(op.results)):
+            lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
 
-    print("\033[2K", end="\r")
+    lines.append(f'    rewrite %op{i} with "rewriter"')
+    lines.append("  }")
+    lines.append("}")
 
-    return removed_count
+    lines[body_start_index:body_start_index] = [
+        f"    %arg{k} = pdl.operand" for k in used_arguments
+    ]
+    lines[body_start_index:body_start_index] = [
+        f"    %attr.{attr} = pdl.attribute = {attr}" for attr in used_attributes
+    ]
+
+    return "\n".join(lines)
 
 
 def pretty_print_value(x: SSAValue, nested: bool = False):
@@ -356,6 +398,12 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
         print(")", end="")
 
 
+def pretty_print_program(program: ModuleOp):
+    ret = get_inner_func(program).get_return_op()
+    assert ret is not None
+    pretty_print_value(ret.arguments[0])
+
+
 def main() -> None:
     ctx = Context()
     ctx.allow_unregistered = True
@@ -371,86 +419,89 @@ def main() -> None:
     ctx.load_dialect(SMTUtilsDialect)
     ctx.load_dialect(synth.SynthDialect)
 
-    # The set of keys is the set of all possible sequences of outputs when
-    # presented all the possible inputs. I.e., each key uniquely characterizes a
-    # boolean function of arity `args.max_num_args`.
-    buckets: dict[tuple[bool, ...], list[ModuleOp]] = {
-        images: []
-        for images in itertools.product((False, True), repeat=2**args.max_num_args)
-    }
-
-    start = time.time()
+    canonicals: list[ModuleOp] = []
+    illegals: list[ModuleOp] = []
 
     try:
-        print("Counting programs...")
-        program_count = get_program_count(args.max_num_args, args.max_num_ops)
+        for m in range(args.max_num_ops + 1):
+            print(f"\033[1m== Size {m} ==\033[0m")
+            step_start = time.time()
 
-        print(f"Classifying {program_count} programs...")
-        actual_program_count = 0
-        with Pool() as p:
-            for i, (program, results) in enumerate(
-                p.imap_unordered(
-                    classify_program,
-                    (
-                        (args.max_num_args, program)
-                        for program in enumerate_programs(
-                            ctx, args.max_num_args, args.max_num_ops
-                        )
-                    ),
+            print("Enumerating programs...")
+            new_program_count = 0
+            new_illegals: list[ModuleOp] = []
+            new_behaviors: list[list[ModuleOp]] = []
+            for program in enumerate_programs(ctx, args.max_num_args, m, illegals):
+                new_program_count += 1
+                print(f" {new_program_count}", end="\r")
+                for canonical in canonicals:
+                    if is_same_behavior(args.max_num_args, program, canonical):
+                        new_illegals.append(program)
+                        break
+                else:
+                    for behavior in new_behaviors:
+                        if is_same_behavior(args.max_num_args, program, behavior[0]):
+                            behavior.append(program)
+                            break
+                    else:
+                        new_behaviors.append([program])
+            print(f"Generated {new_program_count} programs of this size.")
+            print(
+                f"{sum(len(b) for b in new_behaviors)} of them exhibited {len(new_behaviors)} new behaviors."
+            )
+
+            print("Choosing new canonical representatives...")
+            for i, behavior in enumerate(new_behaviors):
+                print(f" {i + 1}/{len(new_behaviors)}", end="\r")
+                # We take the canonical representative to be one that is "as
+                # minimal as possible" for the "pattern" preorder relation, in
+                # order to be able to add as many programs as possible to
+                # `illegals`. This can be approximated by taking the minimum for
+                # the lexicographical order.
+                canonical = min(behavior, key=cmp_to_key(compare_lexicographically))
+                canonicals.append(canonical)
+                new_illegals.extend(
+                    program
+                    for program in behavior
+                    if not is_pattern(program, canonical)
                 )
-            ):
-                buckets[results].append(program)
-                percentage = round(i / program_count * 100.0)
-                print(f" {i}/{program_count} ({percentage} %)...", end="\r")
-                actual_program_count += 1
-        print(
-            f"Classified {actual_program_count} programs in {int(time.time() - start)} s."
-        )
 
-        print("Removing duplicate programs...")
-        for i, bucket in enumerate(buckets.values()):
-            print(f" {i}/{len(buckets)} buckets done...", end="\r")
-            bucket[:] = {str(program): program for program in bucket}.values()
-        remaining_count = sum(len(bucket) for bucket in buckets.values())
-        print(
-            f"Removed {actual_program_count - remaining_count} duplicate programs ({remaining_count} remaining programs)."
-        )
-
-        print("Removing superfluous programs...")
-        removed_count = remove_superfluous(buckets.values())
-        print(f"Removed {removed_count} programs from all buckets")
-
-        remaining_count = sum(len(bucket) for bucket in buckets.values())
-        print(f"Remaining programs: {remaining_count}.")
-
-        for images, bucket in buckets.items():
-            if not os.path.exists(args.out_dir):
-                os.makedirs(args.out_dir)
-            file_name = "-".join(repr(image) for image in images)
-            with open(
-                os.path.join(args.out_dir, file_name), "w", encoding="utf-8"
-            ) as f:
-                for inputs, output in zip(
-                    itertools.product((False, True), repeat=args.max_num_args), images
+            print("Removing redundant illegal subpatterns...")
+            size = len(new_illegals)
+            redundant_count = 0
+            progress = 0
+            for i, program in reversed(list(enumerate(new_illegals))):
+                progress += 1
+                print(f" {progress}/{size}", end="\r")
+                if any(
+                    j != i and is_pattern(lhs, program)
+                    for j, lhs in enumerate(new_illegals)
                 ):
-                    f.write(f"// {inputs} -> {output}\n")
-                f.write("\n")
-                for program in bucket:
-                    f.write(str(program))
-                    f.write("\n// -----\n")
+                    redundant_count += 1
+                    del new_illegals[i]
+            illegals.extend(new_illegals)
+            print(f"Removed {redundant_count} redundant illegal subpatterns.")
+
+            step_end = time.time()
+            print(f"Finished step in {round(step_end - step_start, 2)} s.")
+
+        # Write results to disk.
+        old_stdout = sys.stdout
+        with open(args.out_file, "w", encoding="UTF-8") as f:
+            sys.stdout = f
+            for program in canonicals:
+                pretty_print_program(program)
+                print()
+            print()
+            for program in illegals:
+                pretty_print_program(program)
+                print()
+        sys.stdout = old_stdout
 
         if args.summary:
-            print("Summary of the generated buckets below:\n")
-            for images, bucket in buckets.items():
-                for inputs, output in zip(
-                    itertools.product((0, 1), repeat=args.max_num_args), images
-                ):
-                    print(f"\t{inputs} ↦ {int(output)}")
-                for program in bucket:
-                    ret = get_inner_func(program).get_return_op()
-                    assert ret is not None
-                    pretty_print_value(ret.arguments[0])
-                    print()
+            print(f"\033[1m== Summary (canonical programs) ==\033[0m")
+            for program in canonicals:
+                pretty_print_program(program)
                 print()
 
     except BrokenPipeError as e:
