@@ -52,6 +52,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
+EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -78,10 +79,6 @@ def get_inner_func(module: ModuleOp) -> FuncOp:
     return module.ops.first
 
 
-def func_ops(func: FuncOp) -> BlockOps:
-    return func.body.block.ops
-
-
 def formula_size(formula: SSAValue) -> int:
     match formula:
         case BlockArgument():
@@ -106,6 +103,11 @@ def enumerate_programs(
     num_ops: int,
     illegals: list[ModuleOp],
 ) -> Generator[ModuleOp, None, None]:
+    with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
+        for program in illegals:
+            f.write(create_pattern_from_program(program))
+            f.write("\n// -----\n")
+
     enumerator = sp.Popen(
         [
             MLIR_ENUMERATE,
@@ -115,6 +117,7 @@ def enumerate_programs(
             f"--max-num-ops={num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
+            f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
         ],
         text=True,
         stdin=sp.PIPE,
@@ -132,9 +135,6 @@ def enumerate_programs(
         module = Parser(ctx, program).parse_module(True)
 
         if program_size(module) != num_ops:
-            continue
-
-        if any(is_subpattern(pattern, module) for pattern in illegals):
             continue
 
         # Deduplication
@@ -259,33 +259,6 @@ def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
             prog_ret.arguments,
         )
     )
-
-
-def is_subpattern(lhs: ModuleOp, program: ModuleOp) -> bool:
-    """Tests whether an LHS is a subpattern of a program."""
-
-    # We handle this separately because what we do below is testing whether the
-    # result of some operation in the program can be expressed in terms of the
-    # LHS. Here, we test specifically whether the return values of the program
-    # can be expressed in terms of the LHS
-    if is_pattern(lhs, program):
-        return True
-
-    lhs_func = get_inner_func(lhs)
-    lhs_ret = lhs_func.get_return_op()
-    assert lhs_ret is not None
-
-    for op in func_ops(get_inner_func(program)):
-        argument_values: list[SSAValue | None] = [None] * len(lhs_func.args)
-        if len(op.results) == len(lhs_ret.arguments) and all(
-            map(
-                lambda l, p: unify_value(l, p, argument_values),
-                lhs_ret.arguments,
-                op.results,
-            )
-        ):
-            return True
-    return False
 
 
 def create_pattern_from_program(program: ModuleOp) -> str:
