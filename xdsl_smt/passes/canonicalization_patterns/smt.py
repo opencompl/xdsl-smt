@@ -261,7 +261,7 @@ class IteMergePattern(RewritePattern):
                 not_cond2_op = smt.NotOp.get(true_ite.cond)
                 new_cond_op = smt.AndOp.get(op.cond, not_cond2_op.res)
                 new_ite_op = smt.IteOp(
-                    new_cond_op.res, op.false_val, true_ite.false_val
+                    new_cond_op.res, true_ite.false_val, op.false_val
                 )
                 rewriter.replace_matched_op([not_cond2_op, new_cond_op, new_ite_op])
                 return
