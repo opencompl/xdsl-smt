@@ -32,9 +32,9 @@ from xdsl.dialects.smt import AndOp, BoolType, ImpliesOp, OrOp, XOrOp
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
-from ..traits.effects import Pure
+from xdsl_smt.traits.effects import Pure
 
-from ..traits.smt_printer import (
+from xdsl_smt.traits.smt_printer import (
     SMTLibOp,
     SMTLibScriptOp,
     SimpleSMTLibOp,
@@ -592,7 +592,9 @@ class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 
 
 AndOp.traits = OpTraits(
-    (AndOp.traits, SimpleSMTLibOpTrait("and"), AndCanonicalizationPatterns())
+    frozenset(
+        (*AndOp.traits, SimpleSMTLibOpTrait("and"), AndCanonicalizationPatterns())
+    )
 )
 
 
@@ -607,7 +609,7 @@ class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 
 
 OrOp.traits = OpTraits(
-    (OrOp.traits, SimpleSMTLibOpTrait("or"), OrCanonicalizationPatterns())
+    frozenset((*OrOp.traits, SimpleSMTLibOpTrait("or"), OrCanonicalizationPatterns()))
 )
 
 
@@ -622,7 +624,9 @@ class XOrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 
 
 XOrOp.traits = OpTraits(
-    (XOrOp.traits, SimpleSMTLibOpTrait("xor"), XOrCanonicalizationPatterns())
+    frozenset(
+        (*XOrOp.traits, SimpleSMTLibOpTrait("xor"), XOrCanonicalizationPatterns())
+    )
 )
 
 
