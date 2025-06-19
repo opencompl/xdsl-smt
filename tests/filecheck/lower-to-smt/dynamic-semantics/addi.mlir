@@ -46,7 +46,7 @@ func.func @f(%x: i32, %y: i32) -> (i32) {
 // CHECK-NEXT:      %4 = "smt.utils.first"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:      %5 = "smt.utils.second"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:      %6 = "smt.bv.add"(%2, %4) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
-// CHECK-NEXT:      %7 = "smt.or"(%3, %5) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:      %7 = smt.or %3, %5
 // CHECK-NEXT:      %z = "smt.utils.pair"(%6, %7) : (!smt.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv<32>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%z, %1) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>, !effect.state) -> ()
 // CHECK-NEXT:    }) {fun_name = "f"} : () -> ((!smt.utils.pair<!smt.bv<32>, !smt.bool>, !smt.utils.pair<!smt.bv<32>, !smt.bool>, !effect.state) -> (!smt.utils.pair<!smt.bv<32>, !smt.bool>, !effect.state))

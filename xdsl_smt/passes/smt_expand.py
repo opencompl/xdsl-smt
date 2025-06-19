@@ -101,7 +101,7 @@ class LowerSmulOverflowOpPattern(RewritePattern):
         nooverflow_op = SmulNoOverflowOp(smul_overflow_op.lhs, smul_overflow_op.rhs)
         nounderflow_op = SmulNoUnderflowOp(smul_overflow_op.lhs, smul_overflow_op.rhs)
         and_op = AndOp(nooverflow_op.res, nounderflow_op.res)
-        not_op = NotOp(and_op.res)
+        not_op = NotOp(and_op.result)
         rewriter.replace_op(
             smul_overflow_op, [nooverflow_op, nounderflow_op, and_op, not_op]
         )

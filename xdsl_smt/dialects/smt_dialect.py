@@ -25,9 +25,10 @@ from xdsl.ir import (
     Attribute,
     SSAValue,
     Region,
+    OpTraits,
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
-from xdsl.dialects.smt import BoolType, ImpliesOp
+from xdsl.dialects.smt import AndOp, BoolType, ImpliesOp, OrOp, XOrOp
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -590,16 +591,9 @@ class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (AndCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class AndOp(BinaryBoolOp, SimpleSMTLibOp):
-    """Boolean conjunction."""
-
-    name = "smt.and"
-
-    traits = traits_def(traits.Pure(), AndCanonicalizationPatterns())
-
-    def op_name(self) -> str:
-        return "and"
+AndOp.traits = OpTraits(
+    (AndOp.traits, SimpleSMTLibOpTrait("and"), AndCanonicalizationPatterns())
+)
 
 
 class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
@@ -612,38 +606,24 @@ class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (OrCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class OrOp(BinaryBoolOp, SimpleSMTLibOp):
-    """Boolean disjunction."""
-
-    name = "smt.or"
-
-    traits = traits_def(traits.Pure(), OrCanonicalizationPatterns())
-
-    def op_name(self) -> str:
-        return "or"
+OrOp.traits = OpTraits(
+    (OrOp.traits, SimpleSMTLibOpTrait("or"), OrCanonicalizationPatterns())
+)
 
 
-class XorCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
+class XOrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
     @classmethod
     def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
         from xdsl_smt.passes.canonicalization_patterns.smt import (
-            XorCanonicalizationPattern,
+            XOrCanonicalizationPattern,
         )
 
-        return (XorCanonicalizationPattern(),)
+        return (XOrCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class XorOp(BinaryBoolOp, SimpleSMTLibOp):
-    """Boolean exclusive disjunction."""
-
-    name = "smt.xor"
-
-    traits = traits_def(traits.Pure(), XorCanonicalizationPatterns())
-
-    def op_name(self) -> str:
-        return "xor"
+XOrOp.traits = OpTraits(
+    (XOrOp.traits, SimpleSMTLibOpTrait("xor"), XOrCanonicalizationPatterns())
+)
 
 
 class EqCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
@@ -770,7 +750,7 @@ SMTDialect = Dialect(
         ImpliesOp,
         AndOp,
         OrOp,
-        XorOp,
+        XOrOp,
         EqOp,
         DistinctOp,
         IteOp,

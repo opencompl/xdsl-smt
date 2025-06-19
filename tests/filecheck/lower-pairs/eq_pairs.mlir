@@ -18,6 +18,6 @@ builtin.module {
 // CHECK-NEXT:  %eq = "smt.eq"(%const_first, %const_first_1) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:  %eq_1 = "smt.eq"(%const_second_first, %const_second_first_1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  %eq_2 = "smt.eq"(%const_second_second, %const_second_second_1) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  %eq_3 = "smt.and"(%eq_1, %eq_2) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  %eq_4 = "smt.and"(%eq, %eq_3) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  %eq_3 = smt.and %eq_1, %eq_2
+// CHECK-NEXT:  %eq_4 = smt.and %eq, %eq_3
 // CHECK-NEXT:  "smt.assert"(%eq_4) : (!smt.bool) -> ()

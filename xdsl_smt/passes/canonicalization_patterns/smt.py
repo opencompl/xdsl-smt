@@ -79,74 +79,86 @@ class ImpliesCanonicalizationPattern(RewritePattern):
 class AndCanonicalizationPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt.AndOp, rewriter: PatternRewriter):
+        if len(op.operands) != 2:
+            return
+        lhs = op.inputs[0]
+        rhs = op.inputs[1]
         # True && x -> x
         # False && x -> False
-        if (value := get_bool_constant(op.lhs)) is not None:
+        if (value := get_bool_constant(lhs)) is not None:
             if value:
-                rewriter.replace_matched_op([], [op.rhs])
+                rewriter.replace_matched_op([], [rhs])
             else:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
             return
         # x && True -> x
         # x && False -> False
-        if (value := get_bool_constant(op.rhs)) is not None:
+        if (value := get_bool_constant(rhs)) is not None:
             if value:
-                rewriter.replace_matched_op([], [op.lhs])
+                rewriter.replace_matched_op([], [lhs])
             else:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
             return
         # x && x -> x
-        if op.lhs == op.rhs:
-            rewriter.replace_matched_op([], [op.lhs])
+        if lhs == rhs:
+            rewriter.replace_matched_op([], [lhs])
             return
 
 
 class OrCanonicalizationPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt.OrOp, rewriter: PatternRewriter):
+        if len(op.operands) != 2:
+            return
+        lhs = op.inputs[0]
+        rhs = op.inputs[1]
         # True || x -> True
         # False || x -> x
-        if (value := get_bool_constant(op.lhs)) is not None:
+        if (value := get_bool_constant(lhs)) is not None:
             if value:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
             else:
-                rewriter.replace_matched_op([], [op.rhs])
+                rewriter.replace_matched_op([], [rhs])
             return
         # x || True -> True
         # x || False -> x
-        if (value := get_bool_constant(op.rhs)) is not None:
+        if (value := get_bool_constant(rhs)) is not None:
             if value:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
             else:
-                rewriter.replace_matched_op([], [op.lhs])
+                rewriter.replace_matched_op([], [lhs])
             return
         # x || x -> x
-        if op.lhs == op.rhs:
-            rewriter.replace_matched_op([], [op.lhs])
+        if lhs == rhs:
+            rewriter.replace_matched_op([], [lhs])
             return
 
 
-class XorCanonicalizationPattern(RewritePattern):
+class XOrCanonicalizationPattern(RewritePattern):
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: smt.XorOp, rewriter: PatternRewriter):
+    def match_and_rewrite(self, op: smt.XOrOp, rewriter: PatternRewriter):
+        if len(op.operands) != 2:
+            return
+        lhs = op.inputs[0]
+        rhs = op.inputs[1]
         # True ^ x -> not x
         # False ^ x -> x
-        if (value := get_bool_constant(op.lhs)) is not None:
+        if (value := get_bool_constant(lhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(op.rhs))
+                rewriter.replace_matched_op(smt.NotOp.get(rhs))
             else:
-                rewriter.replace_matched_op([], [op.rhs])
+                rewriter.replace_matched_op([], [rhs])
             return
         # x ^ True -> not True
         # x ^ False -> x
-        if (value := get_bool_constant(op.rhs)) is not None:
+        if (value := get_bool_constant(rhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(op.lhs))
+                rewriter.replace_matched_op(smt.NotOp.get(lhs))
             else:
-                rewriter.replace_matched_op([], [op.lhs])
+                rewriter.replace_matched_op([], [lhs])
             return
         # x ^ x -> False
-        if op.lhs == op.rhs:
+        if lhs == rhs:
             rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
             return
 
@@ -251,17 +263,17 @@ class IteMergePattern(RewritePattern):
         if isinstance(true_ite := op.true_val.owner, smt.IteOp):
             # ((x if c else y) if c' else y) -> x if c && c' else y
             if true_ite.false_val == op.false_val:
-                new_cond = smt.AndOp.get(op.cond, true_ite.cond)
-                new_ite = smt.IteOp(new_cond.res, true_ite.true_val, op.false_val)
+                new_cond = smt.AndOp(op.cond, true_ite.cond)
+                new_ite = smt.IteOp(new_cond.result, true_ite.true_val, op.false_val)
                 rewriter.replace_matched_op([new_cond, new_ite])
                 return
 
             # ((x if c else y) if c' else x) -> y if c' && !c else x
             if true_ite.true_val == op.false_val:
                 not_cond2_op = smt.NotOp.get(true_ite.cond)
-                new_cond_op = smt.AndOp.get(op.cond, not_cond2_op.res)
+                new_cond_op = smt.AndOp(op.cond, not_cond2_op.res)
                 new_ite_op = smt.IteOp(
-                    new_cond_op.res, true_ite.false_val, op.false_val
+                    new_cond_op.result, true_ite.false_val, op.false_val
                 )
                 rewriter.replace_matched_op([not_cond2_op, new_cond_op, new_ite_op])
                 return
@@ -269,9 +281,9 @@ class IteMergePattern(RewritePattern):
         if isinstance(false_ite := op.false_val.owner, smt.IteOp):
             # (x if c else (x if c' else y)) -> x if c || c' else y
             if false_ite.true_val == op.true_val:
-                new_cond_op = smt.OrOp.get(op.cond, false_ite.cond)
+                new_cond_op = smt.OrOp(op.cond, false_ite.cond)
                 new_ite_op = smt.IteOp(
-                    new_cond_op.res, op.true_val, false_ite.false_val
+                    new_cond_op.result, op.true_val, false_ite.false_val
                 )
                 rewriter.replace_matched_op([new_cond_op, new_ite_op])
                 return
@@ -279,7 +291,9 @@ class IteMergePattern(RewritePattern):
             # (x if c else (y if c' else x)) -> x if c || !c' else y
             if false_ite.false_val == op.true_val:
                 not_cond2_op = smt.NotOp.get(false_ite.cond)
-                new_cond_op = smt.OrOp.get(op.cond, not_cond2_op.res)
-                new_ite_op = smt.IteOp(new_cond_op.res, op.true_val, false_ite.true_val)
+                new_cond_op = smt.OrOp(op.cond, not_cond2_op.res)
+                new_ite_op = smt.IteOp(
+                    new_cond_op.result, op.true_val, false_ite.true_val
+                )
                 rewriter.replace_matched_op([not_cond2_op, new_cond_op, new_ite_op])
                 return

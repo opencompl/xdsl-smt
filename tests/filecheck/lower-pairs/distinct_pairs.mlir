@@ -18,6 +18,6 @@ builtin.module {
 // CHECK-NEXT:  %distinct = "smt.distinct"(%const_first, %const_first_1) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:  %distinct_1 = "smt.distinct"(%const_second_first, %const_second_first_1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  %distinct_2 = "smt.distinct"(%const_second_second, %const_second_second_1) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  %distinct_3 = "smt.or"(%distinct_1, %distinct_2) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  %distinct_4 = "smt.or"(%distinct, %distinct_3) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  %distinct_3 = smt.or %distinct_1, %distinct_2
+// CHECK-NEXT:  %distinct_4 = smt.or %distinct, %distinct_3
 // CHECK-NEXT:  "smt.assert"(%distinct_4) : (!smt.bool) -> ()

@@ -318,11 +318,11 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
         case OpResult(op=smt.NotOp(arg=arg), index=0):
             print("¬", end="")
             pretty_print_value(arg, True)
-        case OpResult(op=smt.AndOp(lhs=lhs, rhs=rhs), index=0):
+        case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
             pretty_print_value(lhs, True)
             print(" ∧ ", end="")
             pretty_print_value(rhs, True)
-        case OpResult(op=smt.OrOp(lhs=lhs, rhs=rhs), index=0):
+        case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
             pretty_print_value(lhs, True)
             print(" ∨ ", end="")
             pretty_print_value(rhs, True)
@@ -338,7 +338,7 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
             pretty_print_value(lhs, True)
             print(" = ", end="")
             pretty_print_value(rhs, True)
-        case OpResult(op=smt.XorOp(lhs=lhs, rhs=rhs), index=0):
+        case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
             pretty_print_value(lhs, True)
             print(" ⊕ ", end="")
             pretty_print_value(rhs, True)

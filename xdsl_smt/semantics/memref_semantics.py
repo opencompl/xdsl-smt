@@ -52,7 +52,7 @@ def combine_poison_values(
     poison = poisons[0]
     for other_poison in poisons[1:]:
         or_op = smt.OrOp(poison, other_poison)
-        poison = or_op.res
+        poison = or_op.result
         rewriter.insert_op_before_matched_op(or_op)
 
     return values, poison
@@ -148,8 +148,8 @@ def offset_pointer_for_indices(
         size_cst = smt_bv.ConstantOp(size, 64)
         less_size = smt_bv.SltOp(index, size_cst.res)
         in_bounds_dim = smt.AndOp(nonnegative.res, less_size.res)
-        in_bounds_op = smt.AndOp(in_bounds, in_bounds_dim.res)
-        in_bounds = in_bounds_op.res
+        in_bounds_op = smt.AndOp(in_bounds, in_bounds_dim.result)
+        in_bounds = in_bounds_op.result
         rewriter.insert_op_before_matched_op(
             [nonnegative, size_cst, less_size, in_bounds_dim, in_bounds_op]
         )
@@ -218,7 +218,9 @@ class LoadSemantics(OperationSemantics):
         state_if_poison = ub_effect.TriggerOp(effect_state)
         not_in_bounds = smt.NotOp(in_bounds)
         ub_condition = smt.OrOp(poison, not_in_bounds.res)
-        new_state = smt.IteOp(ub_condition.res, state_if_poison.res, read_op.new_state)
+        new_state = smt.IteOp(
+            ub_condition.result, state_if_poison.res, read_op.new_state
+        )
         rewriter.insert_op_before_matched_op(
             [state_if_poison, not_in_bounds, ub_condition, new_state]
         )
@@ -275,7 +277,9 @@ class StoreSemantics(OperationSemantics):
         state_if_poison = ub_effect.TriggerOp(effect_state)
         not_in_bounds = smt.NotOp(in_bounds)
         ub_condition = smt.OrOp(poison, not_in_bounds.res)
-        new_state = smt.IteOp(ub_condition.res, state_if_poison.res, write_op.new_state)
+        new_state = smt.IteOp(
+            ub_condition.result, state_if_poison.res, write_op.new_state
+        )
         rewriter.insert_op_before_matched_op(
             [state_if_poison, not_in_bounds, ub_condition, new_state]
         )

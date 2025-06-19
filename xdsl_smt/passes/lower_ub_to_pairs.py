@@ -105,7 +105,7 @@ class LowerMatchOp(RewritePattern):
         one_is_poison = poison_flags[0]
         for poison_flag in poison_flags[1:]:
             or_poison = smt.OrOp(poison_flag, one_is_poison)
-            one_is_poison = or_poison.res
+            one_is_poison = or_poison.result
             rewriter.insert_op_before_matched_op(or_poison)
 
         # Inline both case regions

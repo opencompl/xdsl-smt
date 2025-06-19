@@ -303,10 +303,10 @@ class ReplaceRewrite(RewritePattern):
         for precondition in self.rewrite_context.preconditions[1:]:
             and_preconditions_op = AndOp(and_preconditions, precondition)
             rewriter.insert_op_before_matched_op(and_preconditions_op)
-            and_preconditions = and_preconditions_op.res
+            and_preconditions = and_preconditions_op.result
 
         replace_correct = AndOp(not_refinement_value, and_preconditions)
-        assert_op = AssertOp(replace_correct.res)
+        assert_op = AssertOp(replace_correct.result)
         rewriter.replace_matched_op([replace_correct, assert_op])
 
 
@@ -343,9 +343,9 @@ def kb_analysis_correct(
     and_op_ones = smt_bv.AndOp(value, ones)
     ones_correct = EqOp(and_op_ones.res, ones)
     value_correct = AndOp(zeros_correct.res, ones_correct.res)
-    correct = OrOp(poison_correct.res, value_correct.res)
+    correct = OrOp(poison_correct.res, value_correct.result)
 
-    return value_correct.res, [
+    return value_correct.result, [
         value_op,
         poison_op,
         true_op,
@@ -416,11 +416,11 @@ class AttachOpRewrite(RewritePattern):
         for precondition in self.rewrite_context.preconditions[1:]:
             and_preconditions_op = AndOp(and_preconditions, precondition)
             rewriter.insert_op_before_matched_op(and_preconditions_op)
-            and_preconditions = and_preconditions_op.res
+            and_preconditions = and_preconditions_op.result
 
         implies = AndOp(and_preconditions, analysis_incorrect)
         rewriter.insert_op_before_matched_op(implies)
-        rewriter.replace_matched_op(AssertOp(implies.res))
+        rewriter.replace_matched_op(AssertOp(implies.result))
 
 
 @dataclass

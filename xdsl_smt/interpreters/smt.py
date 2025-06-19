@@ -50,17 +50,13 @@ class SMTFunctions(InterpreterFunctions):
     def run_and(
         self, interpreter: Interpreter, op: smt.AndOp, args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
-        assert isinstance(args[0], bool)
-        assert isinstance(args[1], bool)
-        return (args[0] and args[1],)
+        return (args.count(False) == 0,)
 
     @impl(smt.OrOp)
     def run_or(
         self, interpreter: Interpreter, op: smt.OrOp, args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
-        assert isinstance(args[0], bool)
-        assert isinstance(args[1], bool)
-        return (args[0] or args[1],)
+        return (args.count(True) > 0,)
 
     @impl(smt.ImpliesOp)
     def run_implies(
@@ -70,13 +66,11 @@ class SMTFunctions(InterpreterFunctions):
         assert isinstance(args[1], bool)
         return (not args[0] or args[1],)
 
-    @impl(smt.XorOp)
+    @impl(smt.XOrOp)
     def run_xor(
-        self, interpreter: Interpreter, op: smt.XorOp, args: tuple[Any, ...]
+        self, interpreter: Interpreter, op: smt.XOrOp, args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
-        assert isinstance(args[0], bool)
-        assert isinstance(args[1], bool)
-        return (args[0] != args[1],)
+        return (args.count(True) % 2 == 1,)
 
     @impl(smt.DistinctOp)
     def run_distinct(

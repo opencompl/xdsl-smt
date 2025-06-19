@@ -61,7 +61,7 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         not_after_poison = smt.NotOp(after_poison.res)
         eq_vals = smt.EqOp(before_val.res, after_val.res)
         not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
-        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.res)
+        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.result)
         rewriter.insert_op_before_matched_op(
             [
                 not_before_poison,
@@ -77,7 +77,7 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         ub_after_bool = ub_effect.ToBoolOp(state_after)
         not_ub_after = smt.NotOp(ub_after_bool.res)
         not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.result)
-        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.res)
+        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
         rewriter.insert_op_before_matched_op(
             [
                 ub_before_bool,
@@ -87,7 +87,7 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
                 refinement,
             ]
         )
-        return refinement.res
+        return refinement.result
 
 
 def integer_value_refinement(
@@ -96,8 +96,8 @@ def integer_value_refinement(
     with ImplicitBuilder(Builder(insert_point)):
         not_after_poison = NotOp.get(SecondOp(value_after).res).res
         value_eq = EqOp.get(FirstOp(value).res, FirstOp(value_after).res).res
-        value_refinement = AndOp.get(not_after_poison, value_eq).res
-        refinement = OrOp.get(value_refinement, SecondOp(value).res).res
+        value_refinement = AndOp(not_after_poison, value_eq).result
+        refinement = OrOp(value_refinement, SecondOp(value).res).result
     return refinement
 
 
@@ -181,8 +181,8 @@ def memory_block_refinement(
     with ImplicitBuilder(Builder(insert_point)):
         size_refinement = EqOp(size, size_after).res
         live_refinement = EqOp(live, live_after).res
-        block_properties_refinement = AndOp(size_refinement, live_refinement).res
-        block_refinement = AndOp(block_properties_refinement, forall.res).res
+        block_properties_refinement = AndOp(size_refinement, live_refinement).result
+        block_refinement = AndOp(block_properties_refinement, forall.res).result
 
     return block_refinement
 
@@ -224,7 +224,7 @@ def memory_refinement(
 
         block_refinement = memory_block_refinement(block, block_after, insert_point)
         with ImplicitBuilder(Builder(insert_point)):
-            refinement = AndOp(refinement, block_refinement).res
+            refinement = AndOp(refinement, block_refinement).result
 
     return refinement
 
@@ -267,11 +267,11 @@ def add_function_refinement(
                 raise Exception("Cannot handle non-integer return types")
             not_after_poison = NotOp.get(SecondOp(ret_after).res)
             value_eq = EqOp.get(FirstOp(ret).res, FirstOp(ret_after).res)
-            value_refinement = AndOp.get(not_after_poison.res, value_eq.res)
-            refinement = OrOp.get(value_refinement.res, SecondOp(ret).res)
-            return_values_refinement = AndOp.get(
-                return_values_refinement, refinement.res
-            ).res
+            value_refinement = AndOp(not_after_poison.res, value_eq.res)
+            refinement = OrOp(value_refinement.result, SecondOp(ret).res)
+            return_values_refinement = AndOp(
+                return_values_refinement, refinement.result
+            ).result
         return_values_refinement.name_hint = "return_values_refinement"
 
     # Refinement of memory
@@ -290,10 +290,10 @@ def add_function_refinement(
         refinement = OrOp(
             AndOp(
                 NotOp(res_ub_after).res,
-                AndOp(return_values_refinement, mem_refinement).res,
-            ).res,
+                AndOp(return_values_refinement, mem_refinement).result,
+            ).result,
             res_ub,
-        ).res
+        ).result
         refinement.name_hint = "function_refinement"
 
     return refinement

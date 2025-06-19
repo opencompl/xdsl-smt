@@ -13,7 +13,7 @@
   // CHECK-NEXT: (declare-const $y Bool)
   // CHECK-NEXT: (declare-const $z Bool)
 
-  %or = "smt.or"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.bool
+  %or = smt.or %x, %y
   "smt.assert"(%or) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (or $x $y))
 
@@ -30,7 +30,7 @@
   "smt.eval"(%xor) : (!smt.bool) -> ()
   // CHECK-NEXT: (eval (xor $x $y))
 
-  %and = "smt.and"(%x, %y) : (!smt.bool, !smt.bool) -> !smt.bool
+  %and = smt.and %x, %y
   "smt.assert"(%and) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (and $x $y))
 

@@ -42,7 +42,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         not_before_poison = smt.NotOp(before_poison)
         not_after_poison = smt.NotOp(after_poison)
         not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
-        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.res)
+        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.result)
         rewriter.insert_op_before_matched_op(
             [
                 not_before_poison,
@@ -58,7 +58,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         ub_after_bool = ub_effect.ToBoolOp(state_after)
         not_ub_after = smt.NotOp(ub_after_bool.res)
         not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.result)
-        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.res)
+        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
         rewriter.insert_op_before_matched_op(
             [
                 ub_before_bool,
@@ -69,7 +69,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
             ]
         )
 
-        return refinement.res
+        return refinement.result
 
 
 class IntIntegerAttrSemantics(AttributeSemantics):
@@ -246,7 +246,7 @@ class GenericIntBinarySemantics(GenericIntSemantics, ABC):
     ) -> SSAValue:
         or_poison = smt.OrOp(poison0, poison1)
         rewriter.insert_op_before_matched_op([or_poison])
-        return or_poison.res
+        return or_poison.result
 
     def get_ub(
         self,

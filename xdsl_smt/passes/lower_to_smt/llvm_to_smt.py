@@ -114,7 +114,7 @@ class UDivRewritePattern(RewritePattern):
         is_rhs_zero = smt.EqOp(operands[1], zero.res)
         new_poison = smt.OrOp(is_rhs_zero.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
@@ -140,11 +140,11 @@ class SDivRewritePattern(RewritePattern):
         is_underflow = smt.AndOp(lhs_is_min_val.res, rhs_is_minus_one.res)
 
         # New poison cases
-        introduce_poison = smt.OrOp(is_div_by_zero.res, is_underflow.res)
-        new_poison = smt.OrOp(introduce_poison.res, poison)
+        introduce_poison = smt.OrOp(is_div_by_zero.res, is_underflow.result)
+        new_poison = smt.OrOp(introduce_poison.result, poison)
 
         value_op = smt_bv.SDivOp(operands[0], operands[1])
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op(
             [
                 zero,
@@ -176,7 +176,7 @@ class URemOpRewritePattern(RewritePattern):
         is_rhs_zero = smt.EqOp(operands[1], zero.res)
         new_poison = smt.OrOp(is_rhs_zero.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
@@ -194,7 +194,7 @@ class SRemRewritePattern(RewritePattern):
         is_rhs_zero = smt.EqOp(operands[1], zero.res)
         new_poison = smt.OrOp(is_rhs_zero.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op([value_op, zero, is_rhs_zero, new_poison, res_op])
 
 
@@ -240,7 +240,7 @@ class ShlRewritePattern(RewritePattern):
         shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
         new_poison = smt.OrOp(shift_amount_too_big.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op(
             [value_op, width_op, shift_amount_too_big, new_poison, res_op]
         )
@@ -261,7 +261,7 @@ class AShrRewritePattern(RewritePattern):
         shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
         new_poison = smt.OrOp(shift_amount_too_big.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op(
             [value_op, width_op, shift_amount_too_big, new_poison, res_op]
         )
@@ -282,7 +282,7 @@ class LShrRewritePattern(RewritePattern):
         shift_amount_too_big = smt_bv.UgtOp(operands[1], width_op.res)
         new_poison = smt.OrOp(shift_amount_too_big.res, poison)
 
-        res_op = smt_utils.PairOp(value_op.res, new_poison.res)
+        res_op = smt_utils.PairOp(value_op.res, new_poison.result)
         rewriter.replace_matched_op(
             [value_op, width_op, shift_amount_too_big, new_poison, res_op]
         )

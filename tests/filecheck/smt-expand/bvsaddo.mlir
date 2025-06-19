@@ -19,5 +19,5 @@ builtin.module {
 // CHECK-NEXT:  %pred_4 = "smt.bv.sge"(%pred_1, %pred) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  %pred_5 = "smt.eq"(%pred_2, %pred_3) : (!smt.bool, !smt.bool) -> !smt.bool
 // CHECK-NEXT:  %pred_6 = "smt.distinct"(%pred_2, %pred_4) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:  %pred_7 = "smt.and"(%pred_5, %pred_6) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  %pred_7 = smt.and %pred_5, %pred_6
 // CHECK-NEXT:  "smt.assert"(%pred_7) : (!smt.bool) -> ()

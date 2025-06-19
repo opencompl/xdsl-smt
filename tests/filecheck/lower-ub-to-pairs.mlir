@@ -23,7 +23,7 @@
 // CHECK-NEXT:    %1 = "smt.utils.second"(%ub_1) : (!smt.utils.pair<i32, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:    %val2 = "smt.utils.first"(%non_ub_1) : (!smt.utils.pair<i32, !smt.bool>) -> i32
 // CHECK-NEXT:    %2 = "smt.utils.second"(%non_ub_1) : (!smt.utils.pair<i32, !smt.bool>) -> !smt.bool
-// CHECK-NEXT:    %3 = "smt.or"(%2, %1) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:    %3 = smt.or %2, %1
 // CHECK-NEXT:    %x = "smt.declare_const"() : () -> i64
 // CHECK-NEXT:    %y = "smt.declare_const"() : () -> i64
 // CHECK-NEXT:    %res = "smt.ite"(%3, %y, %x) : (!smt.bool, i64, i64) -> i64

@@ -19,7 +19,7 @@
 // CHECK-NEXT:      %6 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      %7 = "smt.bv.constant"() {value = #smt.bv.bv_val<1: 32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      %8 = "smt.eq"(%6, %4) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
-// CHECK-NEXT:      %9 = "smt.or"(%8, %5) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:      %9 = smt.or %8, %5
 // CHECK-NEXT:      %10 = ub_effect.trigger %1
 // CHECK-NEXT:      %11 = "smt.ite"(%9, %10, %1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
 // CHECK-NEXT:      %12 = "smt.eq"(%6, %2) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool

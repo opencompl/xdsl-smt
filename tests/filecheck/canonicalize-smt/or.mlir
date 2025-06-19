@@ -8,29 +8,29 @@
   // CHECK:      %x = "smt.declare_const"() : () -> !smt.bool
 
   // true \/ x -> true
-  %a = "smt.or"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
+  %a = smt.or %true, %x
   "smt.assert"(%a) : (!smt.bool) -> ()
   // CHECK-NEXT: %a = "smt.constant"() <{value = true}> : () -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%a) : (!smt.bool) -> ()
 
   // false \/ x -> x
-  %b = "smt.or"(%false, %x) : (!smt.bool, !smt.bool) -> !smt.bool
+  %b = smt.or %false, %x
   "smt.assert"(%b) : (!smt.bool) -> ()
   // CHECK-NEXT: "smt.assert"(%x) : (!smt.bool) -> ()
 
   // x \/ true -> true
-  %c = "smt.or"(%x, %true) : (!smt.bool, !smt.bool) -> !smt.bool
+  %c = smt.or %x, %true
   "smt.assert"(%c) : (!smt.bool) -> ()
   // CHECK-NEXT: %c = "smt.constant"() <{value = true}> : () -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%c) : (!smt.bool) -> ()
 
   // x \/ false -> x
-  %d = "smt.or"(%x, %false) : (!smt.bool, !smt.bool) -> !smt.bool
+  %d = smt.or %x, %false
   "smt.assert"(%d) : (!smt.bool) -> ()
   // CHECK-NEXT: "smt.assert"(%x) : (!smt.bool) -> ()
 
   // x \/ x -> x
-  %e = "smt.or"(%x, %x) : (!smt.bool, !smt.bool) -> !smt.bool
+  %e = smt.or %x, %x
   "smt.assert"(%e) : (!smt.bool) -> ()
   // CHECK-NEXT: "smt.assert"(%x) : (!smt.bool) -> ()
 }) : () -> ()

@@ -24,7 +24,7 @@ from ..dialects.smt_dialect import (
     ForallOp,
     AndOp,
     OrOp,
-    XorOp,
+    XOrOp,
     EqOp,
     IteOp,
     DistinctOp,
@@ -960,7 +960,7 @@ def module_op_validity_check(module: ModuleOp) -> bool:
         if (
             isinstance(op, AndOp)
             or isinstance(op, OrOp)
-            or isinstance(op, XorOp)
+            or isinstance(op, XOrOp)
             or isinstance(op, EqOp)
         ):
             return op.operands[0].type == op.operands[1].type

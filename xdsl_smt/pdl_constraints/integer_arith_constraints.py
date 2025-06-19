@@ -325,8 +325,8 @@ def merge_overflow_flags(
     nsw_lhs = rewriter.insert(smt_utils.SecondOp(lhs)).res
     nsw_rhs = rewriter.insert(smt_utils.SecondOp(rhs)).res
 
-    nuw_res = rewriter.insert(smt.AndOp(nuw_lhs, nuw_rhs)).res
-    nsw_res = rewriter.insert(smt.AndOp(nsw_lhs, nsw_rhs)).res
+    nuw_res = rewriter.insert(smt.AndOp(nuw_lhs, nuw_rhs)).result
+    nsw_res = rewriter.insert(smt.AndOp(nsw_lhs, nsw_rhs)).result
 
     res = rewriter.insert(smt_utils.PairOp(nuw_res, nsw_res)).res
     rewriter.replace_matched_op([], [res])

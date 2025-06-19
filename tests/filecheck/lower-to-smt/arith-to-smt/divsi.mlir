@@ -22,10 +22,10 @@
 // CHECK-NEXT:      %9 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      %10 = "smt.eq"(%2, %8) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %11 = "smt.eq"(%4, %9) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
-// CHECK-NEXT:      %12 = "smt.and"(%10, %11) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:      %12 = smt.and %10, %11
 // CHECK-NEXT:      %13 = ub_effect.trigger %1
-// CHECK-NEXT:      %14 = "smt.or"(%7, %12) : (!smt.bool, !smt.bool) -> !smt.bool
-// CHECK-NEXT:      %15 = "smt.or"(%14, %5) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:      %14 = smt.or %7, %12
+// CHECK-NEXT:      %15 = smt.or %14, %5
 // CHECK-NEXT:      %16 = "smt.ite"(%15, %13, %1) : (!smt.bool, !effect.state, !effect.state) -> !effect.state
 // CHECK-NEXT:      %17 = "smt.bv.sdiv"(%2, %4) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
 // CHECK-NEXT:      %r = "smt.utils.pair"(%17, %3) : (!smt.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv<32>, !smt.bool>

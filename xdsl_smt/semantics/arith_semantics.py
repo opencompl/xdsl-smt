@@ -94,7 +94,7 @@ def reduce_poison_values(
         value, poison = get_int_value_and_poison(operand, rewriter)
         values.append(value)
         merge_poison = smt.OrOp(result_poison, poison)
-        result_poison = merge_poison.res
+        result_poison = merge_poison.result
         rewriter.insert_op_before_matched_op(merge_poison)
 
     return values, result_poison
@@ -156,7 +156,7 @@ class SimplePoisonSemantics(OperationSemantics):
         for value, new_poison in value_results:
             if isinstance(new_poison, SSAValue):
                 poison = smt.OrOp(new_poison, propagated_poison)
-                pair = smt_utils.PairOp(value, poison.res)
+                pair = smt_utils.PairOp(value, poison.result)
                 rewriter.insert_op_before_matched_op([poison, pair])
                 value_with_poison_results.append(pair.res)
             else:
@@ -249,18 +249,18 @@ class AddiSemantics(SimplePurePoisonSemantics):
         poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
         has_nsw = overflow_attr.get_nsw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
-        is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).res
+        is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
         poison_condition = rewriter.insert(
             smt.OrOp(poison_condition, is_overflow_and_nsw)
-        ).res
+        ).result
 
         # Handle nuw
         has_nuw = overflow_attr.get_nuw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.UaddOverflowOp(lhs, rhs)).res
-        is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).res
+        is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).result
         poison_condition = rewriter.insert(
             smt.OrOp(poison_condition, is_overflow_and_nuw)
-        ).res
+        ).result
 
         return ((res, poison_condition),)
 
@@ -371,12 +371,14 @@ class DivsiSemantics(OperationSemantics):
         minus_one = rewriter.insert(smt_bv.ConstantOp(2**width - 1, width)).res
         lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
         rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
-        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
+        is_underflow = rewriter.insert(
+            smt.AndOp(lhs_is_min_val, rhs_is_minus_one)
+        ).result
 
         # UB cases: underflow, division by zero, or rhs being poison
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
-        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, is_underflow)).res
-        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, is_underflow)).result
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).result
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
@@ -408,7 +410,7 @@ class DivuiSemantics(SimplePurePoisonSemantics):
 
         # UB cases: division by zero or rhs being poison
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
-        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_div_by_zero, rhs_poison)).result
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
@@ -441,7 +443,7 @@ class RemsiSemantics(SimplePurePoisonSemantics):
 
         # UB cases: remainder by zero or rhs poison
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
-        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).result
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
@@ -474,7 +476,7 @@ class RemuiSemantics(SimplePurePoisonSemantics):
 
         # UB cases: remainder by zero or rhs poison
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
-        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rem_by_zero, rhs_poison)).result
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
         # Operation result
@@ -795,7 +797,7 @@ class CeilDivUISemantics(SimplePoisonSemantics):
         is_rhs_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
 
         # UB cases: division by zero or rhs poison
-        is_ub = rewriter.insert(smt.OrOp(is_rhs_zero, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_rhs_zero, rhs_poison)).result
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
@@ -838,15 +840,17 @@ class CeilDivSISemantics(SimplePurePoisonSemantics):
         one = rewriter.insert(smt_bv.ConstantOp(1, width)).res
         lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
         rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
-        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
+        is_underflow = rewriter.insert(
+            smt.AndOp(lhs_is_min_val, rhs_is_minus_one)
+        ).result
 
         # Check for division by zero
         zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
         is_div_by_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
 
         # UB cases: underflow, division by zero or rhs poison
-        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).res
-        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).result
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).result
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
@@ -863,7 +867,7 @@ class CeilDivSISemantics(SimplePurePoisonSemantics):
         same_sign = rewriter.insert(smt.EqOp(is_lhs_positive, is_rhs_positive)).res
         should_round_up = rewriter.insert(
             smt.AndOp(same_sign, is_remainder_not_zero)
-        ).res
+        ).result
 
         # If we should round up, add one to the result
         one = rewriter.insert(smt_bv.ConstantOp(1, width)).res
@@ -896,15 +900,17 @@ class FloorDivSISemantics(SimplePurePoisonSemantics):
         minus_one = rewriter.insert(smt_bv.ConstantOp(2**width - 1, width)).res
         lhs_is_min_val = rewriter.insert(smt.EqOp(lhs, minimum_value)).res
         rhs_is_minus_one = rewriter.insert(smt.EqOp(rhs, minus_one)).res
-        is_underflow = rewriter.insert(smt.AndOp(lhs_is_min_val, rhs_is_minus_one)).res
+        is_underflow = rewriter.insert(
+            smt.AndOp(lhs_is_min_val, rhs_is_minus_one)
+        ).result
 
         # Check for division by zero
         zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
         is_div_by_zero = rewriter.insert(smt.EqOp(zero, rhs)).res
 
         # UB cases: underflow, division by zero, or poison in rhs
-        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).res
-        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).res
+        is_ub = rewriter.insert(smt.OrOp(is_underflow, is_div_by_zero)).result
+        is_ub = rewriter.insert(smt.OrOp(is_ub, rhs_poison)).result
         trigger_ub = rewriter.insert(smt_ub.TriggerOp(effect_state)).res
         new_state = rewriter.insert(smt.IteOp(is_ub, trigger_ub, effect_state)).res
 
@@ -914,13 +920,15 @@ class FloorDivSISemantics(SimplePurePoisonSemantics):
         # If the result is negative, subtract 1 if the remainder is not 0
         is_lhs_negative = rewriter.insert(smt_bv.SltOp(lhs, zero)).res
         is_rhs_negative = rewriter.insert(smt_bv.SltOp(rhs, zero)).res
-        is_negative = rewriter.insert(smt.XorOp(is_lhs_negative, is_rhs_negative)).res
+        is_negative = rewriter.insert(
+            smt.XOrOp(is_lhs_negative, is_rhs_negative)
+        ).result
         remainder = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
         is_remainder_not_zero = rewriter.insert(smt.DistinctOp(remainder, zero)).res
         subtract_one = rewriter.insert(smt_bv.AddOp(value_op, minus_one)).res
         should_subtract_one = rewriter.insert(
             smt.AndOp(is_negative, is_remainder_not_zero)
-        ).res
+        ).result
         res_value_op = rewriter.insert(
             smt.IteOp(should_subtract_one, subtract_one, value_op)
         ).res

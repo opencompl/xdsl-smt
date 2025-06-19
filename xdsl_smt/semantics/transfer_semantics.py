@@ -363,7 +363,7 @@ class UShlOverflowOpSemantics(OperationSemantics):
             + [shift_amount_gt_lzero, or_op]
         )
 
-        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(or_op.res)
+        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(or_op.result)
 
         poison_op = smt.ConstantBoolOp.from_bool(False)
         res = PairOp(bv_res, poison_op.res)
@@ -431,9 +431,9 @@ class SShlOverflowOpSemantics(OperationSemantics):
         and1_op = smt.AndOp(is_negative_operand, shift_amount_ge_lone.res)
 
         # isNonNegative()&&ShAmt >= countl_zero() || isNegative()&&ShAmt >= countl_one()
-        or_op = smt.OrOp(and_op.res, and1_op.res)
+        or_op = smt.OrOp(and_op.result, and1_op.result)
 
-        final_or_op = smt.OrOp(shift_amount_ge_bitwidth.res, or_op.res)
+        final_or_op = smt.OrOp(shift_amount_ge_bitwidth.res, or_op.result)
 
         overflow_ops = (
             [bv_width, shift_amount_ge_bitwidth]
@@ -446,7 +446,7 @@ class SShlOverflowOpSemantics(OperationSemantics):
             + [and_op, and1_op, or_op, final_or_op]
         )
 
-        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.res)
+        bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.result)
 
         poison_op = smt.ConstantBoolOp.from_bool(False)
         res = PairOp(bv_res, poison_op.res)

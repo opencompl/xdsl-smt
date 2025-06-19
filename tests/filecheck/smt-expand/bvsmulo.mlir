@@ -14,6 +14,6 @@ builtin.module {
 // CHECK-NEXT:  %y = "smt.declare_const"() : () -> !smt.bv<32>
 // CHECK-NEXT:  %pred = "smt.bv.smul_noovfl"(%x, %y) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  %pred_1 = "smt.bv.smul_noudfl"(%x, %y) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
-// CHECK-NEXT:  %pred_2 = "smt.and"(%pred, %pred_1) : (!smt.bool, !smt.bool) -> !smt.bool
+// CHECK-NEXT:  %pred_2 = smt.and %pred, %pred_1
 // CHECK-NEXT:  %pred_3 = "smt.not"(%pred_2) : (!smt.bool) -> !smt.bool
 // CHECK-NEXT:  "smt.assert"(%pred_3) : (!smt.bool) -> ()

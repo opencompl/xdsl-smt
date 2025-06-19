@@ -223,14 +223,14 @@ def insert_and_constraint_andi(rewriter: PatternRewriter, pow2: SSAValue):
     x_lt_k_max_op = smt_int.LtOp(x, k_max_op.res[0])
     y_lt_k_max_op = smt_int.LtOp(y, k_max_op.res[0])
     and0_op = smt.AndOp(kp_gt_k_op.res, x_lt_k_max_op.res)
-    left_member_op = smt.AndOp(and0_op.res, y_lt_k_max_op.res)
+    left_member_op = smt.AndOp(and0_op.result, y_lt_k_max_op.res)
     # Right member of the implication: (= (andi k x y) (andi kp x y))
     andi_k_x_y_op = smt.CallOp(declare_andi_op.ret, [k, x, y])
     andi_kp_x_y_op = smt.CallOp(declare_andi_op.ret, [kp, x, y])
     right_member_op = smt.EqOp(andi_k_x_y_op.res[0], andi_kp_x_y_op.res[0])
     # Build the implication: (=> left right)
     implies_op = smt.ImpliesOp(
-        left_member_op.res,
+        left_member_op.result,
         right_member_op.res,
     )
     yield_op = smt.YieldOp(implies_op.result)
