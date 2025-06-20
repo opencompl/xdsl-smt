@@ -12,7 +12,7 @@
 // CHECK:	builtin.module {
 // CHECK-NEXT:  %0 = "smt.define_fun"() ({
 // CHECK-NEXT:  ^0(%x : !smt.bv<8>, %y : !smt.bv<8>, %1 : !effect.state):
-// CHECK-NEXT:    %r = "smt.bv.constant"() {value = #smt.bv.bv_val<127: 8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %r = "smt.bv.constant"() {value = #smt.bv<127> : !smt.bv<8>} : () -> !smt.bv<8>
 // CHECK-NEXT:    "smt.return"(%r, %1) : (!smt.bv<8>, !effect.state) -> ()
 // CHECK-NEXT:  }) {fun_name = "test"} : () -> ((!smt.bv<8>, !smt.bv<8>, !effect.state) -> (!smt.bv<8>, !effect.state))
 // CHECK-NEXT:}

@@ -13,8 +13,8 @@
 // CHECK-NEXT:    %0 = "smt.define_fun"() ({
 // CHECK-NEXT:    ^0(%x : !smt.bv<8>, %y : !smt.bv<8>, %1 : !effect.state):
 // CHECK-NEXT:      %2 = "smt.bv.smulo"(%x, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK-NEXT:      %3 = "smt.bv.constant"() {value = #smt.bv.bv_val<1: 1>} : () -> !smt.bv<1>
-// CHECK-NEXT:      %4 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 1>} : () -> !smt.bv<1>
+// CHECK-NEXT:      %3 = "smt.bv.constant"() {value = #smt.bv<1> : !smt.bv<1>} : () -> !smt.bv<1>
+// CHECK-NEXT:      %4 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<1>} : () -> !smt.bv<1>
 // CHECK-NEXT:      %5 = "smt.ite"(%2, %3, %4) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
 // CHECK-NEXT:      %6 = "smt.constant"() <{value = false}> : () -> !smt.bool
 // CHECK-NEXT:      %r = "smt.utils.pair"(%5, %6) : (!smt.bv<1>, !smt.bool) -> !smt.utils.pair<!smt.bv<1>, !smt.bool>

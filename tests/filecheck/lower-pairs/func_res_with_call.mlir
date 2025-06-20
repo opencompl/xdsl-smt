@@ -6,7 +6,7 @@
 
   %0 = "smt.define_fun"() ({
   ^0(%arg : !smt.bool):
-    %1 = "smt.bv.constant"() {value = #smt.bv.bv_val<3: 32>} : () -> !smt.bv<32>
+    %1 = "smt.bv.constant"() {value = #smt.bv<3> : !smt.bv<32>} : () -> !smt.bv<32>
     %2 = "smt.constant"() <{value = false}> : () -> !smt.bool
     %3 = "smt.utils.pair"(%1, %2) : (!smt.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv<32>, !smt.bool>
     %4 = "smt.constant"() <{value = false}> : () -> !smt.bool
@@ -30,7 +30,7 @@
 // CHECK-NEXT:    }) {fun_name = "test_second_second"} : () -> ((!smt.bool) -> !smt.bool)
 // CHECK-NEXT:    %2 = "smt.define_fun"() ({
 // CHECK-NEXT:    ^1(%arg_1 : !smt.bool):
-// CHECK-NEXT:      %3 = "smt.bv.constant"() {value = #smt.bv.bv_val<3: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %3 = "smt.bv.constant"() {value = #smt.bv<3> : !smt.bv<32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      "smt.return"(%3) : (!smt.bv<32>) -> ()
 // CHECK-NEXT:    }) {fun_name = "test_second_first"} : () -> ((!smt.bool) -> !smt.bv<32>)
 // CHECK-NEXT:    %4 = "smt.define_fun"() ({

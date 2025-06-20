@@ -12,7 +12,7 @@ builtin.module {
 
 // CHECK:  %x = "smt.declare_const"() : () -> !smt.bv<32>
 // CHECK-NEXT:  %y = "smt.declare_const"() : () -> !smt.bv<32>
-// CHECK-NEXT:  %pred = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:  %pred = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
 // CHECK-NEXT:  %pred_1 = "smt.bv.add"(%x, %y) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
 // CHECK-NEXT:  %pred_2 = "smt.bv.sge"(%x, %pred) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  %pred_3 = "smt.bv.sge"(%y, %pred) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool

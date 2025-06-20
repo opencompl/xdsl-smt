@@ -16,12 +16,12 @@
 // CHECK-NEXT:      %3 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:      %4 = "smt.utils.first"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:      %5 = "smt.utils.second"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
-// CHECK-NEXT:      %6 = "smt.bv.constant"() {value = #smt.bv.bv_val<2147483648: 32>} : () -> !smt.bv<32>
-// CHECK-NEXT:      %7 = "smt.bv.constant"() {value = #smt.bv.bv_val<4294967295: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %6 = "smt.bv.constant"() {value = #smt.bv<2147483648> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %7 = "smt.bv.constant"() {value = #smt.bv<4294967295> : !smt.bv<32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      %8 = "smt.eq"(%2, %6) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %9 = "smt.eq"(%4, %7) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %10 = smt.and %8, %9
-// CHECK-NEXT:      %11 = "smt.bv.constant"() {value = #smt.bv.bv_val<0: 32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %11 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
 // CHECK-NEXT:      %12 = "smt.eq"(%11, %4) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %13 = smt.or %10, %12
 // CHECK-NEXT:      %14 = smt.or %13, %5
