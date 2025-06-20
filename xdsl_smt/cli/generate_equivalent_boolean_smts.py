@@ -274,8 +274,11 @@ def create_pattern_from_program(program: ModuleOp) -> str:
     used_attributes: set[str] = set()
     op_ids: dict[Operation, int] = {}
 
-    i = 0
-    for i, op in enumerate(get_inner_func(program).body.ops):
+    # We do not include the return instruction as part of the pattern. If the
+    # program contain instructions with multiple return values, or itself
+    # returns multiple values, this may lead to unexpected results.
+    operations = list(get_inner_func(program).body.ops)[:-1]
+    for i, op in enumerate(operations):
         op_ids[op] = i
         operands: list[str] = []
         for operand in op.operands:
@@ -302,7 +305,7 @@ def create_pattern_from_program(program: ModuleOp) -> str:
         for j in range(len(op.results)):
             lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
 
-    lines.append(f'    rewrite %op{i} with "rewriter"')
+    lines.append(f'    rewrite %op{len(operations) - 1} with "rewriter"')
     lines.append("  }")
     lines.append("}")
 
