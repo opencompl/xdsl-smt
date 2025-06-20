@@ -171,7 +171,10 @@ def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
             return 1
         case OpResult(), BlockArgument():
             return -1
-        # TODO: Consider constant booleans as not equal.
+        case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
+            op=smt.ConstantBoolOp(value=rv)
+        ):
+            return bool(lv) - bool(rv)
         case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
             if isinstance(lop, type(rop)):
                 return i - j
