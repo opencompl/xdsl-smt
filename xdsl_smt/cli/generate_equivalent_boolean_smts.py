@@ -112,6 +112,8 @@ def enumerate_programs(
             MLIR_ENUMERATE,
             SMT_MLIR,
             "--configuration=smt",
+            # Prevent any non-deterministic behavior (hopefully).
+            "--seed=1",
             f"--max-num-args={max_num_args}",
             f"--max-num-ops={num_ops}",
             "--pause-between-programs",
