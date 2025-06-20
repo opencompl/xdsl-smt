@@ -161,14 +161,14 @@ def is_same_behavior(max_num_args: int, left: ModuleOp, right: ModuleOp) -> bool
     return True
 
 
-def compare_value_lexicographically(left: SSAValue, right: SSAValue) -> int:
+def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
     match left, right:
         case BlockArgument(index=i), BlockArgument(index=j):
             return i - j
         case BlockArgument(), OpResult():
-            return -1
-        case OpResult(), BlockArgument():
             return 1
+        case OpResult(), BlockArgument():
+            return -1
         # TODO: Consider constant booleans as not equal.
         case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
             if isinstance(lop, type(rop)):
@@ -176,7 +176,7 @@ def compare_value_lexicographically(left: SSAValue, right: SSAValue) -> int:
             if len(lop.operands) != len(rop.operands):
                 return len(lop.operands) - len(rop.operands)
             for lo, ro in zip(lop.operands, rop.operands, strict=True):
-                c = compare_value_lexicographically(lo, ro)
+                c = compare_values_lexicographically(lo, ro)
                 if c != 0:
                     return c
             return 0
@@ -184,7 +184,7 @@ def compare_value_lexicographically(left: SSAValue, right: SSAValue) -> int:
             raise ValueError(f"Unknown value: {l} or {r}")
 
 
-def compare_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
+def compare_programs_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
     if program_size(left) < program_size(right):
         return -1
     if program_size(right) > program_size(left):
@@ -193,7 +193,7 @@ def compare_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
     assert left_ret is not None
     right_ret = get_inner_func(right).get_return_op()
     assert right_ret is not None
-    return compare_value_lexicographically(
+    return compare_values_lexicographically(
         left_ret.arguments[0], right_ret.arguments[0]
     )
 
@@ -432,8 +432,13 @@ def main() -> None:
                 # minimal as possible" for the "pattern" preorder relation, in
                 # order to be able to add as many programs as possible to
                 # `illegals`. This can be approximated by taking the minimum for
-                # the lexicographical order.
-                canonical = min(behavior, key=cmp_to_key(compare_lexicographically))
+                # the lexicographical order. In particular, more "specific"
+                # programs (i.e., programs using many constants and operations)
+                # are sorted before less "specific" programs (i.e., programs
+                # using few operations and many arguments).
+                canonical = min(
+                    behavior, key=cmp_to_key(compare_programs_lexicographically)
+                )
                 canonicals.append(canonical)
                 new_illegals.extend(
                     program
