@@ -12,10 +12,10 @@
 // CHECK:	builtin.module {
 // CHECK-NEXT:  %0 = "smt.define_fun"() ({
 // CHECK-NEXT:  ^0(%x : !smt.bv<8>, %y : !smt.bv<8>, %1 : !effect.state):
-// CHECK-NEXT:    %2 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<8>} : () -> !smt.bv<8>
-// CHECK-NEXT:    %3 = "smt.bv.constant"() {value = #smt.bv<8> : !smt.bv<8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %2 = smt.bv.constant #smt.bv<0> : !smt.bv<8>
+// CHECK-NEXT:    %3 = smt.bv.constant #smt.bv<8> : !smt.bv<8>
 // CHECK-NEXT:    %4 = "smt.bv.sub"(%3, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
-// CHECK-NEXT:    %5 = "smt.bv.constant"() {value = #smt.bv<255> : !smt.bv<8>} : () -> !smt.bv<8>
+// CHECK-NEXT:    %5 = smt.bv.constant #smt.bv<255> : !smt.bv<8>
 // CHECK-NEXT:    %6 = "smt.bv.ashr"(%5, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
 // CHECK-NEXT:    %7 = "smt.bv.shl"(%6, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
 // CHECK-NEXT:    %8 = "smt.bv.shl"(%7, %4) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>

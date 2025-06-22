@@ -14,7 +14,7 @@
 // CHECK-NEXT:    %block_1 = memory.set_block_live_marker %block, %1
 // CHECK-NEXT:    %block_2 = memory.set_block_size %block_1, %size
 // CHECK-NEXT:    %memory_1 = memory.set_block %block_2, %0[%bid]
-// CHECK-NEXT:    %2 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<64>} : () -> !smt.bv<64>
+// CHECK-NEXT:    %2 = smt.bv.constant #smt.bv<0> : !smt.bv<64>
 // CHECK-NEXT:    %ptr = "smt.utils.pair"(%bid, %2) : (!memory.block_id, !smt.bv<64>) -> !smt.utils.pair<!memory.block_id, !smt.bv<64>>
 // CHECK-NEXT:    %state_1 = memory.set_memory %state, %memory_1
 // CHECK-NEXT:    "test.op"(%state_1, %ptr) : (!effect.state, !smt.utils.pair<!memory.block_id, !smt.bv<64>>) -> ()

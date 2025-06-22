@@ -12,8 +12,8 @@
 // CHECK:       %3 = "smt.bv.uge"(%y, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
 // CHECK:       %27 = "smt.bv.ugt"(%y, %26) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
 // CHECK-NEXT:  %28 = smt.or %3, %27
-// CHECK-NEXT:  %29 = "smt.bv.constant"() {value = #smt.bv<1> : !smt.bv<1>} : () -> !smt.bv<1>
-// CHECK-NEXT:  %30 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<1>} : () -> !smt.bv<1>
+// CHECK-NEXT:  %29 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
+// CHECK-NEXT:  %30 = smt.bv.constant #smt.bv<0> : !smt.bv<1>
 // CHECK-NEXT:  %31 = "smt.ite"(%28, %29, %30) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
 // CHECK-NEXT:  "smt.constant"() <{value = false}> : () -> !smt.bool
 // CHECK-NEXT:  %r = "smt.utils.pair"(%31, %32) : (!smt.bv<1>, !smt.bool) -> !smt.utils.pair<!smt.bv<1>, !smt.bool>

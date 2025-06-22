@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeVar, IO, overload
+from typing import ClassVar, TypeVar, IO, overload
 
 from xdsl.dialects.builtin import IntAttr, IntegerAttr, IntegerType
 
@@ -19,6 +19,9 @@ from xdsl.irdl import (
     irdl_op_definition,
     IRDLOperation,
     traits_def,
+    VarConstraint,
+    base,
+    prop_def,
 )
 from xdsl import traits
 from xdsl.traits import HasCanonicalizationPatternsTrait
@@ -33,10 +36,17 @@ from xdsl.dialects.smt import BitVectorType, BitVectorAttr
 @irdl_op_definition
 class ConstantOp(IRDLOperation, Pure, SMTLibOp):
     name = "smt.bv.constant"
-    value: BitVectorAttr = attr_def(BitVectorAttr)
-    res: OpResult = result_def(BitVectorType)
 
-    traits = traits_def(traits.Pure())
+    T: ClassVar = VarConstraint("T", base(BitVectorType))
+
+    value = prop_def(BitVectorAttr.constr(T))
+    result = result_def(T)
+
+    assembly_format = "qualified($value) attr-dict"
+
+    @property
+    def res(self) -> OpResult[BitVectorType]:
+        return self.result
 
     @overload
     def __init__(self, value: int | IntAttr, width: int | IntAttr) -> None:
@@ -66,13 +76,13 @@ class ConstantOp(IRDLOperation, Pure, SMTLibOp):
                 else value.value.data
             )
             attr = BitVectorAttr(value_int, BitVectorType(width))
-        super().__init__(result_types=[attr.get_type()], attributes={"value": attr})
+        super().__init__(result_types=[attr.get_type()], properties={"value": attr})
 
     @staticmethod
     def from_int_value(value: int, width: int) -> ConstantOp:
         bv_value = BitVectorAttr(value, BitVectorType(width))
         return ConstantOp.create(
-            result_types=[bv_value.get_type()], attributes={"value": bv_value}
+            result_types=[bv_value.get_type()], properties={"value": bv_value}
         )
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:

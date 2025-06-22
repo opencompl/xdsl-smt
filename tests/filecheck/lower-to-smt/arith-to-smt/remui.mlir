@@ -16,7 +16,7 @@
 // CHECK-NEXT:      %3 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:      %4 = "smt.utils.first"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:      %5 = "smt.utils.second"(%y) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
-// CHECK-NEXT:      %6 = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %6 = smt.bv.constant #smt.bv<0> : !smt.bv<32>
 // CHECK-NEXT:      %7 = "smt.eq"(%4, %6) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:      %8 = ub_effect.trigger %1
 // CHECK-NEXT:      %9 = smt.or %7, %5

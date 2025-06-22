@@ -12,7 +12,7 @@
 // CHECK:       builtin.module {
 // CHECK-NEXT:    %0 = "smt.define_fun"() ({
 // CHECK-NEXT:    ^0(%1 : !effect.state):
-// CHECK-NEXT:      %2 = "smt.bv.constant"() {value = #smt.bv<3> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:      %2 = smt.bv.constant #smt.bv<3> : !smt.bv<32>
 // CHECK-NEXT:      %3 = "smt.constant"() <{value = false}> : () -> !smt.bool
 // CHECK-NEXT:      %x = "smt.utils.pair"(%2, %3) : (!smt.bv<32>, !smt.bool) -> !smt.utils.pair<!smt.bv<32>, !smt.bool>
 // CHECK-NEXT:      "smt.return"(%x, %1) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>, !effect.state) -> ()

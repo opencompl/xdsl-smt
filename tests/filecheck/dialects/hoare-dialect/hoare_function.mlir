@@ -15,7 +15,7 @@
     // ensures: res = 0
     "hoare.ensures"() ({
     ^2(%x3 : !smt.bv<32>, %y3 : !smt.bv<32>, %r3 : !smt.bv<32>):
-      %zero = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
+      %zero = smt.bv.constant #smt.bv<0> : !smt.bv<32>
       %eq_1 = "smt.eq"(%r3, %zero) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
       "hoare.yield"(%eq_1) : (!smt.bool) -> ()
     }) : () -> ()
@@ -39,7 +39,7 @@
 // CHECK-NEXT:     }) : () -> ()
 // CHECK-NEXT:     "hoare.ensures"() ({
 // CHECK-NEXT:     ^2(%x3 : !smt.bv<32>, %y3 : !smt.bv<32>, %r3 : !smt.bv<32>):
-// CHECK-NEXT:       %zero = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:             %zero = "smt.bv.constant"() <{value = #smt.bv<0> : !smt.bv<32>}> : () -> !smt.bv<32>
 // CHECK-NEXT:       %eq_1 = "smt.eq"(%r3, %zero) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:       "hoare.yield"(%eq_1) : (!smt.bool) -> ()
 // CHECK-NEXT:     }) : () -> ()

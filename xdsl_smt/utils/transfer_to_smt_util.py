@@ -1,8 +1,8 @@
 from xdsl.ir import Operation, SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
-from ..dialects import smt_bitvector_dialect as smt_bv
-from ..dialects import smt_dialect as smt
+from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import smt_dialect as smt
 
 
 def get_constant_with_bit_vector(val: int, bv: smt_bv.BitVectorType) -> list[Operation]:

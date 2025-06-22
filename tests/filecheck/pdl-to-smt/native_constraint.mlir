@@ -30,12 +30,12 @@ builtin.module {
 // CHECK-NEXT:    %0 = "smt.declare_const"() : () -> !smt.bool
 // CHECK-NEXT:    %x = "smt.declare_const"() : () -> !smt.utils.pair<!smt.bv<32>, !smt.bool>
 // CHECK-NEXT:    %c0_attr = "smt.declare_const"() : () -> !smt.bv<32>
-// CHECK-NEXT:    %1 = "smt.bv.constant"() {value = #smt.bv<4294967295> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:    %1 = smt.bv.constant #smt.bv<4294967295> : !smt.bv<32>
 // CHECK-NEXT:    %2 = "smt.eq"(%c0_attr, %1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %3 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:    %4 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:    %5 = "smt.bv.mul"(%3, %c0_attr) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
-// CHECK-NEXT:    %zero_attr = "smt.bv.constant"() {value = #smt.bv<0> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:    %zero_attr = smt.bv.constant #smt.bv<0> : !smt.bv<32>
 // CHECK-NEXT:    %6 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:    %7 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:    %8 = "smt.bv.sub"(%zero_attr, %6) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>

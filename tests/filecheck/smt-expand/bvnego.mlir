@@ -12,6 +12,6 @@ builtin.module {
 
 // CHECK:       %x = "smt.declare_const"() : () -> !smt.bv<32>
 // CHECK-NEXT:  %y = "smt.declare_const"() : () -> !smt.bv<32>
-// CHECK-NEXT:  %pred = "smt.bv.constant"() {value = #smt.bv<2147483648> : !smt.bv<32>} : () -> !smt.bv<32>
+// CHECK-NEXT:  %pred = smt.bv.constant #smt.bv<2147483648> : !smt.bv<32>
 // CHECK-NEXT:  %pred_1 = "smt.eq"(%pred, %x) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:  "smt.assert"(%pred_1) : (!smt.bool) -> ()
