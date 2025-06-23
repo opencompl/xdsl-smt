@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from io import StringIO
 import itertools
 import subprocess as sp
 import sys
@@ -55,8 +56,10 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
+REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "mlir-fuzz/dialects/smt.mlir"
 EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
+USE_CPP = True
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -490,18 +493,41 @@ def main() -> None:
                     for program in programs
                     if not is_pattern(program, canonical)
                 )
-            size = len(new_illegals)
-            redundant_count = 0
-            progress = 0
-            for i, program in reversed(list(enumerate(new_illegals))):
-                progress += 1
-                print(f" {progress}/{size}", end="\r")
-                if any(
-                    j != i and is_pattern(lhs, program)
-                    for j, lhs in enumerate(new_illegals)
-                ):
-                    redundant_count += 1
-                    del new_illegals[i]
+            print("Removing redundant illegal subpatterns...")
+
+            if USE_CPP:
+                input = StringIO()
+                print("module {", file=input)
+                for illegal in new_illegals:
+                    print(illegal, file=input)
+                print("}", file=input)
+                cpp_res = sp.run(
+                    [REMOVE_REDUNDANT_PATTERNS],
+                    input=input.getvalue(),
+                    stdout=sp.PIPE,
+                    text=True,
+                )
+                removed_indices: list[int] = []
+                for idx, line in enumerate(cpp_res.stdout.splitlines()):
+                    if line == "true":
+                        removed_indices.append(idx)
+                redundant_count = len(removed_indices)
+                for idx in reversed(removed_indices):
+                    del new_illegals[idx]
+            else:
+                size = len(new_illegals)
+                redundant_count = 0
+                progress = 0
+                for i, program in reversed(list(enumerate(new_illegals))):
+                    progress += 1
+                    print(f" {progress}/{size}", end="\r")
+                    if any(
+                        j != i and is_pattern(lhs, program)
+                        for j, lhs in enumerate(new_illegals)
+                    ):
+                        redundant_count += 1
+                        del new_illegals[i]
+
             illegals.extend(new_illegals)
             print(f"Removed {redundant_count} redundant illegal subpatterns.")
 
