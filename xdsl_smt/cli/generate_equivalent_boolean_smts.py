@@ -423,6 +423,7 @@ def pretty_print_program(program: ModuleOp):
     ret = get_inner_func(program).get_return_op()
     assert ret is not None
     pretty_print_value(ret.arguments[0], False)
+    print()
 
 
 def main() -> None:
@@ -514,18 +515,15 @@ def main() -> None:
             sys.stdout = f
             for program in canonicals:
                 pretty_print_program(program)
-                print()
             print()
             for program in illegals:
                 pretty_print_program(program)
-                print()
         sys.stdout = old_stdout
 
         if args.summary:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
             for program in canonicals:
                 pretty_print_program(program)
-                print()
 
     except BrokenPipeError as e:
         # The enumerator has terminated
