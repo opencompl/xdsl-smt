@@ -14,6 +14,7 @@ from xdsl.parser import Parser
 
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
+from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
@@ -149,12 +150,32 @@ def enumerate_programs(
         yield module
 
 
+def values_of_type(ty: Attribute) -> list[Attribute]:
+    match ty:
+        case smt.BoolType():
+            return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)]
+        case bv.BitVectorType(width=width):
+            return [
+                IntegerAttr.from_int_and_width(value, width.data)
+                for value in range(1 << width.data)
+            ]
+        case _:
+            raise ValueError(f"Unsupported type: {ty}")
+
+
 def is_same_behavior(max_num_args: int, left: ModuleOp, right: ModuleOp) -> bool:
+    """Tests whether two programs are semantically equivalent."""
+    # Make sure both programs have the same signatures.
+    left_type = get_inner_func(left).function_type
+    right_type = get_inner_func(right).function_type
+    if left_type != right_type:
+        return False
     # Evaluate programs with all possible inputs.
     left_interpreter = build_interpreter(left, 64)
     right_interpreter = build_interpreter(right, 64)
-    for values in itertools.product((False, True), repeat=max_num_args):
-        arguments: list[Attribute] = [IntegerAttr.from_bool(val) for val in values]
+    for arguments in itertools.product(
+        *(values_of_type(ty) for ty in left_type.inputs)
+    ):
         left_res = interpret(left_interpreter, arguments[: arity(left_interpreter)])
         right_res = interpret(right_interpreter, arguments[: arity(right_interpreter)])
         if left_res != right_res:
@@ -337,10 +358,17 @@ def pretty_print_value(x: SSAValue, nested: bool):
     if infix and nested:
         print("(", end="")
     match x:
-        case BlockArgument(index=i):
+        case BlockArgument(index=i, type=smt.BoolType()):
             print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+        case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
+            print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+            print(f"[{width.data}]", end="")
         case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
             print("⊤" if val else "⊥", end="")
+        case OpResult(op=bv.ConstantOp(value=val), index=0):
+            width = val.type.width.data
+            value = val.value.data
+            print(f"{{:0{width}b}}".format(value), end="")
         case OpResult(op=smt.NotOp(arg=arg), index=0):
             print("¬", end="")
             pretty_print_value(arg, True)

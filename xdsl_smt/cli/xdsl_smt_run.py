@@ -13,6 +13,7 @@ from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.tools.command_line_tool import CommandLineTool
 from xdsl.traits import CallableOpInterface
 from xdsl_smt.interpreters.smt import SMTFunctions
+from xdsl_smt.interpreters.smt_bitvector import SMTBitVectorFunctions
 
 
 def build_interpreter(module: ModuleOp, index_bitwidth: Literal[32, 64]) -> Interpreter:
@@ -21,6 +22,7 @@ def build_interpreter(module: ModuleOp, index_bitwidth: Literal[32, 64]) -> Inte
     interpreter = Interpreter(module, index_bitwidth=index_bitwidth)
     interpreter.register_implementations(FuncFunctions())
     interpreter.register_implementations(SMTFunctions())
+    interpreter.register_implementations(SMTBitVectorFunctions())
 
     return interpreter
 
