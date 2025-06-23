@@ -328,7 +328,7 @@ def create_pattern_from_program(program: ModuleOp) -> str:
     return "\n".join(lines)
 
 
-def pretty_print_value(x: SSAValue, nested: bool = False):
+def pretty_print_value(x: SSAValue, nested: bool):
     infix = isinstance(x, OpResult) and (
         isinstance(x.op, smt.BinaryBoolOp)
         or isinstance(x.op, smt.BinaryTOp)
@@ -385,7 +385,7 @@ def pretty_print_value(x: SSAValue, nested: bool = False):
 def pretty_print_program(program: ModuleOp):
     ret = get_inner_func(program).get_return_op()
     assert ret is not None
-    pretty_print_value(ret.arguments[0])
+    pretty_print_value(ret.arguments[0], False)
 
 
 def main() -> None:
