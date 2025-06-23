@@ -121,6 +121,8 @@ def enumerate_programs(
             SMT_MLIR,
             "--configuration=smt",
             f"--smt-bitvector-widths={bv_widths}",
+            # Make sure cse is applied
+            "--cse",
             # Prevent any non-deterministic behavior (hopefully).
             "--seed=1",
             f"--max-num-args={max_num_args}",
