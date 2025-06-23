@@ -37,6 +37,11 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="maximum number of operations in the MLIR programs that are generated",
     )
     arg_parser.add_argument(
+        "--bitvector-widths",
+        type=str,
+        help="a list of comma-separated bitwidths",
+    )
+    arg_parser.add_argument(
         "--out-file",
         type=str,
         help="the file in which to write the results",
@@ -102,6 +107,7 @@ def enumerate_programs(
     ctx: Context,
     max_num_args: int,
     num_ops: int,
+    bv_widths: str,
     illegals: list[ModuleOp],
 ) -> Generator[ModuleOp, None, None]:
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
@@ -114,6 +120,7 @@ def enumerate_programs(
             MLIR_ENUMERATE,
             SMT_MLIR,
             "--configuration=smt",
+            f"--smt-bitvector-widths={bv_widths}",
             # Prevent any non-deterministic behavior (hopefully).
             "--seed=1",
             f"--max-num-args={max_num_args}",
@@ -445,7 +452,9 @@ def main() -> None:
             new_program_count = 0
             new_illegals: list[ModuleOp] = []
             new_behaviors: list[tuple[ModuleOp, list[ModuleOp]]] = []
-            for program in enumerate_programs(ctx, args.max_num_args, m, illegals):
+            for program in enumerate_programs(
+                ctx, args.max_num_args, m, args.bitvector_widths, illegals
+            ):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
                 for canonical in canonicals:
