@@ -84,6 +84,8 @@ def formula_size(formula: SSAValue) -> int:
             return 0
         case OpResult(op=smt.ConstantBoolOp()):
             return 0
+        case OpResult(op=bv.ConstantOp()):
+            return 0
         case OpResult(op=op):
             return 1 + sum(formula_size(operand) for operand in op.operands)
         case x:
