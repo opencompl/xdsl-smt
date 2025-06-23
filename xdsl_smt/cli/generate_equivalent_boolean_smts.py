@@ -5,7 +5,6 @@ import itertools
 import subprocess as sp
 import sys
 import time
-from functools import cmp_to_key
 from typing import Generator
 
 from xdsl.context import Context
@@ -128,7 +127,7 @@ def enumerate_programs(
     enumerated: set[str] = set()
 
     while (program := read_program_from_enumerator(enumerator)) is not None:
-        # Send a character to the enumerator to continue
+        # Send a character to the enumerator to continue.
         assert enumerator.stdin is not None
         enumerator.stdin.write("a")
         enumerator.stdin.flush()
@@ -138,7 +137,7 @@ def enumerate_programs(
         if program_size(module) != num_ops:
             continue
 
-        # Deduplication
+        # Deduplication.
         attributes = get_inner_func(module).attributes
         if "seed" in attributes:
             del attributes["seed"]
@@ -189,17 +188,22 @@ def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
             raise ValueError(f"Unknown value: {l} or {r}")
 
 
-def compare_programs_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
+def are_lexicographically_ordered(left: ModuleOp, right: ModuleOp) -> bool:
+    """
+    Returns `True` if the programs are in lexicographical order, `False`
+    otherwise.
+    """
     if program_size(left) < program_size(right):
-        return -1
+        return True
     if program_size(right) > program_size(left):
-        return 1
+        return False
     left_ret = get_inner_func(left).get_return_op()
     assert left_ret is not None
     right_ret = get_inner_func(right).get_return_op()
     assert right_ret is not None
-    return compare_values_lexicographically(
-        left_ret.arguments[0], right_ret.arguments[0]
+    return (
+        compare_values_lexicographically(left_ret.arguments[0], right_ret.arguments[0])
+        <= 0
     )
 
 
@@ -410,7 +414,7 @@ def main() -> None:
             print("Enumerating programs...")
             new_program_count = 0
             new_illegals: list[ModuleOp] = []
-            new_behaviors: list[list[ModuleOp]] = []
+            new_behaviors: list[tuple[ModuleOp, list[ModuleOp]]] = []
             for program in enumerate_programs(ctx, args.max_num_args, m, illegals):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
@@ -419,39 +423,31 @@ def main() -> None:
                         new_illegals.append(program)
                         break
                 else:
-                    for behavior in new_behaviors:
-                        if is_same_behavior(args.max_num_args, program, behavior[0]):
-                            behavior.append(program)
+                    for i, (canonical, programs) in enumerate(new_behaviors):
+                        if is_same_behavior(args.max_num_args, program, canonical):
+                            if are_lexicographically_ordered(program, canonical):
+                                # This new program becomes canonical.
+                                programs.append(canonical)
+                                new_behaviors[i] = program, programs
+                            else:
+                                programs.append(program)
                             break
                     else:
-                        new_behaviors.append([program])
-            print(f"Generated {new_program_count} programs of this size.")
+                        new_behaviors.append((program, []))
             print(
-                f"{sum(len(b) for b in new_behaviors)} of them exhibited {len(new_behaviors)} new behaviors."
+                f"Generated {new_program_count} programs of this size; "
+                f"{sum(len(b) + 1 for _, b in new_behaviors)} of them exhibited "
+                f"{len(new_behaviors)} new behaviors."
             )
 
-            print("Choosing new canonical representatives...")
-            for i, behavior in enumerate(new_behaviors):
-                print(f" {i + 1}/{len(new_behaviors)}", end="\r")
-                # We take the canonical representative to be one that is "as
-                # minimal as possible" for the "pattern" preorder relation, in
-                # order to be able to add as many programs as possible to
-                # `illegals`. This can be approximated by taking the minimum for
-                # the lexicographical order. In particular, more "specific"
-                # programs (i.e., programs using many constants and operations)
-                # are sorted before less "specific" programs (i.e., programs
-                # using few operations and many arguments).
-                canonical = min(
-                    behavior, key=cmp_to_key(compare_programs_lexicographically)
-                )
+            print("Removing redundant illegal subpatterns...")
+            for canonical, programs in new_behaviors:
                 canonicals.append(canonical)
                 new_illegals.extend(
                     program
-                    for program in behavior
+                    for program in programs
                     if not is_pattern(program, canonical)
                 )
-
-            print("Removing redundant illegal subpatterns...")
             size = len(new_illegals)
             redundant_count = 0
             progress = 0
