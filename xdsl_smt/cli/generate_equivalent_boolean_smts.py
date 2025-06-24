@@ -40,7 +40,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "--bitvector-widths",
         type=str,
         help="a list of comma-separated bitwidths",
-        default="32",
+        default="4",
     )
     arg_parser.add_argument(
         "--out-file",
