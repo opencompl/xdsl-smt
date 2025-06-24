@@ -17,7 +17,6 @@ import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr
@@ -369,6 +368,7 @@ def pretty_print_value(x: SSAValue, nested: bool):
         isinstance(x.op, smt.BinaryBoolOp)
         or isinstance(x.op, smt.BinaryTOp)
         or isinstance(x.op, smt.IteOp)
+        or isinstance(x.op, bv.BinaryBVOp)
     )
     if infix and nested:
         print("(", end="")
@@ -419,6 +419,18 @@ def pretty_print_value(x: SSAValue, nested: bool):
             pretty_print_value(true_val, True)
             print(" : ", end="")
             pretty_print_value(false_val, True)
+        case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
+            pretty_print_value(lhs, True)
+            print(" + ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
+            pretty_print_value(lhs, True)
+            print(" & ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
+            pretty_print_value(lhs, True)
+            print(" | ", end="")
+            pretty_print_value(rhs, True)
         case _:
             raise ValueError("Unknown value:", x)
     if infix and nested:
