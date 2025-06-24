@@ -431,6 +431,13 @@ def pretty_print_value(x: SSAValue, nested: bool):
             pretty_print_value(lhs, True)
             print(" | ", end="")
             pretty_print_value(rhs, True)
+        case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
+            pretty_print_value(lhs, True)
+            print(" * ", end="")
+            pretty_print_value(rhs, True)
+        case OpResult(op=bv.NotOp(arg=arg), index=0):
+            print("~", end="")
+            pretty_print_value(arg, True)
         case _:
             raise ValueError(f"Unknown value for pretty print: {x}")
     if infix and nested:
