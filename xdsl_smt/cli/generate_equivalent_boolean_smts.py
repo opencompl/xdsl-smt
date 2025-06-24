@@ -467,7 +467,7 @@ def main() -> None:
             print(f"\033[1m== Size {m} ==\033[0m")
             step_start = time.time()
 
-            print("Enumerating programs...")
+            print("Enumerating and sorting programs...")
             new_program_count = 0
             new_illegals: list[ModuleOp] = []
             new_behaviors: list[tuple[ModuleOp, list[ModuleOp]]] = []
