@@ -97,7 +97,7 @@ def formula_size(formula: SSAValue) -> int:
         case OpResult(op=op):
             return 1 + sum(formula_size(operand) for operand in op.operands)
         case x:
-            raise ValueError(f"Unknown value {x}")
+            raise ValueError(f"Unknown value: {x}")
 
 
 def program_size(program: ModuleOp) -> int:
@@ -432,7 +432,7 @@ def pretty_print_value(x: SSAValue, nested: bool):
             print(" | ", end="")
             pretty_print_value(rhs, True)
         case _:
-            raise ValueError("Unknown value:", x)
+            raise ValueError(f"Unknown value for pretty print: {x}")
     if infix and nested:
         print(")", end="")
 
