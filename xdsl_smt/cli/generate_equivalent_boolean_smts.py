@@ -506,7 +506,6 @@ def main() -> None:
                     for program in programs
                     if not is_pattern(program, canonical)
                 )
-            print("Removing redundant illegal subpatterns...")
 
             if USE_CPP:
                 input = StringIO()
