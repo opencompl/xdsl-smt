@@ -177,7 +177,7 @@ def values_of_type(ty: Attribute) -> list[Attribute]:
             raise ValueError(f"Unsupported type: {ty}")
 
 
-def is_same_behavior(max_num_args: int, left: ModuleOp, right: ModuleOp) -> bool:
+def is_same_behavior(left: ModuleOp, right: ModuleOp) -> bool:
     """Tests whether two programs are semantically equivalent."""
     # Make sure both programs have the same signatures.
     left_type = get_inner_func(left).function_type
@@ -477,12 +477,12 @@ def main() -> None:
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
                 for canonical in canonicals:
-                    if is_same_behavior(args.max_num_args, program, canonical):
+                    if is_same_behavior(program, canonical):
                         new_illegals.append(program)
                         break
                 else:
                     for i, (canonical, programs) in enumerate(new_behaviors):
-                        if is_same_behavior(args.max_num_args, program, canonical):
+                        if is_same_behavior(program, canonical):
                             if are_lexicographically_ordered(program, canonical):
                                 # This new program becomes canonical.
                                 programs.append(canonical)
