@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import z3
+import z3  # pyright: ignore[reportMissingTypeStubs]
 import argparse
 from io import StringIO
 import itertools
@@ -8,7 +8,6 @@ import subprocess as sp
 import sys
 import time
 from typing import Generator, Any
-from enum import Enum
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
