@@ -707,38 +707,24 @@ def main() -> None:
             print(f"Found {len(new_illegals)} new illegal subpatterns.")
 
             print("Removing redundant subpatterns...")
-            if USE_CPP:
-                input = StringIO()
-                print("module {", file=input)
-                for illegal in new_illegals:
-                    print(illegal, file=input)
-                print("}", file=input)
-                cpp_res = sp.run(
-                    [REMOVE_REDUNDANT_PATTERNS],
-                    input=input.getvalue(),
-                    stdout=sp.PIPE,
-                    text=True,
-                )
-                removed_indices: list[int] = []
-                for idx, line in enumerate(cpp_res.stdout.splitlines()):
-                    if line == "true":
-                        removed_indices.append(idx)
-                redundant_count = len(removed_indices)
-                for idx in reversed(removed_indices):
-                    del new_illegals[idx]
-            else:
-                size = len(new_illegals)
-                redundant_count = 0
-                progress = 0
-                for i, program in reversed(list(enumerate(new_illegals))):
-                    progress += 1
-                    print(f" {progress}/{size}", end="\r")
-                    if any(
-                        j != i and is_pattern(lhs, program)
-                        for j, lhs in enumerate(new_illegals)
-                    ):
-                        redundant_count += 1
-                        del new_illegals[i]
+            input = StringIO()
+            print("module {", file=input)
+            for illegal in new_illegals:
+                print(illegal, file=input)
+            print("}", file=input)
+            cpp_res = sp.run(
+                [REMOVE_REDUNDANT_PATTERNS],
+                input=input.getvalue(),
+                stdout=sp.PIPE,
+                text=True,
+            )
+            removed_indices: list[int] = []
+            for idx, line in enumerate(cpp_res.stdout.splitlines()):
+                if line == "true":
+                    removed_indices.append(idx)
+            redundant_count = len(removed_indices)
+            for idx in reversed(removed_indices):
+                del new_illegals[idx]
             illegals.extend(new_illegals)
             print(f"Removed {redundant_count} redundant illegal subpatterns.")
 
