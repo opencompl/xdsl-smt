@@ -7,8 +7,9 @@ import subprocess as sp
 import sys
 import time
 from dataclasses import dataclass
-from functools import cmp_to_key
+from functools import cmp_to_key, partial
 from io import StringIO
+from multiprocessing import Pool
 from typing import Any, Callable, Generator, TypeVar
 
 from xdsl.context import Context
@@ -436,6 +437,42 @@ class SignedProgram:
     program: ModuleOp
 
 
+def sort_bucket(
+    canonicals: list[SignedProgram],
+    signed_bucket: tuple[Signature, Bucket],
+) -> tuple[list[Behavior], Bucket]:
+    signature, bucket = signed_bucket
+
+    # Sort programs into actual behavior buckets.
+    behaviors: list[Bucket] = []
+    for program in bucket:
+        for behavior in behaviors:
+            if is_same_behavior(program, behavior[0], signature):
+                behavior.append(program)
+                break
+        else:
+            behaviors.append([program])
+
+    # Detect known behaviors.
+    illegals: Bucket = []
+    for canonical in canonicals:
+        if signature != canonical.signature:
+            continue
+        behavior = list_extract(
+            behaviors,
+            lambda behavior: is_same_behavior(
+                behavior[0], canonical.program, signature
+            ),
+        )
+        if behavior is not None:
+            illegals.extend(behavior)
+
+    # The rest are new behaviors.
+    new_behaviors = [Behavior(signature, behavior) for behavior in behaviors]
+
+    return new_behaviors, illegals
+
+
 def sort_programs(
     buckets: dict[Signature, Bucket],
     canonicals: list[SignedProgram],
@@ -444,42 +481,24 @@ def sort_programs(
     Sort programs from the specified buckets into programs with new behaviors,
     and illegal subpatterns.
 
-    The returned pair is `new_behaviors, illegals`.
+    The returned pair is `new_behaviors, new_illegals`.
     """
 
     new_behaviors: list[Behavior] = []
-    illegals: Bucket = []
+    new_illegals: Bucket = []
 
-    for i, (signature, bucket) in enumerate(buckets.items()):
-        print(f" {i + 1}/{len(buckets)}", end="\r")
-
-        # Sort programs into actual behavior buckets.
-        behaviors: list[Bucket] = []
-        for program in bucket:
-            for behavior in behaviors:
-                if is_same_behavior(program, behavior[0], signature):
-                    behavior.append(program)
-                    break
-            else:
-                behaviors.append([program])
-
-        # Detect known behaviors.
-        for canonical in canonicals:
-            if signature != canonical.signature:
-                continue
-            behavior = list_extract(
-                behaviors,
-                lambda behavior: is_same_behavior(
-                    behavior[0], canonical.program, signature
-                ),
+    with Pool() as p:
+        for i, (behaviors, illegals) in enumerate(
+            p.imap_unordered(
+                partial(sort_bucket, canonicals),
+                buckets.items(),
             )
-            if behavior is not None:
-                illegals.extend(behavior)
+        ):
+            print(f" {round(100.0 * i / len(buckets), 1)} %", end="\r")
+            new_behaviors.extend(behaviors)
+            new_illegals.extend(illegals)
 
-        # The rest are new behaviors.
-        new_behaviors.extend(Behavior(signature, behavior) for behavior in behaviors)
-
-    return new_behaviors, illegals
+    return new_behaviors, new_illegals
 
 
 def create_pattern_from_program(program: ModuleOp) -> str:
