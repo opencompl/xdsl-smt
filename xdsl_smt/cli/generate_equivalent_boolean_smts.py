@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 
+import z3
 import argparse
 from io import StringIO
 import itertools
 import subprocess as sp
 import sys
 import time
-from typing import Generator
+from typing import Generator, Any
+from enum import Enum
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
 from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
+from xdsl.rewriter import InsertPoint, Rewriter
+from xdsl.builder import Builder
 
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
@@ -20,9 +24,10 @@ from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr
-from xdsl.dialects.func import Func, FuncOp
+from xdsl.dialects.func import Func, FuncOp, ReturnOp
 
 from xdsl_smt.cli.xdsl_smt_run import arity, build_interpreter, interpret
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -175,6 +180,82 @@ def values_of_type(ty: Attribute) -> list[Attribute]:
             ]
         case _:
             raise ValueError(f"Unsupported type: {ty}")
+
+
+def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
+    """
+    Convert a func.func to an smt.define_fun operation.
+    Do not mutate the original function.
+    """
+    new_region = func.body.clone()
+
+    # Replace the func.return with an smt.return operation
+    func_return = new_region.block.last_op
+    assert isinstance(func_return, ReturnOp)
+    rewriter = Rewriter()
+    rewriter.insert_op(
+        smt.ReturnOp(func_return.arguments), InsertPoint.before(func_return)
+    )
+    rewriter.erase_op(func_return)
+
+    return smt.DefineFunOp(new_region)
+
+
+def run_module_through_smtlib(module: ModuleOp) -> Any:
+    smtlib_program = StringIO()
+    print_to_smtlib(module, smtlib_program)
+
+    # Parse the SMT-LIB program and run it through the z3 solver.
+    solver = z3.Solver()
+    solver.from_string(  # pyright: ignore[reportUnknownMemberType]
+        smtlib_program.getvalue()
+    )
+    result = solver.check()  # pyright: ignore[reportUnknownMemberType]
+    if result == z3.unknown:
+        print("z3 couldn't solve the following query:")
+        print(smtlib_program.getvalue())
+        exit(1)
+    return result
+
+
+def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
+    """
+    Check wether two programs are semantically equivalent using z3.
+    We assume that both programs have the same function type.
+    """
+    func_left = clone_func_to_smt_func(get_inner_func(left))
+    func_right = clone_func_to_smt_func(get_inner_func(right))
+
+    function_type = func_left.func_type
+
+    module = ModuleOp([])
+    builder = Builder(InsertPoint.at_end(module.body.block))
+
+    # Clone both functions into a new module
+    func_left = builder.insert(func_left.clone())
+    func_right = builder.insert(func_right.clone())
+
+    # Declare a variable for each function input
+    args = list[SSAValue]()
+    for arg_type in function_type.inputs:
+        arg = builder.insert(smt.DeclareConstOp(arg_type)).res
+        args.append(arg)
+
+    # Call each function with the same arguments
+    left_call = builder.insert(smt.CallOp(func_left.ret, args)).res
+    right_call = builder.insert(smt.CallOp(func_right.ret, args)).res
+
+    # We only support single-result functions for now
+    assert len(left_call) == 1
+
+    # Check if the two results are not equal
+    check = builder.insert(smt.DistinctOp(left_call[0], right_call[0])).res
+    builder.insert(smt.AssertOp(check))
+
+    # Now that we have the module, run it through the z3 solver
+    return z3.unsat == run_module_through_smtlib(
+        module
+    )  # pyright: ignore[reportUnknownVariableType]
 
 
 def is_same_behavior(left: ModuleOp, right: ModuleOp) -> bool:
