@@ -402,7 +402,13 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
         )
         result = solver.check()  # pyright: ignore[reportUnknownMemberType]
     except z3.z3types.Z3Exception as e:
-        print(e.value.decode("UTF-8"), end="", file=sys.stderr)
+        print(
+            e.value.decode(  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                "UTF-8"
+            ),
+            end="",
+            file=sys.stderr,
+        )
         print("The above error happened with the following query:", file=sys.stderr)
         print(smtlib_program.getvalue(), file=sys.stderr)
         raise Exception()
