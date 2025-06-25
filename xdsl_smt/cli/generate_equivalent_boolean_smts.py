@@ -2,12 +2,14 @@
 
 import z3  # pyright: ignore[reportMissingTypeStubs]
 import argparse
-from io import StringIO
 import itertools
 import subprocess as sp
 import sys
 import time
-from typing import Generator, Any
+from dataclasses import dataclass
+from functools import cmp_to_key
+from io import StringIO
+from typing import Any, Callable, Generator, TypeVar
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
@@ -22,10 +24,10 @@ from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr
+from xdsl.dialects.builtin import Builtin, FunctionType, IntAttr, IntegerAttr, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 
-from xdsl_smt.cli.xdsl_smt_run import arity, build_interpreter, interpret
+from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
@@ -64,6 +66,24 @@ REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
 EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
 USE_CPP = True
+
+
+T = TypeVar("T")
+
+
+def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
+    """
+    Deletes and returns the first element from the passed list that matches the
+    predicate.
+
+    If no element matches the predicate, the list is not modified and `None` is
+    returned.
+    """
+    for i, x in enumerate(l):
+        if predicate(x):
+            del l[i]
+            return x
+    return None
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -168,15 +188,21 @@ def enumerate_programs(
         yield module
 
 
-def values_of_type(ty: Attribute) -> list[Attribute]:
+def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
+    """
+    Returns values of the passed type.
+
+    The boolean indicates whether the returned values cover the whole type. If
+    `true`, this means all possible values of the type were returned.
+    """
     match ty:
         case smt.BoolType():
-            return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)]
-        case bv.BitVectorType(width=width):
+            return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
+        case bv.BitVectorType(width=IntAttr(data=width)):
+            w = min(2, width)
             return [
-                IntegerAttr.from_int_and_width(value, width.data)
-                for value in range(1 << width.data)
-            ]
+                IntegerAttr.from_int_and_width(value, width) for value in range(1 << w)
+            ], (w == width)
         case _:
             raise ValueError(f"Unsupported type: {ty}")
 
@@ -257,24 +283,40 @@ def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_same_behavior(left: ModuleOp, right: ModuleOp) -> bool:
-    """Tests whether two programs are semantically equivalent."""
-    # Make sure both programs have the same signatures.
-    left_type = get_inner_func(left).function_type
-    right_type = get_inner_func(right).function_type
-    if left_type != right_type:
-        return False
-    # Evaluate programs with all possible inputs.
-    left_interpreter = build_interpreter(left, 64)
-    right_interpreter = build_interpreter(right, 64)
-    for arguments in itertools.product(
-        *(values_of_type(ty) for ty in left_type.inputs)
-    ):
-        left_res = interpret(left_interpreter, arguments[: arity(left_interpreter)])
-        right_res = interpret(right_interpreter, arguments[: arity(right_interpreter)])
-        if left_res != right_res:
-            return False
-    return True
+@dataclass(eq=True, frozen=True)
+class Signature:
+    function_type: FunctionType
+    results: tuple[Any, ...]
+    is_total: bool
+
+    @classmethod
+    def from_program(cls, program: ModuleOp):
+        """
+        Computes a value that highly depends on the behavior of the passed program.
+        """
+        interpreter = build_interpreter(program, 64)
+        function_type = get_inner_func(program).function_type
+        values = [values_of_type(ty) for ty in function_type.inputs]
+        is_total = all(total for _, total in values)
+        arguments = itertools.product(*(vals for vals, _ in values))
+        return cls(
+            function_type,
+            tuple(interpret(interpreter, args) for args in arguments),
+            is_total,
+        )
+
+
+def is_same_behavior(left: ModuleOp, right: ModuleOp, signature: Signature) -> bool:
+    """
+    Tests whether two programs having the same signature are semantically
+    equivalent.
+    """
+    if signature.is_total:
+        # The signature covers the whole behavior, so no need to do anything
+        # expensive.
+        return True
+
+    return is_same_behavior_with_z3(left, right)
 
 
 def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
@@ -303,22 +345,17 @@ def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
             raise ValueError(f"Unknown value: {l} or {r}")
 
 
-def are_lexicographically_ordered(left: ModuleOp, right: ModuleOp) -> bool:
-    """
-    Returns `True` if the programs are in lexicographical order, `False`
-    otherwise.
-    """
+def compare_programs_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
     if program_size(left) < program_size(right):
-        return True
+        return -1
     if program_size(right) > program_size(left):
-        return False
+        return 1
     left_ret = get_inner_func(left).get_return_op()
     assert left_ret is not None
     right_ret = get_inner_func(right).get_return_op()
     assert right_ret is not None
-    return (
-        compare_values_lexicographically(left_ret.arguments[0], right_ret.arguments[0])
-        <= 0
+    return compare_values_lexicographically(
+        left_ret.arguments[0], right_ret.arguments[0]
     )
 
 
@@ -382,6 +419,67 @@ def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
             prog_ret.arguments,
         )
     )
+
+
+Bucket = list[ModuleOp]
+
+
+@dataclass
+class Behavior:
+    signature: Signature
+    programs: Bucket
+
+
+@dataclass
+class SignedProgram:
+    signature: Signature
+    program: ModuleOp
+
+
+def sort_programs(
+    buckets: dict[Signature, Bucket],
+    canonicals: list[SignedProgram],
+) -> tuple[list[Behavior], Bucket]:
+    """
+    Sort programs from the specified buckets into programs with new behaviors,
+    and illegal subpatterns.
+
+    The returned pair is `new_behaviors, illegals`.
+    """
+
+    new_behaviors: list[Behavior] = []
+    illegals: Bucket = []
+
+    for i, (signature, bucket) in enumerate(buckets.items()):
+        print(f" {i + 1}/{len(buckets)}", end="\r")
+
+        # Sort programs into actual behavior buckets.
+        behaviors: list[Bucket] = []
+        for program in bucket:
+            for behavior in behaviors:
+                if is_same_behavior(program, behavior[0], signature):
+                    behavior.append(program)
+                    break
+            else:
+                behaviors.append([program])
+
+        # Detect known behaviors.
+        for canonical in canonicals:
+            if signature != canonical.signature:
+                continue
+            behavior = list_extract(
+                behaviors,
+                lambda behavior: is_same_behavior(
+                    behavior[0], canonical.program, signature
+                ),
+            )
+            if behavior is not None:
+                illegals.extend(behavior)
+
+        # The rest are new behaviors.
+        new_behaviors.extend(Behavior(signature, behavior) for behavior in behaviors)
+
+    return new_behaviors, illegals
 
 
 def create_pattern_from_program(program: ModuleOp) -> str:
@@ -546,7 +644,7 @@ def main() -> None:
     ctx.load_dialect(SMTUtilsDialect)
     ctx.load_dialect(synth.SynthDialect)
 
-    canonicals: list[ModuleOp] = []
+    canonicals: list[SignedProgram] = []
     illegals: list[ModuleOp] = []
 
     try:
@@ -554,46 +652,42 @@ def main() -> None:
             print(f"\033[1m== Size {m} ==\033[0m")
             step_start = time.time()
 
-            print("Enumerating and sorting programs...")
+            print("Enumerating programs...")
             new_program_count = 0
-            new_illegals: list[ModuleOp] = []
-            new_behaviors: list[tuple[ModuleOp, list[ModuleOp]]] = []
+            buckets: dict[Signature, list[ModuleOp]] = {}
             for program in enumerate_programs(
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
-                for canonical in canonicals:
-                    if is_same_behavior(program, canonical):
-                        new_illegals.append(program)
-                        break
-                else:
-                    for i, (canonical, programs) in enumerate(new_behaviors):
-                        if is_same_behavior(program, canonical):
-                            if are_lexicographically_ordered(program, canonical):
-                                # This new program becomes canonical.
-                                programs.append(canonical)
-                                new_behaviors[i] = program, programs
-                            else:
-                                programs.append(program)
-                            break
-                    else:
-                        new_behaviors.append((program, []))
+                signature = Signature.from_program(program)
+                if signature not in buckets:
+                    buckets[signature] = []
+                buckets[signature].append(program)
+            print(f"Generated {new_program_count} programs of this size.")
+
+            print("Sorting programs...")
+            new_behaviors, new_illegals = sort_programs(buckets, canonicals)
             print(
-                f"Generated {new_program_count} programs of this size; "
-                f"{sum(len(b) + 1 for _, b in new_behaviors)} of them exhibited "
-                f"{len(new_behaviors)} new behaviors."
+                f"Found {len(new_behaviors)} new behaviors, "
+                f"exhibited by {sum(len(behavior.programs) for behavior in new_behaviors)} programs."
             )
 
-            print("Removing redundant illegal subpatterns...")
-            for canonical, programs in new_behaviors:
-                canonicals.append(canonical)
+            print("Choosing new canonical programs...")
+            for behavior in new_behaviors:
+                behavior.programs.sort(
+                    key=cmp_to_key(compare_programs_lexicographically)
+                )
+                canonical = behavior.programs[0]
+                canonicals.append(SignedProgram(behavior.signature, canonical))
                 new_illegals.extend(
                     program
-                    for program in programs
+                    for program in behavior.programs
                     if not is_pattern(program, canonical)
                 )
+            print(f"Found {len(new_illegals)} new illegal subpatterns.")
 
+            print("Removing redundant subpatterns...")
             if USE_CPP:
                 input = StringIO()
                 print("module {", file=input)
@@ -626,7 +720,6 @@ def main() -> None:
                     ):
                         redundant_count += 1
                         del new_illegals[i]
-
             illegals.extend(new_illegals)
             print(f"Removed {redundant_count} redundant illegal subpatterns.")
 
@@ -641,7 +734,7 @@ def main() -> None:
         with open(args.out_file, "w", encoding="UTF-8") as f:
             sys.stdout = f
             for program in canonicals:
-                pretty_print_program(program)
+                pretty_print_program(program.program)
             print("// -----")
             for program in illegals:
                 pretty_print_program(program)
@@ -650,7 +743,7 @@ def main() -> None:
         if args.summary:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
             for program in canonicals:
-                pretty_print_program(program)
+                pretty_print_program(program.program)
 
     except BrokenPipeError as e:
         # The enumerator has terminated
