@@ -173,7 +173,8 @@ class Signature:
         # Finally, compute which inputs are actually useless.
         self._input_useless = tuple(
             # Only call Z3 on inputs that are useless here.
-            input_useless_here[i] and is_input_useless_z3(program, i)
+            input_useless_here[i]
+            and (self._is_total or is_input_useless_z3(program, i))
             for i in range(arity)
         )
 
