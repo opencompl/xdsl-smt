@@ -562,7 +562,7 @@ def main() -> None:
             sys.stdout = f
             for program in canonicals:
                 pretty_print_program(program)
-            print()
+            print("// -----")
             for program in illegals:
                 pretty_print_program(program)
         sys.stdout = old_stdout
