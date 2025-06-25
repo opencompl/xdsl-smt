@@ -66,7 +66,6 @@ MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
 EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
-USE_CPP = True
 
 
 T = TypeVar("T")
