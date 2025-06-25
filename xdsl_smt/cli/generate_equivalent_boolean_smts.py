@@ -86,6 +86,28 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
     return None
 
 
+class Signature:
+    function_type: FunctionType
+    results: tuple[Any, ...]
+    is_total: bool
+
+    @classmethod
+    def from_program(cls, program: ModuleOp):
+        """
+        Computes a value that highly depends on the behavior of the passed program.
+        """
+        interpreter = build_interpreter(program, 64)
+        function_type = get_inner_func(program).function_type
+        values = [values_of_type(ty) for ty in function_type.inputs]
+        is_total = all(total for _, total in values)
+        arguments = itertools.product(*(vals for vals, _ in values))
+        return cls(
+            function_type,
+            tuple(interpret(interpreter, args) for args in arguments),
+            is_total,
+        )
+
+
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
     program_lines = list[str]()
     assert enumerator.stdout is not None
@@ -346,29 +368,6 @@ def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
     return z3.unsat == run_module_through_smtlib(
         module
     )  # pyright: ignore[reportUnknownVariableType]
-
-
-@dataclass(eq=True, frozen=True)
-class Signature:
-    function_type: FunctionType
-    results: tuple[Any, ...]
-    is_total: bool
-
-    @classmethod
-    def from_program(cls, program: ModuleOp):
-        """
-        Computes a value that highly depends on the behavior of the passed program.
-        """
-        interpreter = build_interpreter(program, 64)
-        function_type = get_inner_func(program).function_type
-        values = [values_of_type(ty) for ty in function_type.inputs]
-        is_total = all(total for _, total in values)
-        arguments = itertools.product(*(vals for vals, _ in values))
-        return cls(
-            function_type,
-            tuple(interpret(interpreter, args) for args in arguments),
-            is_total,
-        )
 
 
 def is_same_behavior(left: ModuleOp, right: ModuleOp, signature: Signature) -> bool:
