@@ -157,9 +157,11 @@ class Signature:
         ]
         # Then, compute the results ignoring those useless inputs.
         values_for_each_useful_input = [
-            [values_for_each_input[i][0][0]]
-            if input_useless_here[i]
-            else values_for_each_input[i][0]
+            (
+                [values_for_each_input[i][0][0]]
+                if input_useless_here[i]
+                else values_for_each_input[i][0]
+            )
             for i in range(arity)
         ]
         self._results = tuple(
@@ -459,8 +461,49 @@ def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_input_useless_z3(program: ModuleOp, i: int) -> bool:
-    return False  # TODO
+def is_input_useless_z3(program: ModuleOp, arg_index: int) -> bool:
+    """
+    Use z3 to check wether if the argument at `arg_index` is irrelevant in
+    the computation of the function.
+    """
+    func = get_inner_func(program)
+
+    module = ModuleOp([])
+    builder = Builder(InsertPoint.at_end(module.body.block))
+
+    # Clone the function twice into the new module
+    func1 = builder.insert(clone_func_to_smt_func(func))
+    func2 = builder.insert(func1.clone())
+    function_type = func1.func_type
+
+    # Declare one variable for each function input, and two for the input we
+    # want to check.
+    args1 = list[SSAValue]()
+    args2 = list[SSAValue]()
+
+    for i, arg_type in enumerate(function_type.inputs):
+        arg1 = builder.insert(smt.DeclareConstOp(arg_type)).res
+        args1.append(arg1)
+        if i == arg_index:
+            # We declare two variables for the argument we want to check.
+            arg2 = builder.insert(smt.DeclareConstOp(arg_type)).res
+            args2.append(arg2)
+        else:
+            args2.append(arg1)
+
+    # Call the functions with their set of arguments
+    call1 = builder.insert(smt.CallOp(func1.ret, args1)).res
+    call2 = builder.insert(smt.CallOp(func2.ret, args2)).res
+
+    assert len(call1) == 1, "Only single-result functions are supported."
+
+    # Check if the two results are not equal
+    check = builder.insert(smt.DistinctOp(call1[0], call2[0])).res
+    builder.insert(smt.AssertOp(check))
+
+    return z3.unsat == run_module_through_smtlib(
+        module
+    )  # pyright: ignore[reportUnknownVariableType]
 
 
 def is_same_behavior(left: ModuleOp, right: ModuleOp, signature: Signature) -> bool:
