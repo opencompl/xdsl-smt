@@ -39,7 +39,7 @@ class SMTBitVectorFunctions(InterpreterFunctions):
         interpreter.interpreter_assert(isinstance(attr, IntegerAttr))
         attr = cast(IntegerAttr, attr)
         return bv.BitVectorAttr(
-            attr.value.data % attr_type.width.data, attr_type.width.data
+            attr.value.data % (1 << attr_type.width.data), attr_type.width.data
         )
 
     @impl(bv.ConstantOp)
