@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import z3  # pyright: ignore[reportMissingTypeStubs]
 import argparse
 import itertools
 import subprocess as sp
 import sys
 import time
+import z3  # pyright: ignore[reportMissingTypeStubs]
 from dataclasses import dataclass
 from functools import cmp_to_key, partial
 from io import StringIO
@@ -291,14 +291,20 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
 
     # Parse the SMT-LIB program and run it through the z3 solver.
     solver = z3.Solver()
-    solver.from_string(  # pyright: ignore[reportUnknownMemberType]
-        smtlib_program.getvalue()
-    )
-    result = solver.check()  # pyright: ignore[reportUnknownMemberType]
+    try:
+        solver.from_string(  # pyright: ignore[reportUnknownMemberType]
+            smtlib_program.getvalue()
+        )
+        result = solver.check()  # pyright: ignore[reportUnknownMemberType]
+    except z3.z3types.Z3Exception as e:
+        print(e.value.decode("UTF-8"), end="", file=sys.stderr)
+        print("The above error happened with the following query:", file=sys.stderr)
+        print(smtlib_program.getvalue(), file=sys.stderr)
+        raise Exception()
     if result == z3.unknown:
-        print("z3 couldn't solve the following query:")
-        print(smtlib_program.getvalue())
-        exit(1)
+        print("z3 couldn't solve the following query:", file=sys.stderr)
+        print(smtlib_program.getvalue(), file=sys.stderr)
+        raise Exception()
     return result
 
 
