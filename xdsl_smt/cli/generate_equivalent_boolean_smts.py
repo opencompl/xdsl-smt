@@ -87,25 +87,127 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
 
 
 class Signature:
-    function_type: FunctionType
-    results: tuple[Any, ...]
-    is_total: bool
+    """
+    A value that can be computed from a program, and highly depends on its
+    behavior.
+    """
 
-    @classmethod
-    def from_program(cls, program: ModuleOp):
+    _function_type: FunctionType
+    _input_useless: tuple[bool, ...]
+    _results: tuple[Any, ...]
+    _is_total: bool
+
+    @staticmethod
+    def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
         """
-        Computes a value that highly depends on the behavior of the passed program.
+        Returns values of the passed type.
+
+        The boolean indicates whether the returned values cover the whole type. If
+        `true`, this means all possible values of the type were returned.
         """
+        match ty:
+            case smt.BoolType():
+                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
+            case bv.BitVectorType(width=IntAttr(data=width)):
+                w = min(2, width)
+                return [
+                    IntegerAttr.from_int_and_width(value, width)
+                    for value in range(1 << w)
+                ], (w == width)
+            case _:
+                raise ValueError(f"Unsupported type: {ty}")
+
+    def __init__(self, program: ModuleOp):
         interpreter = build_interpreter(program, 64)
-        function_type = get_inner_func(program).function_type
-        values = [values_of_type(ty) for ty in function_type.inputs]
-        is_total = all(total for _, total in values)
-        arguments = itertools.product(*(vals for vals, _ in values))
-        return cls(
-            function_type,
-            tuple(interpret(interpreter, args) for args in arguments),
-            is_total,
+        self._function_type = get_inner_func(program).function_type
+        arity = len(self._function_type.inputs)
+        values_for_each_input = [
+            Signature.values_of_type(ty) for ty in self._function_type.inputs
+        ]
+        self._is_total = all(total for _, total in values_for_each_input)
+        # First, detect inputs that don't affect the results within the set of
+        # inputs that we check.
+        results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Any]]] = [
+            {
+                other_inputs: set()
+                for other_inputs in itertools.product(
+                    *(
+                        vals
+                        for vals, _ in values_for_each_input[:i]
+                        + values_for_each_input[i + 1 :]
+                    )
+                )
+            }
+            for i in range(arity)
+        ]
+        for inputs in itertools.product(*(vals for vals, _ in values_for_each_input)):
+            result = interpret(interpreter, inputs)
+            for i in range(arity):
+                results_for_fixed_inputs[i][inputs[:i] + inputs[i + 1 :]].add(result)
+        assert all(
+            all(len(results) != 0 for results in results_for_fixed_input.values())
+            for results_for_fixed_input in results_for_fixed_inputs
         )
+        input_useless_here = [
+            all(
+                len(results) == 1 and len(values_for_each_input[i]) != 1
+                for results in results_for_fixed_input.values()
+            )
+            for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
+        ]
+        # Then, compute the results ignoring those useless inputs.
+        values_for_each_useful_input = [
+            [values_for_each_input[i][0][0]]
+            if input_useless_here[i]
+            else values_for_each_input[i][0]
+            for i in range(arity)
+        ]
+        self._results = tuple(
+            interpret(interpreter, inputs)
+            for inputs in itertools.product(
+                *(vals for vals in values_for_each_useful_input)
+            )
+        )
+        # Finally, compute which inputs are actually useless.
+        self._input_useless = tuple(
+            # Only call Z3 on inputs that are useless here.
+            input_useless_here[i] and is_input_useless_z3(program, i)
+            for i in range(arity)
+        )
+
+    def is_total(self) -> bool:
+        return self._is_total
+
+    def _compute_determinant_tuple(self) -> tuple[Any, ...]:
+        return (
+            tuple(
+                ty
+                for ty, useless in zip(
+                    self._function_type.inputs, self._input_useless, strict=True
+                )
+                if not useless
+            ),
+            self._function_type.outputs,
+            self._results,
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        The signatures of two semantically equivalent programs are guaranteed to
+        compare equal. Furthermore, if two programs are semantically equivalent
+        after removing inputs that don't affect the output, their signatures are
+        guaranteed to compare equal as well.
+        """
+
+        if not isinstance(other, Signature):
+            return False
+
+        return self._compute_determinant_tuple().__eq__(
+            other._compute_determinant_tuple()
+        )
+
+    def __hash__(self) -> int:
+        return self._compute_determinant_tuple().__hash__()
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -269,25 +371,6 @@ def enumerate_programs(
         yield module
 
 
-def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
-    """
-    Returns values of the passed type.
-
-    The boolean indicates whether the returned values cover the whole type. If
-    `true`, this means all possible values of the type were returned.
-    """
-    match ty:
-        case smt.BoolType():
-            return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
-        case bv.BitVectorType(width=IntAttr(data=width)):
-            w = min(2, width)
-            return [
-                IntegerAttr.from_int_and_width(value, width) for value in range(1 << w)
-            ], (w == width)
-        case _:
-            raise ValueError(f"Unsupported type: {ty}")
-
-
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
     """
     Convert a func.func to an smt.define_fun operation.
@@ -370,12 +453,16 @@ def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
+def is_input_useless_z3(program: ModuleOp, i: int) -> bool:
+    return False  # TODO
+
+
 def is_same_behavior(left: ModuleOp, right: ModuleOp, signature: Signature) -> bool:
     """
     Tests whether two programs having the same signature are semantically
     equivalent.
     """
-    if signature.is_total:
+    if signature.is_total():
         # The signature covers the whole behavior, so no need to do anything
         # expensive.
         return True
@@ -683,7 +770,7 @@ def main() -> None:
             ):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
-                signature = Signature.from_program(program)
+                signature = Signature(program)
                 if signature not in buckets:
                     buckets[signature] = []
                 buckets[signature].append(program)
