@@ -86,21 +86,6 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
     return None
 
 
-Bucket = list[ModuleOp]
-
-
-@dataclass
-class Behavior:
-    signature: Signature
-    programs: Bucket
-
-
-@dataclass
-class SignedProgram:
-    signature: Signature
-    program: ModuleOp
-
-
 class Signature:
     """
     A value that can be computed from a program, and highly depends on its
@@ -226,6 +211,21 @@ class Signature:
 
     def __hash__(self) -> int:
         return self._compute_determinant_tuple().__hash__()
+
+
+Bucket = list[ModuleOp]
+
+
+@dataclass
+class Behavior:
+    signature: Signature
+    programs: Bucket
+
+
+@dataclass
+class SignedProgram:
+    signature: Signature
+    program: ModuleOp
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
