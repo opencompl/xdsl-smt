@@ -888,7 +888,7 @@ def main() -> None:
             input = StringIO()
             print("module {", file=input)
             for illegal in new_illegals:
-                print(illegal, file=input)
+                print(illegal.module, file=input)
             print("}", file=input)
             cpp_res = sp.run(
                 [REMOVE_REDUNDANT_PATTERNS],
