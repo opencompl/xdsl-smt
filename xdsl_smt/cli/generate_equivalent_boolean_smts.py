@@ -351,6 +351,20 @@ class Program:
             return NotImplemented
         return self._compare_lexicographically(other) >= 0
 
+    def is_same_behavior(self, other: "Program") -> bool:
+        """
+        Tests whether two programs are semantically equivalent ignoring useless
+        arguments.
+        """
+
+        if self.signature() != other.signature():
+            return False
+
+        if self.is_signature_total() and other.is_signature_total():
+            return True
+
+        return is_same_behavior_with_z3(self, other)
+
     @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
         infix = isinstance(x, OpResult) and (
