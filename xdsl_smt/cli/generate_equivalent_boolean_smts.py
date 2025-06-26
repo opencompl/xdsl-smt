@@ -97,8 +97,90 @@ class Signature:
     _results: tuple[Any, ...]
     _is_total: bool
 
+    def __init__(
+        self,
+        function_type: FunctionType,
+        useless_input_mask: tuple[bool, ...],
+        results: tuple[Any, ...],
+    ):
+        self._function_type = function_type
+        self._input_useless = useless_input_mask
+        self._results = results
+
+    def _compute_determinant_tuple(self) -> tuple[Any, ...]:
+        return (
+            tuple(
+                ty
+                for ty, useless in zip(
+                    self._function_type.inputs, self._input_useless, strict=True
+                )
+                if not useless
+            ),
+            self._function_type.outputs,
+            self._results,
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        The signatures of two semantically equivalent programs are guaranteed to
+        compare equal. Furthermore, if two programs are semantically equivalent
+        after removing inputs that don't affect the output, their signatures are
+        guaranteed to compare equal as well.
+        """
+
+        if not isinstance(other, Signature):
+            return False
+
+        return self._compute_determinant_tuple().__eq__(
+            other._compute_determinant_tuple()
+        )
+
+    def __hash__(self) -> int:
+        return self._compute_determinant_tuple().__hash__()
+
+
+class Program:
+    module: ModuleOp
+    _size: int | None = None
+    _signature: Signature | None = None
+    _is_signature_total: bool | None = None
+    _useless_input_mask: tuple[bool, ...] | None = None
+
     @staticmethod
-    def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
+    def _formula_size(formula: SSAValue) -> int:
+        match formula:
+            case BlockArgument():
+                return 0
+            case OpResult(op=smt.ConstantBoolOp()):
+                return 0
+            case OpResult(op=bv.ConstantOp()):
+                return 0
+            case OpResult(op=op):
+                return 1 + sum(
+                    Program._formula_size(operand) for operand in op.operands
+                )
+            case x:
+                raise ValueError(f"Unknown value: {x}")
+
+    def __init__(self, module: ModuleOp):
+        self.module = module
+
+    def func(self) -> FuncOp:
+        assert len(self.module.ops) == 1
+        assert isinstance(self.module.ops.first, FuncOp)
+        return self.module.ops.first
+
+    def size(self) -> int:
+        if self._size is None:
+            ret = self.func().get_return_op()
+            assert ret is not None
+            self._size = sum(
+                Program._formula_size(argument) for argument in ret.arguments
+            )
+        return self._size
+
+    @staticmethod
+    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
         """
         Returns values of the passed type.
 
@@ -117,13 +199,12 @@ class Signature:
             case _:
                 raise ValueError(f"Unsupported type: {ty}")
 
-    def __init__(self, program: "Program"):
-        interpreter = build_interpreter(program.module, 64)
-        self._function_type = program.func().function_type
-        arity = len(self._function_type.inputs)
-        values_for_each_input = [
-            Signature.values_of_type(ty) for ty in self._function_type.inputs
-        ]
+    def _init_signature(self):
+        interpreter = build_interpreter(self.module, 64)
+        function_type = self.func().function_type
+        input_types = function_type.inputs
+        arity = len(input_types)
+        values_for_each_input = [Program._values_of_type(ty) for ty in input_types]
         self._is_total = all(total for _, total in values_for_each_input)
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
@@ -164,96 +245,38 @@ class Signature:
             )
             for i in range(arity)
         ]
-        self._results = tuple(
+        results = tuple(
             interpret(interpreter, inputs)
             for inputs in itertools.product(
                 *(vals for vals in values_for_each_useful_input)
             )
         )
         # Finally, compute which inputs are actually useless.
-        self._input_useless = tuple(
+        self._useless_input_mask = tuple(
             # Only call Z3 on inputs that are useless here.
-            input_useless_here[i]
-            and (self._is_total or is_input_useless_z3(program, i))
+            input_useless_here[i] and (self._is_total or is_input_useless_z3(self, i))
             for i in range(arity)
         )
+        # Create the signature object
+        self._signature = Signature(function_type, self._useless_input_mask, results)
 
-    def _compute_determinant_tuple(self) -> tuple[Any, ...]:
-        return (
-            tuple(
-                ty
-                for ty, useless in zip(
-                    self._function_type.inputs, self._input_useless, strict=True
-                )
-                if not useless
-            ),
-            self._function_type.outputs,
-            self._results,
-        )
+    def signature(self) -> Signature:
+        if self._signature is None:
+            self._init_signature()
+            assert self._signature is not None
+        return self._signature
 
-    def __eq__(self, other: Any) -> bool:
-        """
-        The signatures of two semantically equivalent programs are guaranteed to
-        compare equal. Furthermore, if two programs are semantically equivalent
-        after removing inputs that don't affect the output, their signatures are
-        guaranteed to compare equal as well.
-        """
+    def is_signature_total(self) -> bool:
+        if self._is_signature_total is None:
+            self._init_signature()
+            assert self._is_signature_total is not None
+        return self._is_signature_total
 
-        if not isinstance(other, Signature):
-            return False
-
-        return self._compute_determinant_tuple().__eq__(
-            other._compute_determinant_tuple()
-        )
-
-    def __hash__(self) -> int:
-        return self._compute_determinant_tuple().__hash__()
-
-
-class Program:
-    module: ModuleOp
-    signature: Signature
-    useless_input_mask: tuple[bool, ...]
-    _size: int
-
-    @staticmethod
-    def _formula_size(formula: SSAValue) -> int:
-        match formula:
-            case BlockArgument():
-                return 0
-            case OpResult(op=smt.ConstantBoolOp()):
-                return 0
-            case OpResult(op=bv.ConstantOp()):
-                return 0
-            case OpResult(op=op):
-                return 1 + sum(
-                    Program._formula_size(operand) for operand in op.operands
-                )
-            case x:
-                raise ValueError(f"Unknown value: {x}")
-
-    def __init__(self, module: ModuleOp):
-        self.module = module
-        # TODO: Find a better way than calling this with a partially initialized
-        # `self`.
-        self.signature = Signature(self)
-        self.is_signature_total = (
-            self.signature._is_total  # pyright: ignore[reportPrivateUsage]
-        )
-        self.useless_input_mask = (
-            self.signature._input_useless  # pyright: ignore[reportPrivateUsage]
-        )
-        ret = self.func().get_return_op()
-        assert ret is not None
-        self._size = sum(Program._formula_size(argument) for argument in ret.arguments)
-
-    def func(self) -> FuncOp:
-        assert len(self.module.ops) == 1
-        assert isinstance(self.module.ops.first, FuncOp)
-        return self.module.ops.first
-
-    def size(self) -> int:
-        return self._size
+    def useless_input_mask(self) -> tuple[bool, ...]:
+        if self._useless_input_mask is None:
+            self._init_signature()
+            assert self._useless_input_mask is not None
+        return self._useless_input_mask
 
     @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
@@ -627,10 +650,10 @@ def is_same_behavior(left: Program, right: Program) -> bool:
     Tests whether two programs having the same signature are semantically
     equivalent.
     """
-    if left.signature != right.signature:
+    if left.signature() != right.signature():
         return False
 
-    if left.is_signature_total and right.is_signature_total:
+    if left.is_signature_total() and right.is_signature_total():
         # The signatures cover the whole behaviors, so no need to do anything
         # expensive.
         return True
@@ -759,7 +782,7 @@ def sort_bucket(
     # Detect known behaviors.
     illegals: Bucket = []
     for canonical in canonicals:
-        if signature != canonical.signature:
+        if signature != canonical.signature():
             continue
         behavior = list_extract(
             behaviors,
@@ -833,9 +856,10 @@ def main() -> None:
             ):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
-                if program.signature not in buckets:
-                    buckets[program.signature] = []
-                buckets[program.signature].append(program)
+                signature = program.signature()
+                if signature not in buckets:
+                    buckets[signature] = []
+                buckets[signature].append(program)
             print(f"Generated {new_program_count} programs of this size.")
 
             print("Sorting programs...")
