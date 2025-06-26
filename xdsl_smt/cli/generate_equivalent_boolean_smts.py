@@ -716,22 +716,6 @@ def is_input_useless_z3(program: Program, arg_index: int) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_same_behavior(left: Program, right: Program) -> bool:
-    """
-    Tests whether two programs having the same signature are semantically
-    equivalent.
-    """
-    if left.signature() != right.signature():
-        return False
-
-    if left.is_signature_total() and right.is_signature_total():
-        # The signatures cover the whole behaviors, so no need to do anything
-        # expensive.
-        return True
-
-    return is_same_behavior_with_z3(left, right)
-
-
 def unify_value(
     lhs_value: SSAValue,
     prog_value: SSAValue,
@@ -797,7 +781,7 @@ def sort_bucket(
     behaviors: list[Bucket] = []
     for program in bucket:
         for behavior in behaviors:
-            if is_same_behavior(program, behavior[0]):
+            if program.is_same_behavior(behavior[0]):
                 behavior.append(program)
                 break
         else:
@@ -810,7 +794,7 @@ def sort_bucket(
             continue
         behavior = list_extract(
             behaviors,
-            lambda behavior: is_same_behavior(behavior[0], canonical),
+            lambda behavior: behavior[0].is_same_behavior(canonical),
         )
         if behavior is not None:
             illegals.extend(behavior)
