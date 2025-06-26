@@ -268,12 +268,22 @@ class Program:
         return self._signature
 
     def is_signature_total(self) -> bool:
+        """
+        Whether the whole behavior of this program is encapsulated in its
+        signature. If two programs have a total signature, they are equivalent
+        if, and only if, their signatures compare equal.
+        """
         if self._is_signature_total is None:
             self._init_signature()
             assert self._is_signature_total is not None
         return self._is_signature_total
 
     def useless_input_mask(self) -> tuple[bool, ...]:
+        """
+        Booleans indicating, for each corresponding function input, whether the
+        input is useless. A useless input is an input whose value does not
+        affect the outputs.
+        """
         if self._useless_input_mask is None:
             self._init_signature()
             assert self._useless_input_mask is not None
