@@ -205,7 +205,7 @@ class Program:
         input_types = function_type.inputs
         arity = len(input_types)
         values_for_each_input = [Program._values_of_type(ty) for ty in input_types]
-        self._is_total = all(total for _, total in values_for_each_input)
+        self._is_signature_total = all(total for _, total in values_for_each_input)
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
         results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Any]]] = [
@@ -254,7 +254,8 @@ class Program:
         # Finally, compute which inputs are actually useless.
         self._useless_input_mask = tuple(
             # Only call Z3 on inputs that are useless here.
-            input_useless_here[i] and (self._is_total or is_input_useless_z3(self, i))
+            input_useless_here[i]
+            and (self._is_signature_total or is_input_useless_z3(self, i))
             for i in range(arity)
         )
         # Create the signature object
