@@ -86,6 +86,21 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
     return None
 
 
+Bucket = list[ModuleOp]
+
+
+@dataclass
+class Behavior:
+    signature: Signature
+    programs: Bucket
+
+
+@dataclass
+class SignedProgram:
+    signature: Signature
+    program: ModuleOp
+
+
 class Signature:
     """
     A value that can be computed from a program, and highly depends on its
@@ -620,21 +635,6 @@ def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
             prog_ret.arguments,
         )
     )
-
-
-Bucket = list[ModuleOp]
-
-
-@dataclass
-class Behavior:
-    signature: Signature
-    programs: Bucket
-
-
-@dataclass
-class SignedProgram:
-    signature: Signature
-    program: ModuleOp
 
 
 def sort_bucket(
