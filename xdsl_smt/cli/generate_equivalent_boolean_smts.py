@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from io import StringIO
 from multiprocessing import Pool
-from typing import Any, Callable, Generator, TypeVar
+from typing import Any, Callable, Generator, TypeVar, cast
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
@@ -652,7 +652,20 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     func_left = clone_func_to_smt_func(left.func())
     func_right = clone_func_to_smt_func(right.func())
 
-    function_type = func_left.func_type
+    useful_inputs_left = [
+        (index, input)
+        for index, (input, is_useless) in enumerate(
+            zip(func_left.func_type.inputs, left.useless_input_mask())
+        )
+        if not is_useless
+    ]
+    useful_inputs_right = [
+        (index, input)
+        for index, (input, is_useless) in enumerate(
+            zip(func_right.func_type.inputs, right.useless_input_mask())
+        )
+        if not is_useless
+    ]
 
     module = ModuleOp([])
     builder = Builder(InsertPoint.at_end(module.body.block))
@@ -662,14 +675,30 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     func_right = builder.insert(func_right.clone())
 
     # Declare a variable for each function input
-    args = list[SSAValue]()
-    for arg_type in function_type.inputs:
-        arg = builder.insert(smt.DeclareConstOp(arg_type)).res
-        args.append(arg)
+    args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
+    args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
+    for (left_index, left_type), (right_index, right_type) in zip(
+        useful_inputs_left, useful_inputs_right
+    ):
+        assert left_type == right_type, "Function inputs do not match."
+        arg = builder.insert(smt.DeclareConstOp(left_type)).res
+        args_left[left_index] = arg
+        args_right[right_index] = arg
+
+    for index, type in enumerate(func_left.func_type.inputs):
+        if args_left[index] is None:
+            args_left[index] = builder.insert(smt.DeclareConstOp(type)).res
+
+    for index, type in enumerate(func_right.func_type.inputs):
+        if args_right[index] is None:
+            args_right[index] = builder.insert(smt.DeclareConstOp(type)).res
+
+    args_left_complete = cast(list[SSAValue], args_left)
+    args_right_complete = cast(list[SSAValue], args_right)
 
     # Call each function with the same arguments
-    left_call = builder.insert(smt.CallOp(func_left.ret, args)).res
-    right_call = builder.insert(smt.CallOp(func_right.ret, args)).res
+    left_call = builder.insert(smt.CallOp(func_left.ret, args_left_complete)).res
+    right_call = builder.insert(smt.CallOp(func_right.ret, args_right_complete)).res
 
     # We only support single-result functions for now
     assert len(left_call) == 1
