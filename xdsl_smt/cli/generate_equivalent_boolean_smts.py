@@ -818,9 +818,10 @@ def is_pattern(lhs: Program, program: Program) -> bool:
 
 def sort_bucket(
     canonicals: list[Program],
-    signed_bucket: tuple[Signature, Bucket],
-) -> tuple[list[Bucket], Bucket]:
-    signature, bucket = signed_bucket
+    bucket: Bucket,
+) -> tuple[list[Bucket], list[Bucket]]:
+    # All programs in the bucket have the same signature.
+    signature = bucket[0].signature()
 
     # Sort programs into actual behavior buckets.
     behaviors: list[Bucket] = []
@@ -833,7 +834,7 @@ def sort_bucket(
             behaviors.append([program])
 
     # Detect known behaviors. The rest are new behaviors.
-    illegals: Bucket = []
+    known_behaviors: list[Bucket] = []
     for canonical in canonicals:
         if signature != canonical.signature():
             continue
@@ -842,37 +843,34 @@ def sort_bucket(
             lambda behavior: behavior[0].is_same_behavior(canonical),
         )
         if behavior is not None:
-            illegals.extend(behavior)
+            known_behaviors.append(behavior)
 
-    return behaviors, illegals
+    return behaviors, known_behaviors
 
 
 def sort_programs(
-    buckets: dict[Signature, Bucket],
+    buckets: list[Bucket],
     canonicals: list[Program],
-) -> tuple[list[Bucket], Bucket]:
+) -> tuple[list[Bucket], list[Bucket]]:
     """
     Sort programs from the specified buckets into programs with new behaviors,
     and illegal subpatterns.
 
-    The returned pair is `new_behaviors, new_illegals`.
+    The returned pair is `new_behaviors, known_behaviors`.
     """
 
     new_behaviors: list[Bucket] = []
-    new_illegals: Bucket = []
+    known_behaviors: list[Bucket] = []
 
     with Pool() as p:
-        for i, (behaviors, illegals) in enumerate(
-            p.imap_unordered(
-                partial(sort_bucket, canonicals),
-                buckets.items(),
-            )
+        for i, (new, known) in enumerate(
+            p.imap_unordered(partial(sort_bucket, canonicals), buckets)
         ):
             print(f" {round(100.0 * i / len(buckets), 1)} %", end="\r")
-            new_behaviors.extend(behaviors)
-            new_illegals.extend(illegals)
+            new_behaviors.extend(new)
+            known_behaviors.extend(known)
 
-    return new_behaviors, new_illegals
+    return new_behaviors, known_behaviors
 
 
 def main() -> None:
@@ -913,7 +911,12 @@ def main() -> None:
             print(f"Generated {new_program_count} programs of this size.")
 
             print("Sorting programs...")
-            new_behaviors, new_illegals = sort_programs(buckets, canonicals)
+            new_behaviors, known_behaviors = sort_programs(
+                list(buckets.values()), canonicals
+            )
+            new_illegals = [
+                program for behavior in known_behaviors for program in behavior
+            ]
             print(
                 f"Found {len(new_behaviors)} new behaviors, "
                 f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
