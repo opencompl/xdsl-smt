@@ -117,9 +117,9 @@ class Signature:
             case _:
                 raise ValueError(f"Unsupported type: {ty}")
 
-    def __init__(self, program: ModuleOp):
-        interpreter = build_interpreter(program, 64)
-        self._function_type = get_inner_func(program).function_type
+    def __init__(self, program: "Program"):
+        interpreter = build_interpreter(program.module, 64)
+        self._function_type = program.func().function_type
         arity = len(self._function_type.inputs)
         values_for_each_input = [
             Signature.values_of_type(ty) for ty in self._function_type.inputs
@@ -178,9 +178,6 @@ class Signature:
             for i in range(arity)
         )
 
-    def is_total(self) -> bool:
-        return self._is_total
-
     def _compute_determinant_tuple(self) -> tuple[Any, ...]:
         return (
             tuple(
@@ -213,19 +210,146 @@ class Signature:
         return self._compute_determinant_tuple().__hash__()
 
 
-Bucket = list[ModuleOp]
+class Program:
+    module: ModuleOp
+    signature: Signature
+    useless_input_mask: tuple[bool, ...]
+    _size: int
+
+    @staticmethod
+    def _formula_size(formula: SSAValue) -> int:
+        match formula:
+            case BlockArgument():
+                return 0
+            case OpResult(op=smt.ConstantBoolOp()):
+                return 0
+            case OpResult(op=bv.ConstantOp()):
+                return 0
+            case OpResult(op=op):
+                return 1 + sum(
+                    Program._formula_size(operand) for operand in op.operands
+                )
+            case x:
+                raise ValueError(f"Unknown value: {x}")
+
+    def __init__(self, module: ModuleOp):
+        self.module = module
+        # TODO: Find a better way than calling this with a partially initialized
+        # `self`.
+        self.signature = Signature(self)
+        self.is_signature_total = (
+            self.signature._is_total  # pyright: ignore[reportPrivateUsage]
+        )
+        self.useless_input_mask = (
+            self.signature._input_useless  # pyright: ignore[reportPrivateUsage]
+        )
+        ret = self.func().get_return_op()
+        assert ret is not None
+        self._size = sum(Program._formula_size(argument) for argument in ret.arguments)
+
+    def func(self) -> FuncOp:
+        assert len(self.module.ops) == 1
+        assert isinstance(self.module.ops.first, FuncOp)
+        return self.module.ops.first
+
+    def size(self) -> int:
+        return self._size
+
+    @staticmethod
+    def _pretty_print_value(x: SSAValue, nested: bool):
+        infix = isinstance(x, OpResult) and (
+            isinstance(x.op, smt.BinaryBoolOp)
+            or isinstance(x.op, smt.BinaryTOp)
+            or isinstance(x.op, smt.IteOp)
+            or isinstance(x.op, bv.BinaryBVOp)
+        )
+        if infix and nested:
+            print("(", end="")
+        match x:
+            case BlockArgument(index=i, type=smt.BoolType()):
+                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+            case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
+                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+                print(f"[{width.data}]", end="")
+            case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
+                print("⊤" if val else "⊥", end="")
+            case OpResult(op=bv.ConstantOp(value=val), index=0):
+                width = val.type.width.data
+                value = val.value.data
+                print(f"{{:0{width}b}}".format(value), end="")
+            case OpResult(op=smt.NotOp(arg=arg), index=0):
+                print("¬", end="")
+                Program._pretty_print_value(arg, True)
+            case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" ∧ ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" ∨ ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" → ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" ≠ ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" = ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" ⊕ ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(
+                op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
+            ):
+                Program._pretty_print_value(cond, True)
+                print(" ? ", end="")
+                Program._pretty_print_value(true_val, True)
+                print(" : ", end="")
+                Program._pretty_print_value(false_val, True)
+            case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" + ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" & ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" | ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
+                Program._pretty_print_value(lhs, True)
+                print(" * ", end="")
+                Program._pretty_print_value(rhs, True)
+            case OpResult(op=bv.NotOp(arg=arg), index=0):
+                print("~", end="")
+                Program._pretty_print_value(arg, True)
+            case _:
+                raise ValueError(f"Unknown value for pretty print: {x}")
+        if infix and nested:
+            print(")", end="")
+
+    def pretty_print(self):
+        ret = self.func().get_return_op()
+        assert ret is not None
+        Program._pretty_print_value(ret.arguments[0], False)
+        print()
+
+
+Bucket = list[Program]
 
 
 @dataclass
 class Behavior:
     signature: Signature
     programs: Bucket
-
-
-@dataclass
-class SignedProgram:
-    signature: Signature
-    program: ModuleOp
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
@@ -246,33 +370,7 @@ def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
         program_lines.append(output)
 
 
-def get_inner_func(module: ModuleOp) -> FuncOp:
-    assert len(module.ops) == 1
-    assert isinstance(module.ops.first, FuncOp)
-    return module.ops.first
-
-
-def formula_size(formula: SSAValue) -> int:
-    match formula:
-        case BlockArgument():
-            return 0
-        case OpResult(op=smt.ConstantBoolOp()):
-            return 0
-        case OpResult(op=bv.ConstantOp()):
-            return 0
-        case OpResult(op=op):
-            return 1 + sum(formula_size(operand) for operand in op.operands)
-        case x:
-            raise ValueError(f"Unknown value: {x}")
-
-
-def program_size(program: ModuleOp) -> int:
-    ret = get_inner_func(program).get_return_op()
-    assert ret is not None
-    return sum(formula_size(argument) for argument in ret.arguments)
-
-
-def create_pattern_from_program(program: ModuleOp) -> str:
+def create_pattern_from_program(program: Program) -> str:
     lines = [
         "builtin.module {",
         "  pdl.pattern : benefit(1) {",
@@ -289,7 +387,7 @@ def create_pattern_from_program(program: ModuleOp) -> str:
     # We do not include the return instruction as part of the pattern. If the
     # program contain instructions with multiple return values, or itself
     # returns multiple values, this may lead to unexpected results.
-    operations = list(get_inner_func(program).body.ops)[:-1]
+    operations = list(program.func().body.ops)[:-1]
     for i, op in enumerate(operations):
         op_ids[op] = i
         operands: list[str] = []
@@ -336,8 +434,8 @@ def enumerate_programs(
     max_num_args: int,
     num_ops: int,
     bv_widths: str,
-    illegals: list[ModuleOp],
-) -> Generator[ModuleOp, None, None]:
+    illegals: list[Program],
+) -> Generator[Program, None, None]:
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
             f.write(create_pattern_from_program(program))
@@ -366,19 +464,20 @@ def enumerate_programs(
 
     enumerated: set[str] = set()
 
-    while (program := read_program_from_enumerator(enumerator)) is not None:
+    while (source := read_program_from_enumerator(enumerator)) is not None:
         # Send a character to the enumerator to continue.
         assert enumerator.stdin is not None
         enumerator.stdin.write("a")
         enumerator.stdin.flush()
 
-        module = Parser(ctx, program).parse_module(True)
+        module = Parser(ctx, source).parse_module(True)
+        program = Program(module)
 
-        if program_size(module) != num_ops:
+        if program.size() != num_ops:
             continue
 
         # Deduplication.
-        attributes = get_inner_func(module).attributes
+        attributes = program.func().attributes
         if "seed" in attributes:
             del attributes["seed"]
         s = str(module)
@@ -386,7 +485,7 @@ def enumerate_programs(
             continue
         enumerated.add(s)
 
-        yield module
+        yield program
 
 
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
@@ -437,13 +536,13 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
     return result
 
 
-def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
+def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     """
     Check wether two programs are semantically equivalent using z3.
     We assume that both programs have the same function type.
     """
-    func_left = clone_func_to_smt_func(get_inner_func(left))
-    func_right = clone_func_to_smt_func(get_inner_func(right))
+    func_left = clone_func_to_smt_func(left.func())
+    func_right = clone_func_to_smt_func(right.func())
 
     function_type = func_left.func_type
 
@@ -477,12 +576,13 @@ def is_same_behavior_with_z3(left: ModuleOp, right: ModuleOp) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_input_useless_z3(program: ModuleOp, arg_index: int) -> bool:
+def is_input_useless_z3(program: Program, arg_index: int) -> bool:
     """
     Use z3 to check wether if the argument at `arg_index` is irrelevant in
     the computation of the function.
     """
-    func = get_inner_func(program)
+
+    func = program.func()
 
     module = ModuleOp([])
     builder = Builder(InsertPoint.at_end(module.body.block))
@@ -522,13 +622,16 @@ def is_input_useless_z3(program: ModuleOp, arg_index: int) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_same_behavior(left: ModuleOp, right: ModuleOp, signature: Signature) -> bool:
+def is_same_behavior(left: Program, right: Program) -> bool:
     """
     Tests whether two programs having the same signature are semantically
     equivalent.
     """
-    if signature.is_total():
-        # The signature covers the whole behavior, so no need to do anything
+    if left.signature != right.signature:
+        return False
+
+    if left.is_signature_total and right.is_signature_total:
+        # The signatures cover the whole behaviors, so no need to do anything
         # expensive.
         return True
 
@@ -561,14 +664,14 @@ def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
             raise ValueError(f"Unknown value: {l} or {r}")
 
 
-def compare_programs_lexicographically(left: ModuleOp, right: ModuleOp) -> int:
-    if program_size(left) < program_size(right):
+def compare_programs_lexicographically(left: Program, right: Program) -> int:
+    if left.size() < right.size():
         return -1
-    if program_size(right) > program_size(left):
+    if left.size() > right.size():
         return 1
-    left_ret = get_inner_func(left).get_return_op()
+    left_ret = left.func().get_return_op()
     assert left_ret is not None
-    right_ret = get_inner_func(right).get_return_op()
+    right_ret = right.func().get_return_op()
     assert right_ret is not None
     return compare_values_lexicographically(
         left_ret.arguments[0], right_ret.arguments[0]
@@ -619,11 +722,11 @@ def unify_value(
             return False
 
 
-def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
-    prog_ret = get_inner_func(program).get_return_op()
+def is_pattern(lhs: Program, program: Program) -> bool:
+    prog_ret = program.func().get_return_op()
     assert prog_ret is not None
 
-    lhs_func = get_inner_func(lhs)
+    lhs_func = lhs.func()
     lhs_ret = lhs_func.get_return_op()
     assert lhs_ret is not None
 
@@ -638,7 +741,7 @@ def is_pattern(lhs: ModuleOp, program: ModuleOp) -> bool:
 
 
 def sort_bucket(
-    canonicals: list[SignedProgram],
+    canonicals: list[Program],
     signed_bucket: tuple[Signature, Bucket],
 ) -> tuple[list[Behavior], Bucket]:
     signature, bucket = signed_bucket
@@ -647,7 +750,7 @@ def sort_bucket(
     behaviors: list[Bucket] = []
     for program in bucket:
         for behavior in behaviors:
-            if is_same_behavior(program, behavior[0], signature):
+            if is_same_behavior(program, behavior[0]):
                 behavior.append(program)
                 break
         else:
@@ -660,9 +763,7 @@ def sort_bucket(
             continue
         behavior = list_extract(
             behaviors,
-            lambda behavior: is_same_behavior(
-                behavior[0], canonical.program, signature
-            ),
+            lambda behavior: is_same_behavior(behavior[0], canonical),
         )
         if behavior is not None:
             illegals.extend(behavior)
@@ -675,7 +776,7 @@ def sort_bucket(
 
 def sort_programs(
     buckets: dict[Signature, Bucket],
-    canonicals: list[SignedProgram],
+    canonicals: list[Program],
 ) -> tuple[list[Behavior], Bucket]:
     """
     Sort programs from the specified buckets into programs with new behaviors,
@@ -701,94 +802,6 @@ def sort_programs(
     return new_behaviors, new_illegals
 
 
-def pretty_print_value(x: SSAValue, nested: bool):
-    infix = isinstance(x, OpResult) and (
-        isinstance(x.op, smt.BinaryBoolOp)
-        or isinstance(x.op, smt.BinaryTOp)
-        or isinstance(x.op, smt.IteOp)
-        or isinstance(x.op, bv.BinaryBVOp)
-    )
-    if infix and nested:
-        print("(", end="")
-    match x:
-        case BlockArgument(index=i, type=smt.BoolType()):
-            print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
-        case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
-            print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
-            print(f"[{width.data}]", end="")
-        case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
-            print("⊤" if val else "⊥", end="")
-        case OpResult(op=bv.ConstantOp(value=val), index=0):
-            width = val.type.width.data
-            value = val.value.data
-            print(f"{{:0{width}b}}".format(value), end="")
-        case OpResult(op=smt.NotOp(arg=arg), index=0):
-            print("¬", end="")
-            pretty_print_value(arg, True)
-        case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" ∧ ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" ∨ ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
-            pretty_print_value(lhs, True)
-            print(" → ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
-            pretty_print_value(lhs, True)
-            print(" ≠ ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
-            pretty_print_value(lhs, True)
-            print(" = ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" ⊕ ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(
-            op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
-        ):
-            pretty_print_value(cond, True)
-            print(" ? ", end="")
-            pretty_print_value(true_val, True)
-            print(" : ", end="")
-            pretty_print_value(false_val, True)
-        case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" + ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" & ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" | ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
-            pretty_print_value(lhs, True)
-            print(" * ", end="")
-            pretty_print_value(rhs, True)
-        case OpResult(op=bv.NotOp(arg=arg), index=0):
-            print("~", end="")
-            pretty_print_value(arg, True)
-        case _:
-            raise ValueError(f"Unknown value for pretty print: {x}")
-    if infix and nested:
-        print(")", end="")
-
-
-def pretty_print_program(program: ModuleOp):
-    ret = get_inner_func(program).get_return_op()
-    assert ret is not None
-    pretty_print_value(ret.arguments[0], False)
-    print()
-
-
 def main() -> None:
     ctx = Context()
     ctx.allow_unregistered = True
@@ -804,8 +817,8 @@ def main() -> None:
     ctx.load_dialect(SMTUtilsDialect)
     ctx.load_dialect(synth.SynthDialect)
 
-    canonicals: list[SignedProgram] = []
-    illegals: list[ModuleOp] = []
+    canonicals: list[Program] = []
+    illegals: list[Program] = []
 
     try:
         for m in range(args.max_num_ops + 1):
@@ -814,16 +827,15 @@ def main() -> None:
 
             print("Enumerating programs...")
             new_program_count = 0
-            buckets: dict[Signature, list[ModuleOp]] = {}
+            buckets: dict[Signature, Bucket] = {}
             for program in enumerate_programs(
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
                 new_program_count += 1
                 print(f" {new_program_count}", end="\r")
-                signature = Signature(program)
-                if signature not in buckets:
-                    buckets[signature] = []
-                buckets[signature].append(program)
+                if program.signature not in buckets:
+                    buckets[program.signature] = []
+                buckets[program.signature].append(program)
             print(f"Generated {new_program_count} programs of this size.")
 
             print("Sorting programs...")
@@ -839,7 +851,7 @@ def main() -> None:
                     key=cmp_to_key(compare_programs_lexicographically)
                 )
                 canonical = behavior.programs[0]
-                canonicals.append(SignedProgram(behavior.signature, canonical))
+                canonicals.append(canonical)
                 new_illegals.extend(
                     program
                     for program in behavior.programs
@@ -880,16 +892,16 @@ def main() -> None:
         with open(args.out_file, "w", encoding="UTF-8") as f:
             sys.stdout = f
             for program in canonicals:
-                pretty_print_program(program.program)
+                program.pretty_print()
             print("// -----")
             for program in illegals:
-                pretty_print_program(program)
+                program.pretty_print()
         sys.stdout = old_stdout
 
         if args.summary:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
             for program in canonicals:
-                pretty_print_program(program.program)
+                program.pretty_print()
 
     except BrokenPipeError as e:
         # The enumerator has terminated
