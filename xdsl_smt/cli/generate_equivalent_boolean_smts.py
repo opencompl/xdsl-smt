@@ -327,9 +327,17 @@ class Program:
             return -1
         if self.size() > other.size():
             return 1
-        return Program._compare_values_lexicographically(
-            self.ret().arguments[0], other.ret().arguments[0]
-        )
+        self_outs = self.ret().arguments
+        other_outs = self.ret().arguments
+        if len(self_outs) < len(other_outs):
+            return -1
+        if len(self_outs) > len(other_outs):
+            return 1
+        for self_out, other_out in zip(self_outs, other_outs, strict=True):
+            c = Program._compare_values_lexicographically(self_out, other_out)
+            if c != 0:
+                return c
+        return 0
 
     def __lt__(self, other: Any) -> bool:
         if not isinstance(other, Program):
