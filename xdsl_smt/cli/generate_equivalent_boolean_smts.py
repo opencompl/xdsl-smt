@@ -6,7 +6,6 @@ import subprocess as sp
 import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
-from dataclasses import dataclass
 from functools import partial
 from io import StringIO
 from multiprocessing import Pool
@@ -455,12 +454,6 @@ class Program:
 Bucket = list[Program]
 
 
-@dataclass
-class Behavior:
-    signature: Signature
-    programs: Bucket
-
-
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
     program_lines = list[str]()
     assert enumerator.stdout is not None
@@ -818,7 +811,7 @@ def is_pattern(lhs: Program, program: Program) -> bool:
 def sort_bucket(
     canonicals: list[Program],
     signed_bucket: tuple[Signature, Bucket],
-) -> tuple[list[Behavior], Bucket]:
+) -> tuple[list[Bucket], Bucket]:
     signature, bucket = signed_bucket
 
     # Sort programs into actual behavior buckets.
@@ -831,7 +824,7 @@ def sort_bucket(
         else:
             behaviors.append([program])
 
-    # Detect known behaviors.
+    # Detect known behaviors. The rest are new behaviors.
     illegals: Bucket = []
     for canonical in canonicals:
         if signature != canonical.signature():
@@ -843,16 +836,13 @@ def sort_bucket(
         if behavior is not None:
             illegals.extend(behavior)
 
-    # The rest are new behaviors.
-    new_behaviors = [Behavior(signature, behavior) for behavior in behaviors]
-
-    return new_behaviors, illegals
+    return behaviors, illegals
 
 
 def sort_programs(
     buckets: dict[Signature, Bucket],
     canonicals: list[Program],
-) -> tuple[list[Behavior], Bucket]:
+) -> tuple[list[Bucket], Bucket]:
     """
     Sort programs from the specified buckets into programs with new behaviors,
     and illegal subpatterns.
@@ -860,7 +850,7 @@ def sort_programs(
     The returned pair is `new_behaviors, new_illegals`.
     """
 
-    new_behaviors: list[Behavior] = []
+    new_behaviors: list[Bucket] = []
     new_illegals: Bucket = []
 
     with Pool() as p:
@@ -918,17 +908,17 @@ def main() -> None:
             new_behaviors, new_illegals = sort_programs(buckets, canonicals)
             print(
                 f"Found {len(new_behaviors)} new behaviors, "
-                f"exhibited by {sum(len(behavior.programs) for behavior in new_behaviors)} programs."
+                f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
             )
 
             print("Choosing new canonical programs...")
             for behavior in new_behaviors:
-                behavior.programs.sort()
-                canonical = behavior.programs[0]
+                behavior.sort()
+                canonical = behavior[0]
                 canonicals.append(canonical)
                 new_illegals.extend(
                     program
-                    for program in behavior.programs
+                    for program in behavior
                     if not is_pattern(program, canonical)
                 )
             print(f"Found {len(new_illegals)} new illegal subpatterns.")
