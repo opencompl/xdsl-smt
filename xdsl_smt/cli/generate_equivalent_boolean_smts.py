@@ -86,6 +86,9 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
     return None
 
 
+Result = tuple[Any, ...]
+
+
 class Signature:
     """
     A value that can be computed from a program, and highly depends on its
@@ -94,20 +97,20 @@ class Signature:
 
     _function_type: FunctionType
     _input_useless: tuple[bool, ...]
-    _results: tuple[Any, ...]
+    _results: tuple[Result, ...]
     _is_total: bool
 
     def __init__(
         self,
         function_type: FunctionType,
         useless_input_mask: tuple[bool, ...],
-        results: tuple[Any, ...],
+        results: tuple[Result, ...],
     ):
         self._function_type = function_type
         self._input_useless = useless_input_mask
         self._results = results
 
-    def _compute_determinant_tuple(self) -> tuple[Any, ...]:
+    def _hashable(self) -> Any:
         return (
             tuple(
                 ty
@@ -131,12 +134,10 @@ class Signature:
         if not isinstance(other, Signature):
             return False
 
-        return self._compute_determinant_tuple().__eq__(
-            other._compute_determinant_tuple()
-        )
+        return self._hashable().__eq__(other._hashable())
 
     def __hash__(self) -> int:
-        return self._compute_determinant_tuple().__hash__()
+        return self._hashable().__hash__()
 
 
 class Program:
@@ -215,7 +216,7 @@ class Program:
         self._is_signature_total = all(total for _, total in values_for_each_input)
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
-        results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Any]]] = [
+        results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Result]]] = [
             {
                 other_inputs: set()
                 for other_inputs in itertools.product(
