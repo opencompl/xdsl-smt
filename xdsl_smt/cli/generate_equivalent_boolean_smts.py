@@ -7,7 +7,7 @@ import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
 from dataclasses import dataclass
-from functools import cmp_to_key, partial
+from functools import partial
 from io import StringIO
 from multiprocessing import Pool
 from typing import Any, Callable, Generator, TypeVar
@@ -166,13 +166,20 @@ class Program:
         self.module = module
 
     def func(self) -> FuncOp:
+        """Returns the underlying function."""
         assert len(self.module.ops) == 1
         assert isinstance(self.module.ops.first, FuncOp)
         return self.module.ops.first
 
+    def ret(self) -> ReturnOp:
+        """Returns the return operation of the underlying function."""
+        r = self.func().get_return_op()
+        assert r is not None
+        return r
+
     def size(self) -> int:
         if self._size is None:
-            ret = self.func().get_return_op()
+            ret = self.ret()
             assert ret is not None
             self._size = sum(
                 Program._formula_size(argument) for argument in ret.arguments
@@ -290,6 +297,61 @@ class Program:
         return self._useless_input_mask
 
     @staticmethod
+    def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
+        match left, right:
+            case BlockArgument(index=i), BlockArgument(index=j):
+                return i - j
+            case BlockArgument(), OpResult():
+                return 1
+            case OpResult(), BlockArgument():
+                return -1
+            case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
+                op=smt.ConstantBoolOp(value=rv)
+            ):
+                return bool(lv) - bool(rv)
+            case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
+                if isinstance(lop, type(rop)):
+                    return i - j
+                if len(lop.operands) != len(rop.operands):
+                    return len(lop.operands) - len(rop.operands)
+                for lo, ro in zip(lop.operands, rop.operands, strict=True):
+                    c = Program._compare_values_lexicographically(lo, ro)
+                    if c != 0:
+                        return c
+                return 0
+            case l, r:
+                raise ValueError(f"Unknown value: {l} or {r}")
+
+    def _compare_lexicographically(self, other: "Program") -> int:
+        if self.size() < other.size():
+            return -1
+        if self.size() > other.size():
+            return 1
+        return Program._compare_values_lexicographically(
+            self.ret().arguments[0], other.ret().arguments[0]
+        )
+
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, Program):
+            return NotImplemented
+        return self._compare_lexicographically(other) < 0
+
+    def __le__(self, other: Any) -> bool:
+        if not isinstance(other, Program):
+            return NotImplemented
+        return self._compare_lexicographically(other) <= 0
+
+    def __gt__(self, other: Any) -> bool:
+        if not isinstance(other, Program):
+            return NotImplemented
+        return self._compare_lexicographically(other) > 0
+
+    def __ge__(self, other: Any) -> bool:
+        if not isinstance(other, Program):
+            return NotImplemented
+        return self._compare_lexicographically(other) >= 0
+
+    @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
         infix = isinstance(x, OpResult) and (
             isinstance(x.op, smt.BinaryBoolOp)
@@ -371,9 +433,7 @@ class Program:
             print(")", end="")
 
     def pretty_print(self):
-        ret = self.func().get_return_op()
-        assert ret is not None
-        Program._pretty_print_value(ret.arguments[0], False)
+        Program._pretty_print_value(self.ret().arguments[0], False)
         print()
 
 
@@ -672,46 +732,6 @@ def is_same_behavior(left: Program, right: Program) -> bool:
     return is_same_behavior_with_z3(left, right)
 
 
-def compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
-    match left, right:
-        case BlockArgument(index=i), BlockArgument(index=j):
-            return i - j
-        case BlockArgument(), OpResult():
-            return 1
-        case OpResult(), BlockArgument():
-            return -1
-        case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
-            op=smt.ConstantBoolOp(value=rv)
-        ):
-            return bool(lv) - bool(rv)
-        case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
-            if isinstance(lop, type(rop)):
-                return i - j
-            if len(lop.operands) != len(rop.operands):
-                return len(lop.operands) - len(rop.operands)
-            for lo, ro in zip(lop.operands, rop.operands, strict=True):
-                c = compare_values_lexicographically(lo, ro)
-                if c != 0:
-                    return c
-            return 0
-        case l, r:
-            raise ValueError(f"Unknown value: {l} or {r}")
-
-
-def compare_programs_lexicographically(left: Program, right: Program) -> int:
-    if left.size() < right.size():
-        return -1
-    if left.size() > right.size():
-        return 1
-    left_ret = left.func().get_return_op()
-    assert left_ret is not None
-    right_ret = right.func().get_return_op()
-    assert right_ret is not None
-    return compare_values_lexicographically(
-        left_ret.arguments[0], right_ret.arguments[0]
-    )
-
-
 def unify_value(
     lhs_value: SSAValue,
     prog_value: SSAValue,
@@ -757,19 +777,12 @@ def unify_value(
 
 
 def is_pattern(lhs: Program, program: Program) -> bool:
-    prog_ret = program.func().get_return_op()
-    assert prog_ret is not None
-
-    lhs_func = lhs.func()
-    lhs_ret = lhs_func.get_return_op()
-    assert lhs_ret is not None
-
-    argument_values: list[SSAValue | None] = [None] * len(lhs_func.args)
-    return len(prog_ret.arguments) == len(lhs_ret.arguments) and all(
+    argument_values: list[SSAValue | None] = [None] * len(lhs.func().args)
+    return len(program.ret().arguments) == len(lhs.ret().arguments) and all(
         map(
             lambda l, p: unify_value(l, p, argument_values),
-            lhs_ret.arguments,
-            prog_ret.arguments,
+            lhs.ret().arguments,
+            program.ret().arguments,
         )
     )
 
@@ -882,9 +895,7 @@ def main() -> None:
 
             print("Choosing new canonical programs...")
             for behavior in new_behaviors:
-                behavior.programs.sort(
-                    key=cmp_to_key(compare_programs_lexicographically)
-                )
+                behavior.programs.sort()
                 canonical = behavior.programs[0]
                 canonicals.append(canonical)
                 new_illegals.extend(
