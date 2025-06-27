@@ -349,18 +349,35 @@ class Program:
             assert self._useless_input_mask is not None
         return self._useless_input_mask
 
-    def useful_inputs(self) -> list[tuple[int, Attribute]]:
+    def permuted_useful_inputs(
+        self, permutation: Permutation
+    ) -> list[tuple[int, Attribute]]:
         """
-        Returns the indices and types of the non-useless inputs, in increasing
-        order.
+        Returns the indices and types of the non-useless inputs in order after
+        applying the specified permutation to all inputs.
         """
         return [
             (i, ty)
-            for i, (ty, useless) in enumerate(
-                zip(self.func().function_type.inputs, self.useless_input_mask())
+            for i, (ty, useless) in permute(
+                list(
+                    enumerate(
+                        zip(
+                            self.func().function_type.inputs,
+                            self.useless_input_mask(),
+                            strict=True,
+                        )
+                    )
+                ),
+                permutation,
             )
             if not useless
         ]
+
+    def useful_inputs(self) -> list[tuple[int, Attribute]]:
+        """
+        Returns the indices and types of the non-useless inputs in order.
+        """
+        return self.permuted_useful_inputs(range(self.arity()))
 
     @staticmethod
     def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
@@ -438,8 +455,11 @@ class Program:
             return True
 
         for permutation in self._input_permutations():
-            if is_same_behavior_with_z3(self, other, permutation):
-                return True
+            # First test whether this permutation has a chance to work.
+            if self._results_with_permutation(permutation) == other._base_results:
+                # Only then, resort to Z3.
+                if is_same_behavior_with_z3(self, other, permutation):
+                    return True
 
         return False
 
@@ -627,7 +647,7 @@ def enumerate_programs(
             SMT_MLIR,
             "--configuration=smt",
             f"--smt-bitvector-widths={bv_widths}",
-            # Make sure cse is applied
+            # Make sure cse is applied.
             "--cse",
             # Prevent any non-deterministic behavior (hopefully).
             "--seed=1",
@@ -670,12 +690,12 @@ def enumerate_programs(
 
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
     """
-    Convert a func.func to an smt.define_fun operation.
+    Convert a `func.func` to an `smt.define_fun` operation.
     Do not mutate the original function.
     """
     new_region = func.body.clone()
 
-    # Replace the func.return with an smt.return operation
+    # Replace the `func.return` with an `smt.return` operation.
     func_return = new_region.block.last_op
     assert isinstance(func_return, ReturnOp)
     rewriter = Rewriter()
@@ -740,7 +760,7 @@ def is_same_behavior_with_z3(
     args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
     args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
     for (left_index, left_type), (right_index, right_type) in zip(
-        permute(left.useful_inputs(), left_permutation), right.useful_inputs()
+        left.permuted_useful_inputs(left_permutation), right.useful_inputs()
     ):
         assert left_type == right_type, "Function inputs do not match."
         arg = builder.insert(smt.DeclareConstOp(left_type)).res
