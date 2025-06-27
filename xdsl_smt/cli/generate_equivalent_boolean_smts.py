@@ -296,6 +296,19 @@ class Program:
             assert self._useless_input_mask is not None
         return self._useless_input_mask
 
+    def useful_inputs(self) -> list[tuple[int, Attribute]]:
+        """
+        Returns the indices and types of the non-useless inputs, in increasing
+        order.
+        """
+        return [
+            (i, ty)
+            for i, (ty, useless) in enumerate(
+                zip(self.func().function_type.inputs, self.useless_input_mask())
+            )
+            if not useless
+        ]
+
     @staticmethod
     def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
         match left, right:
@@ -654,21 +667,6 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     func_left = clone_func_to_smt_func(left.func())
     func_right = clone_func_to_smt_func(right.func())
 
-    useful_inputs_left = [
-        (index, input)
-        for index, (input, is_useless) in enumerate(
-            zip(func_left.func_type.inputs, left.useless_input_mask())
-        )
-        if not is_useless
-    ]
-    useful_inputs_right = [
-        (index, input)
-        for index, (input, is_useless) in enumerate(
-            zip(func_right.func_type.inputs, right.useless_input_mask())
-        )
-        if not is_useless
-    ]
-
     module = ModuleOp([])
     builder = Builder(InsertPoint.at_end(module.body.block))
 
@@ -680,7 +678,7 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
     args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
     for (left_index, left_type), (right_index, right_type) in zip(
-        useful_inputs_left, useful_inputs_right
+        left.useful_inputs(), right.useful_inputs()
     ):
         assert left_type == right_type, "Function inputs do not match."
         arg = builder.insert(smt.DeclareConstOp(left_type)).res
