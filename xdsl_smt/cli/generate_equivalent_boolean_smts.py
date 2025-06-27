@@ -946,7 +946,7 @@ def sort_programs(
         for i, (new, known) in enumerate(
             p.imap_unordered(partial(sort_bucket, canonicals), buckets)
         ):
-            print(f" {round(100.0 * i / len(buckets), 1)} %", end="\r")
+            print(f"\033[2K {round(100.0 * i / len(buckets), 1)} %", end="\r")
             new_behaviors.extend(new)
             known_behaviors.extend(known)
 
@@ -983,12 +983,12 @@ def main() -> None:
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
                 new_program_count += 1
-                print(f" {new_program_count}", end="\r")
+                print(f"\033[2K {new_program_count}", end="\r")
                 signature = program.signature()
                 if signature not in buckets:
                     buckets[signature] = []
                 buckets[signature].append(program)
-            print(f"Generated {new_program_count} programs of this size.")
+            print(f"\033[2KGenerated {new_program_count} programs of this size.")
 
             print("Sorting programs...")
             new_behaviors, known_behaviors = sort_programs(
@@ -998,7 +998,7 @@ def main() -> None:
                 program for behavior in known_behaviors for program in behavior
             ]
             print(
-                f"Found {len(new_behaviors)} new behaviors, "
+                f"\033[2KFound {len(new_behaviors)} new behaviors, "
                 f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
             )
 
