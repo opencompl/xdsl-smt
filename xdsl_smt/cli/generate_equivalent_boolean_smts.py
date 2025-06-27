@@ -147,11 +147,11 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
 class Program:
     module: ModuleOp
     _size: int | None = None
-    _input_cardinalities: tuple[int, ...] | None
-    _base_results: tuple[Result, ...] | None
-    _signature: Signature | None = None
-    _is_signature_total: bool | None = None
-    _useless_input_mask: tuple[bool, ...] | None = None
+    _input_cardinalities: tuple[int, ...]
+    _base_results: tuple[Result, ...]
+    _signature: Signature
+    _is_signature_total: bool
+    _useless_input_mask: tuple[bool, ...]
 
     @staticmethod
     def _formula_size(formula: SSAValue) -> int:
@@ -172,74 +172,6 @@ class Program:
     def __init__(self, module: ModuleOp):
         self.module = module
 
-    def func(self) -> FuncOp:
-        """Returns the underlying function."""
-        assert len(self.module.ops) == 1
-        assert isinstance(self.module.ops.first, FuncOp)
-        return self.module.ops.first
-
-    def ret(self) -> ReturnOp:
-        """Returns the return operation of the underlying function."""
-        r = self.func().get_return_op()
-        assert r is not None
-        return r
-
-    def arity(self) -> int:
-        return len(self.func().function_type.inputs)
-
-    def size(self) -> int:
-        if self._size is None:
-            ret = self.ret()
-            assert ret is not None
-            self._size = sum(
-                Program._formula_size(argument) for argument in ret.arguments
-            )
-        return self._size
-
-    @staticmethod
-    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
-        """
-        Returns values of the passed type.
-
-        The boolean indicates whether the returned values cover the whole type. If
-        `true`, this means all possible values of the type were returned.
-        """
-        match ty:
-            case smt.BoolType():
-                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
-            case bv.BitVectorType(width=IntAttr(data=width)):
-                w = min(2, width)
-                return [
-                    IntegerAttr.from_int_and_width(value, width)
-                    for value in range(1 << w)
-                ], (w == width)
-            case _:
-                raise ValueError(f"Unsupported type: {ty}")
-
-    def _input_permutations(self) -> Iterable[Permutation]:
-        assert self._useless_input_mask is not None
-        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
-        for permutation in itertools.permutations(range(self.arity())):
-            if all(permutation[i] == i for i in useless_indices):
-                yield permutation
-
-    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
-        assert self._input_cardinalities is not None
-        assert self._base_results is not None
-        # This could be achieved using less memory with some arithmetic.
-        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
-        indices: dict[tuple[int, ...], int] = {
-            iid: result_index for result_index, iid in enumerate(input_ids)
-        }
-        permuted_input_ids = itertools.product(
-            *permute([range(c) for c in self._input_cardinalities], permutation)
-        )
-        return tuple(
-            self._base_results[indices[reverse_permute(piid, permutation)]]
-            for piid in permuted_input_ids
-        )
-
-    def _init_signature(self):
         arity = self.arity()
         interpreter = build_interpreter(self.module, 64)
         function_type = self.func().function_type
@@ -314,17 +246,80 @@ class Program:
             for permutation in self._input_permutations()
         )
 
-        # Create the signature object
         self._signature = Signature(
             useful_inputs,
             tuple(function_type.outputs),
             results_with_permutations,
         )
 
+    def func(self) -> FuncOp:
+        """Returns the underlying function."""
+        assert len(self.module.ops) == 1
+        assert isinstance(self.module.ops.first, FuncOp)
+        return self.module.ops.first
+
+    def ret(self) -> ReturnOp:
+        """Returns the return operation of the underlying function."""
+        r = self.func().get_return_op()
+        assert r is not None
+        return r
+
+    def arity(self) -> int:
+        return len(self.func().function_type.inputs)
+
+    def size(self) -> int:
+        if self._size is None:
+            ret = self.ret()
+            assert ret is not None
+            self._size = sum(
+                Program._formula_size(argument) for argument in ret.arguments
+            )
+        return self._size
+
+    @staticmethod
+    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
+        """
+        Returns values of the passed type.
+
+        The boolean indicates whether the returned values cover the whole type. If
+        `true`, this means all possible values of the type were returned.
+        """
+        match ty:
+            case smt.BoolType():
+                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
+            case bv.BitVectorType(width=IntAttr(data=width)):
+                w = min(2, width)
+                return [
+                    IntegerAttr.from_int_and_width(value, width)
+                    for value in range(1 << w)
+                ], (w == width)
+            case _:
+                raise ValueError(f"Unsupported type: {ty}")
+
+    def _input_permutations(self) -> Iterable[Permutation]:
+        assert self._useless_input_mask is not None
+        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
+        for permutation in itertools.permutations(range(self.arity())):
+            if all(permutation[i] == i for i in useless_indices):
+                yield permutation
+
+    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
+        assert self._input_cardinalities is not None
+        assert self._base_results is not None
+        # This could be achieved using less memory with some arithmetic.
+        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
+        indices: dict[tuple[int, ...], int] = {
+            iid: result_index for result_index, iid in enumerate(input_ids)
+        }
+        permuted_input_ids = itertools.product(
+            *permute([range(c) for c in self._input_cardinalities], permutation)
+        )
+        return tuple(
+            self._base_results[indices[reverse_permute(piid, permutation)]]
+            for piid in permuted_input_ids
+        )
+
     def signature(self) -> Signature:
-        if self._signature is None:
-            self._init_signature()
-            assert self._signature is not None
         return self._signature
 
     def is_signature_total(self) -> bool:
@@ -333,9 +328,6 @@ class Program:
         signature. If two programs have a total signature, they are equivalent
         if, and only if, their signatures compare equal.
         """
-        if self._is_signature_total is None:
-            self._init_signature()
-            assert self._is_signature_total is not None
         return self._is_signature_total
 
     def useless_input_mask(self) -> tuple[bool, ...]:
@@ -344,9 +336,6 @@ class Program:
         input is useless. A useless input is an input whose value does not
         affect the outputs.
         """
-        if self._useless_input_mask is None:
-            self._init_signature()
-            assert self._useless_input_mask is not None
         return self._useless_input_mask
 
     def permuted_useful_inputs(
