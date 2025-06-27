@@ -1022,7 +1022,7 @@ def main() -> None:
             print(f"Removed {redundant_count} redundant illegal subpatterns.")
 
             step_end = time.time()
-            print(f"Finished step in {round(step_end - step_start, 2)} s.")
+            print(f"Finished step in {round(step_end - step_start, 2):.02f} s.")
             print(
                 f"We now have a total of {len(canonicals)} behaviors and {len(illegals)} illegal subpatterns."
             )
