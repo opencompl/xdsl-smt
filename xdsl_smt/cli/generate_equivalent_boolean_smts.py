@@ -6,10 +6,11 @@ import subprocess as sp
 import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
+from dataclasses import dataclass
 from functools import partial
 from io import StringIO
 from multiprocessing import Pool
-from typing import Any, Callable, Generator, TypeVar, cast
+from typing import Any, Callable, Generator, Generic, Iterable, Sequence, TypeVar, cast
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
@@ -24,7 +25,7 @@ from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, FunctionType, IntAttr, IntegerAttr, ModuleOp
+from xdsl.dialects.builtin import Builtin, IntAttr, IntegerAttr, ModuleOp
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
@@ -88,60 +89,61 @@ def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
 Result = tuple[Any, ...]
 
 
+class FrozenMultiset(Generic[T]):
+    _contents: frozenset[tuple[T, int]]
+
+    def __init__(self, values: Iterable[T]):
+        items = dict[T, int]()
+        for value in values:
+            if value in items:
+                items[value] += 1
+            else:
+                items[value] = 1
+        self._contents = frozenset(items.items())
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, FrozenMultiset):
+            return False
+        return self._contents.__eq__(cast(FrozenMultiset[Any], other)._contents)
+
+    def __hash__(self) -> int:
+        return self._contents.__hash__()
+
+
+@dataclass(frozen=True, slots=True)
 class Signature:
     """
     A value that can be computed from a program, and highly depends on its
     behavior.
+
+    The signatures of two semantically equivalent programs are guaranteed to
+    compare equal. Furthermore, if two programs are semantically equivalent
+    after removing inputs that don't affect the output, their signatures are
+    guaranteed to compare equal as well.
     """
 
-    _function_type: FunctionType
-    _input_useless: tuple[bool, ...]
-    _results: tuple[Result, ...]
-    _is_total: bool
+    _useful_inputs: FrozenMultiset[Attribute]
+    _outputs: FrozenMultiset[Attribute]
+    _results_with_permutations: FrozenMultiset[tuple[Result, ...]]
 
-    def __init__(
-        self,
-        function_type: FunctionType,
-        useless_input_mask: tuple[bool, ...],
-        results: tuple[Result, ...],
-    ):
-        self._function_type = function_type
-        self._input_useless = useless_input_mask
-        self._results = results
 
-    def _hashable(self) -> Any:
-        return (
-            tuple(
-                ty
-                for ty, useless in zip(
-                    self._function_type.inputs, self._input_useless, strict=True
-                )
-                if not useless
-            ),
-            self._function_type.outputs,
-            self._results,
-        )
+def permute(seq: Sequence[T], permutation: tuple[int, ...]) -> tuple[T, ...]:
+    return tuple(seq[i] for i in permutation)
 
-    def __eq__(self, other: Any) -> bool:
-        """
-        The signatures of two semantically equivalent programs are guaranteed to
-        compare equal. Furthermore, if two programs are semantically equivalent
-        after removing inputs that don't affect the output, their signatures are
-        guaranteed to compare equal as well.
-        """
 
-        if not isinstance(other, Signature):
-            return False
-
-        return self._hashable().__eq__(other._hashable())
-
-    def __hash__(self) -> int:
-        return self._hashable().__hash__()
+def reverse_permute(seq: Sequence[T], permutation: tuple[int, ...]) -> tuple[T, ...]:
+    result: list[T | None] = [None for _ in seq]
+    for x, i in zip(seq, permutation, strict=True):
+        result[i] = x
+    assert all(x is not None for x in result)
+    return tuple(cast(list[T], result))
 
 
 class Program:
     module: ModuleOp
     _size: int | None = None
+    _input_cardinalities: tuple[int, ...] | None
+    _base_results: tuple[Result, ...] | None
     _signature: Signature | None = None
     _is_signature_total: bool | None = None
     _useless_input_mask: tuple[bool, ...] | None = None
@@ -177,6 +179,9 @@ class Program:
         assert r is not None
         return r
 
+    def arity(self) -> int:
+        return len(self.func().function_type.inputs)
+
     def size(self) -> int:
         if self._size is None:
             ret = self.ret()
@@ -206,13 +211,40 @@ class Program:
             case _:
                 raise ValueError(f"Unsupported type: {ty}")
 
+    def _input_permutations(self) -> Iterable[tuple[int, ...]]:
+        assert self._useless_input_mask is not None
+        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
+        for permutation in itertools.permutations(range(self.arity())):
+            if all(permutation[i] == i for i in useless_indices):
+                yield permutation
+
+    def _results_with_permutation(
+        self, permutation: tuple[int, ...]
+    ) -> tuple[Result, ...]:
+        assert self._input_cardinalities is not None
+        assert self._base_results is not None
+        # This could be achieved using less memory with some arithmetic.
+        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
+        indices: dict[tuple[int, ...], int] = {
+            iid: result_index for result_index, iid in enumerate(input_ids)
+        }
+        permuted_input_ids = itertools.product(
+            *permute([range(c) for c in self._input_cardinalities], permutation)
+        )
+        return tuple(
+            self._base_results[indices[reverse_permute(piid, permutation)]]
+            for piid in permuted_input_ids
+        )
+
     def _init_signature(self):
+        arity = self.arity()
         interpreter = build_interpreter(self.module, 64)
         function_type = self.func().function_type
-        input_types = function_type.inputs
-        arity = len(input_types)
-        values_for_each_input = [Program._values_of_type(ty) for ty in input_types]
+        values_for_each_input = [
+            Program._values_of_type(ty) for ty in function_type.inputs
+        ]
         self._is_signature_total = all(total for _, total in values_for_each_input)
+
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
         results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Result]]] = [
@@ -243,30 +275,49 @@ class Program:
             )
             for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
         ]
-        # Then, compute the results ignoring those useless inputs.
+
+        # Then, compute which of those inputs are actually useless.
+        self._useless_input_mask = tuple(
+            input_useless_here[i]
+            and (self._is_signature_total or is_input_useless_z3(self, i))
+            for i in range(arity)
+        )
+        useful_inputs = FrozenMultiset(
+            ty for ty, m in zip(function_type.inputs, self._useless_input_mask) if not m
+        )
+
+        # Now, compute the results ignoring useless inputs.
         values_for_each_useful_input = [
             (
                 [values_for_each_input[i][0][0]]
-                if input_useless_here[i]
+                if self._useless_input_mask[i]
                 else values_for_each_input[i][0]
             )
             for i in range(arity)
         ]
-        results = tuple(
+        self._base_results = tuple(
             interpret(interpreter, inputs)
             for inputs in itertools.product(
                 *(vals for vals in values_for_each_useful_input)
             )
         )
-        # Finally, compute which inputs are actually useless.
-        self._useless_input_mask = tuple(
-            # Only call Z3 on inputs that are useless here.
-            input_useless_here[i]
-            and (self._is_signature_total or is_input_useless_z3(self, i))
-            for i in range(arity)
+
+        # Finally, compute the outputs for all permutations of useful inputs.
+        # TODO: Also compute that for permutations of the outputs.
+        self._input_cardinalities = tuple(
+            len(values) for values in values_for_each_useful_input
         )
+        results_with_permutations = FrozenMultiset(
+            self._results_with_permutation(permutation)
+            for permutation in self._input_permutations()
+        )
+
         # Create the signature object
-        self._signature = Signature(function_type, self._useless_input_mask, results)
+        self._signature = Signature(
+            useful_inputs,
+            FrozenMultiset(function_type.outputs),
+            results_with_permutations,
+        )
 
     def signature(self) -> Signature:
         if self._signature is None:
@@ -384,7 +435,11 @@ class Program:
         if self.is_signature_total() and other.is_signature_total():
             return True
 
-        return is_same_behavior_with_z3(self, other)
+        for permutation in self._input_permutations():
+            if is_same_behavior_with_z3(self, other, permutation):
+                return True
+
+        return False
 
     @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
@@ -634,7 +689,7 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
     smtlib_program = StringIO()
     print_to_smtlib(module, smtlib_program)
 
-    # Parse the SMT-LIB program and run it through the z3 solver.
+    # Parse the SMT-LIB program and run it through the Z3 solver.
     solver = z3.Solver()
     try:
         solver.from_string(  # pyright: ignore[reportUnknownMemberType]
@@ -653,32 +708,37 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
         print(smtlib_program.getvalue(), file=sys.stderr)
         raise Exception()
     if result == z3.unknown:
-        print("z3 couldn't solve the following query:", file=sys.stderr)
+        print("Z3 couldn't solve the following query:", file=sys.stderr)
         print(smtlib_program.getvalue(), file=sys.stderr)
         raise Exception()
     return result
 
 
-def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
+def is_same_behavior_with_z3(
+    left: Program,
+    right: Program,
+    left_permutation: tuple[int, ...],
+) -> bool:
     """
-    Check wether two programs are semantically equivalent using z3.
-    We assume that both programs have the same function type.
+    Check wether two programs are semantically equivalent after permuting the
+    arguments of the left program, using Z3.
     """
+
     func_left = clone_func_to_smt_func(left.func())
     func_right = clone_func_to_smt_func(right.func())
 
     module = ModuleOp([])
     builder = Builder(InsertPoint.at_end(module.body.block))
 
-    # Clone both functions into a new module
+    # Clone both functions into a new module.
     func_left = builder.insert(func_left.clone())
     func_right = builder.insert(func_right.clone())
 
-    # Declare a variable for each function input
+    # Declare a variable for each function input.
     args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
     args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
     for (left_index, left_type), (right_index, right_type) in zip(
-        left.useful_inputs(), right.useful_inputs()
+        permute(left.useful_inputs(), left_permutation), right.useful_inputs()
     ):
         assert left_type == right_type, "Function inputs do not match."
         arg = builder.insert(smt.DeclareConstOp(left_type)).res
@@ -696,18 +756,18 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
     args_left_complete = cast(list[SSAValue], args_left)
     args_right_complete = cast(list[SSAValue], args_right)
 
-    # Call each function with the same arguments
+    # Call each function with the same arguments.
     left_call = builder.insert(smt.CallOp(func_left.ret, args_left_complete)).res
     right_call = builder.insert(smt.CallOp(func_right.ret, args_right_complete)).res
 
-    # We only support single-result functions for now
+    # We only support single-result functions for now.
     assert len(left_call) == 1
 
-    # Check if the two results are not equal
+    # Check if the two results are not equal.
     check = builder.insert(smt.DistinctOp(left_call[0], right_call[0])).res
     builder.insert(smt.AssertOp(check))
 
-    # Now that we have the module, run it through the z3 solver
+    # Now that we have the module, run it through the Z3 solver.
     return z3.unsat == run_module_through_smtlib(
         module
     )  # pyright: ignore[reportUnknownVariableType]
@@ -715,7 +775,7 @@ def is_same_behavior_with_z3(left: Program, right: Program) -> bool:
 
 def is_input_useless_z3(program: Program, arg_index: int) -> bool:
     """
-    Use z3 to check wether if the argument at `arg_index` is irrelevant in
+    Use Z3 to check wether if the argument at `arg_index` is irrelevant in
     the computation of the function.
     """
 
