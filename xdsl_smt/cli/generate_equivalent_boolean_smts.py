@@ -577,13 +577,9 @@ class Program:
 
     @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
-        infix = isinstance(x, OpResult) and (
-            isinstance(x.op, smt.BinaryBoolOp)
-            or isinstance(x.op, smt.BinaryTOp)
-            or isinstance(x.op, smt.IteOp)
-            or isinstance(x.op, bv.BinaryBVOp)
-        )
-        if infix and nested:
+        infix = isinstance(x, OpResult) and len(x.op.operand_types) > 1
+        parenthesized = infix and nested
+        if parenthesized:
             print("(", end="")
         match x:
             case BlockArgument(index=i, type=smt.BoolType()):
@@ -653,7 +649,7 @@ class Program:
                 Program._pretty_print_value(arg, True)
             case _:
                 raise ValueError(f"Unknown value for pretty print: {x}")
-        if infix and nested:
+        if parenthesized:
             print(")", end="")
 
     def pretty_print(self):
@@ -721,8 +717,7 @@ def enumerate_programs(
         enumerator.stdin.write("a")
         enumerator.stdin.flush()
 
-        module = Parser(ctx, source).parse_module(True)
-        program = Program(module)
+        program = Program(Parser(ctx, source).parse_module(True))
 
         if program.size() != num_ops:
             continue
