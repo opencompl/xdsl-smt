@@ -127,11 +127,16 @@ class Signature:
     _results_with_permutations: FrozenMultiset[tuple[Result, ...]]
 
 
-def permute(seq: Sequence[T], permutation: tuple[int, ...]) -> tuple[T, ...]:
+Permutation = Sequence[int]
+
+
+def permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]:
+    assert len(seq) == len(permutation)
     return tuple(seq[i] for i in permutation)
 
 
-def reverse_permute(seq: Sequence[T], permutation: tuple[int, ...]) -> tuple[T, ...]:
+def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]:
+    assert len(seq) == len(permutation)
     result: list[T | None] = [None for _ in seq]
     for x, i in zip(seq, permutation, strict=True):
         result[i] = x
@@ -211,16 +216,14 @@ class Program:
             case _:
                 raise ValueError(f"Unsupported type: {ty}")
 
-    def _input_permutations(self) -> Iterable[tuple[int, ...]]:
+    def _input_permutations(self) -> Iterable[Permutation]:
         assert self._useless_input_mask is not None
         useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
         for permutation in itertools.permutations(range(self.arity())):
             if all(permutation[i] == i for i in useless_indices):
                 yield permutation
 
-    def _results_with_permutation(
-        self, permutation: tuple[int, ...]
-    ) -> tuple[Result, ...]:
+    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
         assert self._input_cardinalities is not None
         assert self._base_results is not None
         # This could be achieved using less memory with some arithmetic.
@@ -717,7 +720,7 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
 def is_same_behavior_with_z3(
     left: Program,
     right: Program,
-    left_permutation: tuple[int, ...],
+    left_permutation: Permutation,
 ) -> bool:
     """
     Check wether two programs are semantically equivalent after permuting the
