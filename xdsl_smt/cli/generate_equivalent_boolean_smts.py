@@ -146,7 +146,7 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
 
 class Program:
     module: ModuleOp
-    _size: int | None = None
+    _size: int
     _input_cardinalities: tuple[int, ...]
     _base_results: tuple[Result, ...]
     _signature: Signature
@@ -171,6 +171,10 @@ class Program:
 
     def __init__(self, module: ModuleOp):
         self.module = module
+
+        self._size = sum(
+            Program._formula_size(argument) for argument in self.ret().arguments
+        )
 
         arity = self.arity()
         interpreter = build_interpreter(self.module, 64)
@@ -268,12 +272,6 @@ class Program:
         return len(self.func().function_type.inputs)
 
     def size(self) -> int:
-        if self._size is None:
-            ret = self.ret()
-            assert ret is not None
-            self._size = sum(
-                Program._formula_size(argument) for argument in ret.arguments
-            )
         return self._size
 
     @staticmethod
