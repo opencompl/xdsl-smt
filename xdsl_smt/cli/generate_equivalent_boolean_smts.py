@@ -662,8 +662,6 @@ def enumerate_programs(
         stdout=sp.PIPE,
     )
 
-    enumerated: set[str] = set()
-
     while (source := read_program_from_enumerator(enumerator)) is not None:
         # Send a character to the enumerator to continue.
         assert enumerator.stdin is not None
@@ -675,15 +673,6 @@ def enumerate_programs(
 
         if program.size() != num_ops:
             continue
-
-        # Deduplication.
-        attributes = program.func().attributes
-        if "seed" in attributes:
-            del attributes["seed"]
-        s = str(module)
-        if s in enumerated:
-            continue
-        enumerated.add(s)
 
         yield program
 
