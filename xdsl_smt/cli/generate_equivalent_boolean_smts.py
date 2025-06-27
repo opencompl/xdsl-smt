@@ -169,6 +169,49 @@ class Program:
             case x:
                 raise ValueError(f"Unknown value: {x}")
 
+    @staticmethod
+    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
+        """
+        Returns values of the passed type.
+
+        The boolean indicates whether the returned values cover the whole type. If
+        `true`, this means all possible values of the type were returned.
+        """
+        match ty:
+            case smt.BoolType():
+                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
+            case bv.BitVectorType(width=IntAttr(data=width)):
+                w = min(2, width)
+                return [
+                    IntegerAttr.from_int_and_width(value, width)
+                    for value in range(1 << w)
+                ], (w == width)
+            case _:
+                raise ValueError(f"Unsupported type: {ty}")
+
+    def _input_permutations(self) -> Iterable[Permutation]:
+        assert self._useless_input_mask is not None
+        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
+        for permutation in itertools.permutations(range(self.arity())):
+            if all(permutation[i] == i for i in useless_indices):
+                yield permutation
+
+    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
+        assert self._input_cardinalities is not None
+        assert self._base_results is not None
+        # This could be achieved using less memory with some arithmetic.
+        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
+        indices: dict[tuple[int, ...], int] = {
+            iid: result_index for result_index, iid in enumerate(input_ids)
+        }
+        permuted_input_ids = itertools.product(
+            *permute([range(c) for c in self._input_cardinalities], permutation)
+        )
+        return tuple(
+            self._base_results[indices[reverse_permute(piid, permutation)]]
+            for piid in permuted_input_ids
+        )
+
     def __init__(self, module: ModuleOp):
         self.module = module
 
@@ -273,49 +316,6 @@ class Program:
 
     def size(self) -> int:
         return self._size
-
-    @staticmethod
-    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
-        """
-        Returns values of the passed type.
-
-        The boolean indicates whether the returned values cover the whole type. If
-        `true`, this means all possible values of the type were returned.
-        """
-        match ty:
-            case smt.BoolType():
-                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
-            case bv.BitVectorType(width=IntAttr(data=width)):
-                w = min(2, width)
-                return [
-                    IntegerAttr.from_int_and_width(value, width)
-                    for value in range(1 << w)
-                ], (w == width)
-            case _:
-                raise ValueError(f"Unsupported type: {ty}")
-
-    def _input_permutations(self) -> Iterable[Permutation]:
-        assert self._useless_input_mask is not None
-        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
-        for permutation in itertools.permutations(range(self.arity())):
-            if all(permutation[i] == i for i in useless_indices):
-                yield permutation
-
-    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
-        assert self._input_cardinalities is not None
-        assert self._base_results is not None
-        # This could be achieved using less memory with some arithmetic.
-        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
-        indices: dict[tuple[int, ...], int] = {
-            iid: result_index for result_index, iid in enumerate(input_ids)
-        }
-        permuted_input_ids = itertools.product(
-            *permute([range(c) for c in self._input_cardinalities], permutation)
-        )
-        return tuple(
-            self._base_results[indices[reverse_permute(piid, permutation)]]
-            for piid in permuted_input_ids
-        )
 
     def signature(self) -> Signature:
         return self._signature
