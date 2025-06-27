@@ -1036,11 +1036,9 @@ def main() -> None:
             for program in canonicals:
                 program.pretty_print()
 
-    except BrokenPipeError as e:
+    except BrokenPipeError:
         # The enumerator has terminated
         pass
-    except Exception as e:
-        print(f"Error while enumerating programs: {e}", file=sys.stderr)
     except KeyboardInterrupt:
         print("Interrupted by user", file=sys.stderr)
 
