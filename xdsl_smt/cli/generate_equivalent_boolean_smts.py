@@ -123,7 +123,7 @@ class Signature:
     """
 
     _useful_inputs: FrozenMultiset[Attribute]
-    _outputs: FrozenMultiset[Attribute]
+    _outputs: tuple[Attribute, ...]
     _results_with_permutations: FrozenMultiset[tuple[Result, ...]]
 
 
@@ -306,7 +306,6 @@ class Program:
         )
 
         # Finally, compute the outputs for all permutations of useful inputs.
-        # TODO: Also compute that for permutations of the outputs.
         self._input_cardinalities = tuple(
             len(values) for values in values_for_each_useful_input
         )
@@ -318,7 +317,7 @@ class Program:
         # Create the signature object
         self._signature = Signature(
             useful_inputs,
-            FrozenMultiset(function_type.outputs),
+            tuple(function_type.outputs),
             results_with_permutations,
         )
 
