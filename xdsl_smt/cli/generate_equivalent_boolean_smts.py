@@ -463,6 +463,68 @@ class Program:
 
         return False
 
+    @staticmethod
+    def _unify_value(
+        pattern_value: SSAValue,
+        program_value: SSAValue,
+        pattern_argument_values: list[SSAValue | None] | None,
+    ) -> bool:
+        match pattern_value, program_value:
+            case BlockArgument(index=i), x:
+                # If `left_argument_values` is None, then we should match the
+                # LHS as is.
+                if pattern_argument_values is None:
+                    return isinstance(x, BlockArgument) and x.index == i
+                # Otherwise, we "unify" the LHS argument with the corresponding
+                # program value.
+                expected_value = pattern_argument_values[i]
+                if expected_value is None:
+                    pattern_argument_values[i] = x
+                    return True
+                return Program._unify_value(expected_value, x, None)
+            case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
+                op=smt.ConstantBoolOp(value=pv)
+            ):
+                return lv == pv
+            case (OpResult(op=smt.ConstantBoolOp()), _) | (
+                _,
+                OpResult(op=smt.ConstantBoolOp()),
+            ):
+                return False
+            case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
+                if i != j:
+                    return False
+                if not isinstance(prog_op, type(lhs_op)):
+                    return False
+                if len(lhs_op.operands) != len(prog_op.operands):
+                    return False
+                for lhs_operand, prog_operand in zip(
+                    lhs_op.operands, prog_op.operands, strict=True
+                ):
+                    if not Program._unify_value(
+                        lhs_operand, prog_operand, pattern_argument_values
+                    ):
+                        return False
+                return True
+            case _:
+                return False
+
+    def is_pattern(self, other: "Program") -> bool:
+        """
+        Tests whether this program is a pattern (LHS) of the other program.
+        """
+        if len(self.ret().arguments) != len(other.ret().arguments):
+            return False
+        argument_values: list[SSAValue | None] = [None] * len(self.func().args)
+        return all(
+            Program._unify_value(s, o, argument_values)
+            for s, o in zip(
+                self.ret().arguments,
+                other.ret().arguments,
+                strict=True,
+            )
+        )
+
     def to_pdl_pattern(self) -> str:
         """Creates a PDL pattern from this program."""
 
@@ -834,61 +896,6 @@ def is_input_useless_z3(program: Program, arg_index: int) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def unify_value(
-    lhs_value: SSAValue,
-    prog_value: SSAValue,
-    left_argument_values: list[SSAValue | None] | None,
-) -> bool:
-    match lhs_value, prog_value:
-        case BlockArgument(index=i), x:
-            # If `left_argument_values is None`, then we should match the LHS as
-            # is.
-            if left_argument_values is None:
-                return isinstance(x, BlockArgument) and x.index == i
-            # `left_argument_values is not None`: we "unify" the LHS argument
-            # with the corresponding program value.
-            expected_value = left_argument_values[i]
-            if expected_value is None:
-                left_argument_values[i] = x
-                return True
-            return unify_value(expected_value, x, None)
-        case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
-            op=smt.ConstantBoolOp(value=pv)
-        ):
-            return lv == pv
-        case (OpResult(op=smt.ConstantBoolOp()), _) | (
-            _,
-            OpResult(op=smt.ConstantBoolOp()),
-        ):
-            return False
-        case OpResult(op=lhs_op, index=i), OpResult(op=prog_op, index=j):
-            if i != j:
-                return False
-            if not isinstance(prog_op, type(lhs_op)):
-                return False
-            if len(lhs_op.operands) != len(prog_op.operands):
-                return False
-            for lhs_operand, prog_operand in zip(
-                lhs_op.operands, prog_op.operands, strict=True
-            ):
-                if not unify_value(lhs_operand, prog_operand, left_argument_values):
-                    return False
-            return True
-        case _:
-            return False
-
-
-def is_pattern(lhs: Program, program: Program) -> bool:
-    argument_values: list[SSAValue | None] = [None] * len(lhs.func().args)
-    return len(program.ret().arguments) == len(lhs.ret().arguments) and all(
-        map(
-            lambda l, p: unify_value(l, p, argument_values),
-            lhs.ret().arguments,
-            program.ret().arguments,
-        )
-    )
-
-
 def sort_bucket(
     canonicals: list[Program],
     bucket: Bucket,
@@ -1001,9 +1008,7 @@ def main() -> None:
                 canonical = behavior[0]
                 canonicals.append(canonical)
                 new_illegals.extend(
-                    program
-                    for program in behavior
-                    if not is_pattern(program, canonical)
+                    program for program in behavior if not program.is_pattern(canonical)
                 )
             print(f"Found {len(new_illegals)} new illegal subpatterns.")
 
