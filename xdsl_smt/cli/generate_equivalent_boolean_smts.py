@@ -463,6 +463,69 @@ class Program:
 
         return False
 
+    def to_pdl_pattern(self) -> str:
+        """Creates a PDL pattern from this program."""
+
+        lines = [
+            "builtin.module {",
+            "  pdl.pattern : benefit(1) {",
+            # TODO: Support not everything being the same type.
+            "    %type = pdl.type",
+        ]
+
+        body_start_index = len(lines)
+
+        used_arguments: set[int] = set()
+        used_attributes: set[str] = set()
+        op_ids: dict[Operation, int] = {}
+
+        # We do not include the return instruction as part of the pattern. If
+        # the program contains instructions with multiple return values, or
+        # itself returns multiple values, this may lead to unexpected results.
+        operations = list(self.func().body.ops)[:-1]
+        for i, op in enumerate(operations):
+            op_ids[op] = i
+            operands: list[str] = []
+            for operand in op.operands:
+                if isinstance(operand, BlockArgument):
+                    used_arguments.add(operand.index)
+                    operands.append(f"%arg{operand.index}")
+                elif isinstance(operand, OpResult):
+                    operands.append(f"%res{op_ids[operand.op]}.{operand.index}")
+            ins = (
+                f" ({', '.join(operands)} : {', '.join('!pdl.value' for _ in operands)})"
+                if len(operands) != 0
+                else ""
+            )
+            attrs = ""
+            if isinstance(op, smt.ConstantBoolOp):
+                used_attributes.add(str(op.value))
+                attrs = f' {{"value" = %attr.{op.value}}}'
+            outs = (
+                f" -> ({', '.join('%type' for _ in op.results)} : {', '.join('!pdl.type' for _ in op.results)})"
+                if len(op.results) != 0
+                else ""
+            )
+            lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{attrs}{outs}')
+            for j in range(len(op.results)):
+                lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
+
+        lines.append(f'    rewrite %op{len(operations) - 1} with "rewriter"')
+        lines.append("  }")
+        lines.append("}")
+
+        lines[body_start_index:body_start_index] = [
+            f"    %arg{k} = pdl.operand" for k in used_arguments
+        ]
+        lines[body_start_index:body_start_index] = [
+            f"    %attr.{attr} = pdl.attribute = {attr}" for attr in used_attributes
+        ]
+
+        # To end the pattern with a line ending.
+        lines.append("")
+
+        return "\n".join(lines)
+
     @staticmethod
     def _pretty_print_value(x: SSAValue, nested: bool):
         infix = isinstance(x, OpResult) and (
@@ -570,65 +633,6 @@ def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
         program_lines.append(output)
 
 
-def create_pattern_from_program(program: Program) -> str:
-    lines = [
-        "builtin.module {",
-        "  pdl.pattern : benefit(1) {",
-        # TODO: Support not everything being the same type.
-        "    %type = pdl.type",
-    ]
-
-    body_start_index = len(lines)
-
-    used_arguments: set[int] = set()
-    used_attributes: set[str] = set()
-    op_ids: dict[Operation, int] = {}
-
-    # We do not include the return instruction as part of the pattern. If the
-    # program contain instructions with multiple return values, or itself
-    # returns multiple values, this may lead to unexpected results.
-    operations = list(program.func().body.ops)[:-1]
-    for i, op in enumerate(operations):
-        op_ids[op] = i
-        operands: list[str] = []
-        for operand in op.operands:
-            if isinstance(operand, BlockArgument):
-                used_arguments.add(operand.index)
-                operands.append(f"%arg{operand.index}")
-            elif isinstance(operand, OpResult):
-                operands.append(f"%res{op_ids[operand.op]}.{operand.index}")
-        ins = (
-            f" ({', '.join(operands)} : {', '.join('!pdl.value' for _ in operands)})"
-            if len(operands) != 0
-            else ""
-        )
-        attrs = ""
-        if isinstance(op, smt.ConstantBoolOp):
-            used_attributes.add(str(op.value))
-            attrs = f' {{"value" = %attr.{op.value}}}'
-        outs = (
-            f" -> ({', '.join('%type' for _ in op.results)} : {', '.join('!pdl.type' for _ in op.results)})"
-            if len(op.results) != 0
-            else ""
-        )
-        lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{attrs}{outs}')
-        for j in range(len(op.results)):
-            lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
-
-    lines.append(f'    rewrite %op{len(operations) - 1} with "rewriter"')
-    lines.append("  }")
-    lines.append("}")
-
-    lines[body_start_index:body_start_index] = [
-        f"    %arg{k} = pdl.operand" for k in used_arguments
-    ]
-    lines[body_start_index:body_start_index] = [
-        f"    %attr.{attr} = pdl.attribute = {attr}" for attr in used_attributes
-    ]
-
-    return "\n".join(lines)
-
-
 def enumerate_programs(
     ctx: Context,
     max_num_args: int,
@@ -638,8 +642,8 @@ def enumerate_programs(
 ) -> Generator[Program, None, None]:
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
-            f.write(create_pattern_from_program(program))
-            f.write("\n// -----\n")
+            f.write(program.to_pdl_pattern())
+            f.write("// -----\n")
 
     enumerator = sp.Popen(
         [
@@ -647,7 +651,7 @@ def enumerate_programs(
             SMT_MLIR,
             "--configuration=smt",
             f"--smt-bitvector-widths={bv_widths}",
-            # Make sure cse is applied.
+            # Make sure CSE is applied.
             "--cse",
             # Prevent any non-deterministic behavior (hopefully).
             "--seed=1",
