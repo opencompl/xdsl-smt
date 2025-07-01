@@ -985,13 +985,20 @@ def main() -> None:
             )
 
             print("Choosing new canonical programs...")
+            new_canonicals = []
             for behavior in new_behaviors:
                 behavior.sort()
                 canonical = behavior[0]
-                canonicals.append(canonical)
-                new_illegals.extend(
-                    program for program in behavior if not program.is_pattern(canonical)
+                new_canonicals.append(canonical)
+            new_illegals.extend(
+                program
+                for program in behavior
+                for behavior in new_behaviors
+                if not any(
+                    program.is_pattern(canonical) for canonical in new_canonicals
                 )
+            )
+            canonicals.extend(new_canonicals)
             print(f"Found {len(new_illegals)} new illegal subpatterns.")
 
             print("Removing redundant subpatterns...")
