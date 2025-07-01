@@ -940,6 +940,7 @@ def main() -> None:
             step_start = time.time()
 
             print("Enumerating programs...")
+            enumerating_start = time.time()
             new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
             for program in enumerate_programs(
@@ -952,22 +953,32 @@ def main() -> None:
                     buckets[fingerprint] = []
                 buckets[fingerprint].append(program)
             print(f"\033[2KGenerated {len(new_programs)} programs of this size.")
+            enumerating_time = round(time.time() - enumerating_start, 2)
+            print(f"Enumerating took {enumerating_time:.02f} s.")
 
             print("Finding new behaviors...")
+            finding_start = time.time()
             new_behaviors = find_new_behaviors(list(buckets.values()), canonicals)
             print(
                 f"\033[2KFound {len(new_behaviors)} new behaviors, "
                 f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
             )
+            finding_time = round(time.time() - finding_start, 2)
+            print(f"Finding took {finding_time:.02f} s.")
 
             print("Choosing new canonical programs...")
+            choosing_start = time.time()
             new_canonicals: list[Program] = []
             for i, behavior in enumerate(new_behaviors):
                 print(f"\033[2K {i + 1}/{len(new_behaviors)}", end="\r")
                 new_canonicals.append(min(behavior))
             canonicals.extend(new_canonicals)
             print(f"\033[2KChose {len(new_canonicals)} new canonical programs.")
+            choosing_time = round(time.time() - choosing_start, 2)
+            print(f"Choosing took {choosing_time:.02f} s.")
 
+            print("Removing redundant illegal sub-patterns...")
+            pruning_start = time.time()
             new_illegals = [
                 program
                 for program in new_programs
@@ -976,7 +987,6 @@ def main() -> None:
                 )
             ]
 
-            print("Removing redundant illegal sub-patterns...")
             input = StringIO()
             print("module {", file=input)
             for illegal in new_illegals:
@@ -997,6 +1007,8 @@ def main() -> None:
                 del new_illegals[idx]
             illegals.extend(new_illegals)
             print(f"Removed {redundant_count} redundant illegal sub-patterns.")
+            pruning_time = round(time.time() - pruning_start, 2)
+            print(f"Pruning took {pruning_time:.02f} s.")
 
             step_end = time.time()
             print(f"Finished step in {round(step_end - step_start, 2):.02f} s.")
