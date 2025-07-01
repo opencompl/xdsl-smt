@@ -422,8 +422,8 @@ class Program:
 
     def is_same_behavior(self, other: "Program") -> bool:
         """
-        Tests whether two programs are semantically equivalent ignoring useless
-        parameters.
+        Tests whether two programs are logically equivalent up to parameter
+        permutation, and ignoring useless parameters.
         """
 
         if self.fingerprint() != other.fingerprint():
