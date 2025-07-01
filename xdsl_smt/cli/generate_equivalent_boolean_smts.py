@@ -983,23 +983,24 @@ def main() -> None:
 
             print("Removing redundant illegal sub-patterns...")
             pruning_start = time.time()
-            new_illegals = [
-                program
-                for program in new_programs
-                if not any(
-                    program.is_pattern(canonical) for canonical in new_canonicals
-                )
-            ]
+            new_illegals = new_programs
 
             input = StringIO()
             print("module {", file=input)
+            print("module {", file=input)
+            for canonical in new_canonicals:
+                print(canonical.module, file=input)
+            print("}", file=input)
+            print("module {", file=input)
             for illegal in new_illegals:
                 print(illegal.module, file=input)
+            print("}", file=input)
             print("}", file=input)
             cpp_res = sp.run(
                 [REMOVE_REDUNDANT_PATTERNS],
                 input=input.getvalue(),
                 stdout=sp.PIPE,
+                stderr=sys.stderr,
                 text=True,
             )
             removed_indices: list[int] = []
