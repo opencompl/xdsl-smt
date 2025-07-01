@@ -157,7 +157,7 @@ class Program:
     _base_results: tuple[Result, ...]
     _fingerprint: Fingerprint
     _is_basic: bool
-    _useless_input_mask: tuple[bool, ...]
+    _useless_param_mask: tuple[bool, ...]
 
     @staticmethod
     def _formula_size(formula: SSAValue) -> int:
@@ -196,8 +196,8 @@ class Program:
                 raise ValueError(f"Unsupported type: {ty}")
 
     def _input_permutations(self) -> Iterable[Permutation]:
-        assert self._useless_input_mask is not None
-        useless_indices = set(i for i, m in enumerate(self._useless_input_mask) if m)
+        assert self._useless_param_mask is not None
+        useless_indices = set(i for i, m in enumerate(self._useless_param_mask) if m)
         for permutation in itertools.permutations(range(self.arity())):
             if all(permutation[i] == i for i in useless_indices):
                 yield permutation
@@ -228,10 +228,10 @@ class Program:
         arity = self.arity()
         interpreter = build_interpreter(self.module, 64)
         function_type = self.func().function_type
-        values_for_each_input = [
+        values_for_each_param = [
             Program._values_of_type(ty) for ty in function_type.inputs
         ]
-        self._is_basic = all(total for _, total in values_for_each_input)
+        self._is_basic = all(total for _, total in values_for_each_param)
 
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
@@ -241,14 +241,14 @@ class Program:
                 for other_inputs in itertools.product(
                     *(
                         vals
-                        for vals, _ in values_for_each_input[:i]
-                        + values_for_each_input[i + 1 :]
+                        for vals, _ in values_for_each_param[:i]
+                        + values_for_each_param[i + 1 :]
                     )
                 )
             }
             for i in range(arity)
         ]
-        for inputs in itertools.product(*(vals for vals, _ in values_for_each_input)):
+        for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
             result = interpret(interpreter, inputs)
             for i in range(arity):
                 results_for_fixed_inputs[i][inputs[:i] + inputs[i + 1 :]].add(result)
@@ -256,42 +256,43 @@ class Program:
             all(len(results) != 0 for results in results_for_fixed_input.values())
             for results_for_fixed_input in results_for_fixed_inputs
         )
-        input_useless_here = [
+        param_useless_here = [
             all(
-                len(results) == 1 and len(values_for_each_input[i]) != 1
+                len(results) == 1 and len(values_for_each_param[i]) != 1
                 for results in results_for_fixed_input.values()
             )
             for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
         ]
 
-        # Then, compute which of those inputs are actually useless.
-        self._useless_input_mask = tuple(
-            input_useless_here[i] and (self._is_basic or is_input_useless_z3(self, i))
+        # Then, compute which of those parameters are actually useless.
+        self._useless_param_mask = tuple(
+            param_useless_here[i]
+            and (self._is_basic or is_parameter_useless_z3(self, i))
             for i in range(arity)
         )
         useful_inputs = FrozenMultiset(
-            ty for ty, m in zip(function_type.inputs, self._useless_input_mask) if not m
+            ty for ty, m in zip(function_type.inputs, self._useless_param_mask) if not m
         )
 
-        # Now, compute the results ignoring useless inputs.
-        values_for_each_useful_input = [
+        # Now, compute the results ignoring useless parameters.
+        values_for_each_useful_param = [
             (
-                [values_for_each_input[i][0][0]]
-                if self._useless_input_mask[i]
-                else values_for_each_input[i][0]
+                [values_for_each_param[i][0][0]]
+                if self._useless_param_mask[i]
+                else values_for_each_param[i][0]
             )
             for i in range(arity)
         ]
         self._base_results = tuple(
             interpret(interpreter, inputs)
             for inputs in itertools.product(
-                *(vals for vals in values_for_each_useful_input)
+                *(vals for vals in values_for_each_useful_param)
             )
         )
 
         # Finally, compute the outputs for all permutations of useful inputs.
         self._input_cardinalities = tuple(
-            len(values) for values in values_for_each_useful_input
+            len(values) for values in values_for_each_useful_param
         )
         results_with_permutations = FrozenMultiset(
             self._results_with_permutation(permutation)
@@ -333,20 +334,20 @@ class Program:
         """
         return self._is_basic
 
-    def useless_input_mask(self) -> tuple[bool, ...]:
+    def useless_parameter_mask(self) -> tuple[bool, ...]:
         """
-        Booleans indicating, for each corresponding function input, whether the
-        input is useless. A useless input is an input whose value does not
-        affect the outputs.
+        Booleans indicating, for each corresponding function parameter, whether
+        the parameter is useless. A useless parameter is a parameter whose value
+        does not affect the outputs.
         """
-        return self._useless_input_mask
+        return self._useless_param_mask
 
-    def permuted_useful_inputs(
+    def permuted_useful_parameters(
         self, permutation: Permutation
     ) -> list[tuple[int, Attribute]]:
         """
-        Returns the indices and types of the non-useless inputs in order after
-        applying the specified permutation to all inputs.
+        Returns the indices and types of the non-useless parameters in order
+        after applying the specified permutation to all parameters.
         """
         return [
             (i, ty)
@@ -355,7 +356,7 @@ class Program:
                     enumerate(
                         zip(
                             self.func().function_type.inputs,
-                            self.useless_input_mask(),
+                            self.useless_parameter_mask(),
                             strict=True,
                         )
                     )
@@ -365,11 +366,11 @@ class Program:
             if not useless
         ]
 
-    def useful_inputs(self) -> list[tuple[int, Attribute]]:
+    def useful_parameters(self) -> list[tuple[int, Attribute]]:
         """
-        Returns the indices and types of the non-useless inputs in order.
+        Returns the indices and types of the non-useless parameters in order.
         """
-        return self.permuted_useful_inputs(range(self.arity()))
+        return self.permuted_useful_parameters(range(self.arity()))
 
     @staticmethod
     def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
@@ -437,7 +438,7 @@ class Program:
     def is_same_behavior(self, other: "Program") -> bool:
         """
         Tests whether two programs are semantically equivalent ignoring useless
-        arguments.
+        parameters.
         """
 
         if self.fingerprint() != other.fingerprint():
@@ -802,7 +803,7 @@ def is_same_behavior_with_z3(
     args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
     args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
     for (left_index, left_type), (right_index, right_type) in zip(
-        left.permuted_useful_inputs(left_permutation), right.useful_inputs()
+        left.permuted_useful_parameters(left_permutation), right.useful_parameters()
     ):
         assert left_type == right_type, "Function inputs do not match."
         arg = builder.insert(smt.DeclareConstOp(left_type)).res
@@ -837,7 +838,7 @@ def is_same_behavior_with_z3(
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_input_useless_z3(program: Program, arg_index: int) -> bool:
+def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
     """
     Use Z3 to check wether if the argument at `arg_index` is irrelevant in
     the computation of the function.
