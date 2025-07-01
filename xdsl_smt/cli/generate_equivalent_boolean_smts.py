@@ -984,15 +984,15 @@ def main() -> None:
             )
 
             print("Choosing new canonical programs...")
-            new_canonicals = []
+            new_canonicals: list[Program] = []
             for behavior in new_behaviors:
                 behavior.sort()
                 canonical = behavior[0]
                 new_canonicals.append(canonical)
             new_illegals.extend(
                 program
-                for program in behavior
                 for behavior in new_behaviors
+                for program in behavior
                 if not any(
                     program.is_pattern(canonical) for canonical in new_canonicals
                 )
