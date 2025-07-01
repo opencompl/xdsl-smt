@@ -101,6 +101,12 @@ class FrozenMultiset(Generic[T]):
                 items[value] = 1
         self._contents = frozenset(items.items())
 
+    def __repr__(self) -> str:
+        items = []
+        for item, count in self._contents:
+            items.extend([item] * count)
+        return f"FrozenMultiset({items!r})"
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, FrozenMultiset):
             return False
