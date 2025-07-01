@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from io import StringIO
 from multiprocessing import Pool
-from typing import Any, Callable, Generator, Generic, Iterable, Sequence, TypeVar, cast
+from typing import Any, Generator, Generic, Iterable, Sequence, TypeVar, cast
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
@@ -69,21 +69,6 @@ EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
 
 
 T = TypeVar("T")
-
-
-def list_extract(l: list[T], predicate: Callable[[T], bool]) -> T | None:
-    """
-    Deletes and returns the first element from the passed list that matches the
-    predicate.
-
-    If no element matches the predicate, the list is not modified and `None` is
-    returned.
-    """
-    for i, x in enumerate(l):
-        if predicate(x):
-            del l[i]
-            return x
-    return None
 
 
 Result = tuple[Any, ...]
@@ -886,13 +871,10 @@ def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
     )  # pyright: ignore[reportUnknownVariableType]
 
 
-def sort_bucket(
+def find_new_behaviors_in_bucket(
     canonicals: list[Program],
     bucket: Bucket,
-) -> tuple[list[Bucket], list[Bucket]]:
-    # All programs in the bucket have the same fingerprint.
-    fingerprint = bucket[0].fingerprint()
-
+) -> list[Bucket]:
     # Sort programs into actual behavior buckets.
     behaviors: list[Bucket] = []
     for program in bucket:
@@ -903,44 +885,33 @@ def sort_bucket(
         else:
             behaviors.append([program])
 
-    # Detect known behaviors. The rest are new behaviors.
-    known_behaviors: list[Bucket] = []
-    for canonical in canonicals:
-        if fingerprint != canonical.fingerprint():
-            continue
-        behavior = list_extract(
-            behaviors,
-            lambda behavior: behavior[0].is_same_behavior(canonical),
-        )
-        if behavior is not None:
-            known_behaviors.append(behavior)
-
-    return behaviors, known_behaviors
+    # Exclude known behaviors.
+    return [
+        behavior
+        for behavior in behaviors
+        if not any(behavior[0].is_same_behavior(canonical) for canonical in canonicals)
+    ]
 
 
-def sort_programs(
+def find_new_behaviors(
     buckets: list[Bucket],
     canonicals: list[Program],
-) -> tuple[list[Bucket], list[Bucket]]:
+) -> list[Bucket]:
     """
-    Sort programs from the specified buckets into programs with new behaviors,
-    and illegal subpatterns.
-
-    The returned pair is `new_behaviors, known_behaviors`.
+    Return a list of equivalence classes of the programs exhibiting a new
+    behavior.
     """
 
     new_behaviors: list[Bucket] = []
-    known_behaviors: list[Bucket] = []
 
     with Pool() as p:
-        for i, (new, known) in enumerate(
-            p.imap_unordered(partial(sort_bucket, canonicals), buckets)
+        for i, new in enumerate(
+            p.imap_unordered(partial(find_new_behaviors_in_bucket, canonicals), buckets)
         ):
             print(f"\033[2K {round(100.0 * i / len(buckets), 1)} %", end="\r")
             new_behaviors.extend(new)
-            known_behaviors.extend(known)
 
-    return new_behaviors, known_behaviors
+    return new_behaviors
 
 
 def main() -> None:
@@ -969,48 +940,41 @@ def main() -> None:
             step_start = time.time()
 
             print("Enumerating programs...")
-            new_program_count = 0
+            new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
             for program in enumerate_programs(
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
-                new_program_count += 1
-                print(f"\033[2K {new_program_count}", end="\r")
+                new_programs.append(program)
+                print(f"\033[2K {len(new_programs)}", end="\r")
                 fingerprint = program.fingerprint()
                 if fingerprint not in buckets:
                     buckets[fingerprint] = []
                 buckets[fingerprint].append(program)
-            print(f"\033[2KGenerated {new_program_count} programs of this size.")
+            print(f"\033[2KGenerated {len(new_programs)} programs of this size.")
 
-            print("Sorting programs...")
-            new_behaviors, known_behaviors = sort_programs(
-                list(buckets.values()), canonicals
-            )
-            new_illegals = [
-                program for behavior in known_behaviors for program in behavior
-            ]
+            print("Finding new behaviors...")
+            new_behaviors = find_new_behaviors(list(buckets.values()), canonicals)
             print(
                 f"\033[2KFound {len(new_behaviors)} new behaviors, "
                 f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
             )
 
-            print("Choosing new canonical programs and illegal sub-patterns...")
+            print("Choosing new canonical programs...")
             new_canonicals: list[Program] = []
             for i, behavior in enumerate(new_behaviors):
                 print(f"\033[2K {i + 1}/{len(new_behaviors)}", end="\r")
-                behavior.sort()
-                canonical = behavior[0]
-                new_canonicals.append(canonical)
-            new_illegals.extend(
+                new_canonicals.append(min(behavior))
+            canonicals.extend(new_canonicals)
+            print(f"\033[2KChose {len(new_canonicals)} new canonical programs.")
+
+            new_illegals = [
                 program
-                for behavior in new_behaviors
-                for program in behavior
+                for program in new_programs
                 if not any(
                     program.is_pattern(canonical) for canonical in new_canonicals
                 )
-            )
-            canonicals.extend(new_canonicals)
-            print(f"\033[2KFound {len(new_illegals)} new illegal sub-patterns.")
+            ]
 
             print("Removing redundant illegal sub-patterns...")
             input = StringIO()
