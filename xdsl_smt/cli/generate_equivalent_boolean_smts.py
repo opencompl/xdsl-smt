@@ -786,7 +786,8 @@ def is_same_behavior_with_z3(
 ) -> bool:
     """
     Check wether two programs are semantically equivalent after permuting the
-    arguments of the left program, using Z3.
+    arguments of the left program, using Z3. This also checks whether the input
+    types match (after permutation and removal of useless parameters).
     """
 
     func_left = clone_func_to_smt_func(left.func())
@@ -805,7 +806,8 @@ def is_same_behavior_with_z3(
     for (left_index, left_type), (right_index, right_type) in zip(
         left.permuted_useful_parameters(left_permutation), right.useful_parameters()
     ):
-        assert left_type == right_type, "Function inputs do not match."
+        if left_type != right_type:
+            return False
         arg = builder.insert(smt.DeclareConstOp(left_type)).res
         args_left[left_index] = arg
         args_right[right_index] = arg
