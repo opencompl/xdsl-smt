@@ -111,14 +111,14 @@ class FrozenMultiset(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class Signature:
+class Fingerprint:
     """
     A value that can be computed from a program, and highly depends on its
     behavior.
 
-    The signatures of two semantically equivalent programs are guaranteed to
+    The fingerprints of two semantically equivalent programs are guaranteed to
     compare equal. Furthermore, if two programs are semantically equivalent
-    after removing inputs that don't affect the output, their signatures are
+    after removing inputs that don't affect the output, their fingerprints are
     guaranteed to compare equal as well.
     """
 
@@ -149,8 +149,8 @@ class Program:
     _size: int
     _input_cardinalities: tuple[int, ...]
     _base_results: tuple[Result, ...]
-    _signature: Signature
-    _is_signature_total: bool
+    _fingerprint: Fingerprint
+    _is_basic: bool
     _useless_input_mask: tuple[bool, ...]
 
     @staticmethod
@@ -225,7 +225,7 @@ class Program:
         values_for_each_input = [
             Program._values_of_type(ty) for ty in function_type.inputs
         ]
-        self._is_signature_total = all(total for _, total in values_for_each_input)
+        self._is_basic = all(total for _, total in values_for_each_input)
 
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
@@ -260,8 +260,7 @@ class Program:
 
         # Then, compute which of those inputs are actually useless.
         self._useless_input_mask = tuple(
-            input_useless_here[i]
-            and (self._is_signature_total or is_input_useless_z3(self, i))
+            input_useless_here[i] and (self._is_basic or is_input_useless_z3(self, i))
             for i in range(arity)
         )
         useful_inputs = FrozenMultiset(
@@ -293,7 +292,7 @@ class Program:
             for permutation in self._input_permutations()
         )
 
-        self._signature = Signature(
+        self._fingerprint = Fingerprint(
             useful_inputs,
             tuple(function_type.outputs),
             results_with_permutations,
@@ -317,16 +316,16 @@ class Program:
     def size(self) -> int:
         return self._size
 
-    def signature(self) -> Signature:
-        return self._signature
+    def fingerprint(self) -> Fingerprint:
+        return self._fingerprint
 
-    def is_signature_total(self) -> bool:
+    def is_basic(self) -> bool:
         """
         Whether the whole behavior of this program is encapsulated in its
-        signature. If two programs have a total signature, they are equivalent
-        if, and only if, their signatures compare equal.
+        fingerprint. If two programs have are basic, they are equivalent if, and
+        only if, their fingerprints compare equal.
         """
-        return self._is_signature_total
+        return self._is_basic
 
     def useless_input_mask(self) -> tuple[bool, ...]:
         """
@@ -435,10 +434,10 @@ class Program:
         arguments.
         """
 
-        if self.signature() != other.signature():
+        if self.fingerprint() != other.fingerprint():
             return False
 
-        if self.is_signature_total() and other.is_signature_total():
+        if self.is_basic() and other.is_basic():
             return True
 
         for permutation in self._input_permutations():
@@ -882,8 +881,8 @@ def sort_bucket(
     canonicals: list[Program],
     bucket: Bucket,
 ) -> tuple[list[Bucket], list[Bucket]]:
-    # All programs in the bucket have the same signature.
-    signature = bucket[0].signature()
+    # All programs in the bucket have the same fingerprint.
+    fingerprint = bucket[0].fingerprint()
 
     # Sort programs into actual behavior buckets.
     behaviors: list[Bucket] = []
@@ -898,7 +897,7 @@ def sort_bucket(
     # Detect known behaviors. The rest are new behaviors.
     known_behaviors: list[Bucket] = []
     for canonical in canonicals:
-        if signature != canonical.signature():
+        if fingerprint != canonical.fingerprint():
             continue
         behavior = list_extract(
             behaviors,
@@ -960,16 +959,16 @@ def main() -> None:
 
             print("Enumerating programs...")
             new_program_count = 0
-            buckets: dict[Signature, Bucket] = {}
+            buckets: dict[Fingerprint, Bucket] = {}
             for program in enumerate_programs(
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
                 new_program_count += 1
                 print(f"\033[2K {new_program_count}", end="\r")
-                signature = program.signature()
-                if signature not in buckets:
-                    buckets[signature] = []
-                buckets[signature].append(program)
+                fingerprint = program.fingerprint()
+                if fingerprint not in buckets:
+                    buckets[fingerprint] = []
+                buckets[fingerprint].append(program)
             print(f"\033[2KGenerated {new_program_count} programs of this size.")
 
             print("Sorting programs...")
