@@ -944,6 +944,8 @@ def sort_programs(
 
 
 def main() -> None:
+    global_start = time.time()
+
     ctx = Context()
     ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
@@ -1058,6 +1060,9 @@ def main() -> None:
         pass
     except KeyboardInterrupt:
         print("Interrupted by user", file=sys.stderr)
+    finally:
+        global_end = time.time()
+        print(f"Total time: {round(global_end - global_start):.02f} s.")
 
 
 if __name__ == "__main__":
