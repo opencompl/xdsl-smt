@@ -447,6 +447,8 @@ class Program:
         program_value: SSAValue,
         pattern_argument_values: list[SSAValue | None] | None,
     ) -> bool:
+        if pattern_value.type != program_value.type:
+            return False
         match pattern_value, program_value:
             case BlockArgument(index=i), x:
                 # If `left_argument_values` is None, then we should match the
@@ -475,6 +477,8 @@ class Program:
                 if not isinstance(prog_op, type(lhs_op)):
                     return False
                 if len(lhs_op.operands) != len(prog_op.operands):
+                    return False
+                if lhs_op.properties != prog_op.properties:
                     return False
                 for lhs_operand, prog_operand in zip(
                     lhs_op.operands, prog_op.operands, strict=True
