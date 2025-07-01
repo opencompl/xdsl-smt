@@ -994,9 +994,10 @@ def main() -> None:
                 f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
             )
 
-            print("Choosing new canonical programs...")
+            print("Choosing new canonical programs and illegal sub-patterns...")
             new_canonicals: list[Program] = []
-            for behavior in new_behaviors:
+            for i, behavior in enumerate(new_behaviors):
+                print(f"\033[2K {i + 1}/{len(new_behaviors)}", end="\r")
                 behavior.sort()
                 canonical = behavior[0]
                 new_canonicals.append(canonical)
@@ -1009,9 +1010,9 @@ def main() -> None:
                 )
             )
             canonicals.extend(new_canonicals)
-            print(f"Found {len(new_illegals)} new illegal subpatterns.")
+            print(f"\033[2KFound {len(new_illegals)} new illegal sub-patterns.")
 
-            print("Removing redundant subpatterns...")
+            print("Removing redundant illegal sub-patterns...")
             input = StringIO()
             print("module {", file=input)
             for illegal in new_illegals:
@@ -1031,12 +1032,12 @@ def main() -> None:
             for idx in reversed(removed_indices):
                 del new_illegals[idx]
             illegals.extend(new_illegals)
-            print(f"Removed {redundant_count} redundant illegal subpatterns.")
+            print(f"Removed {redundant_count} redundant illegal sub-patterns.")
 
             step_end = time.time()
             print(f"Finished step in {round(step_end - step_start, 2):.02f} s.")
             print(
-                f"We now have a total of {len(canonicals)} behaviors and {len(illegals)} illegal subpatterns."
+                f"We now have a total of {len(canonicals)} behaviors and {len(illegals)} illegal sub-patterns."
             )
 
         # Write results to disk.
