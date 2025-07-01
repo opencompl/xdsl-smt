@@ -102,7 +102,7 @@ class FrozenMultiset(Generic[T]):
         self._contents = frozenset(items.items())
 
     def __repr__(self) -> str:
-        items = []
+        items: list[T] = []
         for item, count in self._contents:
             items.extend([item] * count)
         return f"FrozenMultiset({items!r})"
