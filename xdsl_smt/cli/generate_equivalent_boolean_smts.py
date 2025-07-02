@@ -518,14 +518,13 @@ class Program:
         lines = [
             "builtin.module {",
             "  pdl.pattern : benefit(1) {",
-            # TODO: Support not everything being the same type.
-            "    %type = pdl.type",
         ]
 
         body_start_index = len(lines)
 
         used_arguments: set[int] = set()
-        used_attributes: set[str] = set()
+        used_attributes: dict[Attribute, int] = {}
+        used_types: dict[Attribute, int] = {}
         op_ids: dict[Operation, int] = {}
 
         # We do not include the return instruction as part of the pattern. If
@@ -546,16 +545,23 @@ class Program:
                 if len(operands) != 0
                 else ""
             )
-            attrs = ""
-            if isinstance(op, smt.ConstantBoolOp):
-                used_attributes.add(str(op.value))
-                attrs = f' {{"value" = %attr.{op.value}}}'
+            properties: list[str] = []
+            for name, attribute in op.properties.items():
+                if attribute not in used_attributes:
+                    used_attributes[attribute] = len(used_attributes)
+                properties.append(f'"{name}" = %attr{used_attributes[attribute]}')
+            props = "" if len(properties) == 0 else f" {{{', '.join(properties)}}}"
+            result_type_ids: list[int] = []
+            for ty in op.result_types:
+                if ty not in used_types:
+                    used_types[ty] = len(used_types)
+                result_type_ids.append(used_types[ty])
             outs = (
-                f" -> ({', '.join('%type' for _ in op.results)} : {', '.join('!pdl.type' for _ in op.results)})"
+                f" -> ({', '.join(f'%type{tid}' for tid in result_type_ids)} : {', '.join('!pdl.type' for _ in op.results)})"
                 if len(op.results) != 0
                 else ""
             )
-            lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{attrs}{outs}')
+            lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{props}{outs}')
             for j in range(len(op.results)):
                 lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
 
@@ -563,11 +569,24 @@ class Program:
         lines.append("  }")
         lines.append("}")
 
+        argument_type_ids: list[int] = []
+        for k in used_arguments:
+            ty = self.func().args[k].type
+            if ty not in used_types:
+                used_types[ty] = len(used_types)
+            argument_type_ids.append(used_types[ty])
+
         lines[body_start_index:body_start_index] = [
-            f"    %arg{k} = pdl.operand" for k in used_arguments
+            f"    %arg{k} = pdl.operand : %type{tid}"
+            for k, tid in zip(used_arguments, argument_type_ids, strict=True)
         ]
         lines[body_start_index:body_start_index] = [
-            f"    %attr.{attr} = pdl.attribute = {attr}" for attr in used_attributes
+            f"    %type{type_id} = pdl.type : {ty}"
+            for ty, type_id in used_types.items()
+        ]
+        lines[body_start_index:body_start_index] = [
+            f"    %attr{attr_id} = pdl.attribute = {attr}"
+            for attr, attr_id in used_attributes.items()
         ]
 
         # To end the pattern with a line ending.
