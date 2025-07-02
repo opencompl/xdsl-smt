@@ -912,7 +912,11 @@ def find_new_behaviors(
         for i, new in enumerate(
             p.imap_unordered(partial(find_new_behaviors_in_bucket, canonicals), buckets)
         ):
-            print(f"\033[2K {round(100.0 * i / len(buckets), 1)} %", end="\r")
+            print(
+                f"\033[2K Finding new behaviors... "
+                f"({round(100.0 * i / len(buckets), 1)} %)",
+                end="\r",
+            )
             new_behaviors.extend(new)
 
     return new_behaviors
@@ -943,7 +947,6 @@ def main() -> None:
             print(f"\033[1m== Size {m} ==\033[0m")
             step_start = time.time()
 
-            print("Enumerating programs...")
             enumerating_start = time.time()
             new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
@@ -951,37 +954,46 @@ def main() -> None:
                 ctx, args.max_num_args, m, args.bitvector_widths, illegals
             ):
                 new_programs.append(program)
-                print(f"\033[2K {len(new_programs)}", end="\r")
+                print(
+                    f"\033[2K Enumerating programs... ({len(new_programs)})",
+                    end="\r",
+                )
                 fingerprint = program.fingerprint()
                 if fingerprint not in buckets:
                     buckets[fingerprint] = []
                 buckets[fingerprint].append(program)
-            print(f"\033[2KGenerated {len(new_programs)} programs of this size.")
             enumerating_time = round(time.time() - enumerating_start, 2)
-            print(f"Enumerating took {enumerating_time:.02f} s.")
+            print(
+                f"\033[2KGenerated {len(new_programs)} programs of this size "
+                f"in {enumerating_time:.02f} s."
+            )
 
-            print("Finding new behaviors...")
             finding_start = time.time()
             new_behaviors = find_new_behaviors(list(buckets.values()), canonicals)
+            finding_time = round(time.time() - finding_start, 2)
             print(
                 f"\033[2KFound {len(new_behaviors)} new behaviors, "
-                f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs."
+                f"exhibited by {sum(len(behavior) for behavior in new_behaviors)} programs "
+                f"in {finding_time:.02f} s."
             )
-            finding_time = round(time.time() - finding_start, 2)
-            print(f"Finding took {finding_time:.02f} s.")
 
-            print("Choosing new canonical programs...")
             choosing_start = time.time()
             new_canonicals: list[Program] = []
             for i, behavior in enumerate(new_behaviors):
-                print(f"\033[2K {i + 1}/{len(new_behaviors)}", end="\r")
+                print(
+                    f"\033[2K Choosing new canonical programs... "
+                    f"({i + 1}/{len(new_behaviors)})",
+                    end="\r",
+                )
                 new_canonicals.append(min(behavior))
             canonicals.extend(new_canonicals)
-            print(f"\033[2KChose {len(new_canonicals)} new canonical programs.")
             choosing_time = round(time.time() - choosing_start, 2)
-            print(f"Choosing took {choosing_time:.02f} s.")
+            print(
+                f"\033[2KChose {len(new_canonicals)} new canonical programs "
+                f"in {choosing_time:.02f} s."
+            )
 
-            print("Removing redundant illegal sub-patterns...")
+            print(" Removing redundant illegal sub-patterns...", end="\r")
             pruning_start = time.time()
             new_illegals = new_programs
 
@@ -1011,14 +1023,17 @@ def main() -> None:
             for idx in reversed(removed_indices):
                 del new_illegals[idx]
             illegals.extend(new_illegals)
-            print(f"Removed {redundant_count} redundant illegal sub-patterns.")
             pruning_time = round(time.time() - pruning_start, 2)
-            print(f"Pruning took {pruning_time:.02f} s.")
+            print(
+                f"\033[2KRemoved {redundant_count} redundant illegal sub-patterns "
+                f"in {pruning_time:.02f} s."
+            )
 
             step_end = time.time()
             print(f"Finished step in {round(step_end - step_start, 2):.02f} s.")
             print(
-                f"We now have a total of {len(canonicals)} behaviors and {len(illegals)} illegal sub-patterns."
+                f"We now have a total of {len(canonicals)} behaviors "
+                f"and {len(illegals)} illegal sub-patterns."
             )
 
         # Write results to disk.
