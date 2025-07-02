@@ -136,7 +136,7 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
 
 
 class Program:
-    module: ModuleOp
+    _module: ModuleOp
     _size: int
     _input_cardinalities: tuple[int, ...]
     _base_results: tuple[Result, ...]
@@ -204,14 +204,14 @@ class Program:
         )
 
     def __init__(self, module: ModuleOp):
-        self.module = module
+        self._module = module
 
         self._size = sum(
             Program._formula_size(argument) for argument in self.ret().arguments
         )
 
         arity = self.arity()
-        interpreter = build_interpreter(self.module, 64)
+        interpreter = build_interpreter(self._module, 64)
         function_type = self.func().function_type
         values_for_each_param = [
             Program._values_of_type(ty) for ty in function_type.inputs
@@ -290,11 +290,15 @@ class Program:
             results_with_permutations,
         )
 
+    def module(self) -> ModuleOp:
+        """Returns the underlying module."""
+        return self._module
+
     def func(self) -> FuncOp:
         """Returns the underlying function."""
-        assert len(self.module.ops) == 1
-        assert isinstance(self.module.ops.first, FuncOp)
-        return self.module.ops.first
+        assert len(self._module.ops) == 1
+        assert isinstance(self._module.ops.first, FuncOp)
+        return self._module.ops.first
 
     def ret(self) -> ReturnOp:
         """Returns the return operation of the underlying function."""
@@ -999,11 +1003,11 @@ def main() -> None:
             print("module {", file=input)
             print("module {", file=input)
             for canonical in new_canonicals:
-                print(canonical.module, file=input)
+                print(canonical.module(), file=input)
             print("}", file=input)
             print("module {", file=input)
             for program in new_programs:
-                print(program.module, file=input)
+                print(program.module(), file=input)
             print("}", file=input)
             print("}", file=input)
             cpp_res = sp.run(
