@@ -66,6 +66,7 @@ MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
 EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
+BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}"
 
 
 T = TypeVar("T")
@@ -682,8 +683,23 @@ def enumerate_programs(
     max_num_args: int,
     num_ops: int,
     bv_widths: str,
+    building_blocks: list[Program],
     illegals: list[Program],
 ) -> Generator[Program, None, None]:
+    # Disabled for now.
+    use_building_blocks = len(building_blocks) != 0 and False
+    if use_building_blocks:
+        building_blocks.sort()
+        with open(BUILDING_BLOCKS_FILE, "w") as f:
+            size = building_blocks[0].size()
+            for program in building_blocks:
+                if program.size() != size:
+                    size = program.size()
+                    f.write("// +++++\n")
+                f.write(str(program.module()))
+                f.write("\n// -----\n")
+            f.write("// +++++\n")
+
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
             f.write(program.to_pdl_pattern())
@@ -703,6 +719,7 @@ def enumerate_programs(
             f"--max-num-ops={num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
+            f"--building-blocks={BUILDING_BLOCKS_FILE if use_building_blocks else ''}",
             f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
         ],
         text=True,
@@ -955,7 +972,7 @@ def main() -> None:
             new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
             for program in enumerate_programs(
-                ctx, args.max_num_args, m, args.bitvector_widths, illegals
+                ctx, args.max_num_args, m, args.bitvector_widths, canonicals, illegals
             ):
                 new_programs.append(program)
                 print(
