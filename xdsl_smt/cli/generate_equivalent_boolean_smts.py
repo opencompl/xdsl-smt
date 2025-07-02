@@ -972,7 +972,12 @@ def main() -> None:
             new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
             for program in enumerate_programs(
-                ctx, args.max_num_args, m, args.bitvector_widths, canonicals, illegals
+                ctx,
+                args.max_num_args,
+                m,
+                args.bitvector_widths,
+                canonicals if m >= 2 else [],
+                illegals,
             ):
                 new_programs.append(program)
                 print(
