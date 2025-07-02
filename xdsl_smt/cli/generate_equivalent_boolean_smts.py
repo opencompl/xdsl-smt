@@ -995,8 +995,6 @@ def main() -> None:
 
             print(" Removing redundant illegal sub-patterns...", end="\r")
             pruning_start = time.time()
-            new_illegals = new_programs
-
             input = StringIO()
             print("module {", file=input)
             print("module {", file=input)
@@ -1004,8 +1002,8 @@ def main() -> None:
                 print(canonical.module, file=input)
             print("}", file=input)
             print("module {", file=input)
-            for illegal in new_illegals:
-                print(illegal.module, file=input)
+            for program in new_programs:
+                print(program.module, file=input)
             print("}", file=input)
             print("}", file=input)
             cpp_res = sp.run(
@@ -1015,17 +1013,17 @@ def main() -> None:
                 stderr=sys.stderr,
                 text=True,
             )
-            removed_indices: list[int] = []
-            for idx, line in enumerate(cpp_res.stdout.splitlines()):
-                if line == "true":
-                    removed_indices.append(idx)
-            redundant_count = len(removed_indices)
-            for idx in reversed(removed_indices):
-                del new_illegals[idx]
+            new_illegals = [
+                program
+                for program, remove in zip(
+                    new_programs, cpp_res.stdout.splitlines(), strict=True
+                )
+                if remove != "true"
+            ]
             illegals.extend(new_illegals)
             pruning_time = round(time.time() - pruning_start, 2)
             print(
-                f"\033[2KRemoved {redundant_count} redundant illegal sub-patterns "
+                f"\033[2KRemoved {len(new_illegals)} redundant illegal sub-patterns "
                 f"in {pruning_time:.02f} s."
             )
 
