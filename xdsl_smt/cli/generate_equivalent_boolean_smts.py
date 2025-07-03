@@ -963,6 +963,36 @@ def find_new_behaviors(
     return new_behaviors
 
 
+def remove_redundant_illegal_subpatterns(
+    new_canonicals: list[Program], new_programs: list[Program]
+) -> list[Program]:
+    buffer = StringIO()
+    print("module {", file=buffer)
+    print("module {", file=buffer)
+    for canonical in new_canonicals:
+        print(canonical.module(), file=buffer)
+    print("}", file=buffer)
+    print("module {", file=buffer)
+    for program in new_programs:
+        print(program.module(), file=buffer)
+    print("}", file=buffer)
+    print("}", file=buffer)
+    cpp_res = sp.run(
+        [REMOVE_REDUNDANT_PATTERNS],
+        input=buffer.getvalue(),
+        stdout=sp.PIPE,
+        stderr=sys.stderr,
+        text=True,
+    )
+    return [
+        program
+        for program, remove in zip(
+            new_programs, cpp_res.stdout.splitlines(), strict=True
+        )
+        if remove != "true"
+    ]
+
+
 def main() -> None:
     global_start = time.time()
 
@@ -1041,31 +1071,9 @@ def main() -> None:
 
             print(" Removing redundant illegal sub-patterns...", end="\r")
             pruning_start = time.time()
-            input = StringIO()
-            print("module {", file=input)
-            print("module {", file=input)
-            for canonical in new_canonicals:
-                print(canonical.module(), file=input)
-            print("}", file=input)
-            print("module {", file=input)
-            for program in new_programs:
-                print(program.module(), file=input)
-            print("}", file=input)
-            print("}", file=input)
-            cpp_res = sp.run(
-                [REMOVE_REDUNDANT_PATTERNS],
-                input=input.getvalue(),
-                stdout=sp.PIPE,
-                stderr=sys.stderr,
-                text=True,
+            new_illegals = remove_redundant_illegal_subpatterns(
+                new_canonicals, new_programs
             )
-            new_illegals = [
-                program
-                for program, remove in zip(
-                    new_programs, cpp_res.stdout.splitlines(), strict=True
-                )
-                if remove != "true"
-            ]
             illegals.extend(new_illegals)
             pruning_time = round(time.time() - pruning_start, 2)
             print(
