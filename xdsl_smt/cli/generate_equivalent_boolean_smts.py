@@ -1080,15 +1080,10 @@ def main() -> None:
             )
 
         # Write results to disk.
-        old_stdout = sys.stdout
         with open(args.out_file, "w", encoding="UTF-8") as f:
-            sys.stdout = f
             for program in canonicals:
-                program.pretty_print()
-            print("// -----")
-            for program in illegals:
-                program.pretty_print()
-        sys.stdout = old_stdout
+                f.write(str(program.module()))
+                f.write("\n// -----\n")
 
         if args.summary:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
