@@ -50,15 +50,29 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default="4",
     )
     arg_parser.add_argument(
-        "--out-file",
+        "--out-canonicals",
         type=str,
-        help="the file in which to write the results",
+        help="the file in which to write the generated canonical programs",
+        default="",
     )
     arg_parser.add_argument(
-        "--summary",
+        "--out-rewrites",
+        type=str,
+        help="the file in which to write the generated rewrite rules",
+        default="",
+    )
+    arg_parser.add_argument(
+        "--summarize-canonicals",
         dest="summary",
         action="store_true",
-        help="if present, prints a human-readable summary of the buckets",
+        help="if present, prints a human-readable summary of the generated canonical programs",
+    )
+
+    arg_parser.add_argument(
+        "--summarize-rewrites",
+        dest="summary",
+        action="store_true",
+        help="if present, prints a human-readable summary of the generated rewrite rules",
     )
 
 
@@ -853,7 +867,7 @@ def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
 def find_new_behaviors_in_bucket(
     canonicals: list[Program],
     bucket: Bucket,
-) -> list[Bucket]:
+) -> tuple[dict[Program, Bucket], list[Bucket]]:
     # Sort programs into actual behavior buckets.
     behaviors: list[Bucket] = []
     for program in bucket:
@@ -865,26 +879,35 @@ def find_new_behaviors_in_bucket(
             behaviors.append([program])
 
     # Exclude known behaviors.
-    return [
-        behavior
-        for behavior in behaviors
-        if not any(behavior[0].is_same_behavior(canonical) for canonical in canonicals)
-    ]
+    known_behaviors: dict[Program, Bucket] = {}
+    new_behaviors: list[Bucket] = []
+    for behavior in behaviors:
+        for canonical in canonicals:
+            if behavior[0].is_same_behavior(canonical):
+                known_behaviors[canonical] = behavior
+                break
+        else:
+            new_behaviors.append(behavior)
+
+    return known_behaviors, new_behaviors
 
 
 def find_new_behaviors(
     buckets: list[Bucket],
     canonicals: list[Program],
-) -> list[Bucket]:
+) -> tuple[dict[Program, Bucket], list[Bucket]]:
     """
-    Return a list of equivalence classes of the programs exhibiting a new
-    behavior.
+    Returns a `known_behaviors, new_behaviors` pair where `known_behaviors` is a
+    map from canonical programs to buckets of new programs with the same
+    behavior, and `new_behaviors` is a list of equivalence classes of the
+    programs exhibiting a new behavior.
     """
 
+    known_behaviors: dict[Program, Bucket] = {}
     new_behaviors: list[Bucket] = []
 
     with Pool() as p:
-        for i, new in enumerate(
+        for i, (known, new) in enumerate(
             p.imap_unordered(partial(find_new_behaviors_in_bucket, canonicals), buckets)
         ):
             print(
@@ -892,14 +915,15 @@ def find_new_behaviors(
                 f"({round(100.0 * i / len(buckets), 1)} %)",
                 end="\r",
             )
+            known_behaviors.update(known)
             new_behaviors.extend(new)
 
-    return new_behaviors
+    return known_behaviors, new_behaviors
 
 
 def remove_redundant_illegal_subpatterns(
-    new_canonicals: list[Program], new_programs: list[Program]
-) -> list[Program]:
+    new_canonicals: list[Program], new_rewrites: dict[Program, Bucket]
+) -> tuple[dict[Program, Bucket], int]:
     buffer = StringIO()
     print("module {", file=buffer)
     print("module {", file=buffer)
@@ -907,8 +931,9 @@ def remove_redundant_illegal_subpatterns(
         print(canonical.module(), file=buffer)
     print("}", file=buffer)
     print("module {", file=buffer)
-    for program in new_programs:
-        print(program.module(), file=buffer)
+    for programs in new_rewrites.values():
+        for program in programs:
+            print(program.module(), file=buffer)
     print("}", file=buffer)
     print("}", file=buffer)
     cpp_res = sp.run(
@@ -918,13 +943,22 @@ def remove_redundant_illegal_subpatterns(
         stderr=sys.stderr,
         text=True,
     )
-    return [
-        program
-        for program, remove in zip(
-            new_programs, cpp_res.stdout.splitlines(), strict=True
-        )
-        if remove != "true"
-    ]
+    res_lines = cpp_res.stdout.splitlines()
+
+    pruned_rewrites: dict[Program, Bucket] = {
+        canonical: [] for canonical in new_rewrites.keys()
+    }
+    i = 0
+    pruned_count = 0
+    # Iteration order over a dict is fixed, so we can rely on that.
+    for canonical, programs in new_rewrites.items():
+        for program in programs:
+            if res_lines[i] == "true":
+                pruned_count += 1
+            else:
+                pruned_rewrites[canonical].append(program)
+        i += 1
+    return pruned_rewrites, pruned_count
 
 
 def main() -> None:
@@ -946,6 +980,7 @@ def main() -> None:
 
     canonicals: list[Program] = []
     illegals: list[Program] = []
+    rewrites: dict[Program, Bucket] = {}
 
     try:
         for m in range(args.max_num_ops + 1):
@@ -953,8 +988,8 @@ def main() -> None:
             step_start = time.time()
 
             enumerating_start = time.time()
-            new_programs: list[Program] = []
             buckets: dict[Fingerprint, Bucket] = {}
+            enumerated_count = 0
             for program in enumerate_programs(
                 ctx,
                 args.max_num_args,
@@ -963,9 +998,9 @@ def main() -> None:
                 canonicals if m >= 2 else [],
                 illegals,
             ):
-                new_programs.append(program)
+                enumerated_count += 1
                 print(
-                    f"\033[2K Enumerating programs... ({len(new_programs)})",
+                    f"\033[2K Enumerating programs... ({enumerated_count})",
                     end="\r",
                 )
                 fingerprint = program.fingerprint()
@@ -974,12 +1009,18 @@ def main() -> None:
                 buckets[fingerprint].append(program)
             enumerating_time = round(time.time() - enumerating_start, 2)
             print(
-                f"\033[2KGenerated {len(new_programs)} programs of this size "
+                f"\033[2KGenerated {enumerated_count} programs of this size "
                 f"in {enumerating_time:.02f} s."
             )
 
+            new_rewrites: dict[Program, Bucket] = {}
+
             finding_start = time.time()
-            new_behaviors = find_new_behaviors(list(buckets.values()), canonicals)
+            known_behaviors, new_behaviors = find_new_behaviors(
+                list(buckets.values()), canonicals
+            )
+            for canonical, programs in known_behaviors.items():
+                new_rewrites[canonical] = programs
             finding_time = round(time.time() - finding_start, 2)
             print(
                 f"\033[2KFound {len(new_behaviors)} new behaviors, "
@@ -995,7 +1036,9 @@ def main() -> None:
                     f"({i + 1}/{len(new_behaviors)})",
                     end="\r",
                 )
-                new_canonicals.append(min(behavior))
+                canonical = min(behavior)
+                new_canonicals.append(canonical)
+                new_rewrites[canonical] = behavior
             canonicals.extend(new_canonicals)
             choosing_time = round(time.time() - choosing_start, 2)
             print(
@@ -1005,13 +1048,18 @@ def main() -> None:
 
             print(" Removing redundant illegal sub-patterns...", end="\r")
             pruning_start = time.time()
-            new_illegals = remove_redundant_illegal_subpatterns(
-                new_canonicals, new_programs
+            pruned_rewrites, pruned_count = remove_redundant_illegal_subpatterns(
+                new_canonicals, new_rewrites
             )
-            illegals.extend(new_illegals)
+            for new_illegals in pruned_rewrites.values():
+                illegals.extend(new_illegals)
+            for canonical, bucket in pruned_rewrites.items():
+                if canonical not in rewrites:
+                    rewrites[canonical] = []
+                rewrites[canonical].extend(bucket)
             pruning_time = round(time.time() - pruning_start, 2)
             print(
-                f"\033[2KRemoved {len(new_illegals)} redundant illegal sub-patterns "
+                f"\033[2KRemoved {pruned_count} redundant illegal sub-patterns "
                 f"in {pruning_time:.02f} s."
             )
 
@@ -1022,22 +1070,38 @@ def main() -> None:
                 f"and {len(illegals)} illegal sub-patterns."
             )
 
-        # Write results to disk.
-        with open(args.out_file, "w", encoding="UTF-8") as f:
-            for program in canonicals:
-                f.write(str(program.module()))
-                f.write("\n// -----\n")
+        if args.out_canonicals != "":
+            with open(args.out_canonicals, "w", encoding="UTF-8") as f:
+                for program in canonicals:
+                    f.write(str(program.module()))
+                    f.write("\n// -----\n")
 
-        if args.summary:
+        if args.out_rewrites != "":
+            with open(args.out_rewrites, "w", encoding="UTF-8") as f:
+                for canonical, programs in rewrites.items():
+                    for program in programs:
+                        f.write(str(program.module()))
+                        f.write("\n// =====\n")
+                        f.write(str(program.module))
+                        f.write("\n// -----\n")
+
+        if args.summarize_canonicals:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
             for program in canonicals:
                 print(program)
+
+        if args.summarize_rewrites:
+            print(f"\033[1m== Summary (rewrite rules) ==\033[0m")
+            for canonical, programs in rewrites.items():
+                for program in programs:
+                    print(f"{program} ↭ {canonical}")
 
     except BrokenPipeError:
         # The enumerator has terminated
         pass
     except KeyboardInterrupt:
         print("Interrupted by user", file=sys.stderr)
+        exit(1)
     finally:
         global_end = time.time()
         print(f"Total time: {round(global_end - global_start):.02f} s.")
