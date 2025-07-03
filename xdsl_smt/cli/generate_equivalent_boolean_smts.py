@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from io import StringIO
 from multiprocessing import Pool
-from typing import Any, Generator, Generic, Iterable, Sequence, TypeVar, cast
+from typing import Any, Generator, Generic, IO, Iterable, Sequence, TypeVar, cast
 
 from xdsl.context import Context
 from xdsl.ir import Attribute
@@ -595,85 +595,86 @@ class Program:
         return "\n".join(lines)
 
     @staticmethod
-    def _pretty_print_value(x: SSAValue, nested: bool):
+    def _pretty_print_value(x: SSAValue, nested: bool, *, file: IO[str]):
         infix = isinstance(x, OpResult) and len(x.op.operand_types) > 1
         parenthesized = infix and nested
         if parenthesized:
-            print("(", end="")
+            print("(", end="", file=file)
         match x:
             case BlockArgument(index=i, type=smt.BoolType()):
-                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
+                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="", file=file)
             case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
-                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
-                print(f"#{width.data}", end="")
+                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="", file=file)
+                print(f"#{width.data}", end="", file=file)
             case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
-                print("⊤" if val else "⊥", end="")
+                print("⊤" if val else "⊥", end="", file=file)
             case OpResult(op=bv.ConstantOp(value=val), index=0):
                 width = val.type.width.data
                 value = val.value.data
-                print(f"{{:0{width}b}}".format(value), end="")
+                print(f"{{:0{width}b}}".format(value), end="", file=file)
             case OpResult(op=smt.NotOp(arg=arg), index=0):
-                print("¬", end="")
-                Program._pretty_print_value(arg, True)
+                print("¬", end="", file=file)
+                Program._pretty_print_value(arg, True, file=file)
             case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" ∧ ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" ∧ ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" ∨ ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" ∨ ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" → ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" → ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" ≠ ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" ≠ ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" = ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" = ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" ⊕ ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" ⊕ ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(
                 op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
             ):
-                Program._pretty_print_value(cond, True)
-                print(" ? ", end="")
-                Program._pretty_print_value(true_val, True)
-                print(" : ", end="")
-                Program._pretty_print_value(false_val, True)
+                Program._pretty_print_value(cond, True, file=file)
+                print(" ? ", end="", file=file)
+                Program._pretty_print_value(true_val, True, file=file)
+                print(" : ", end="", file=file)
+                Program._pretty_print_value(false_val, True, file=file)
             case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" + ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" + ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" & ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" & ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" | ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" | ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True)
-                print(" * ", end="")
-                Program._pretty_print_value(rhs, True)
+                Program._pretty_print_value(lhs, True, file=file)
+                print(" * ", end="", file=file)
+                Program._pretty_print_value(rhs, True, file=file)
             case OpResult(op=bv.NotOp(arg=arg), index=0):
-                print("~", end="")
-                Program._pretty_print_value(arg, True)
+                print("~", end="", file=file)
+                Program._pretty_print_value(arg, True, file=file)
             case _:
                 raise ValueError(f"Unknown value for pretty print: {x}")
         if parenthesized:
-            print(")", end="")
+            print(")", end="", file=file)
 
-    def pretty_print(self):
-        Program._pretty_print_value(self.ret().arguments[0], False)
-        print()
+    def __str__(self) -> str:
+        buffer = StringIO()
+        Program._pretty_print_value(self.ret().arguments[0], False, file=buffer)
+        return buffer.getvalue()
 
 
 Bucket = list[Program]
@@ -1088,7 +1089,7 @@ def main() -> None:
         if args.summary:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
             for program in canonicals:
-                program.pretty_print()
+                print(program)
 
     except BrokenPipeError:
         # The enumerator has terminated
