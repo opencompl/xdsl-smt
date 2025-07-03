@@ -841,13 +841,13 @@ def is_same_behavior_with_z3(
         args_left[left_index] = arg
         args_right[right_index] = arg
 
-    for index, type in enumerate(func_left.func_type.inputs):
+    for index, ty in enumerate(func_left.func_type.inputs):
         if args_left[index] is None:
-            args_left[index] = builder.insert(smt.DeclareConstOp(type)).res
+            args_left[index] = builder.insert(smt.DeclareConstOp(ty)).res
 
-    for index, type in enumerate(func_right.func_type.inputs):
+    for index, ty in enumerate(func_right.func_type.inputs):
         if args_right[index] is None:
-            args_right[index] = builder.insert(smt.DeclareConstOp(type)).res
+            args_right[index] = builder.insert(smt.DeclareConstOp(ty)).res
 
     args_left_complete = cast(list[SSAValue], args_left)
     args_right_complete = cast(list[SSAValue], args_right)
