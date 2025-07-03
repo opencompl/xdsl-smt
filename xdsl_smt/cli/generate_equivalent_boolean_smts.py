@@ -605,7 +605,7 @@ class Program:
                 print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
             case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
                 print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="")
-                print(f"[{width.data}]", end="")
+                print(f"#{width.data}", end="")
             case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
                 print("⊤" if val else "⊥", end="")
             case OpResult(op=bv.ConstantOp(value=val), index=0):
