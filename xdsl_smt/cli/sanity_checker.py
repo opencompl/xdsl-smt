@@ -46,10 +46,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-# TODO: CHANGE THAT!!!!
-MLIR_ENUMERATE = "../mlir-fuzz/build/bin/mlir-enumerate"
-REMOVE_REDUNDANT_PATTERNS = "../mlir-fuzz/build/bin/remove-redundant-patterns"
-SMT_MLIR = "../mlir-fuzz/dialects/smt.mlir"
+MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
+REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
+SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
 PROGRAM_OUTPUT = f"/tmp/sanity-checker{time.time()}"
 
 
