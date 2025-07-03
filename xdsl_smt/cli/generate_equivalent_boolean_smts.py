@@ -63,14 +63,14 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
     arg_parser.add_argument(
         "--summarize-canonicals",
-        dest="summary",
+        dest="summarize_canonicals",
         action="store_true",
         help="if present, prints a human-readable summary of the generated canonical programs",
     )
 
     arg_parser.add_argument(
         "--summarize-rewrites",
-        dest="summary",
+        dest="summarize_rewrites",
         action="store_true",
         help="if present, prints a human-readable summary of the generated rewrite rules",
     )
@@ -1082,7 +1082,7 @@ def main() -> None:
                     for program in programs:
                         f.write(str(program.module()))
                         f.write("\n// =====\n")
-                        f.write(str(program.module))
+                        f.write(str(program.module()))
                         f.write("\n// -----\n")
 
         if args.summarize_canonicals:
