@@ -128,8 +128,8 @@ class Fingerprint:
     guaranteed to compare equal as well.
     """
 
-    _useful_inputs: FrozenMultiset[Attribute]
-    _outputs: tuple[Attribute, ...]
+    _useful_input_types: FrozenMultiset[Attribute]
+    _output_types: tuple[Attribute, ...]
     _results_with_permutations: FrozenMultiset[tuple[Result, ...]]
 
 
