@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import copy
 import itertools
 import subprocess as sp
 import sys
@@ -154,10 +155,21 @@ class Program:
     _module: ModuleOp
     _size: int
     _input_cardinalities: tuple[int, ...]
+    """
+    The cardinality of each input, before applying the permutation.
+    """
     _base_results: tuple[Result, ...]
+    """
+    The results, as computed in order before applying the permutation.
+    """
     _fingerprint: Fingerprint
     _is_basic: bool
-    _useless_param_mask: tuple[bool, ...]
+    _param_permutation: Permutation
+    _useless_param_count: int
+    """
+    The number of useless parameters. Useless parameters are always the last
+    ones after apply the permutation.
+    """
 
     @staticmethod
     def _formula_size(formula: SSAValue) -> int:
@@ -195,14 +207,21 @@ class Program:
             case _:
                 raise ValueError(f"Unsupported type: {ty}")
 
-    def _input_permutations(self) -> Iterable[Permutation]:
-        assert self._useless_param_mask is not None
-        useless_indices = set(i for i, m in enumerate(self._useless_param_mask) if m)
-        for permutation in itertools.permutations(range(self.arity())):
-            if all(permutation[i] == i for i in useless_indices):
-                yield permutation
+    def permute_useful_parameters(self, permutation: Permutation) -> "Program":
+        arity = self.useful_arity()
+        assert len(permutation) == arity
+        permuted = copy.copy(self)
+        permuted._param_permutation = list(permuted._param_permutation)
+        permuted._param_permutation[:arity] = [
+            permuted._param_permutation[i] for i in permutation
+        ]
+        return permuted
 
-    def _results_with_permutation(self, permutation: Permutation) -> tuple[Result, ...]:
+    def _parameter_permutations(self) -> Iterable["Program"]:
+        for permutation in itertools.permutations(range(self.useful_arity())):
+            yield self.permute_useful_parameters(permutation)
+
+    def _results(self) -> tuple[Result, ...]:
         assert self._input_cardinalities is not None
         assert self._base_results is not None
         # This could be achieved using less memory with some arithmetic.
@@ -211,10 +230,12 @@ class Program:
             iid: result_index for result_index, iid in enumerate(input_ids)
         }
         permuted_input_ids = itertools.product(
-            *permute([range(c) for c in self._input_cardinalities], permutation)
+            *permute(
+                [range(c) for c in self._input_cardinalities], self._param_permutation
+            )
         )
         return tuple(
-            self._base_results[indices[reverse_permute(piid, permutation)]]
+            self._base_results[indices[reverse_permute(piid, self._param_permutation)]]
             for piid in permuted_input_ids
         )
 
@@ -265,20 +286,24 @@ class Program:
         ]
 
         # Then, compute which of those parameters are actually useless.
-        self._useless_param_mask = tuple(
+        useless_param_mask = tuple(
             param_useless_here[i]
             and (self._is_basic or is_parameter_useless_z3(self, i))
             for i in range(arity)
         )
-        useful_inputs = FrozenMultiset(
-            ty for ty, m in zip(function_type.inputs, self._useless_param_mask) if not m
+        useful_input_types = FrozenMultiset(
+            ty for ty, m in zip(function_type.inputs, useless_param_mask) if not m
         )
+        self._useless_param_count = sum(useless_param_mask)
+        self._param_permutation = [
+            i for i, m in enumerate(useless_param_mask) if not m
+        ] + [i for i, m in enumerate(useless_param_mask) if m]
 
         # Now, compute the results ignoring useless parameters.
         values_for_each_useful_param = [
             (
                 [values_for_each_param[i][0][0]]
-                if self._useless_param_mask[i]
+                if useless_param_mask[i]
                 else values_for_each_param[i][0]
             )
             for i in range(arity)
@@ -295,22 +320,27 @@ class Program:
             len(values) for values in values_for_each_useful_param
         )
         results_with_permutations = FrozenMultiset(
-            self._results_with_permutation(permutation)
-            for permutation in self._input_permutations()
+            permuted._results() for permuted in self._parameter_permutations()
         )
 
         self._fingerprint = Fingerprint(
-            useful_inputs,
+            useful_input_types,
             tuple(function_type.outputs),
             results_with_permutations,
         )
 
     def module(self) -> ModuleOp:
-        """Returns the underlying module."""
+        """
+        Returns the underlying module. Keep in mind that the arguments are not
+        permuted in the inner function.
+        """
         return self._module
 
     def func(self) -> FuncOp:
-        """Returns the underlying function."""
+        """
+        Returns the underlying function. Keep in mind that the arguments are not
+        permuted in the function.
+        """
         assert len(self._module.ops) == 1
         assert isinstance(self._module.ops.first, FuncOp)
         return self._module.ops.first
@@ -323,6 +353,10 @@ class Program:
 
     def arity(self) -> int:
         return len(self.func().function_type.inputs)
+
+    def useful_arity(self) -> int:
+        """Returns the number of useful parameters."""
+        return self.arity() - self._useless_param_count
 
     def size(self) -> int:
         return self._size
@@ -338,43 +372,18 @@ class Program:
         """
         return self._is_basic
 
-    def useless_parameter_mask(self) -> tuple[bool, ...]:
-        """
-        Booleans indicating, for each corresponding function parameter, whether
-        the parameter is useless. A useless parameter is a parameter whose value
-        does not affect the outputs.
-        """
-        return self._useless_param_mask
-
-    def permuted_useful_parameters(
-        self, permutation: Permutation
-    ) -> list[tuple[int, Attribute]]:
-        """
-        Returns the indices and types of the non-useless parameters in order
-        after applying the specified permutation to all parameters.
-        """
-        return [
-            (i, ty)
-            for i, (ty, useless) in permute(
-                list(
-                    enumerate(
-                        zip(
-                            self.func().function_type.inputs,
-                            self.useless_parameter_mask(),
-                            strict=True,
-                        )
-                    )
-                ),
-                permutation,
-            )
-            if not useless
-        ]
-
     def useful_parameters(self) -> list[tuple[int, Attribute]]:
         """
         Returns the indices and types of the non-useless parameters in order.
         """
-        return self.permuted_useful_parameters(range(self.arity()))
+
+        return [
+            (i, ty)
+            for i, ty in permute(
+                list(enumerate(self.func().function_type.inputs)),
+                self._param_permutation,
+            )
+        ][: self.useful_arity()]
 
     @staticmethod
     def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
@@ -403,6 +412,7 @@ class Program:
                 raise ValueError(f"Unknown value: {l} or {r}")
 
     def _compare_lexicographically(self, other: "Program") -> int:
+        # TODO: Maybe this should take permutation into account?
         if self.size() < other.size():
             return -1
         if self.size() > other.size():
@@ -451,14 +461,35 @@ class Program:
         if self.is_basic() and other.is_basic():
             return True
 
-        for permutation in self._input_permutations():
+        for permuted in self._parameter_permutations():
             # First test whether this permutation has a chance to work.
-            if self._results_with_permutation(permutation) == other._base_results:
+            if permuted._results() == other._results():
                 # Only then, resort to Z3.
-                if is_same_behavior_with_z3(self, other, permutation):
+                if is_same_behavior_with_z3(permuted, other):
                     return True
 
         return False
+
+    def permute_parameters_to_match(self, other: "Program") -> "Program  | None":
+        """
+        Returns an identical program with permuted parameters that is logically
+        equivalent to the other program, ignoring useless arguments. If no such
+        program exists, returns `None`.
+        """
+
+        if self.fingerprint() != other.fingerprint():
+            return None
+
+        for permuted in self._parameter_permutations():
+            if permuted._results() == other._results():
+                if (
+                    self.is_basic()
+                    and other.is_basic()
+                    or is_same_behavior_with_z3(permuted, other)
+                ):
+                    return permuted
+
+        return None
 
     def to_pdl_pattern(self) -> str:
         """Creates a PDL pattern from this program."""
@@ -549,16 +580,26 @@ class Program:
         return "\n".join(lines)
 
     @staticmethod
-    def _pretty_print_value(x: SSAValue, nested: bool, *, file: IO[str]):
+    def _pretty_print_value(
+        x: SSAValue, permutation: Permutation, nested: bool, *, file: IO[str]
+    ):
         infix = isinstance(x, OpResult) and len(x.op.operand_types) > 1
         parenthesized = infix and nested
         if parenthesized:
             print("(", end="", file=file)
         match x:
             case BlockArgument(index=i, type=smt.BoolType()):
-                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="", file=file)
+                print(
+                    ("x", "y", "z", "w", "v", "u", "t", "s")[permutation[i]],
+                    end="",
+                    file=file,
+                )
             case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
-                print(("x", "y", "z", "w", "v", "u", "t", "s")[i], end="", file=file)
+                print(
+                    ("x", "y", "z", "w", "v", "u", "t", "s")[permutation[i]],
+                    end="",
+                    file=file,
+                )
                 print(f"#{width.data}", end="", file=file)
             case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
                 print("⊤" if val else "⊥", end="", file=file)
@@ -568,58 +609,58 @@ class Program:
                 print(f"{{:0{width}b}}".format(value), end="", file=file)
             case OpResult(op=smt.NotOp(arg=arg), index=0):
                 print("¬", end="", file=file)
-                Program._pretty_print_value(arg, True, file=file)
+                Program._pretty_print_value(arg, permutation, True, file=file)
             case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" ∧ ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" ∨ ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" → ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" ≠ ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" = ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" ⊕ ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(
                 op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
             ):
-                Program._pretty_print_value(cond, True, file=file)
+                Program._pretty_print_value(cond, permutation, True, file=file)
                 print(" ? ", end="", file=file)
-                Program._pretty_print_value(true_val, True, file=file)
+                Program._pretty_print_value(true_val, permutation, True, file=file)
                 print(" : ", end="", file=file)
-                Program._pretty_print_value(false_val, True, file=file)
+                Program._pretty_print_value(false_val, permutation, True, file=file)
             case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" + ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" & ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" | ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, True, file=file)
+                Program._pretty_print_value(lhs, permutation, True, file=file)
                 print(" * ", end="", file=file)
-                Program._pretty_print_value(rhs, True, file=file)
+                Program._pretty_print_value(rhs, permutation, True, file=file)
             case OpResult(op=bv.NotOp(arg=arg), index=0):
                 print("~", end="", file=file)
-                Program._pretty_print_value(arg, True, file=file)
+                Program._pretty_print_value(arg, permutation, True, file=file)
             case _:
                 raise ValueError(f"Unknown value for pretty print: {x}")
         if parenthesized:
@@ -627,8 +668,27 @@ class Program:
 
     def __str__(self) -> str:
         buffer = StringIO()
-        Program._pretty_print_value(self.ret().arguments[0], False, file=buffer)
+        Program._pretty_print_value(
+            self.ret().arguments[0],
+            self._param_permutation,
+            False,
+            file=buffer,
+        )
         return buffer.getvalue()
+
+
+class RewriteRule:
+    _lhs: Program
+    _rhs: Program
+
+    def __init__(self, lhs: Program, rhs: Program):
+        permuted_rhs = rhs.permute_parameters_to_match(lhs)
+        assert permuted_rhs is not None
+        self._lhs = lhs
+        self._rhs = permuted_rhs
+
+    def __str__(self) -> str:
+        return f"{self._lhs} ↭ {self._rhs}"
 
 
 Bucket = list[Program]
@@ -766,7 +826,6 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
 def is_same_behavior_with_z3(
     left: Program,
     right: Program,
-    left_permutation: Permutation,
 ) -> bool:
     """
     Check wether two programs are semantically equivalent after permuting the
@@ -788,7 +847,7 @@ def is_same_behavior_with_z3(
     args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
     args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
     for (left_index, left_type), (right_index, right_type) in zip(
-        left.permuted_useful_parameters(left_permutation), right.useful_parameters()
+        left.useful_parameters(), right.useful_parameters()
     ):
         if left_type != right_type:
             return False
@@ -986,7 +1045,7 @@ def main() -> None:
 
     canonicals: list[Program] = []
     illegals: list[Program] = []
-    rewrites: dict[Program, Bucket] = {}
+    rewrites: list[RewriteRule] = []
 
     try:
         for m in range(args.max_num_ops + 1):
@@ -1059,10 +1118,11 @@ def main() -> None:
             )
             for new_illegals in pruned_rewrites.values():
                 illegals.extend(new_illegals)
-            for canonical, bucket in pruned_rewrites.items():
-                if canonical not in rewrites:
-                    rewrites[canonical] = []
-                rewrites[canonical].extend(bucket)
+            rewrites.extend(
+                RewriteRule(program, canonical)
+                for canonical, bucket in pruned_rewrites.items()
+                for program in bucket
+            )
             pruning_time = round(time.time() - pruning_start, 2)
             print(
                 f"\033[2KRemoved {pruned_count} redundant illegal sub-patterns "
@@ -1083,13 +1143,15 @@ def main() -> None:
                     f.write("\n// -----\n")
 
         if args.out_rewrites != "":
-            with open(args.out_rewrites, "w", encoding="UTF-8") as f:
-                for canonical, programs in rewrites.items():
-                    for program in programs:
-                        f.write(str(program.module()))
-                        f.write("\n// =====\n")
-                        f.write(str(program.module()))
-                        f.write("\n// -----\n")
+            print("Outputing rewrites is not supported yet")
+            # TODO: Take `Program._param_permutation` into account.
+            # with open(args.out_rewrites, "w", encoding="UTF-8") as f:
+            #     for canonical, programs in rewrites.items():
+            #         for program in programs:
+            #             f.write(str(program.module()))
+            #             f.write("\n// =====\n")
+            #             f.write(str(program.module()))
+            #             f.write("\n// -----\n")
 
         if args.summarize_canonicals:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
@@ -1098,9 +1160,8 @@ def main() -> None:
 
         if args.summarize_rewrites:
             print(f"\033[1m== Summary (rewrite rules) ==\033[0m")
-            for canonical, programs in rewrites.items():
-                for program in programs:
-                    print(f"{program} ↭ {canonical}")
+            for rewrite in rewrites:
+                print(rewrite)
 
     except BrokenPipeError:
         # The enumerator has terminated
