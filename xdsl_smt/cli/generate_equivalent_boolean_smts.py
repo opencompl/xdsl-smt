@@ -963,7 +963,7 @@ def remove_redundant_illegal_subpatterns(
                 pruned_count += 1
             else:
                 pruned_rewrites[canonical].append(program)
-        i += 1
+            i += 1
     return pruned_rewrites, pruned_count
 
 
