@@ -475,9 +475,6 @@ class Program:
         used_types: dict[Attribute, int] = {}
         op_ids: dict[Operation, int] = {}
 
-        # We do not include the return instruction as part of the pattern. If
-        # the program contains instructions with multiple return values, or
-        # itself returns multiple values, this may lead to unexpected results.
         operations = list(self.func().body.ops)[:-1]
         for i, op in enumerate(operations):
             op_ids[op] = i
@@ -513,7 +510,16 @@ class Program:
             for j in range(len(op.results)):
                 lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
 
-        lines.append(f'    rewrite %op{len(operations) - 1} with "rewriter"')
+        ret = self.ret()
+        assert len(ret.operands) == 1
+        ret_val = ret.operands[0]
+        # TODO: In case `ret_val` is a `BlockArgument`, create a pattern that
+        # matches anything.
+        assert isinstance(
+            ret_val, OpResult
+        ), "Unable to generate pattern for program with non-op return value"
+        lines.append(f'    rewrite %op{op_ids[ret_val.op]} with "rewriter"')
+
         lines.append("  }")
         lines.append("}")
 
