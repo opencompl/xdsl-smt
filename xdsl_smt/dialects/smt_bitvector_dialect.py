@@ -435,6 +435,34 @@ class UleCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
 
 
 @irdl_op_definition
+class CmpOp(SimpleSMTLibOp, IRDLOperation, Pure):
+    name = "smt.bv.cmp"
+
+    res = result_def(BoolType)
+    lhs = operand_def(BitVectorType)
+    rhs = operand_def(BitVectorType)
+
+    pred = prop_def(IntegerAttr[IntegerType])
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
+
+    traits = traits_def(traits.Pure())
+
+    def op_name(self) -> str:
+        return {
+            0: "bvslt",
+            1: "bvsle",
+            2: "bvsgt",
+            3: "bvsge",
+            4: "bvult",
+            5: "bvule",
+            6: "bvugt",
+            7: "bvuge",
+        }[self.pred.value.data]
+
+
+@irdl_op_definition
 class UleOp(BinaryPredBVOp, SimpleSMTLibOp):
     name = "smt.bv.ule"
 
@@ -852,6 +880,7 @@ SMTBitVectorDialect = Dialect(
         NorOp,
         XNorOp,
         # Predicate
+        CmpOp,
         UleOp,
         UltOp,
         UgeOp,
