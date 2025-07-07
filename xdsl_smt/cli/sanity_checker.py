@@ -349,7 +349,7 @@ def main() -> None:
             f"--max-num-args={args.max_num_args}",
             f"--max-num-ops={args.max_num_ops}",
             f"--bitvector-widths={args.bitvector_widths}",
-            f"--out-file={PROGRAM_OUTPUT}",
+            f"--out-canonicals={PROGRAM_OUTPUT}",
         ]
     )
 
