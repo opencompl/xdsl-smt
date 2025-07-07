@@ -8,7 +8,7 @@ import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
 from dataclasses import dataclass
-from functools import partial
+from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool
 from typing import Any, Generator, Generic, IO, Iterable, Sequence, TypeVar, cast
@@ -27,12 +27,19 @@ from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl.dialects.builtin import Builtin, IntAttr, IntegerAttr, ModuleOp, IntegerType
+from xdsl.dialects import pdl
+from xdsl.dialects.builtin import (
+    Builtin,
+    IntAttr,
+    IntegerAttr,
+    IntegerType,
+    ModuleOp,
+    StringAttr,
+)
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
-from xdsl_smt.traits.smt_printer import SimpleSMTLibOp
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
-from xdsl_smt.traits.smt_printer import print_to_smtlib
+from xdsl_smt.traits.smt_printer import SimpleSMTLibOp, print_to_smtlib
 
 
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
@@ -493,93 +500,64 @@ class Program:
 
         return None
 
-    def to_pdl_pattern(self) -> str:
+    def pdl_pattern(self) -> ModuleOp:
         """Creates a PDL pattern from this program."""
 
-        lines = [
-            "builtin.module {",
-            "  pdl.pattern : benefit(1) {",
-        ]
+        pattern = pdl.PatternOp(1, None)
+        module = ModuleOp([pattern])
+        builder = Builder(InsertPoint.at_end(pattern.body.block))
 
-        body_start_index = len(lines)
+        @cache
+        def get_type(ty: Attribute) -> SSAValue:
+            return builder.insert(pdl.TypeOp(ty)).results[0]
 
-        used_arguments: set[int] = set()
-        used_attributes: dict[Attribute, int] = {}
-        used_types: dict[Attribute, int] = {}
-        op_ids: dict[Operation, int] = {}
+        @cache
+        def get_attribute(attr: Attribute) -> SSAValue:
+            return builder.insert(pdl.AttributeOp(attr)).results[0]
 
-        operations = list(self.func().body.ops)[:-1]
-        for i, op in enumerate(operations):
-            op_ids[op] = i
-            operands: list[str] = []
-            for operand in op.operands:
-                if isinstance(operand, BlockArgument):
-                    used_arguments.add(operand.index)
-                    operands.append(f"%arg{operand.index}")
-                elif isinstance(operand, OpResult):
-                    operands.append(f"%res{op_ids[operand.op]}.{operand.index}")
-            ins = (
-                f" ({', '.join(operands)} : {', '.join('!pdl.value' for _ in operands)})"
-                if len(operands) != 0
-                else ""
+        @cache
+        def get_argument(arg: int) -> SSAValue:
+            return builder.insert(
+                pdl.OperandOp(get_type(self.func().args[arg].type))
+            ).results[0]
+
+        ops: dict[Operation, SSAValue] = {}
+
+        def get_value(value: SSAValue) -> SSAValue:
+            match value:
+                case BlockArgument(index=k):
+                    return get_argument(k)
+                case OpResult(op=op, index=i):
+                    return builder.insert(pdl.ResultOp(i, ops[op])).results[0]
+                case x:
+                    raise ValueError(f"Unknown value: {x}")
+
+        [*operations, ret] = list(self.func().body.ops)
+        for op in operations:
+            pattern = builder.insert(
+                pdl.OperationOp(
+                    op.name,
+                    [StringAttr(s) for s in op.properties.keys()],
+                    [get_value(operand) for operand in op.operands],
+                    # Iteration order on dict is consistent betwen `.keys()` and
+                    # `.values()`.
+                    [get_attribute(prop) for prop in op.properties.values()],
+                    [get_type(ty) for ty in op.result_types],
+                )
             )
-            properties: list[str] = []
-            for name, attribute in op.properties.items():
-                if attribute not in used_attributes:
-                    used_attributes[attribute] = len(used_attributes)
-                properties.append(f'"{name}" = %attr{used_attributes[attribute]}')
-            props = "" if len(properties) == 0 else f" {{{', '.join(properties)}}}"
-            result_type_ids: list[int] = []
-            for ty in op.result_types:
-                if ty not in used_types:
-                    used_types[ty] = len(used_types)
-                result_type_ids.append(used_types[ty])
-            outs = (
-                f" -> ({', '.join(f'%type{tid}' for tid in result_type_ids)} : {', '.join('!pdl.type' for _ in op.results)})"
-                if len(op.results) != 0
-                else ""
-            )
-            lines.append(f'    %op{i} = pdl.operation "{op.name}"{ins}{props}{outs}')
-            for j in range(len(op.results)):
-                lines.append(f"    %res{i}.{j} = pdl.result {j} of %op{i}")
+            ops[op] = pattern.results[0]
 
-        ret = self.ret()
+        assert isinstance(ret, ReturnOp)
         assert len(ret.operands) == 1
-        ret_val = ret.operands[0]
-        # TODO: In case `ret_val` is a `BlockArgument`, create a pattern that
+        root = ret.operands[0]
+        # TODO: In case `root` is a `BlockArgument`, create a pattern that
         # matches anything.
         assert isinstance(
-            ret_val, OpResult
+            root, OpResult
         ), "Unable to generate pattern for program with non-op return value"
-        lines.append(f'    rewrite %op{op_ids[ret_val.op]} with "rewriter"')
+        builder.insert(pdl.RewriteOp(root))
 
-        lines.append("  }")
-        lines.append("}")
-
-        argument_type_ids: list[int] = []
-        for k in used_arguments:
-            ty = self.func().args[k].type
-            if ty not in used_types:
-                used_types[ty] = len(used_types)
-            argument_type_ids.append(used_types[ty])
-
-        lines[body_start_index:body_start_index] = [
-            f"    %arg{k} = pdl.operand : %type{tid}"
-            for k, tid in zip(used_arguments, argument_type_ids, strict=True)
-        ]
-        lines[body_start_index:body_start_index] = [
-            f"    %type{type_id} = pdl.type : {ty}"
-            for ty, type_id in used_types.items()
-        ]
-        lines[body_start_index:body_start_index] = [
-            f"    %attr{attr_id} = pdl.attribute = {attr}"
-            for attr, attr_id in used_attributes.items()
-        ]
-
-        # To end the pattern with a line ending.
-        lines.append("")
-
-        return "\n".join(lines)
+        return module
 
     @staticmethod
     def _pretty_print_value(
@@ -787,7 +765,7 @@ def enumerate_programs(
 
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
-            f.write(program.to_pdl_pattern())
+            f.write(str(program.pdl_pattern()))
             f.write("// -----\n")
 
     enumerator = sp.Popen(
