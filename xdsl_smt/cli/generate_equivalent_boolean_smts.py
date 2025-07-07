@@ -11,11 +11,21 @@ from dataclasses import dataclass
 from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool
-from typing import Any, Generator, Generic, IO, Iterable, Sequence, TypeVar, cast
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Generic,
+    IO,
+    Iterable,
+    Sequence,
+    TypeVar,
+    cast,
+)
 
 from xdsl.context import Context
-from xdsl.ir import Attribute
-from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
+from xdsl.ir import Attribute, Region
+from xdsl.ir.core import Block, BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
@@ -381,6 +391,12 @@ class Program:
         """
         return self._is_basic
 
+    def parameter(self, index: int) -> int:
+        """
+        Returns the index of the passed parameter in the underlying function.
+        """
+        return self._param_permutation[index]
+
     def useful_parameters(self) -> list[tuple[int, Attribute]]:
         """
         Returns the indices and types of the non-useless parameters in order.
@@ -500,12 +516,20 @@ class Program:
 
         return None
 
-    def pdl_pattern(self) -> ModuleOp:
-        """Creates a PDL pattern from this program."""
+    def to_pdl(
+        self, *, arguments: Sequence[SSAValue | None] | None = None
+    ) -> tuple[
+        Region, Callable[[int], SSAValue], SSAValue | None, tuple[SSAValue, ...]
+    ]:
+        """
+        Creates a region containing PDL instructions corresponding to this
+        program. Returns a containing `Region`, together with the values of the
+        inputs, the root operation (i.e., the operation the first returned value
+        comes from, if it exists), and the returned values.
+        """
 
-        pattern = pdl.PatternOp(1, None)
-        module = ModuleOp([pattern])
-        builder = Builder(InsertPoint.at_end(pattern.body.block))
+        body = Region(Block())
+        builder = Builder(InsertPoint.at_end(body.block))
 
         @cache
         def get_type(ty: Attribute) -> SSAValue:
@@ -517,6 +541,9 @@ class Program:
 
         @cache
         def get_argument(arg: int) -> SSAValue:
+            if arguments is not None:
+                if (value := arguments[arg]) is not None:
+                    return value
             return builder.insert(
                 pdl.OperandOp(get_type(self.func().args[arg].type))
             ).results[0]
@@ -550,14 +577,22 @@ class Program:
         assert isinstance(ret, ReturnOp)
         assert len(ret.operands) == 1
         root = ret.operands[0]
-        # TODO: In case `root` is a `BlockArgument`, create a pattern that
-        # matches anything.
-        assert isinstance(
-            root, OpResult
-        ), "Unable to generate pattern for program with non-op return value"
-        builder.insert(pdl.RewriteOp(ops[root.op]))
 
-        return module
+        return (
+            body,
+            get_argument,
+            ops[root.op] if isinstance(root, OpResult) else None,
+            tuple(get_value(res) for res in ret.operands),
+        )
+
+    def pdl_pattern(self) -> ModuleOp:
+        """Creates a PDL pattern from this program."""
+
+        body, _, root, _ = self.to_pdl()
+        body.block.add_op(pdl.RewriteOp(root))
+        pattern = pdl.PatternOp(1, None, body)
+
+        return ModuleOp([pattern])
 
     @staticmethod
     def _pretty_print_value(
@@ -715,6 +750,24 @@ class RewriteRule:
         assert permuted_rhs is not None
         self._lhs = lhs
         self._rhs = permuted_rhs
+
+    def to_pdl(self) -> pdl.PatternOp:
+        """Expresses this rewrite rule as a PDL pattern and rewrite."""
+
+        lhs, get_arg, left_root, _ = self._lhs.to_pdl()
+        assert left_root is not None
+        pattern = pdl.PatternOp(1, None, lhs)
+
+        # Unify LHS and RHS arguments.
+        arguments = [
+            get_arg(self._rhs.parameter(k)) for k, _ in self._rhs.useful_parameters()
+        ]
+        rhs, _, _, right_res = self._rhs.to_pdl(arguments=arguments)
+        rhs.block.add_op(pdl.ReplaceOp(left_root, None, right_res))
+
+        pattern.body.block.add_op(pdl.RewriteOp(left_root, rhs))
+
+        return pattern
 
     def __str__(self) -> str:
         return f"{self._lhs} ↭ {self._rhs}"
@@ -1173,14 +1226,10 @@ def main() -> None:
 
         if args.out_rewrites != "":
             print("Outputing rewrites is not supported yet")
-            # TODO: Take `Program._param_permutation` into account.
-            # with open(args.out_rewrites, "w", encoding="UTF-8") as f:
-            #     for canonical, programs in rewrites.items():
-            #         for program in programs:
-            #             f.write(str(program.module()))
-            #             f.write("\n// =====\n")
-            #             f.write(str(program.module()))
-            #             f.write("\n// -----\n")
+            module = ModuleOp([rewrite.to_pdl() for rewrite in rewrites])
+            with open(args.out_rewrites, "w", encoding="UTF-8") as f:
+                f.write(str(module))
+                f.write("\n")
 
         if args.summarize_canonicals:
             print(f"\033[1m== Summary (canonical programs) ==\033[0m")
