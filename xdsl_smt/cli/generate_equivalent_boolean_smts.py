@@ -555,7 +555,7 @@ class Program:
         assert isinstance(
             root, OpResult
         ), "Unable to generate pattern for program with non-op return value"
-        builder.insert(pdl.RewriteOp(root))
+        builder.insert(pdl.RewriteOp(ops[root.op]))
 
         return module
 
