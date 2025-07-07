@@ -542,7 +542,7 @@ class Program:
         @cache
         def get_argument(arg: int) -> SSAValue:
             if arguments is not None:
-                if (value := arguments[arg]) is not None:
+                if arg < len(arguments) and (value := arguments[arg]) is not None:
                     return value
             return builder.insert(
                 pdl.OperandOp(get_type(self.func().args[arg].type))
@@ -759,9 +759,9 @@ class RewriteRule:
         pattern = pdl.PatternOp(1, None, lhs)
 
         # Unify LHS and RHS arguments.
-        arguments = [
-            get_arg(self._rhs.parameter(k)) for k, _ in self._rhs.useful_parameters()
-        ]
+        arguments: list[SSAValue | None] = [None] * self._rhs.arity()
+        for i, (k, _) in enumerate(self._rhs.useful_parameters()):
+            arguments[k] = get_arg(self._lhs.parameter(i))
         rhs, _, _, right_res = self._rhs.to_pdl(arguments=arguments)
         rhs.block.add_op(pdl.ReplaceOp(left_root, None, right_res))
 
