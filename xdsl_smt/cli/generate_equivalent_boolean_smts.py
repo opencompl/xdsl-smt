@@ -99,8 +99,8 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
-EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}"
-BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}"
+EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}.mlir"
+BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}.mlir"
 
 
 T = TypeVar("T")
@@ -819,7 +819,7 @@ def enumerate_programs(
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
             f.write(str(program.pdl_pattern()))
-            f.write("// -----\n")
+            f.write("\n// -----\n")
 
     enumerator = sp.Popen(
         [
