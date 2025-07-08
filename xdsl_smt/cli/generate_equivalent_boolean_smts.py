@@ -438,16 +438,29 @@ class Program:
 
     def _compare_lexicographically(self, other: "Program") -> int:
         # TODO: Maybe this should take permutation into account?
+        # Favor smaller programs.
         if self.size() < other.size():
             return -1
         if self.size() > other.size():
             return 1
+        # Favor programs with fewer useless parameters.
+        if self._useless_param_count < other._useless_param_count:
+            return -1
+        if self._useless_param_count > other._useless_param_count:
+            return 1
+        # Favor programs with fewer parameters overall.
+        if self.arity() < other.arity():
+            return -1
+        if self.arity() > other.arity():
+            return 1
+        # Favor programs that return less values.
         self_outs = self.ret().arguments
         other_outs = self.ret().arguments
         if len(self_outs) < len(other_outs):
             return -1
         if len(self_outs) > len(other_outs):
             return 1
+        # Compare formula trees for each return value.
         for self_out, other_out in zip(self_outs, other_outs, strict=True):
             c = Program._compare_values_lexicographically(self_out, other_out)
             if c != 0:
