@@ -1157,7 +1157,7 @@ def main() -> None:
     try:
         for m in range(args.max_num_ops + 1):
             print(f"\033[1m== Size {m} ==\033[0m")
-            step_start = time.time()
+            phase_start = time.time()
 
             enumerating_start = time.time()
             buckets: dict[Fingerprint, Bucket] = {}
@@ -1236,8 +1236,8 @@ def main() -> None:
                 f"in {pruning_time:.02f} s."
             )
 
-            step_end = time.time()
-            print(f"Finished step in {round(step_end - step_start, 2):.02f} s.")
+            phase_end = time.time()
+            print(f"Finished phase in {round(phase_end - phase_start, 2):.02f} s.")
             print(
                 f"We now have a total of {len(canonicals)} behaviors "
                 f"and {len(illegals)} illegal sub-patterns."
