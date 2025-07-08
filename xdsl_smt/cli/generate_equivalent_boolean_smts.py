@@ -7,7 +7,7 @@ import subprocess as sp
 import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool
@@ -1133,6 +1133,45 @@ def remove_redundant_illegal_subpatterns(
     return pruned_rewrites, pruned_count
 
 
+@dataclass(frozen=True, slots=True)
+class BucketStat:
+    prg_sz: int
+    bck_cnt: int
+    avg_sz: float
+    min_sz: int
+    med_sz: int
+    max_sz: int
+    exp_sz: int
+    """Expected value of the size of a random program's bucket."""
+
+    @classmethod
+    def from_buckets(cls, program_size: int, buckets: Iterable[Bucket]):
+        bucket_sizes = sorted(len(bucket) for bucket in buckets)
+        n = len(bucket_sizes)
+        avg_bucket_size = round(sum(bucket_sizes) / len(buckets), 2)
+        med_bucket_size = bucket_sizes[len(bucket_sizes) // 2]
+        return cls(
+            program_size,
+            n,
+            round(sum(bucket_sizes) / n, 2),
+            bucket_sizes[0],
+            bucket_sizes[n // 2],
+            bucket_sizes[-1],
+            round(
+                sum(size * size for size in bucket_sizes)
+                / sum(size for size in bucket_sizes),
+                2,
+            ),
+        )
+
+    @classmethod
+    def headers(cls) -> str:
+        return "\t".join(f.name for f in fields(cls))
+
+    def __str__(self) -> str:
+        return "\t".join(str(getattr(self, f.name)) for f in fields(type(self)))
+
+
 def main() -> None:
     global_start = time.time()
 
@@ -1153,6 +1192,7 @@ def main() -> None:
     canonicals: list[Program] = []
     illegals: list[Program] = []
     rewrites: list[RewriteRule] = []
+    bucket_stats: list[BucketStat] = []
 
     try:
         for m in range(args.max_num_ops + 1):
@@ -1184,6 +1224,7 @@ def main() -> None:
                 f"\033[2KGenerated {enumerated_count} programs of this size "
                 f"in {enumerating_time:.02f} s."
             )
+            bucket_stats.append(BucketStat.from_buckets(m, buckets.values()))
 
             new_rewrites: dict[Program, Bucket] = {}
 
@@ -1242,6 +1283,12 @@ def main() -> None:
                 f"We now have a total of {len(canonicals)} behaviors "
                 f"and {len(illegals)} illegal sub-patterns."
             )
+
+        print(f"\033[1m== Results ==\033[0m")
+        print("Bucket stats:")
+        print(BucketStat.headers())
+        for bucket_stat in bucket_stats:
+            print(bucket_stat)
 
         if args.out_canonicals != "":
             with open(args.out_canonicals, "w", encoding="UTF-8") as f:
