@@ -1241,7 +1241,6 @@ def main() -> None:
                     f.write("\n// -----\n")
 
         if args.out_rewrites != "":
-            print("Outputing rewrites is not supported yet")
             module = ModuleOp([rewrite.to_pdl() for rewrite in rewrites])
             with open(args.out_rewrites, "w", encoding="UTF-8") as f:
                 f.write(str(module))
