@@ -541,6 +541,9 @@ class Program:
         comes from, if it exists), and the returned values.
         """
 
+        if arguments is not None:
+            assert len(arguments) == self.arity()
+
         body = Region(Block())
         builder = Builder(InsertPoint.at_end(body.block))
 
@@ -555,7 +558,7 @@ class Program:
         @cache
         def get_argument(arg: int) -> SSAValue:
             if arguments is not None:
-                if arg < len(arguments) and (value := arguments[arg]) is not None:
+                if (value := arguments[arg]) is not None:
                     return value
             return builder.insert(
                 pdl.OperandOp(get_type(self.func().args[arg].type))
