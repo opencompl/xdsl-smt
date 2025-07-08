@@ -434,7 +434,9 @@ class Program:
                 if len(lop.operands) != len(rop.operands):
                     return len(lop.operands) - len(rop.operands)
                 for lo, ro in zip(lop.operands, rop.operands, strict=True):
-                    c = Program._compare_values_lexicographically(lo, ro)
+                    c = Program._compare_values_lexicographically(
+                        lo, ro, left_params, right_params
+                    )
                     if c != 0:
                         return c
                 return 0
@@ -1141,15 +1143,13 @@ class BucketStat:
     min_sz: int
     med_sz: int
     max_sz: int
-    exp_sz: int
+    exp_sz: float
     """Expected value of the size of a random program's bucket."""
 
     @classmethod
     def from_buckets(cls, program_size: int, buckets: Iterable[Bucket]):
         bucket_sizes = sorted(len(bucket) for bucket in buckets)
         n = len(bucket_sizes)
-        avg_bucket_size = round(sum(bucket_sizes) / len(buckets), 2)
-        med_bucket_size = bucket_sizes[len(bucket_sizes) // 2]
         return cls(
             program_size,
             n,
