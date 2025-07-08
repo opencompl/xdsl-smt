@@ -411,10 +411,15 @@ class Program:
         ][: self.useful_arity()]
 
     @staticmethod
-    def _compare_values_lexicographically(left: SSAValue, right: SSAValue) -> int:
+    def _compare_values_lexicographically(
+        left: SSAValue,
+        right: SSAValue,
+        left_params: Permutation,
+        right_params: Permutation,
+    ) -> int:
         match left, right:
             case BlockArgument(index=i), BlockArgument(index=j):
-                return i - j
+                return left_params[i] - right_params[j]
             case BlockArgument(), OpResult():
                 return 1
             case OpResult(), BlockArgument():
@@ -437,7 +442,6 @@ class Program:
                 raise ValueError(f"Unknown value: {l} or {r}")
 
     def _compare_lexicographically(self, other: "Program") -> int:
-        # TODO: Maybe this should take permutation into account?
         # Favor smaller programs.
         if self.size() < other.size():
             return -1
@@ -462,7 +466,12 @@ class Program:
             return 1
         # Compare formula trees for each return value.
         for self_out, other_out in zip(self_outs, other_outs, strict=True):
-            c = Program._compare_values_lexicographically(self_out, other_out)
+            c = Program._compare_values_lexicographically(
+                self_out,
+                other_out,
+                self._param_permutation,
+                other._param_permutation,
+            )
             if c != 0:
                 return c
         return 0
