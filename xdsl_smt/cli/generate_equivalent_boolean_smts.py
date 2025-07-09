@@ -14,7 +14,6 @@ from multiprocessing import Pool
 from typing import (
     Any,
     Callable,
-    Generator,
     Generic,
     IO,
     Iterable,
@@ -822,13 +821,12 @@ def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
 
 
 def enumerate_programs(
-    ctx: Context,
     max_num_args: int,
     num_ops: int,
     bv_widths: str,
     building_blocks: list[Program],
     illegals: list[Program],
-) -> Generator[Program, None, None]:
+) -> Iterable[str]:
     # Disabled for now.
     use_building_blocks = len(building_blocks) != 0 and False
     if use_building_blocks:
@@ -876,12 +874,20 @@ def enumerate_programs(
         enumerator.stdin.write("a")
         enumerator.stdin.flush()
 
-        program = Program(Parser(ctx, source).parse_module(True))
+        yield source
 
-        if program.size() != num_ops:
-            continue
 
-        yield program
+def parse_program(source: str) -> Program:
+    ctx = Context()
+    ctx.allow_unregistered = True
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(synth.SynthDialect)
+
+    return Program(Parser(ctx, source).parse_module(True))
 
 
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
@@ -1175,19 +1181,9 @@ class BucketStat:
 def main() -> None:
     global_start = time.time()
 
-    ctx = Context()
-    ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()
-
-    # Register all dialects
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
 
     canonicals: list[Program] = []
     illegals: list[Program] = []
@@ -1202,23 +1198,28 @@ def main() -> None:
             enumerating_start = time.time()
             buckets: dict[Fingerprint, Bucket] = {}
             enumerated_count = 0
-            for program in enumerate_programs(
-                ctx,
-                args.max_num_args,
-                m,
-                args.bitvector_widths,
-                canonicals if m >= 2 else [],
-                illegals,
-            ):
-                enumerated_count += 1
-                print(
-                    f"\033[2K Enumerating programs... ({enumerated_count})",
-                    end="\r",
-                )
-                fingerprint = program.fingerprint()
-                if fingerprint not in buckets:
-                    buckets[fingerprint] = []
-                buckets[fingerprint].append(program)
+            with Pool() as p:
+                for program in p.imap_unordered(
+                    parse_program,
+                    enumerate_programs(
+                        args.max_num_args,
+                        m,
+                        args.bitvector_widths,
+                        canonicals if m >= 2 else [],
+                        illegals,
+                    ),
+                ):
+                    if program.size() != m:
+                        continue
+                    enumerated_count += 1
+                    print(
+                        f"\033[2K Enumerating programs... ({enumerated_count})",
+                        end="\r",
+                    )
+                    fingerprint = program.fingerprint()
+                    if fingerprint not in buckets:
+                        buckets[fingerprint] = []
+                    buckets[fingerprint].append(program)
             enumerating_time = round(time.time() - enumerating_start, 2)
             print(
                 f"\033[2KGenerated {enumerated_count} programs of this size "
