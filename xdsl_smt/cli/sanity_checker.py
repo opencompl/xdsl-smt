@@ -32,11 +32,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "--max-num-args",
         type=int,
         help="maximum number of arguments in the generated MLIR programs",
+        default=999999999,
     )
     arg_parser.add_argument(
-        "--max-num-ops",
+        "--phases",
         type=int,
-        help="maximum number of operations in the MLIR programs that are generated",
+        help="the number of phases",
     )
     arg_parser.add_argument(
         "--bitvector-widths",
@@ -49,7 +50,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
-PROGRAM_OUTPUT = f"/tmp/sanity-checker{time.time()}"
+PROGRAM_OUTPUT = f"/tmp/sanity-checker{time.time()}.mlir"
 
 
 @staticmethod
@@ -347,7 +348,7 @@ def main() -> None:
         [
             "generate-equivalent-boolean-smts",
             f"--max-num-args={args.max_num_args}",
-            f"--max-num-ops={args.max_num_ops}",
+            f"--phases={args.phases}",
             f"--bitvector-widths={args.bitvector_widths}",
             f"--out-canonicals={PROGRAM_OUTPUT}",
         ]
@@ -376,7 +377,7 @@ def main() -> None:
     print("\033[1m== Looking for programs with no canonical equivalent ==\033[0m")
     program_count = 0
     for func in enumerate_programs(
-        ctx, args.max_num_args, args.max_num_ops, args.bitvector_widths
+        ctx, args.max_num_args, args.phases, args.bitvector_widths
     ):
         program_count += 1
         print(f"\033[2K {program_count} ({func_to_string(func)})...", end="\r")
