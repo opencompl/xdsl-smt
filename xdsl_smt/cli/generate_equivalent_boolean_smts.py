@@ -417,21 +417,27 @@ class Program:
         right_params: Permutation,
     ) -> int:
         match left, right:
+            # Order parameters.
             case BlockArgument(index=i), BlockArgument(index=j):
                 return left_params[i] - right_params[j]
-            case BlockArgument(), OpResult():
-                return 1
+            # Favor operations over arguments.
             case OpResult(), BlockArgument():
                 return -1
-            case OpResult(op=smt.ConstantBoolOp(value=lv)), OpResult(
-                op=smt.ConstantBoolOp(value=rv)
-            ):
-                return bool(lv) - bool(rv)
+            case BlockArgument(), OpResult():
+                return 1
+            # Order operations.
             case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
-                if isinstance(lop, type(rop)):
-                    return i - j
+                # Favor operations with smaller arity.
                 if len(lop.operands) != len(rop.operands):
                     return len(lop.operands) - len(rop.operands)
+                # Choose an arbitrary result if they are different.
+                if not isinstance(lop, type(rop)):
+                    return hash(lop.name) - hash(rop.name)
+                if lop.properties != rop.properties:
+                    return hash(lop.properties) - hash(rop.properties)
+                if i != j:
+                    return i - j
+                # Compare operands as a last resort.
                 for lo, ro in zip(lop.operands, rop.operands, strict=True):
                     c = Program._compare_values_lexicographically(
                         lo, ro, left_params, right_params
