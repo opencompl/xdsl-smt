@@ -51,51 +51,6 @@ from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.traits.smt_printer import SimpleSMTLibOp, print_to_smtlib
 
 
-def register_all_arguments(arg_parser: argparse.ArgumentParser):
-    arg_parser.add_argument(
-        "--max-num-args",
-        type=int,
-        help="maximum number of arguments in the generated MLIR programs",
-        default=999999999,
-    )
-    arg_parser.add_argument(
-        "--max-num-ops",
-        type=int,
-        help="maximum number of operations in the MLIR programs that are generated",
-    )
-    arg_parser.add_argument(
-        "--bitvector-widths",
-        type=str,
-        help="a list of comma-separated bitwidths",
-        default="4",
-    )
-    arg_parser.add_argument(
-        "--out-canonicals",
-        type=str,
-        help="the file in which to write the generated canonical programs",
-        default="",
-    )
-    arg_parser.add_argument(
-        "--out-rewrites",
-        type=str,
-        help="the file in which to write the generated rewrite rules",
-        default="",
-    )
-    arg_parser.add_argument(
-        "--summarize-canonicals",
-        dest="summarize_canonicals",
-        action="store_true",
-        help="if present, prints a human-readable summary of the generated canonical programs",
-    )
-
-    arg_parser.add_argument(
-        "--summarize-rewrites",
-        dest="summarize_rewrites",
-        action="store_true",
-        help="if present, prints a human-readable summary of the generated rewrite rules",
-    )
-
-
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
 SMT_MLIR = "./mlir-fuzz/dialects/smt.mlir"
@@ -809,6 +764,51 @@ class RewriteRule:
 
 
 Bucket = list[Program]
+
+
+def register_all_arguments(arg_parser: argparse.ArgumentParser):
+    arg_parser.add_argument(
+        "--max-num-args",
+        type=int,
+        help="maximum number of arguments in the generated MLIR programs",
+        default=999999999,
+    )
+    arg_parser.add_argument(
+        "--max-num-ops",
+        type=int,
+        help="maximum number of operations in the MLIR programs that are generated",
+    )
+    arg_parser.add_argument(
+        "--bitvector-widths",
+        type=str,
+        help="a list of comma-separated bitwidths",
+        default="4",
+    )
+    arg_parser.add_argument(
+        "--out-canonicals",
+        type=str,
+        help="the file in which to write the generated canonical programs",
+        default="",
+    )
+    arg_parser.add_argument(
+        "--out-rewrites",
+        type=str,
+        help="the file in which to write the generated rewrite rules",
+        default="",
+    )
+    arg_parser.add_argument(
+        "--summarize-canonicals",
+        dest="summarize_canonicals",
+        action="store_true",
+        help="if present, prints a human-readable summary of the generated canonical programs",
+    )
+
+    arg_parser.add_argument(
+        "--summarize-rewrites",
+        dest="summarize_rewrites",
+        action="store_true",
+        help="if present, prints a human-readable summary of the generated rewrite rules",
+    )
 
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
