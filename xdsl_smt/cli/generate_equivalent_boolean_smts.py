@@ -8,6 +8,7 @@ import sys
 import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
 from dataclasses import dataclass, fields
+from enum import Enum, auto
 from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool
@@ -128,6 +129,7 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
 class Program:
     _module: ModuleOp
     _size: int
+    _cost: int
     _input_cardinalities: tuple[int, ...]
     """
     The cardinality of each input, before applying the permutation.
@@ -150,16 +152,24 @@ class Program:
         match formula:
             case BlockArgument():
                 return 0
-            case OpResult(op=smt.ConstantBoolOp()):
-                return 0
-            case OpResult(op=bv.ConstantOp()):
-                return 0
             case OpResult(op=op):
+                if len(op.operands) == 0:
+                    return 0
                 return 1 + sum(
                     Program._formula_size(operand) for operand in op.operands
                 )
             case x:
                 raise ValueError(f"Unknown value: {x}")
+
+    @staticmethod
+    def _operation_cost(op: Operation) -> int:
+        match op:
+            case bv.MulOp() | bv.URemOp() | bv.SRemOp() | bv.SModOp() | bv.UDivOp() | bv.SDivOp():
+                return 4
+            case op:
+                if len(op.operands) == 0:
+                    return 0
+                return 1
 
     @staticmethod
     def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
@@ -219,6 +229,7 @@ class Program:
         self._size = sum(
             Program._formula_size(argument) for argument in self.ret().arguments
         )
+        self._cost = sum(Program._operation_cost(op) for op in self.func().body.ops)
 
         arity = self.arity()
         interpreter = build_interpreter(self._module, 64)
@@ -334,6 +345,12 @@ class Program:
 
     def size(self) -> int:
         return self._size
+
+    def cost(self) -> int:
+        """
+        The cost of this program, according to a very basic cost model.
+        """
+        return self._cost
 
     def fingerprint(self) -> Fingerprint:
         return self._fingerprint
@@ -766,6 +783,29 @@ class RewriteRule:
 Bucket = list[Program]
 
 
+class EnumerationOrder(Enum):
+    SIZE = auto()
+    COST = auto()
+
+    @classmethod
+    def parse(cls, arg: str):
+        if arg == "size":
+            return cls.SIZE
+        if arg == "cost":
+            return cls.COST
+        raise ValueError("Invalid enumeration order: {arg!r}")
+
+    def phase(self, program: "Program") -> int:
+        match self:
+            case EnumerationOrder.SIZE:
+                return program.size()
+            case EnumerationOrder.COST:
+                return program.cost()
+
+    def __str__(self):
+        return self.name.lower()
+
+
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--max-num-args",
@@ -783,6 +823,13 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         type=str,
         help="a list of comma-separated bitwidths",
         default="4",
+    )
+    arg_parser.add_argument(
+        "--enumeration-order",
+        type=EnumerationOrder.parse,
+        choices=tuple(EnumerationOrder),
+        help="in what order to enumerate programs",
+        default=EnumerationOrder.SIZE,
     )
     arg_parser.add_argument(
         "--out-canonicals",
@@ -1209,8 +1256,9 @@ def main() -> None:
 
     try:
         for m in range(args.max_num_ops + 1):
-            print(f"\033[1m== Size {m} ==\033[0m")
             phase_start = time.time()
+
+            print(f"\033[1m== Phase {m} (size at most {m}) ==\033[0m")
 
             enumerating_start = time.time()
             buckets: dict[Fingerprint, Bucket] = {}
@@ -1226,7 +1274,7 @@ def main() -> None:
                         illegals,
                     ),
                 ):
-                    if program.size() != m:
+                    if args.enumeration_order.phase(program) != m:
                         continue
                     enumerated_count += 1
                     print(
