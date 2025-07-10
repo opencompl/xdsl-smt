@@ -814,9 +814,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default=999999999,
     )
     arg_parser.add_argument(
-        "--max-num-ops",
+        "--phases",
         type=int,
-        help="maximum number of operations in the MLIR programs that are generated",
+        help="the number of phases",
     )
     arg_parser.add_argument(
         "--bitvector-widths",
@@ -1199,7 +1199,7 @@ def remove_redundant_illegal_subpatterns(
 
 @dataclass(frozen=True, slots=True)
 class BucketStat:
-    prg_sz: int
+    phase: int
     bck_cnt: int
     avg_sz: float | None
     min_sz: int | None
@@ -1209,11 +1209,11 @@ class BucketStat:
     """Expected value of the size of a random program's bucket."""
 
     @classmethod
-    def from_buckets(cls, program_size: int, buckets: Iterable[Bucket]):
+    def from_buckets(cls, phase: int, buckets: Iterable[Bucket]):
         bucket_sizes = sorted(len(bucket) for bucket in buckets)
         n = len(bucket_sizes)
         return cls(
-            program_size,
+            phase,
             n,
             round(sum(bucket_sizes) / n, 2) if n != 0 else None,
             bucket_sizes[0] if n != 0 else None,
@@ -1255,10 +1255,10 @@ def main() -> None:
     bucket_stats: list[BucketStat] = []
 
     try:
-        for m in range(args.max_num_ops + 1):
+        for phase in range(args.phases + 1):
             phase_start = time.time()
 
-            print(f"\033[1m== Phase {m} (size at most {m}) ==\033[0m")
+            print(f"\033[1m== Phase {phase} (size at most {phase}) ==\033[0m")
 
             enumerating_start = time.time()
             buckets: dict[Fingerprint, Bucket] = {}
@@ -1268,13 +1268,13 @@ def main() -> None:
                     parse_program,
                     enumerate_programs(
                         args.max_num_args,
-                        m,
+                        phase,
                         args.bitvector_widths,
-                        canonicals if m >= 2 else [],
+                        canonicals if phase >= 2 else [],
                         illegals,
                     ),
                 ):
-                    if args.enumeration_order.phase(program) != m:
+                    if args.enumeration_order.phase(program) != phase:
                         continue
                     enumerated_count += 1
                     print(
@@ -1290,7 +1290,7 @@ def main() -> None:
                 f"\033[2KGenerated {enumerated_count} programs of this size "
                 f"in {enumerating_time:.02f} s."
             )
-            bucket_stats.append(BucketStat.from_buckets(m, buckets.values()))
+            bucket_stats.append(BucketStat.from_buckets(phase, buckets.values()))
 
             new_rewrites: dict[Program, Bucket] = {}
 
