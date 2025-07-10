@@ -164,6 +164,8 @@ class Program:
     @staticmethod
     def _operation_cost(op: Operation) -> int:
         match op:
+            case ReturnOp():
+                return 0
             case bv.MulOp() | bv.URemOp() | bv.SRemOp() | bv.SModOp() | bv.UDivOp() | bv.SDivOp():
                 return 4
             case op:
