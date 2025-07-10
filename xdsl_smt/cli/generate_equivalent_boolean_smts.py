@@ -1311,12 +1311,12 @@ def main() -> None:
                 f.write("\n")
 
         if args.summarize_canonicals:
-            print(f"\033[1m== Summary (canonical programs) ==\033[0m")
+            print(f"\033[1m== Canonical programs ({len(canonicals)}) ==\033[0m")
             for program in canonicals:
                 print(program)
 
         if args.summarize_rewrites:
-            print(f"\033[1m== Summary (rewrite rules) ==\033[0m")
+            print(f"\033[1m== Rewrite rules ({len(rewrites)}) ==\033[0m")
             for rewrite in rewrites:
                 print(rewrite)
 
