@@ -56,6 +56,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "--max-num-args",
         type=int,
         help="maximum number of arguments in the generated MLIR programs",
+        default=999999999,
     )
     arg_parser.add_argument(
         "--max-num-ops",
