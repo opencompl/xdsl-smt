@@ -106,9 +106,6 @@ BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}.mlir"
 T = TypeVar("T")
 
 
-Result = tuple[Any, ...]
-
-
 class FrozenMultiset(Generic[T]):
     _contents: frozenset[tuple[T, int]]
 
@@ -134,6 +131,9 @@ class FrozenMultiset(Generic[T]):
 
     def __hash__(self) -> int:
         return self._contents.__hash__()
+
+
+Result = tuple[Any, ...]
 
 
 @dataclass(frozen=True, slots=True)
