@@ -460,7 +460,7 @@ class Program:
             return 1
         # Favor programs that return less values.
         self_outs = self.ret().arguments
-        other_outs = self.ret().arguments
+        other_outs = other.ret().arguments
         if len(self_outs) < len(other_outs):
             return -1
         if len(self_outs) > len(other_outs):
