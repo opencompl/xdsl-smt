@@ -1152,11 +1152,11 @@ def remove_redundant_illegal_subpatterns(
 class BucketStat:
     prg_sz: int
     bck_cnt: int
-    avg_sz: float
-    min_sz: int
-    med_sz: int
-    max_sz: int
-    exp_sz: float
+    avg_sz: float | None
+    min_sz: int | None
+    med_sz: int | None
+    max_sz: int | None
+    exp_sz: float | None
     """Expected value of the size of a random program's bucket."""
 
     @classmethod
@@ -1166,23 +1166,31 @@ class BucketStat:
         return cls(
             program_size,
             n,
-            round(sum(bucket_sizes) / n, 2),
-            bucket_sizes[0],
-            bucket_sizes[n // 2],
-            bucket_sizes[-1],
+            round(sum(bucket_sizes) / n, 2) if n != 0 else None,
+            bucket_sizes[0] if n != 0 else None,
+            bucket_sizes[n // 2] if n != 0 else None,
+            bucket_sizes[-1] if n != 0 else None,
             round(
                 sum(size * size for size in bucket_sizes)
                 / sum(size for size in bucket_sizes),
                 2,
-            ),
+            )
+            if n != 0
+            else None,
         )
 
     @classmethod
     def headers(cls) -> str:
         return "\t".join(f.name for f in fields(cls))
 
+    def _value(self, name: str) -> str:
+        x = getattr(self, name)
+        if x is None:
+            return "N/A"
+        return str(x)
+
     def __str__(self) -> str:
-        return "\t".join(str(getattr(self, f.name)) for f in fields(type(self)))
+        return "\t".join(self._value(f.name) for f in fields(type(self)))
 
 
 def main() -> None:
