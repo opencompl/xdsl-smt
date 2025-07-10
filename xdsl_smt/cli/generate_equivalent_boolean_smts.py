@@ -435,7 +435,9 @@ class Program:
                 if not isinstance(lop, type(rop)):
                     return hash(lop.name) - hash(rop.name)
                 if lop.properties != rop.properties:
-                    return hash(lop.properties) - hash(rop.properties)
+                    return hash(frozenset(lop.properties.items())) - hash(
+                        frozenset(rop.properties.items())
+                    )
                 if i != j:
                     return i - j
                 # Compare operands as a last resort.
