@@ -786,7 +786,7 @@ class RewriteRule:
         return pattern
 
     def __str__(self) -> str:
-        return f"{self._lhs} ↭ {self._rhs}"
+        return f"{self._lhs} ⇝ {self._rhs}"
 
 
 Bucket = list[Program]
