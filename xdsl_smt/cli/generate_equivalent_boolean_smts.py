@@ -837,7 +837,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "--enumeration-order",
         type=EnumerationOrder.parse,
         choices=tuple(EnumerationOrder),
-        help="in what order to enumerate programs",
+        help="the order in which to enumerate programs",
         default=EnumerationOrder.SIZE,
     )
     arg_parser.add_argument(
