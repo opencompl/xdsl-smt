@@ -166,7 +166,14 @@ class Program:
         match op:
             case ReturnOp():
                 return 0
-            case bv.MulOp() | bv.URemOp() | bv.SRemOp() | bv.SModOp() | bv.UDivOp() | bv.SDivOp():
+            case (
+                bv.MulOp()
+                | bv.URemOp()
+                | bv.SRemOp()
+                | bv.SModOp()
+                | bv.UDivOp()
+                | bv.SDivOp()
+            ):
                 return 4
             case op:
                 if len(op.operands) == 0:
@@ -859,6 +866,13 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="if present, prints a human-readable summary of the generated rewrite rules",
     )
 
+    arg_parser.add_argument(
+        "--dialect",
+        dest="dialect",
+        default=SMT_MLIR,
+        help="The IRDL file describing the dialect to use for enumeration",
+    )
+
 
 def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
     program_lines = list[str]()
@@ -884,6 +898,7 @@ def enumerate_programs(
     bv_widths: str,
     building_blocks: list[Program],
     illegals: list[Program],
+    dialect_path: str,
 ) -> Iterable[str]:
     # Disabled for now.
     use_building_blocks = len(building_blocks) != 0 and False
@@ -907,7 +922,7 @@ def enumerate_programs(
     enumerator = sp.Popen(
         [
             MLIR_ENUMERATE,
-            SMT_MLIR,
+            dialect_path,
             "--configuration=smt",
             f"--smt-bitvector-widths={bv_widths}",
             # Make sure CSE is applied.
@@ -920,6 +935,7 @@ def enumerate_programs(
             "--mlir-print-op-generic",
             f"--building-blocks={BUILDING_BLOCKS_FILE if use_building_blocks else ''}",
             f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
+            "--no-constants",
         ],
         text=True,
         stdin=sp.PIPE,
@@ -1221,13 +1237,15 @@ class BucketStat:
             bucket_sizes[0] if n != 0 else None,
             bucket_sizes[n // 2] if n != 0 else None,
             bucket_sizes[-1] if n != 0 else None,
-            round(
-                sum(size * size for size in bucket_sizes)
-                / sum(size for size in bucket_sizes),
-                2,
-            )
-            if n != 0
-            else None,
+            (
+                round(
+                    sum(size * size for size in bucket_sizes)
+                    / sum(size for size in bucket_sizes),
+                    2,
+                )
+                if n != 0
+                else None
+            ),
         )
 
     @classmethod
@@ -1274,6 +1292,7 @@ def main() -> None:
                         args.bitvector_widths,
                         canonicals if phase >= 2 else [],
                         illegals,
+                        args.dialect,
                     ),
                 ):
                     if args.enumeration_order.phase(program) != phase:
