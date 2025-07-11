@@ -917,7 +917,7 @@ def enumerate_programs(
     dialect_path: str,
 ) -> Iterable[str]:
     # Disabled for now.
-    use_building_blocks = len(building_blocks) != 0 and False
+    use_building_blocks = len(building_blocks) != 0
     if use_building_blocks:
         building_blocks.sort()
         with open(BUILDING_BLOCKS_FILE, "w") as f:
@@ -951,7 +951,6 @@ def enumerate_programs(
             "--mlir-print-op-generic",
             f"--building-blocks={BUILDING_BLOCKS_FILE if use_building_blocks else ''}",
             f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
-            "--no-constants",
         ],
         text=True,
         stdin=sp.PIPE,
@@ -1135,7 +1134,7 @@ def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
 
 
 def find_new_behaviors_in_bucket(
-    canonicals: list[Program],
+    canonicals: dict[Fingerprint, list[Program]],
     bucket: Bucket,
 ) -> tuple[dict[Program, Bucket], list[Bucket]]:
     # Sort programs into actual behavior buckets.
@@ -1152,7 +1151,7 @@ def find_new_behaviors_in_bucket(
     known_behaviors: dict[Program, Bucket] = {}
     new_behaviors: list[Bucket] = []
     for behavior in behaviors:
-        for canonical in canonicals:
+        for canonical in canonicals.get(behavior[0].fingerprint(), []):
             if behavior[0].is_same_behavior(canonical):
                 known_behaviors[canonical] = behavior
                 break
@@ -1173,12 +1172,18 @@ def find_new_behaviors(
     programs exhibiting a new behavior.
     """
 
-    known_behaviors: dict[Program, Bucket] = {}
+    canonicals_dict: dict[Fingerprint, list[Program]] = {}
+    for canonical in canonicals:
+        canonicals_dict.setdefault(canonical.fingerprint(), []).append(canonical)
+
+    known_behaviors: dict[Program, Bucket] = dict[Program, Bucket]()
     new_behaviors: list[Bucket] = []
 
     with Pool() as p:
         for i, (known, new) in enumerate(
-            p.imap_unordered(partial(find_new_behaviors_in_bucket, canonicals), buckets)
+            p.imap_unordered(
+                partial(find_new_behaviors_in_bucket, canonicals_dict), buckets
+            )
         ):
             print(
                 f"\033[2K Finding new behaviors... "
