@@ -63,6 +63,8 @@ T = TypeVar("T")
 
 
 class FrozenMultiset(Generic[T]):
+    __slots__ = ("_contents",)
+
     _contents: frozenset[tuple[T, int]]
 
     def __init__(self, values: Iterable[T]):
@@ -127,6 +129,18 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
 
 
 class Program:
+    __slots__ = (
+        "_module",
+        "_size",
+        "_cost",
+        "_input_cardinalities",
+        "_base_results",
+        "_fingerprint",
+        "_is_basic",
+        "_param_permutation",
+        "_useless_param_count",
+    )
+
     _module: ModuleOp
     _size: int
     _cost: int
@@ -758,6 +772,8 @@ class Program:
 
 
 class RewriteRule:
+    __slots__ = ("_lhs", "_rhs")
+
     _lhs: Program
     _rhs: Program
 
