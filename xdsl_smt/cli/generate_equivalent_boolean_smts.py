@@ -37,7 +37,6 @@ from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl_smt.dialects.synth_dialect import SynthDialect
 from xdsl.dialects import pdl
 from xdsl.dialects.builtin import (
     Builtin,
