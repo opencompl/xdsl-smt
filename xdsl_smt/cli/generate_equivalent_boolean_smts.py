@@ -128,6 +128,75 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
     return tuple(cast(list[T], result))
 
 
+def func_to_pdl(
+    func: FuncOp, *, arguments: Sequence[SSAValue | None] | None = None
+) -> tuple[Region, Callable[[int], SSAValue], SSAValue | None, tuple[SSAValue, ...]]:
+    """
+    Creates a region containing PDL instructions corresponding to this
+    program. Returns a containing `Region`, together with the values of the
+    inputs, the root operation (i.e., the operation the first returned value
+    comes from, if it exists), and the returned values.
+    """
+
+    if arguments is not None:
+        assert len(arguments) == len(func.function_type.inputs)
+
+    body = Region(Block())
+    builder = Builder(InsertPoint.at_end(body.block))
+
+    @cache
+    def get_type(ty: Attribute) -> SSAValue:
+        return builder.insert(pdl.TypeOp(ty)).results[0]
+
+    @cache
+    def get_attribute(attr: Attribute) -> SSAValue:
+        return builder.insert(pdl.AttributeOp(attr)).results[0]
+
+    @cache
+    def get_argument(arg: int) -> SSAValue:
+        if arguments is not None:
+            if (value := arguments[arg]) is not None:
+                return value
+        return builder.insert(pdl.OperandOp(get_type(func.args[arg].type))).results[0]
+
+    ops: dict[Operation, SSAValue] = {}
+
+    def get_value(value: SSAValue) -> SSAValue:
+        match value:
+            case BlockArgument(index=k):
+                return get_argument(k)
+            case OpResult(op=op, index=i):
+                return builder.insert(pdl.ResultOp(i, ops[op])).results[0]
+            case x:
+                raise ValueError(f"Unknown value: {x}")
+
+    [*operations, ret] = list(func.body.ops)
+    for op in operations:
+        pattern = builder.insert(
+            pdl.OperationOp(
+                op.name,
+                [StringAttr(s) for s in op.properties.keys()],
+                [get_value(operand) for operand in op.operands],
+                # Iteration order on dict is consistent betwen `.keys()` and
+                # `.values()`.
+                [get_attribute(prop) for prop in op.properties.values()],
+                [get_type(ty) for ty in op.result_types],
+            )
+        )
+        ops[op] = pattern.results[0]
+
+    assert isinstance(ret, ReturnOp)
+    assert len(ret.operands) == 1
+    root = ret.operands[0]
+
+    return (
+        body,
+        get_argument,
+        ops[root.op] if isinstance(root, OpResult) else None,
+        tuple(get_value(res) for res in ret.operands),
+    )
+
+
 class Program:
     __slots__ = (
         "_module",
@@ -554,66 +623,7 @@ class Program:
         inputs, the root operation (i.e., the operation the first returned value
         comes from, if it exists), and the returned values.
         """
-
-        if arguments is not None:
-            assert len(arguments) == self.arity()
-
-        body = Region(Block())
-        builder = Builder(InsertPoint.at_end(body.block))
-
-        @cache
-        def get_type(ty: Attribute) -> SSAValue:
-            return builder.insert(pdl.TypeOp(ty)).results[0]
-
-        @cache
-        def get_attribute(attr: Attribute) -> SSAValue:
-            return builder.insert(pdl.AttributeOp(attr)).results[0]
-
-        @cache
-        def get_argument(arg: int) -> SSAValue:
-            if arguments is not None:
-                if (value := arguments[arg]) is not None:
-                    return value
-            return builder.insert(
-                pdl.OperandOp(get_type(self.func().args[arg].type))
-            ).results[0]
-
-        ops: dict[Operation, SSAValue] = {}
-
-        def get_value(value: SSAValue) -> SSAValue:
-            match value:
-                case BlockArgument(index=k):
-                    return get_argument(k)
-                case OpResult(op=op, index=i):
-                    return builder.insert(pdl.ResultOp(i, ops[op])).results[0]
-                case x:
-                    raise ValueError(f"Unknown value: {x}")
-
-        [*operations, ret] = list(self.func().body.ops)
-        for op in operations:
-            pattern = builder.insert(
-                pdl.OperationOp(
-                    op.name,
-                    [StringAttr(s) for s in op.properties.keys()],
-                    [get_value(operand) for operand in op.operands],
-                    # Iteration order on dict is consistent betwen `.keys()` and
-                    # `.values()`.
-                    [get_attribute(prop) for prop in op.properties.values()],
-                    [get_type(ty) for ty in op.result_types],
-                )
-            )
-            ops[op] = pattern.results[0]
-
-        assert isinstance(ret, ReturnOp)
-        assert len(ret.operands) == 1
-        root = ret.operands[0]
-
-        return (
-            body,
-            get_argument,
-            ops[root.op] if isinstance(root, OpResult) else None,
-            tuple(get_value(res) for res in ret.operands),
-        )
+        return func_to_pdl(self.func(), arguments=arguments)
 
     def pdl_pattern(self) -> ModuleOp:
         """Creates a PDL pattern from this program."""
@@ -913,8 +923,9 @@ def enumerate_programs(
     num_ops: int,
     bv_widths: str,
     building_blocks: list[Program],
-    illegals: list[Program],
+    illegals: list[FuncOp],
     dialect_path: str,
+    additional_options: Sequence[str] = (),
 ) -> Iterable[str]:
     # Disabled for now.
     use_building_blocks = len(building_blocks) != 0
@@ -932,7 +943,12 @@ def enumerate_programs(
 
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
         for program in illegals:
-            f.write(str(program.pdl_pattern()))
+            body, _, root, _ = func_to_pdl(program)
+            body.block.add_op(pdl.RewriteOp(root))
+            pattern = pdl.PatternOp(1, None, body)
+            pdl_module = ModuleOp([pattern])
+
+            f.write(str(pdl_module))
             f.write("\n// -----\n")
 
     enumerator = sp.Popen(
@@ -951,6 +967,7 @@ def enumerate_programs(
             "--mlir-print-op-generic",
             f"--building-blocks={BUILDING_BLOCKS_FILE if use_building_blocks else ''}",
             f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
+            *additional_options,
         ],
         text=True,
         stdin=sp.PIPE,
@@ -1031,6 +1048,8 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
 
     # Parse the SMT-LIB program and run it through the Z3 solver.
     solver = z3.Solver()
+    # Set the timeout
+    solver.set("timeout", 10000)  # pyright: ignore[reportUnknownMemberType]
     try:
         solver.from_string(  # pyright: ignore[reportUnknownMemberType]
             smtlib_program.getvalue()
@@ -1050,6 +1069,7 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
     if result == z3.unknown:
         print("Z3 couldn't solve the following query:", file=sys.stderr)
         print(smtlib_program.getvalue(), file=sys.stderr)
+        return z3.unknown
         raise Exception()
     return result
 
@@ -1073,35 +1093,62 @@ def is_range_subset_with_z3(
     builder.insert(func_left)
     builder.insert(func_right)
 
-    # Create the external forall and the assert.
-    forall = builder.insert(smt.ForallOp.from_variables(left.function_type.inputs.data))
-    builder.insert(smt.AssertOp(forall.res))
-    builder.insert(smt.CheckSatOp())
-    builder.insertion_point = InsertPoint.at_end(forall.body.block)
+    toplevel_val: SSAValue | None = None
 
     # Create the lhs constant foralls.
-    lhs_cst_args = func_left.func_type.inputs.data[
+    lhs_cst_types = func_left.func_type.inputs.data[
         len(left.function_type.inputs.data) :
     ]
-    forall_cst = builder.insert(smt.ForallOp.from_variables(lhs_cst_args))
-    builder.insert(smt.YieldOp(forall_cst.res))
-    builder.insertion_point = InsertPoint.at_end(forall_cst.body.block)
+    if lhs_cst_types:
+        forall_cst = builder.insert(smt.ForallOp.from_variables(lhs_cst_types))
+        lhs_cst_args = forall_cst.body.block.args
+        builder.insertion_point = InsertPoint.at_end(forall_cst.body.block)
+        toplevel_val = forall_cst.res
+    else:
+        lhs_cst_args = ()
 
-    # Create the rhs constant exists.abs
-    rhs_cst_args = func_right.func_type.inputs.data[
+    # Create the rhs constant exists.
+    rhs_cst_types = func_right.func_type.inputs.data[
         len(right.function_type.inputs.data) :
     ]
-    exists_cst = builder.insert(smt.ExistsOp.from_variables(rhs_cst_args))
-    builder.insert(smt.YieldOp(exists_cst.res))
-    builder.insertion_point = InsertPoint.at_end(exists_cst.body.block)
+    if rhs_cst_types:
+        exists_cst = builder.insert(smt.ExistsOp.from_variables(rhs_cst_types))
+        rhs_cst_args = exists_cst.body.block.args
+        if toplevel_val is not None:
+            builder.insert(smt.YieldOp(exists_cst.res))
+        else:
+            toplevel_val = exists_cst.res
+        builder.insertion_point = InsertPoint.at_end(exists_cst.body.block)
+    else:
+        rhs_cst_args = ()
+
+    # Create the variable forall and the assert.
+    if left.function_type.inputs.data:
+        forall = builder.insert(
+            smt.ForallOp.from_variables(left.function_type.inputs.data)
+        )
+        var_args = forall.body.block.args
+        if toplevel_val is not None:
+            builder.insert(smt.YieldOp(forall.res))
+        else:
+            toplevel_val = forall.res
+        builder.insertion_point = InsertPoint.at_end(forall.body.block)
+    else:
+        var_args = ()
 
     # Call both functions and check for equality.
-    args_left = (*forall.body.block.args, *forall_cst.body.block.args)
-    args_right = (*forall.body.block.args, *exists_cst.body.block.args)
+    args_left = (*var_args, *lhs_cst_args)
+    args_right = (*var_args, *rhs_cst_args)
     call_left = builder.insert(smt.CallOp(func_left.ret, args_left)).res
     call_right = builder.insert(smt.CallOp(func_right.ret, args_right)).res
     check = builder.insert(smt.EqOp(call_left[0], call_right[0])).res
-    builder.insert(smt.YieldOp(check))
+    if toplevel_val is not None:
+        builder.insert(smt.YieldOp(check))
+    else:
+        toplevel_val = check
+
+    builder.insertion_point = InsertPoint.at_end(module.body.block)
+    builder.insert(smt.AssertOp(toplevel_val))
 
     return z3.sat == run_module_through_smtlib(
         module
@@ -1392,7 +1439,7 @@ def main() -> None:
                         phase,
                         args.bitvector_widths,
                         canonicals if phase >= 2 else [],
-                        illegals,
+                        [illegal.func() for illegal in illegals],
                         args.dialect,
                     ),
                 ):
@@ -1499,6 +1546,114 @@ def main() -> None:
             print(f"\033[1m== Rewrite rules ({len(rewrites)}) ==\033[0m")
             for rewrite in rewrites:
                 print(rewrite)
+
+        if False:
+            ctx = Context()
+            ctx.allow_unregistered = True
+            ctx.load_dialect(Builtin)
+            ctx.load_dialect(Func)
+            ctx.load_dialect(SMTDialect)
+            ctx.load_dialect(SMTBitVectorDialect)
+            ctx.load_dialect(SMTUtilsDialect)
+            ctx.load_dialect(synth.SynthDialect)
+
+            cst_canonicals = list[FuncOp]()
+            cst_illegals = list[FuncOp]()
+            for phase in range(args.phases + 1):
+                programs = list[FuncOp]()
+                print("Enumerating programs in phase", phase)
+                for program_idx, program_str in enumerate(
+                    enumerate_programs(
+                        args.max_num_args,
+                        phase,
+                        args.bitvector_widths,
+                        [],
+                        [illegal.func() for illegal in illegals] + cst_illegals,
+                        args.dialect,
+                        ["--constant-kind=synth"],
+                    )
+                ):
+                    module = Parser(ctx, program_str).parse_module(True)
+                    func = module.body.block.first_op
+                    assert isinstance(func, FuncOp)
+                    func.detach()
+                    del func.attributes["seed"]
+                    print("Enumerated", program_idx + 1, "programs", end="\r")
+
+                    should_skip = False
+                    for canonical in cst_canonicals:
+                        if func.is_structurally_equivalent(canonical):
+                            should_skip = True
+                            break
+                    for illegal in cst_illegals:
+                        if func.is_structurally_equivalent(illegal):
+                            should_skip = True
+                            break
+                    if not should_skip:
+                        programs.append(func)
+                print()
+
+                new_possible_canonicals = list[FuncOp]()
+                for program_idx, program in enumerate(programs):
+                    for canonical_idx, canonical in enumerate(cst_canonicals):
+                        print(
+                            f"\033[2K Checking program {program_idx + 1}/{len(programs)} against old programs {canonical_idx + 1}/{len(cst_canonicals)}",
+                            end="\r",
+                        )
+                        if program.function_type != canonical.function_type:
+                            continue
+
+                        if is_range_subset_with_z3(program, canonical):
+                            print("Found illegal pattern:")
+                            print(program)
+                            print("which is a subset of:")
+                            print(canonical)
+                            cst_illegals.append(program)
+                            break
+                    else:
+                        new_possible_canonicals.append(program)
+                print()
+
+                is_illegal_mask: list[bool] = [False] * len(new_possible_canonicals)
+                for lhs_idx, lhs in enumerate(new_possible_canonicals):
+                    for rhs_idx, rhs in enumerate(new_possible_canonicals):
+                        print(
+                            f"\033[2K Checking program for canonical {lhs_idx + 1}/{len(new_possible_canonicals)} against {rhs_idx + 1}/{len(new_possible_canonicals)}",
+                            end="\r",
+                        )
+
+                        if is_illegal_mask[rhs_idx]:
+                            continue
+                        if lhs.function_type != rhs.function_type:
+                            continue
+                        if lhs is rhs:
+                            continue
+                        if is_range_subset_with_z3(lhs, rhs):
+                            cst_illegals.append(lhs)
+                            is_illegal_mask[lhs_idx] = True
+                            print("Found illegal pattern:")
+                            print(lhs)
+                            print("which is a subset of:")
+                            print(rhs)
+                            break
+                    else:
+                        cst_canonicals.append(lhs)
+                print(f"== At step {phase} ==")
+                print("number of canonicals", len(cst_canonicals))
+                print("number of illegals", len(cst_illegals))
+
+                # Write the canonicals and illegals to files.
+                if args.out_canonicals != "":
+                    with open(args.out_canonicals, "w", encoding="UTF-8") as f:
+                        for program in cst_canonicals:
+                            f.write(str(program))
+                            f.write("\n// -----\n")
+
+                        f.write("\n\n\n// +++++ Illegals +++++ \n\n\n")
+
+                        for program in cst_illegals:
+                            f.write(str(program))
+                            f.write("\n// -----\n")
 
     except BrokenPipeError:
         # The enumerator has terminated
