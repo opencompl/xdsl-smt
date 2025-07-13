@@ -37,6 +37,7 @@ from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+from xdsl_smt.dialects.synth_dialect import SynthDialect
 from xdsl.dialects import pdl
 from xdsl.dialects.builtin import (
     Builtin,
@@ -998,6 +999,33 @@ def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
     return smt.DefineFunOp(new_region)
 
 
+def clone_func_to_smt_func_with_constants(func: FuncOp) -> smt.DefineFunOp:
+    """
+    Convert a `func.func` to an `smt.define_fun` operation.
+    Additionally, move `synth.constant` operations to arguments.
+    Do not mutate the original function.
+    """
+    new_region = func.body.clone()
+    new_block = new_region.block
+
+    # Replace the `func.return` with an `smt.return` operation.
+    func_return = new_block.last_op
+    assert isinstance(func_return, ReturnOp)
+    rewriter = Rewriter()
+    rewriter.insert_op(
+        smt.ReturnOp(func_return.arguments), InsertPoint.before(func_return)
+    )
+    rewriter.erase_op(func_return)
+
+    # Move all `synth.constant` operations to arguments.
+    for op in tuple(new_block.ops):
+        if isinstance(op, synth.ConstantOp):
+            new_arg = new_block.insert_arg(op.res.type, len(new_block.args))
+            rewriter.replace_op(op, [], [new_arg])
+
+    return smt.DefineFunOp(new_region)
+
+
 def run_module_through_smtlib(module: ModuleOp) -> Any:
     smtlib_program = StringIO()
     print_to_smtlib(module, smtlib_program)
@@ -1025,6 +1053,60 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
         print(smtlib_program.getvalue(), file=sys.stderr)
         raise Exception()
     return result
+
+
+def is_range_subset_with_z3(
+    left: FuncOp,
+    right: FuncOp,
+):
+    """
+    Check wether the ranges of values that the `left` program can reach by assigning
+    constants to `xdsl.smt.synth` is a sbuset of the range of values that the `right`
+    program can reach. This is done using Z3.
+    """
+
+    module = ModuleOp([])
+    builder = Builder(InsertPoint.at_end(module.body.block))
+
+    # Clone both functions into a new module.
+    func_left = clone_func_to_smt_func_with_constants(left)
+    func_right = clone_func_to_smt_func_with_constants(right)
+    builder.insert(func_left)
+    builder.insert(func_right)
+
+    # Create the external forall and the assert.
+    forall = builder.insert(smt.ForallOp.from_variables(left.function_type.inputs.data))
+    builder.insert(smt.AssertOp(forall.res))
+    builder.insert(smt.CheckSatOp())
+    builder.insertion_point = InsertPoint.at_end(forall.body.block)
+
+    # Create the lhs constant foralls.
+    lhs_cst_args = func_left.func_type.inputs.data[
+        len(left.function_type.inputs.data) :
+    ]
+    forall_cst = builder.insert(smt.ForallOp.from_variables(lhs_cst_args))
+    builder.insert(smt.YieldOp(forall_cst.res))
+    builder.insertion_point = InsertPoint.at_end(forall_cst.body.block)
+
+    # Create the rhs constant exists.abs
+    rhs_cst_args = func_right.func_type.inputs.data[
+        len(right.function_type.inputs.data) :
+    ]
+    exists_cst = builder.insert(smt.ExistsOp.from_variables(rhs_cst_args))
+    builder.insert(smt.YieldOp(exists_cst.res))
+    builder.insertion_point = InsertPoint.at_end(exists_cst.body.block)
+
+    # Call both functions and check for equality.
+    args_left = (*forall.body.block.args, *forall_cst.body.block.args)
+    args_right = (*forall.body.block.args, *exists_cst.body.block.args)
+    call_left = builder.insert(smt.CallOp(func_left.ret, args_left)).res
+    call_right = builder.insert(smt.CallOp(func_right.ret, args_right)).res
+    check = builder.insert(smt.EqOp(call_left[0], call_right[0])).res
+    builder.insert(smt.YieldOp(check))
+
+    return z3.sat == run_module_through_smtlib(
+        module
+    )  # pyright: ignore[reportUnknownVariableType]
 
 
 def is_same_behavior_with_z3(
@@ -1157,7 +1239,6 @@ def find_new_behaviors_in_bucket(
                 break
         else:
             new_behaviors.append(behavior)
-
     return known_behaviors, new_behaviors
 
 
