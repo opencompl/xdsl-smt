@@ -286,6 +286,11 @@ class Program:
                 raise ValueError(f"Unsupported type: {ty}")
 
     def permute_useful_parameters(self, permutation: Permutation) -> "Program":
+        """
+        Returns a new version of this program, with the useful parameters
+        permuted according to the specified permutation. Useless parameters are
+        unaffected, and stay at the end of the parameter permutation.
+        """
         arity = self.useful_arity()
         assert len(permutation) == arity
         permuted = copy.copy(self)
@@ -296,6 +301,11 @@ class Program:
         return permuted
 
     def _parameter_permutations(self) -> Iterable["Program"]:
+        """
+        Returns an iterator over all versions of this programs with useful
+        permuted useful parameters. Useless parameters are guaranteed to always
+        appear at the end of the permutations.
+        """
         for permutation in itertools.permutations(range(self.useful_arity())):
             yield self.permute_useful_parameters(permutation)
 
@@ -435,10 +445,14 @@ class Program:
         return r
 
     def arity(self) -> int:
+        """
+        Returns the number of parameters this program accepts, including useless
+        parameters.
+        """
         return len(self.func().function_type.inputs)
 
     def useful_arity(self) -> int:
-        """Returns the number of useful parameters."""
+        """Returns the number of useful parameters for this program."""
         return self.arity() - self._useless_param_count
 
     def size(self) -> int:
@@ -446,7 +460,7 @@ class Program:
 
     def cost(self) -> int:
         """
-        The cost of this program, according to a very basic cost model.
+        Returns the cost of this program, according to a very basic cost model.
         """
         return self._cost
 
