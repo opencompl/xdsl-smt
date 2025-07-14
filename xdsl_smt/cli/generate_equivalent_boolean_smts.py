@@ -92,6 +92,7 @@ class FrozenMultiset(Generic[T]):
 
 
 Result = tuple[Any, ...]
+Image = tuple[Result, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,13 +103,14 @@ class Fingerprint:
 
     The fingerprints of two semantically equivalent programs are guaranteed to
     compare equal. Furthermore, if two programs are semantically equivalent
-    after removing inputs that don't affect the output, their fingerprints are
-    guaranteed to compare equal as well.
+    after removing inputs that don't affect the output, and optionally permuting
+    their parameters, their fingerprints are guaranteed to compare equal as
+    well.
     """
 
     _useful_input_types: FrozenMultiset[Attribute]
     _output_types: tuple[Attribute, ...]
-    _results_with_permutations: FrozenMultiset[tuple[Result, ...]]
+    _images: FrozenMultiset[Image]
 
 
 Permutation = Sequence[int]
@@ -203,7 +205,7 @@ class Program:
         "_size",
         "_cost",
         "_input_cardinalities",
-        "_base_results",
+        "_base_image",
         "_fingerprint",
         "_is_basic",
         "_param_permutation",
@@ -217,7 +219,7 @@ class Program:
     """
     The cardinality of each input, before applying the permutation.
     """
-    _base_results: tuple[Result, ...]
+    _base_image: Image
     """
     The results, as computed in order before applying the permutation.
     """
@@ -297,9 +299,13 @@ class Program:
         for permutation in itertools.permutations(range(self.useful_arity())):
             yield self.permute_useful_parameters(permutation)
 
-    def _results(self) -> tuple[Result, ...]:
+    def image(self) -> Image:
+        """
+        Returns the image of this program, taking the parameter permutation
+        into account.
+        """
         assert self._input_cardinalities is not None
-        assert self._base_results is not None
+        assert self._base_image is not None
         # This could be achieved using less memory with some arithmetic.
         input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
         indices: dict[tuple[int, ...], int] = {
@@ -311,7 +317,7 @@ class Program:
             )
         )
         return tuple(
-            self._base_results[indices[reverse_permute(piid, self._param_permutation)]]
+            self._base_image[indices[reverse_permute(piid, self._param_permutation)]]
             for piid in permuted_input_ids
         )
 
@@ -385,7 +391,7 @@ class Program:
             )
             for i in range(arity)
         ]
-        self._base_results = tuple(
+        self._base_image = tuple(
             interpret(interpreter, inputs)
             for inputs in itertools.product(
                 *(vals for vals in values_for_each_useful_param)
@@ -397,7 +403,7 @@ class Program:
             len(values) for values in values_for_each_useful_param
         )
         results_with_permutations = FrozenMultiset(
-            permuted._results() for permuted in self._parameter_permutations()
+            permuted.image() for permuted in self._parameter_permutations()
         )
 
         self._fingerprint = Fingerprint(
@@ -570,6 +576,19 @@ class Program:
             return NotImplemented
         return self._compare_lexicographically(other) >= 0
 
+    def computes_same_function(self, other: "Program") -> bool:
+        """
+        Tests whether two programs are logically equivalent in the usual sense.
+        """
+
+        if self.image() != other.image():
+            return False
+
+        if self.is_basic() and other.is_basic():
+            return True
+
+        return is_same_behavior_with_z3(self, other)
+
     def is_same_behavior(self, other: "Program") -> bool:
         """
         Tests whether two programs are logically equivalent up to parameter
@@ -583,11 +602,8 @@ class Program:
             return True
 
         for permuted in self._parameter_permutations():
-            # First test whether this permutation has a chance to work.
-            if permuted._results() == other._results():
-                # Only then, resort to Z3.
-                if is_same_behavior_with_z3(permuted, other):
-                    return True
+            if permuted.computes_same_function(other):
+                return True
 
         return False
 
@@ -602,7 +618,7 @@ class Program:
             return None
 
         for permuted in self._parameter_permutations():
-            if permuted._results() == other._results():
+            if permuted.image() == other.image():
                 if (
                     self.is_basic()
                     and other.is_basic()
