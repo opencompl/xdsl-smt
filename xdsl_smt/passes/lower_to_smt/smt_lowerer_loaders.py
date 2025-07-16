@@ -32,6 +32,7 @@ from xdsl_smt.semantics.arith_semantics import (
     arith_semantics,
     arith_attribute_semantics,
 )
+from xdsl_smt.semantics.llvm_semantics import llvm_semantics, llvm_attribute_semantics
 from xdsl_smt.semantics.comb_semantics import comb_semantics
 from xdsl_smt.semantics.memref_semantics import memref_semantics, MemrefSemantics
 from xdsl_smt.passes.lower_to_smt import (
@@ -55,6 +56,7 @@ def load_vanilla_semantics():
     }
     SMTLowerer.attribute_semantics = {
         **arith_attribute_semantics,
+        **llvm_attribute_semantics,
         IntegerAttr: IntegerAttrSemantics(),
     }
     SMTLowerer.op_semantics = {
@@ -62,6 +64,7 @@ def load_vanilla_semantics():
         **comb_semantics,
         **memref_semantics,
         **transfer_semantics,
+        **llvm_semantics,
     }
     SMTLowerer.rewrite_patterns = {
         **func_to_smt_patterns,
