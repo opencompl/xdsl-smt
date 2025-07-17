@@ -173,7 +173,7 @@ class SimplePurePoisonSemantics(SimplePoisonSemantics):
         )
 
 
-class AddiSemantics(SimplePurePoisonSemantics):
+class AddSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
         self,
         operands: Sequence[SSAValue],
@@ -222,8 +222,26 @@ class AddiSemantics(SimplePurePoisonSemantics):
         return ((res, poison_condition),)
 
 
+class XOrSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        lhs = operands[0]
+        rhs = operands[1]
+
+        # Perform the addition
+        res = rewriter.insert(smt_bv.XorOp(lhs, rhs)).res
+
+        return ((res, None),)
+
+
 llvm_semantics: dict[type[Operation], OperationSemantics] = {
-    llvm.AddOp: AddiSemantics(),
+    llvm.AddOp: AddSemantics(),
+    llvm.XOrOp: XOrSemantics(),
 }
 llvm_attribute_semantics: dict[type[Attribute], AttributeSemantics] = {
     llvm.OverflowAttr: OverflowAttrSemantics(),
