@@ -4,6 +4,8 @@ import argparse
 import sys
 from typing import Sequence
 
+from xdsl.dialects.tensor import Tensor
+
 from xdsl.context import MLContext
 from xdsl.ir import Operation, SSAValue
 from xdsl.parser import Parser
@@ -19,11 +21,12 @@ from xdsl_smt.passes.lower_effects_with_memory import (
 )
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
-
+from xdsl_smt.dialects import smt_array_dialect as smt_array
 from xdsl_smt.dialects.smt_bitvector_dialect import (
     BitVectorType,
     SMTBitVectorDialect,
     UltOp,
+    ConstantOp,
 )
 from xdsl_smt.dialects.smt_dialect import (
     BoolType,
@@ -61,17 +64,21 @@ from xdsl.dialects.builtin import (
     ModuleOp,
     IntegerType,
     FunctionType,
+    TensorType,
 )
 from xdsl.dialects.func import Func, FuncOp
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
 from xdsl.dialects.memref import MemRef
+from xdsl.dialects.stablehlo import StableHLO
 
 from xdsl.transforms.canonicalize import CanonicalizePass
 from xdsl.transforms.common_subexpression_elimination import (
     CommonSubexpressionElimination,
 )
 from xdsl_smt.passes.lower_pairs import LowerPairs
+from xdsl_smt.passes.lower_tensor_semantics import LowerTensor
+from xdsl_smt.passes.lower_tensor_to_dimensions import LowerTensorToDimensions
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
 from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
@@ -236,6 +243,173 @@ def memory_refinement(
     return refinement
 
 
+def add_tensor_function_dimension_refinement(
+    func: DefineFunOp,
+    func_after: DefineFunOp,
+    function_type: FunctionType,
+    function_after_type: FunctionType,
+    insert_point: InsertPoint,
+):
+    args: list[SSAValue] = []
+    builder = Builder(insert_point)
+    with ImplicitBuilder(builder):
+        # Quantify over all arguments
+        for arg in func.body.blocks[0].args:
+            const_op = DeclareConstOp(arg.type)
+            args.append(const_op.res)
+
+        # Call both operations
+        func_call = CallOp(func.ret, args)
+        func_call_after = CallOp(func_after.ret, args)
+
+        # Refinement of non-state return values
+        return_values_refinement = ConstantBoolOp(True).res
+
+        # Refines each non-state return value
+        ret = func_call.res[0]
+        ret_after = func_call_after.res[0]
+        print(ret)
+        print(ret_after)
+        value_eq = EqOp.get(FirstOp(ret).res, FirstOp(ret_after).res)
+        return_values_refinement = AndOp.get(return_values_refinement, value_eq.res).res
+        return_values_refinement.name_hint = "return_tensors_dimension_refinement"
+
+    # refinement of tensor shapes:
+    with ImplicitBuilder(builder):
+        # Quantify over all arguments
+        for arg, ty, after_ty in zip(
+            args, function_type.inputs, function_after_type.inputs
+        ):
+            if isinstance(ty, TensorType) and isinstance(after_ty, TensorType):
+                cur_res = arg
+                for ith_shape, after_ith_shape in zip(ty.shape, after_ty.shape):
+                    cur_first = FirstOp(cur_res)
+                    if ith_shape.data != -1:
+                        eq_op = EqOp(cur_first.res, ConstantOp(ith_shape, 32).res)
+                        assert_op = AssertOp(eq_op.res)
+                    if after_ith_shape.data != -1:
+                        after_eq_op = EqOp(
+                            cur_first.res, ConstantOp(after_ith_shape, 32).res
+                        )
+                        after_assert_op = AssertOp(after_eq_op.res)
+                    cur_res = SecondOp(cur_res).res
+
+    # Refinement of memory
+    mem_refinement = memory_refinement(func_call, func_call_after, insert_point)
+    mem_refinement.name_hint = "memory_refinement"
+
+    with ImplicitBuilder(builder):
+        # Get ub results
+        res_ub = SecondOp(func_call.res[-1]).res
+        res_ub_after = SecondOp(func_call_after.res[-1]).res
+
+        res_ub.name_hint = "ub"
+        res_ub_after.name_hint = "ub_after"
+
+        # Compute refinement with UB
+        refinement = OrOp(
+            AndOp(
+                NotOp(res_ub_after).res,
+                AndOp(return_values_refinement, mem_refinement).res,
+            ).res,
+            res_ub,
+        ).res
+        refinement.name_hint = "function_refinement"
+
+        not_refinement = NotOp(refinement).res
+        AssertOp(not_refinement)
+
+
+def get_tensor_and_index(val: SSAValue) -> tuple[list[Operation], SSAValue, SSAValue]:
+    if not isinstance(val.type, PairType):
+        raise ValueError("Can't get tensor value")
+    result: list[Operation] = [FirstOp(val), SecondOp(val)]
+    cur_tensor = result[0].results[0]
+    cur_index = result[1].results[0]
+    return result, cur_tensor, cur_index
+
+
+def get_tensor_value(
+    cur_tensor: SSAValue, cur_index: SSAValue
+) -> tuple[list[Operation], SSAValue]:
+    result: list[Operation] = []
+    while isinstance(cur_index.type, PairType):
+        first_op = FirstOp(cur_index)
+        second_op = SecondOp(cur_index)
+        select_op = smt_array.SelectOp(cur_tensor, first_op.res)
+        result += [first_op, second_op, select_op]
+        cur_tensor = select_op.res
+        cur_index = second_op.res
+    assert not isinstance(cur_tensor.type, smt_array.ArrayType)
+    return result, cur_tensor
+
+
+def add_tensor_function_refinement(
+    func: DefineFunOp,
+    func_after: DefineFunOp,
+    function_type: FunctionType,
+    function_after_type: FunctionType,
+    insert_point: InsertPoint,
+):
+    args: list[SSAValue] = []
+    builder = Builder(insert_point)
+    with ImplicitBuilder(builder):
+        # Quantify over all arguments
+        for arg in func.body.blocks[0].args:
+            const_op = DeclareConstOp(arg.type)
+            args.append(const_op.res)
+
+        # Call both operations
+        func_call = CallOp(func.ret, args)
+        func_call_after = CallOp(func_after.ret, args)
+
+        # Refinement of non-state return values
+        return_values_refinement = ConstantBoolOp(True).res
+
+        # Refines each non-state return value
+        ret = func_call.res[0]
+        ret_after = func_call_after.res[0]
+        ret_op, ret_tensor, ret_tensor_index = get_tensor_and_index(ret)
+        ret_after_op, ret_after_tensor, ret_after_tensor_index = get_tensor_and_index(
+            ret_after
+        )
+        ret_tensor_val_op, ret_tensor_val = get_tensor_value(
+            ret_tensor, ret_tensor_index
+        )
+        ret_after_tensor_val_op, ret_after_tensor_val = get_tensor_value(
+            ret_after_tensor, ret_after_tensor_index
+        )
+
+        value_eq = EqOp.get(ret_tensor_val, ret_after_tensor_val)
+        return_values_refinement = AndOp.get(return_values_refinement, value_eq.res).res
+        return_values_refinement.name_hint = "return_tensors_dimension_refinement"
+
+    # Refinement of memory
+    mem_refinement = memory_refinement(func_call, func_call_after, insert_point)
+    mem_refinement.name_hint = "memory_refinement"
+
+    with ImplicitBuilder(builder):
+        # Get ub results
+        res_ub = SecondOp(func_call.res[-1]).res
+        res_ub_after = SecondOp(func_call_after.res[-1]).res
+
+        res_ub.name_hint = "ub"
+        res_ub_after.name_hint = "ub_after"
+
+        # Compute refinement with UB
+        refinement = OrOp(
+            AndOp(
+                NotOp(res_ub_after).res,
+                AndOp(return_values_refinement, mem_refinement).res,
+            ).res,
+            res_ub,
+        ).res
+        refinement.name_hint = "function_refinement"
+
+        not_refinement = NotOp(refinement).res
+        AssertOp(not_refinement)
+
+
 def add_function_refinement(
     func: DefineFunOp,
     func_after: DefineFunOp,
@@ -339,6 +513,8 @@ def main() -> None:
     ctx.load_dialect(EffectDialect)
     ctx.load_dialect(UBEffectDialect)
     ctx.load_dialect(MemRef)
+    ctx.load_dialect(Tensor)
+    ctx.load_dialect(StableHLO)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:
@@ -360,11 +536,21 @@ def main() -> None:
     load_vanilla_semantics()
 
     assert isinstance(module.ops.first, FuncOp)
+    assert isinstance(module_after.ops.first, FuncOp)
     func_type = module.ops.first.function_type
+    func_after_type = module_after.ops.first.function_type
 
     # Convert both module to SMTLib
     LowerToSMTPass().apply(ctx, module)
     LowerToSMTPass().apply(ctx, module_after)
+
+    # LowerTensorToDimensions().apply(ctx, module)
+    LowerTensor().apply(ctx, module)
+    LowerTensor().apply(ctx, module_after)
+    # LowerToSMTPass().apply(ctx, module_after)
+
+    # LowerTensorToDimensions().apply(ctx, module)
+    # LowerTensorToDimensions().apply(ctx, module_after)
 
     # Collect the function from both modules
     if (
@@ -418,7 +604,11 @@ def main() -> None:
         CanonicalizePass().apply(ctx, new_module)
 
     # Add refinement operations
-    add_function_refinement(func, func_after, func_type, InsertPoint.at_end(block))
+    # add_function_refinement(func, func_after, func_type, InsertPoint.at_end(block))
+
+    add_tensor_function_refinement(
+        func, func_after, func_type, func_after_type, InsertPoint.at_end(block)
+    )
     block.add_op(CheckSatOp())
 
     # Inline and delete functions
@@ -439,6 +629,7 @@ def main() -> None:
 
     # Lower memory to arrays
     LowerMemoryToArrayPass().apply(ctx, new_module)
+    LowerPairs().apply(ctx, new_module)
 
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)
