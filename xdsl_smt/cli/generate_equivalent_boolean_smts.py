@@ -16,7 +16,6 @@ from typing import (
     Any,
     Callable,
     Generic,
-    IO,
     Iterable,
     Sequence,
     TypeVar,
@@ -29,7 +28,7 @@ from xdsl.ir.core import Block, BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
-from xdsl.utils.hints import isa
+from xdsl_smt.utils.pretty_print import pretty_print_value
 
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
@@ -42,14 +41,13 @@ from xdsl.dialects.builtin import (
     Builtin,
     IntAttr,
     IntegerAttr,
-    IntegerType,
     ModuleOp,
     StringAttr,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
-from xdsl_smt.traits.smt_printer import SimpleSMTLibOp, print_to_smtlib
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
@@ -664,148 +662,20 @@ class Program:
 
         return ModuleOp([pattern])
 
-    @staticmethod
-    def _pretty_print_value(
-        x: SSAValue, permutation: Permutation, nested: bool, *, file: IO[str]
-    ):
-        infix = isinstance(x, OpResult) and len(x.op.operand_types) > 1
-        parenthesized = infix and nested
-        if parenthesized:
-            print("(", end="", file=file)
-        match x:
-            case BlockArgument(index=i, type=smt.BoolType()):
-                print(
-                    ("x", "y", "z", "w", "v", "u", "t", "s")[permutation[i]],
-                    end="",
-                    file=file,
-                )
-            case BlockArgument(index=i, type=bv.BitVectorType(width=width)):
-                print(
-                    ("x", "y", "z", "w", "v", "u", "t", "s")[permutation[i]],
-                    end="",
-                    file=file,
-                )
-                print(f"#{width.data}", end="", file=file)
-            case OpResult(op=smt.ConstantBoolOp(value=val), index=0):
-                print("⊤" if val else "⊥", end="", file=file)
-            case OpResult(op=bv.ConstantOp(value=val), index=0):
-                width = val.type.width.data
-                value = val.value.data
-                if width % 4 == 0:
-                    print(f"0x{value:0{width // 4}x}", end="", file=file)
-                else:
-                    print(f"{{:0{width}b}}".format(value), end="", file=file)
-            case OpResult(op=smt.NotOp(arg=arg), index=0):
-                print("¬", end="", file=file)
-                Program._pretty_print_value(arg, permutation, True, file=file)
-            case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" ∧ ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=smt.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" ∨ ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=smt.ImpliesOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" → ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=smt.DistinctOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" ≠ ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=smt.EqOp(lhs=lhs, rhs=rhs), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" = ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=smt.XOrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" ⊕ ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(
-                op=smt.IteOp(cond=cond, true_val=true_val, false_val=false_val), index=0
-            ):
-                Program._pretty_print_value(cond, permutation, True, file=file)
-                print(" ? ", end="", file=file)
-                Program._pretty_print_value(true_val, permutation, True, file=file)
-                print(" : ", end="", file=file)
-                Program._pretty_print_value(false_val, permutation, True, file=file)
-            case OpResult(op=bv.AddOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" + ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.AndOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" & ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.OrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" | ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.XorOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" ^ ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.MulOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" * ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.NotOp(arg=arg), index=0):
-                print("~", end="", file=file)
-                Program._pretty_print_value(arg, permutation, True, file=file)
-            case OpResult(op=bv.ShlOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" << ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.AShrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" a>> ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.LShrOp(operands=(lhs, rhs)), index=0):
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                print(" l>> ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=bv.NegOp(operands=(arg,)), index=0):
-                print("-", end="", file=file)
-                Program._pretty_print_value(arg, permutation, True, file=file)
-            case OpResult(
-                op=bv.CmpOp(operands=(lhs, rhs), properties={"pred": pred}), index=0
-            ):
-                assert isa(pred, IntegerAttr[IntegerType])
-                Program._pretty_print_value(lhs, permutation, True, file=file)
-                predicates = {
-                    0: "s<",
-                    1: "s<=",
-                    2: "s>",
-                    3: "s>=",
-                    4: "u<",
-                    5: "u<=",
-                    6: "u>",
-                    7: "u>=",
-                }
-                print(f" {predicates[pred.value.data]} ", end="", file=file)
-                Program._pretty_print_value(rhs, permutation, True, file=file)
-            case OpResult(op=op, index=0) if (
-                isinstance(op, SimpleSMTLibOp) and len(op.operands) == 2
-            ):
-                Program._pretty_print_value(
-                    op.operands[0], permutation, True, file=file
-                )
-                print(f" {op.op_name()} ", end="", file=file)
-                Program._pretty_print_value(
-                    op.operands[1], permutation, True, file=file
-                )
-            case _:
-                raise ValueError(f"Unknown value for pretty print: {x}")
-        if parenthesized:
-            print(")", end="", file=file)
-
     def __str__(self) -> str:
         buffer = StringIO()
-        Program._pretty_print_value(
+        available_names = ("x", "y", "z", "w", "v", "u", "t", "s")
+        names: dict[SSAValue, str] = {}
+
+        for index, arg in zip(self._param_permutation, self.func().args):
+            names[arg] = available_names[index]
+            if isinstance(arg.type, bv.BitVectorType):
+                names[arg] += f"#{arg.type.width.data}"
+
+        pretty_print_value(
             self.ret().arguments[0],
-            self._param_permutation,
             False,
+            names,
             file=buffer,
         )
         return buffer.getvalue()
@@ -1577,7 +1447,7 @@ def main() -> None:
             for rewrite in rewrites:
                 print(rewrite)
 
-        if False:
+        if True:
             ctx = Context()
             ctx.allow_unregistered = True
             ctx.load_dialect(Builtin)
@@ -1607,7 +1477,6 @@ def main() -> None:
                     func = module.body.block.first_op
                     assert isinstance(func, FuncOp)
                     func.detach()
-                    del func.attributes["seed"]
                     print("Enumerated", program_idx + 1, "programs", end="\r")
 
                     should_skip = False
