@@ -13,6 +13,7 @@ from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool
 from typing import (
+    IO,
     Any,
     Callable,
     Generic,
@@ -45,6 +46,7 @@ from xdsl.dialects.builtin import (
     StringAttr,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
+from xdsl.dialects.builtin import FunctionType
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.traits.smt_printer import print_to_smtlib
@@ -681,6 +683,27 @@ class Program:
         return buffer.getvalue()
 
 
+def pretty_print_func(
+    func: FuncOp,
+    names: Sequence[str] = ("x", "y", "z", "w", "v", "u", "t", "s"),
+    *,
+    file: IO[str] = sys.stdout,
+):
+    val_names: dict[SSAValue, str] = {}
+    for index, arg in enumerate(func.args):
+        val_names[arg] = names[index]
+        if isinstance(arg.type, bv.BitVectorType):
+            val_names[arg] += f"#{arg.type.width.data}"
+    return_op = func.get_return_op()
+    assert return_op is not None
+    pretty_print_value(
+        return_op.arguments[0],
+        False,
+        val_names,
+        file=file,
+    )
+
+
 class RewriteRule:
     __slots__ = ("_lhs", "_rhs")
 
@@ -934,7 +957,7 @@ def clone_func_to_smt_func_with_constants(func: FuncOp) -> smt.DefineFunOp:
     rewriter.erase_op(func_return)
 
     # Move all `synth.constant` operations to arguments.
-    for op in tuple(new_block.ops):
+    for op in tuple(new_block.walk()):
         if isinstance(op, synth.ConstantOp):
             new_arg = new_block.insert_arg(op.res.type, len(new_block.args))
             rewriter.replace_op(op, [], [new_arg])
@@ -949,7 +972,7 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
     # Parse the SMT-LIB program and run it through the Z3 solver.
     solver = z3.Solver()
     # Set the timeout
-    solver.set("timeout", 10000)  # pyright: ignore[reportUnknownMemberType]
+    solver.set("timeout", 25000)  # pyright: ignore[reportUnknownMemberType]
     try:
         solver.from_string(  # pyright: ignore[reportUnknownMemberType]
             smtlib_program.getvalue()
@@ -972,6 +995,76 @@ def run_module_through_smtlib(module: ModuleOp) -> Any:
         return z3.unknown
         raise Exception()
     return result
+
+
+def inline_single_result_func(
+    func: FuncOp, args: Sequence[SSAValue], insert_point: InsertPoint
+) -> SSAValue:
+    """
+    Inline a single-result function at the current location.
+    """
+    assert len(func.function_type.outputs) == 1, "Function must have a single output."
+    assert len(func.body.blocks) == 1, "Function must have a single block."
+
+    block_copy = func.body.clone().block
+    return_op = block_copy.last_op
+    assert isinstance(return_op, ReturnOp), "Function must end with a return operation."
+    return_value = return_op.operands[0]
+    block_copy.erase_op(return_op)
+
+    if return_value in block_copy.args:
+        assert isinstance(return_value, BlockArgument)
+        return_value = args[return_value.index]
+
+    Rewriter.inline_block(block_copy, insert_point, args)
+    return return_value
+
+
+def combine_funcs_with_synth_constants(funcs: Sequence[FuncOp]) -> FuncOp:
+    """
+    Combine multiple `func.func` operations into a single one, using
+    synth.constant operations to choose which function to call.
+    """
+    assert len(funcs) > 0, "At least one function is required."
+
+    funcs = list(funcs)
+    while len(funcs) > 1:
+        left = funcs.pop().clone()
+        right = funcs.pop().clone()
+
+        assert left.function_type == right.function_type
+
+        merged_func = FuncOp(left.name, left.function_type)
+        insert_point = InsertPoint.at_end(merged_func.body.block)
+        left_val = inline_single_result_func(left, merged_func.args, insert_point)
+        right_val = inline_single_result_func(right, merged_func.args, insert_point)
+        builder = Builder(insert_point)
+
+        # Create a synth.constant to choose which function to call.
+        cst = builder.insert(synth.ConstantOp(smt.BoolType()))
+        # Create a conditional operation to choose the function to call, and return
+        # the result.
+        cond = builder.insert(smt.IteOp(cst.res, left_val, right_val)).res
+        builder.insert(ReturnOp(cond))
+
+        # Add the merged function to the list of functions.
+        funcs.append(merged_func)
+
+    return funcs[0].clone()
+
+
+def is_range_subset_of_list_with_z3(
+    left: FuncOp,
+    right: Sequence[FuncOp],
+):
+    """
+    Check wether the ranges of values that the `left` program can reach by assigning
+    constants to `xdsl.smt.synth` is a subset of the range of values that the `right`
+    programs can reach. This is done using Z3.
+    """
+
+    merged_right = combine_funcs_with_synth_constants(right)
+    return is_range_subset_with_z3(left, merged_right)
 
 
 def is_range_subset_with_z3(
@@ -1447,7 +1540,7 @@ def main() -> None:
             for rewrite in rewrites:
                 print(rewrite)
 
-        if True:
+        if False:
             ctx = Context()
             ctx.allow_unregistered = True
             ctx.load_dialect(Builtin)
@@ -1490,27 +1583,56 @@ def main() -> None:
                             break
                     if not should_skip:
                         programs.append(func)
-                print()
+
+                # Group canonical programs by their function type, and merge them using
+                # synth.constant.
+                grouped_cst_canonicals: dict[FunctionType, list[FuncOp]] = {}
+                for canonical in cst_canonicals:
+                    grouped_cst_canonicals.setdefault(
+                        canonical.function_type, []
+                    ).append(canonical)
+                merged_cst_canonicals: dict[FunctionType, FuncOp] = {}
+                for function_type, ops in grouped_cst_canonicals.items():
+                    merged_cst_canonicals[
+                        function_type
+                    ] = combine_funcs_with_synth_constants(ops)
+                    merged_cst_canonicals[function_type].verify()
 
                 new_possible_canonicals = list[FuncOp]()
-                for program_idx, program in enumerate(programs):
-                    for canonical_idx, canonical in enumerate(cst_canonicals):
+                if False:
+                    for program_idx, program in enumerate(programs):
                         print(
-                            f"\033[2K Checking program {program_idx + 1}/{len(programs)} against old programs {canonical_idx + 1}/{len(cst_canonicals)}",
+                            f"\033[2K Checking program {program_idx + 1}/{len(programs)}",
                             end="\r",
                         )
-                        if program.function_type != canonical.function_type:
-                            continue
+                        if program.function_type in merged_cst_canonicals:
+                            cst_canonical = merged_cst_canonicals[program.function_type]
+                            if is_range_subset_with_z3(program, cst_canonical):
+                                print("Found illegal pattern:                   ")
+                                pretty_print_func(program)
+                                print("\r")
+                                cst_illegals.append(program)
+                                continue
+                        cst_canonicals.append(program)
+                else:
+                    for program_idx, program in enumerate(programs):
+                        for canonical_idx, canonical in enumerate(cst_canonicals):
+                            print(
+                                f"\033[2K Checking program {program_idx + 1}/{len(programs)} against old programs {canonical_idx + 1}/{len(cst_canonicals)}",
+                                end="\r",
+                            )
+                            if program.function_type != canonical.function_type:
+                                continue
 
-                        if is_range_subset_with_z3(program, canonical):
-                            print("Found illegal pattern:")
-                            print(program)
-                            print("which is a subset of:")
-                            print(canonical)
-                            cst_illegals.append(program)
-                            break
-                    else:
-                        new_possible_canonicals.append(program)
+                            if is_range_subset_with_z3(program, canonical):
+                                print("Found illegal pattern:")
+                                pretty_print_func(program)
+                                print("which is a subset of:")
+                                pretty_print_func(canonical)
+                                cst_illegals.append(program)
+                                break
+                        else:
+                            new_possible_canonicals.append(program)
                 print()
 
                 is_illegal_mask: list[bool] = [False] * len(new_possible_canonicals)
