@@ -307,7 +307,7 @@ def fix_defining_op_return_type(func: DefineFunOp) -> DefineFunOp:
     """
     smt_func_type = func.func_type
     ret_val_type = [ret.type for ret in func.return_values]
-    if smt_func_type != ret_val_type:
+    if smt_func_type.outputs.data != tuple(ret_val_type):
         new_smt_func_type = FunctionType.from_lists(
             smt_func_type.inputs.data, ret_val_type
         )

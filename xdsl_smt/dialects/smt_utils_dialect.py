@@ -17,7 +17,7 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     Operand,
-    ParameterDef,
+    param_def,
     irdl_attr_definition,
     irdl_op_definition,
     IRDLOperation,
@@ -42,11 +42,11 @@ _S = TypeVar("_S", bound=Attribute, covariant=True, default=Attribute)
 class PairType(Generic[_F, _S], ParametrizedAttribute, SMTLibSort, TypeAttribute):
     name = "smt.utils.pair"
 
-    first: ParameterDef[_F]
-    second: ParameterDef[_S]
+    first: _F = param_def()
+    second: _S = param_def()
 
     def __init__(self, first: _F, second: _S):
-        super().__init__([first, second])
+        super().__init__(first, second)
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
         print("(Pair ", file=stream, end="")

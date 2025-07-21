@@ -27,7 +27,6 @@ from ..traits.smt_printer import (
     SMTLibSort,
     SMTConversionCtx,
 )
-from xdsl.ir import SSAValue, Operation
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.dialects.builtin import Signedness
 
@@ -55,7 +54,7 @@ class BinaryIntOp(IRDLOperation, Pure):
     rhs: Operand = operand_def(SMTIntType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        super().__init__(result_types=[SMTIntType([])], operands=[lhs, rhs])
+        super().__init__(result_types=[SMTIntType()], operands=[lhs, rhs])
 
 
 _BPOpT = TypeVar("_BPOpT", bound="BinaryPredIntOp")

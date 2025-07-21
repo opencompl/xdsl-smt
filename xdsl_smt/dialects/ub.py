@@ -8,7 +8,7 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     IRDLOperation,
-    ParameterDef,
+    param_def,
     ConstraintVar,
     region_def,
     var_result_def,
@@ -16,7 +16,7 @@ from xdsl.irdl import (
     VarConstraint,
     AnyAttr,
     ParamAttrConstraint,
-    GenericAttrConstraint,
+    AttrConstraint,
     traits_def,
 )
 from xdsl.ir import (
@@ -42,16 +42,16 @@ class UBOrType(Generic[_UBAttrParameter], ParametrizedAttribute, TypeAttribute):
 
     name = "ub.ub_or"
 
-    type: ParameterDef[_UBAttrParameter]
+    type: _UBAttrParameter = param_def()
 
     def __init__(self, type: _UBAttrParameter):
-        super().__init__([type])
+        super().__init__(type)
 
     @classmethod
     def constr(
         cls,
-        type: GenericAttrConstraint[_UBAttrParameter],
-    ) -> GenericAttrConstraint[UBOrType[_UBAttrParameter]]:
+        type: AttrConstraint[_UBAttrParameter],
+    ) -> AttrConstraint[UBOrType[_UBAttrParameter]]:
         return ParamAttrConstraint[UBOrType[_UBAttrParameter]](UBOrType, [type])
 
 

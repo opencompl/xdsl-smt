@@ -15,14 +15,14 @@ from xdsl.irdl import (
     operand_def,
     result_def,
     Operand,
-    ParameterDef,
+    param_def,
     irdl_op_definition,
     irdl_attr_definition,
     IRDLOperation,
     traits_def,
     VarConstraint,
     AnyAttr,
-    GenericAttrConstraint,
+    AttrConstraint,
     ParamAttrConstraint,
 )
 from xdsl.parser import Parser
@@ -43,28 +43,28 @@ class ArrayType(
     Generic[DomainT, RangeT], ParametrizedAttribute, SMTLibSort, TypeAttribute
 ):
     name = "smt.array.array"
-    domain: ParameterDef[DomainT]
-    range: ParameterDef[RangeT]
+    domain: DomainT = param_def()
+    range: RangeT = param_def()
 
     @classmethod
     def constr(
         cls,
-        domain: GenericAttrConstraint[DomainT],
-        range: GenericAttrConstraint[RangeT],
-    ) -> GenericAttrConstraint[ArrayType[DomainT, RangeT]]:
+        domain: AttrConstraint[DomainT],
+        range: AttrConstraint[RangeT],
+    ) -> AttrConstraint[ArrayType[DomainT, RangeT]]:
         return ParamAttrConstraint[ArrayType[DomainT, RangeT]](
             ArrayType, [domain, range]
         )
 
     def print_sort_to_smtlib(self, stream: IO[str]):
-        print(f"(Array ", file=stream, end="")
+        print("(Array ", file=stream, end="")
         SMTConversionCtx.print_sort_to_smtlib(self.domain, stream)
         print(" ", file=stream, end="")
         SMTConversionCtx.print_sort_to_smtlib(self.range, stream)
         print(")", file=stream)
 
     def __init__(self, domain: DomainT, range: RangeT):
-        super().__init__([domain, range])
+        super().__init__(domain, range)
 
 
 AnyArrayType = ArrayType[Attribute, Attribute]
@@ -138,10 +138,16 @@ class StoreOp(IRDLOperation, SimpleSMTLibOp):
     # assembly_format = "$array `[` $index `]` `,` $value attr-dict `:` type($array)"
 
     def print(self, printer: Printer):
-        printer.print(" ", self.array, "[", self.index, "]", ", ", self.value)
+        printer.print_string(" ")
+        printer.print_operand(self.array)
+        printer.print_string("[")
+        printer.print_operand(self.index)
+        printer.print_string("], ")
+        printer.print_operand(self.value)
         if self.attributes:
             printer.print_attr_dict(self.attributes)
-        printer.print(" : ", self.array.type)
+        printer.print_string(" : ")
+        printer.print_attribute(self.array.type)
 
     @classmethod
     def parse(cls, parser: Parser) -> StoreOp:

@@ -8,7 +8,6 @@ from xdsl.irdl import (
     IRDLOperation,
     traits_def,
 )
-from xdsl.utils.hints import isa
 from xdsl.utils.exceptions import VerifyException
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 from xdsl_smt.dialects.effects.effect import StateType
@@ -26,7 +25,7 @@ class PointerType(TypeAttribute, ParametrizedAttribute):
     name = "mem_effect.ptr"
 
     def __init__(self):
-        super().__init__(())
+        super().__init__()
 
 
 @irdl_op_definition

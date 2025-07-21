@@ -120,13 +120,13 @@ class SelectOp(IRDLOperation):
         return cls(cond, operand1, operand2)
 
     def print(self, printer: Printer):
-        printer.print(" ")
+        printer.print_string(" ")
         printer.print_operand(self.cond)
-        printer.print(", ")
+        printer.print_string(", ")
         printer.print_operand(self.lhs)
-        printer.print(", ")
+        printer.print_string(", ")
         printer.print_operand(self.rhs)
-        printer.print(" : ")
+        printer.print_string(" : ")
         printer.print_attribute(self.result.type)
 
 

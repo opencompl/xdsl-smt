@@ -264,7 +264,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
         for idx, typ in enumerate(self.func_type.inputs):
             if idx != 0:
                 print(" ", file=stream, end="")
-            print(f"(", file=stream, end="")
+            print("(", file=stream, end="")
             ctx.print_sort_to_smtlib(typ, stream)
             print(")", file=stream, end="")
 
@@ -478,11 +478,11 @@ class BinaryBoolOp(IRDLOperation, Pure):
     rhs: Operand = operand_def(BoolType)
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
+        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
 
     @classmethod
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
-        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
+        return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
 
 
 class BinaryTOp(IRDLOperation, Pure):
@@ -493,11 +493,11 @@ class BinaryTOp(IRDLOperation, Pure):
     rhs: Operand = operand_def()
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        super().__init__(result_types=[BoolType([])], operands=[lhs, rhs])
+        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
 
     @classmethod
     def get(cls: type[_OpT], lhs: SSAValue, rhs: SSAValue) -> _OpT:
-        return cls.create(result_types=[BoolType([])], operands=[lhs, rhs])
+        return cls.create(result_types=[BoolType()], operands=[lhs, rhs])
 
     def verify_(self) -> None:
         if self.lhs.type != self.rhs.type:
@@ -530,7 +530,7 @@ class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
     @staticmethod
     def from_bool(value: bool) -> ConstantBoolOp:
         return ConstantBoolOp.create(
-            result_types=[BoolType([])],
+            result_types=[BoolType()],
             properties={"value": IntegerAttr(-1 if value else 0, 1)},
         )
 
