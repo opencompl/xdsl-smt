@@ -221,6 +221,21 @@ class AddSemantics(SimplePurePoisonSemantics):
 
         return ((res, poison_condition),)
 
+class AndSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        lhs = operands[0]
+        rhs = operands[1]
+
+        # Perform the addition
+        res = rewriter.insert(smt_bv.AndOp(lhs, rhs)).res
+
+        return ((res, None),)
 
 class XOrSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -238,10 +253,129 @@ class XOrSemantics(SimplePurePoisonSemantics):
 
         return ((res, None),)
 
+class OrSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        lhs = operands[0]
+        rhs = operands[1]
+
+        res = rewriter.insert(smt_bv.OrOp(lhs, rhs)).res
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
+
+        #TODO: fix this as test with disjoint flag still has boolean set as false
+        disjoint_attr = attributes.get("disjointFlag")
+        if disjoint_attr is None:
+            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+        elif isinstance(disjoint_attr, Attribute):
+            assert isinstance(disjoint_attr, llvm.UnitAttr)
+            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+        else:
+            disjoint_attr = cast(SSAValue[smt.BoolType], disjoint_attr)
+        # Check if disjoint
+        zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
+        rhs_and_lhs = rewriter.insert(smt_bv.AndOp(lhs, rhs)).res
+        has_no_carry_on = rewriter.insert(smt.EqOp(rhs_and_lhs, zero)).res
+        has_carry_on = rewriter.insert(smt.NotOp(has_no_carry_on)).res
+        
+        poison_condition = rewriter.insert(
+            smt.AndOp(disjoint_attr, has_carry_on)
+        ).result
+
+        return ((res, poison_condition),)
+
+class ShlSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+
+        lhs = operands[0]
+        rhs = operands[1]
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
+
+        # Correctly insert the ShlOp and retrieve its result
+        res = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
+
+        # If the shift amount is greater than the width of the value, poison
+        width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
+        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+
+        return ((res, poison_condition),)
+
+class LshrSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+
+        lhs = operands[0]
+        rhs = operands[1]
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
+
+        # Correctly insert the ShlOp and retrieve its result
+        res = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
+
+        # If the shift amount is greater than the width of the value, poison
+        width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
+        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+
+        return ((res, poison_condition),)
+
+class AshrSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+
+        lhs = operands[0]
+        rhs = operands[1]
+
+        assert isinstance(lhs.type, smt_bv.BitVectorType)
+        width = lhs.type.width.data
+
+        # Correctly insert the Ashr and retrieve its result
+        res = rewriter.insert(smt_bv.AShrOp(lhs, rhs)).res
+
+        # If the shift amount is greater than the width of the value, poison
+        width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
+        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+
+        return ((res, poison_condition),)
+
+#  llvm.ShlOp: ShlSemantics(),
+#    llvm.LShrOp: LshrSemantics(),
+#    llvm.AShrOp: AshrSemantics(),
+
 
 llvm_semantics: dict[type[Operation], OperationSemantics] = {
     llvm.AddOp: AddSemantics(),
+    llvm.AndOp: AndSemantics(),
     llvm.XOrOp: XOrSemantics(),
+    llvm.OrOp: OrSemantics(),
+    llvm.ShlOp: ShlSemantics(),
+    llvm.LShrOp: LshrSemantics(),
+    llvm.AShrOp: AshrSemantics(),
+  
 }
 llvm_attribute_semantics: dict[type[Attribute], AttributeSemantics] = {
     llvm.OverflowAttr: OverflowAttrSemantics(),
