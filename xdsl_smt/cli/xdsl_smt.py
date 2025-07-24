@@ -30,7 +30,6 @@ from xdsl_smt.dialects.hoare_dialect import Hoare
 from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl_smt.dialects.index_dialect import Index
 from xdsl_smt.dialects.transfer import Transfer
@@ -46,9 +45,9 @@ from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
 from xdsl_smt.passes.smt_expand import SMTExpand
 from xdsl_smt.passes.pdl_add_implicit_properties import PDLAddImplicitPropertiesPass
 
-from ..passes.pdl_to_smt import PDLToSMT
+from xdsl_smt.passes.pdl_to_smt import PDLToSMT
 
-from ..traits.smt_printer import print_to_smtlib
+from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 from xdsl_smt.pdl_constraints.integer_arith_constraints import (
     integer_arith_native_rewrites,
@@ -57,6 +56,7 @@ from xdsl_smt.pdl_constraints.integer_arith_constraints import (
 )
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
     load_vanilla_semantics_with_transfer,
+    load_vanilla_semantics_using_control_flow_dialects,
 )
 
 
@@ -132,11 +132,23 @@ class OptMain(xDSLOptMain):
             help="width used for transfer integers",
             default=8,
         )
+        arg_parser.add_argument(
+            "-s",
+            "--semantics",
+            type=str,
+            choices=["default", "with-cf"],
+            default="default",
+            help="Choose the semantics to use for the transfer integers.",
+        )
 
 
 def main():
     xdsl_main = OptMain()
-    load_vanilla_semantics_with_transfer(xdsl_main.args.width)
+    if xdsl_main.args.semantics == "default":
+        load_vanilla_semantics_with_transfer(xdsl_main.args.width)
+    else:
+        load_vanilla_semantics_using_control_flow_dialects()
+
     PDLToSMT.pdl_lowerer.native_rewrites = integer_arith_native_rewrites
     PDLToSMT.pdl_lowerer.native_constraints = integer_arith_native_constraints
     PDLToSMT.pdl_lowerer.native_static_constraints = (

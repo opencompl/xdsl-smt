@@ -2,6 +2,7 @@ from .lower_to_smt import *
 
 from .func_to_smt import (
     func_to_smt_patterns as func_to_smt_patterns,
+    func_to_smt_with_func_patterns as func_to_smt_with_func_patterns,
 )
 from .llvm_to_smt import (
     llvm_to_smt_patterns as llvm_to_smt_patterns,
