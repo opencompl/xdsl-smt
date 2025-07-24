@@ -6,14 +6,22 @@ from typing import Any, Literal
 from xdsl.context import Context
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.interpreter import Interpreter
-from xdsl.interpreters.func import FuncFunctions
 from xdsl.ir import Attribute
 from xdsl.parser import Parser
-from xdsl_smt.dialects import smt_dialect as smt
 from xdsl.tools.command_line_tool import CommandLineTool
 from xdsl.traits import CallableOpInterface
+
+from xdsl.interpreters.func import FuncFunctions
 from xdsl_smt.interpreters.smt import SMTFunctions
 from xdsl_smt.interpreters.smt_bitvector import SMTBitVectorFunctions
+from xdsl_smt.interpreters.smt_utils import SMTUtilsFunctions
+
+from xdsl_smt.dialects import (
+    smt_dialect as smt,
+    smt_bitvector_dialect as smt_bv,
+    smt_utils_dialect as smt_utils,
+    smt_array_dialect as smt_array,
+)
 
 
 def build_interpreter(module: ModuleOp, index_bitwidth: Literal[32, 64]) -> Interpreter:
@@ -23,6 +31,7 @@ def build_interpreter(module: ModuleOp, index_bitwidth: Literal[32, 64]) -> Inte
     interpreter.register_implementations(FuncFunctions())
     interpreter.register_implementations(SMTFunctions())
     interpreter.register_implementations(SMTBitVectorFunctions())
+    interpreter.register_implementations(SMTUtilsFunctions())
 
     return interpreter
 
@@ -75,7 +84,16 @@ class xDSLRunMain(CommandLineTool):
     def register_all_dialects(self):
         super().register_all_dialects()
         del self.ctx._registered_dialects["smt"]  # pyright: ignore[reportPrivateUsage]
-        self.ctx.register_dialect("smt", lambda: smt.SMTDialect)
+        self.ctx.register_dialect(smt.SMTDialect.name, lambda: smt.SMTDialect)
+        self.ctx.register_dialect(
+            smt_bv.SMTBitVectorDialect.name, lambda: smt_bv.SMTBitVectorDialect
+        )
+        self.ctx.register_dialect(smt_array.SMTArray.name, lambda: smt_array.SMTArray)
+        self.ctx.register_dialect(
+            smt_utils.SMTUtilsDialect.name, lambda: smt_utils.SMTUtilsDialect
+        )
+        self.ctx.load_registered_dialect(smt_utils.SMTUtilsDialect.name)
+        self.ctx.load_registered_dialect(smt_bv.SMTBitVectorDialect.name)
 
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         arg_parser.add_argument(
