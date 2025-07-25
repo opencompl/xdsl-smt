@@ -335,7 +335,7 @@ class UdivSemantics(SimplePurePoisonSemantics):
         width = lhs.type.width.data
 
         #TODO: fix this -> see disjoint flag
-        exact_attr = attributes.get("exactFlag")
+        exact_attr = attributes.get("isExact")
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
@@ -375,8 +375,7 @@ class SdivSemantics(SimplePurePoisonSemantics):
         assert isinstance(lhs.type, smt_bv.BitVectorType)
         width = lhs.type.width.data
 
-        #TODO: fix this -> see disjoint flag
-        exact_attr = attributes.get("exactFlag")
+        exact_attr = attributes.get("isExact")
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
@@ -448,8 +447,10 @@ class OrSemantics(SimplePurePoisonSemantics):
         assert isinstance(lhs.type, smt_bv.BitVectorType)
         width = lhs.type.width.data
 
-        #TODO: fix this as test with disjoint flag still has boolean set as false
-        disjoint_attr = attributes.get("disjointFlag")
+       
+        disjoint_attr = attributes.get("isDisjoint")
+        print(attributes)
+        #test case returns None :/
         if disjoint_attr is None:
             disjoint_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(disjoint_attr, Attribute):
@@ -484,12 +485,45 @@ class ShlSemantics(SimplePurePoisonSemantics):
         assert isinstance(lhs.type, smt_bv.BitVectorType)
         width = lhs.type.width.data
 
+        # Convert possible overflow attribute flag to a value
+        overflow_attr = attributes["overflowFlags"]
+        if isinstance(overflow_attr, Attribute):
+            assert isinstance(overflow_attr, llvm.OverflowAttr)
+            overflow_attr = OverflowAttrSemanticsAdaptor.from_attribute(
+                overflow_attr, rewriter
+            )
+        else:
+            overflow_attr = cast(
+                SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]], overflow_attr
+            )
+            overflow_attr = OverflowAttrSemanticsAdaptor(overflow_attr)
+
+        # Handle nsw
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        has_nsw = overflow_attr.get_nuw_flag(rewriter)
+        left_shift = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
+        right_shift = rewriter.insert(smt_bv.AShrOp(left_shift, rhs)).res
+        is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
+        is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
+        is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
+        poison_condition = rewriter.insert(smt.OrOp(poison_condition, is_overflow_and_nsw)).result
+
+        # Handle nuw
+        has_nuw = overflow_attr.get_nuw_flag(rewriter)
+        left_shift = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
+        right_shift = rewriter.insert(smt_bv.LShrOp(left_shift, rhs)).res
+        is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
+        is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
+        is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).result
+        poison_condition = rewriter.insert(smt.OrOp(poison_condition, is_overflow_and_nuw)).result
+
         # Correctly insert the ShlOp and retrieve its result
         res = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
 
         # If the shift amount is greater than the width of the value, poison
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
-        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+        invalid_width = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+        poison_condition = rewriter.insert(smt.OrOp(poison_condition, invalid_width)).result
 
         return ((res, poison_condition),)
 
@@ -511,9 +545,27 @@ class LshrSemantics(SimplePurePoisonSemantics):
         # Correctly insert the ShlOp and retrieve its result
         res = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
 
+        exact_attr = attributes.get("isExact")
+        if exact_attr is None:
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+        elif isinstance(exact_attr, Attribute):
+            assert isinstance(exact_attr, llvm.UnitAttr)
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+        else:
+            exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
+
+        # shift back and forth to check if its still the same
+        right_shift = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
+        left_shift = rewriter.insert(smt_bv.ShlOp(right_shift, rhs)).res
+        is_exact = rewriter.insert(smt.EqOp(lhs, left_shift)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
+
         # If the shift amount is greater than the width of the value, poison
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
-        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+        wrong_length = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+
+        poison_condition = rewriter.insert(smt.OrOp(poison_condition, wrong_length)).result
 
         return ((res, poison_condition),)
 
@@ -535,30 +587,147 @@ class AshrSemantics(SimplePurePoisonSemantics):
         # Correctly insert the Ashr and retrieve its result
         res = rewriter.insert(smt_bv.AShrOp(lhs, rhs)).res
 
+        exact_attr = attributes.get("isExact")
+        if exact_attr is None:
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+        elif isinstance(exact_attr, Attribute):
+            assert isinstance(exact_attr, llvm.UnitAttr)
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+        else:
+            exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
+
+        # shift back and forth to check if its still the same
+        right_shift = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
+        left_shift = rewriter.insert(smt_bv.ShlOp(right_shift, rhs)).res
+        is_exact = rewriter.insert(smt.EqOp(lhs, left_shift)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
+
         # If the shift amount is greater than the width of the value, poison
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
-        poison_condition = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+        wrong_length = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
+
+        poison_condition = rewriter.insert(smt.OrOp(poison_condition, wrong_length)).result
 
         return ((res, poison_condition),)
 
-#  llvm.ShlOp: ShlSemantics(),
-#    llvm.LShrOp: LshrSemantics(),
-#    llvm.AShrOp: AshrSemantics(),
+
+#TODO implement this, and add samesign flag
+class ICmpSemantics(SimplePurePoisonSemantics):
+    def get_pure_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        rewriter: PatternRewriter,
+    ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
+        predicate_value = attributes["predicate"]
+        if isinstance(predicate_value, Attribute):
+            assert isa(predicate_value, IntegerAttr)
+            predicate_value = IntegerAttrSemantics().get_semantics(
+                predicate_value, rewriter
+            )
+
+        zero_i1 = smt_bv.ConstantOp(0, 1)
+        one_i1 = smt_bv.ConstantOp(1, 1)
+        rewriter.insert_op_before_matched_op([zero_i1, one_i1])
+
+        # Predicate 0: eq
+        value_0 = smt.EqOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_0])
+
+        # Predicate 1: ne
+        value_1 = smt.DistinctOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_1])
+
+        # Predicate 2: slt
+        value_2 = smt_bv.SltOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_2])
+
+        # Predicate 3: sle
+        value_3 = smt_bv.SleOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_3])
+
+        # Predicate 4: sgt
+        value_4 = smt_bv.SgtOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_4])
+
+        # Predicate 5: sge
+        value_5 = smt_bv.SgeOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_5])
+
+        # Predicate 6: ult
+        value_6 = smt_bv.UltOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_6])
+
+        # Predicate 7: ule
+        value_7 = smt_bv.UleOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_7])
+
+        # Predicate 8: ugt
+        value_8 = smt_bv.UgtOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_8])
+
+        # Predicate 9: uge
+        value_9 = smt_bv.UgeOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op([value_9])
+
+        zero = smt_bv.ConstantOp(0, 64)
+        one = smt_bv.ConstantOp(1, 64)
+        two = smt_bv.ConstantOp(2, 64)
+        three = smt_bv.ConstantOp(3, 64)
+        four = smt_bv.ConstantOp(4, 64)
+        five = smt_bv.ConstantOp(5, 64)
+        six = smt_bv.ConstantOp(6, 64)
+        seven = smt_bv.ConstantOp(7, 64)
+        eight = smt_bv.ConstantOp(8, 64)
+        rewriter.insert_op_before_matched_op(
+            [zero, one, two, three, four, five, six, seven, eight]
+        )
+
+        eq_0 = smt.EqOp(predicate_value, zero.res)
+        eq_1 = smt.EqOp(predicate_value, one.res)
+        eq_2 = smt.EqOp(predicate_value, two.res)
+        eq_3 = smt.EqOp(predicate_value, three.res)
+        eq_4 = smt.EqOp(predicate_value, four.res)
+        eq_5 = smt.EqOp(predicate_value, five.res)
+        eq_6 = smt.EqOp(predicate_value, six.res)
+        eq_7 = smt.EqOp(predicate_value, seven.res)
+        eq_8 = smt.EqOp(predicate_value, eight.res)
+        rewriter.insert_op_before_matched_op(
+            [eq_0, eq_1, eq_2, eq_3, eq_4, eq_5, eq_6, eq_7, eq_8]
+        )
+
+        # Switch case on predicate
+        ite_8 = smt.IteOp(eq_8.res, value_8.res, value_9.res)
+        ite_7 = smt.IteOp(eq_7.res, value_7.res, ite_8.res)
+        ite_6 = smt.IteOp(eq_6.res, value_6.res, ite_7.res)
+        ite_5 = smt.IteOp(eq_5.res, value_5.res, ite_6.res)
+        ite_4 = smt.IteOp(eq_4.res, value_4.res, ite_5.res)
+        ite_3 = smt.IteOp(eq_3.res, value_3.res, ite_4.res)
+        ite_2 = smt.IteOp(eq_2.res, value_2.res, ite_3.res)
+        ite_1 = smt.IteOp(eq_1.res, value_1.res, ite_2.res)
+        ite_0 = smt.IteOp(eq_0.res, value_0.res, ite_1.res)
+        rewriter.insert_op_before_matched_op(
+            [ite_8, ite_7, ite_6, ite_5, ite_4, ite_3, ite_2, ite_1, ite_0]
+        )
+        to_int = smt.IteOp(ite_0.res, one_i1.res, zero_i1.res)
+        rewriter.insert_op_before_matched_op(to_int)
+        return ((to_int.res, None),)
 
 
 llvm_semantics: dict[type[Operation], OperationSemantics] = {
     llvm.AddOp: AddSemantics(), 
     llvm.SubOp: SubSemantics(), #TODO add SsubOverflowOp and UsubOverflowOp
     llvm.MulOp: MulSemantics(),
-    llvm.UDivOp: UdivSemantics(), #TODO fix exact flag
-    llvm.SDivOp: SdivSemantics(),  #TODO fix exact flag
+    llvm.UDivOp: UdivSemantics(),
+    llvm.SDivOp: SdivSemantics(),
     llvm.AndOp: AndSemantics(),
     llvm.XOrOp: XOrSemantics(),
-    llvm.OrOp: OrSemantics(),  #TODO fix disjoint flag
+    llvm.OrOp: OrSemantics(),
     llvm.ShlOp: ShlSemantics(),
     llvm.LShrOp: LshrSemantics(),
     llvm.AShrOp: AshrSemantics(),
-  
 }
 llvm_attribute_semantics: dict[type[Attribute], AttributeSemantics] = {
     llvm.OverflowAttr: OverflowAttrSemantics(),
