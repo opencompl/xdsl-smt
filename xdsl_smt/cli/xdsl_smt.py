@@ -23,6 +23,7 @@ from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectsWithMemoryPass
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
+from xdsl_smt.passes.raise_llvm_to_func import RaiseLLVMToFunc
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -117,6 +118,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(
             PDLAddImplicitPropertiesPass.name, lambda: PDLAddImplicitPropertiesPass
         )
+        self.register_pass(RaiseLLVMToFunc.name, lambda: RaiseLLVMToFunc)
 
     def register_all_targets(self):
         super().register_all_targets()
