@@ -113,7 +113,7 @@ class Fingerprint:
     _images: FrozenMultiset[Image]
 
 
-Permutation = Sequence[int]
+Permutation = tuple[int, ...]
 
 
 def permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]:
@@ -199,6 +199,7 @@ def func_to_pdl(
     )
 
 
+@dataclass(init=False, unsafe_hash=True)
 class Program:
     __slots__ = (
         "_module",
@@ -294,10 +295,11 @@ class Program:
         arity = self.useful_arity()
         assert len(permutation) == arity
         permuted = copy.copy(self)
-        permuted._param_permutation = list(permuted._param_permutation)
-        permuted._param_permutation[:arity] = [
+        param_permutation = list(permuted._param_permutation)
+        param_permutation[:arity] = [
             permuted._param_permutation[i] for i in permutation
         ]
+        permuted._param_permutation = tuple(param_permutation)
         return permuted
 
     def _parameter_permutations(self) -> Iterable["Program"]:
@@ -388,9 +390,10 @@ class Program:
             ty for ty, m in zip(function_type.inputs, useless_param_mask) if not m
         )
         self._useless_param_count = sum(useless_param_mask)
-        self._param_permutation = [
-            i for i, m in enumerate(useless_param_mask) if not m
-        ] + [i for i, m in enumerate(useless_param_mask) if m]
+        self._param_permutation = tuple(
+            [i for i, m in enumerate(useless_param_mask) if not m]
+            + [i for i, m in enumerate(useless_param_mask) if m]
+        )
 
         # Now, compute the results ignoring useless parameters.
         values_for_each_useful_param = [
@@ -517,11 +520,24 @@ class Program:
                     return len(lop.operands) - len(rop.operands)
                 # Choose an arbitrary result if they are different.
                 if not isinstance(lop, type(rop)):
-                    return hash(lop.name) - hash(rop.name)
+                    return -1 if lop.name < rop.name else 1
                 if lop.properties != rop.properties:
-                    return hash(frozenset(lop.properties.items())) - hash(
-                        frozenset(rop.properties.items())
+                    sorted_keys = sorted(
+                        set(lop.properties.keys() | rop.properties.keys())
                     )
+                    for key in sorted_keys:
+                        if key not in lop.properties:
+                            return -1
+                        if key not in rop.properties:
+                            return 1
+                        if lop.properties[key] != rop.properties[key]:
+                            # Favor smaller properties.
+                            return (
+                                -1
+                                if str(lop.properties[key]) < str(rop.properties[key])
+                                else 1
+                            )
+                    assert False, "Logical error"
                 if i != j:
                     return i - j
                 # Compare operands as a last resort.
@@ -1301,9 +1317,7 @@ def find_new_behaviors(
 
     with Pool() as p:
         for i, (known, new) in enumerate(
-            p.imap_unordered(
-                partial(find_new_behaviors_in_bucket, canonicals_dict), buckets
-            )
+            p.imap(partial(find_new_behaviors_in_bucket, canonicals_dict), buckets)
         ):
             print(
                 f"\033[2K Finding new behaviors... "
@@ -1425,7 +1439,7 @@ def main() -> None:
             buckets: dict[Fingerprint, Bucket] = {}
             enumerated_count = 0
             with Pool() as p:
-                for program in p.imap_unordered(
+                for program in p.imap(
                     parse_program,
                     enumerate_programs(
                         args.max_num_args,
