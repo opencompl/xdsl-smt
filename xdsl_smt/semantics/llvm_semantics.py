@@ -5,9 +5,11 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence, cast
 from xdsl.ir import Operation, SSAValue, Attribute
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.dialects.builtin import IntegerType
+from xdsl.dialects.builtin import IntegerType, UnitAttr, IntegerAttr
+from xdsl.utils.hints import isa
 
 from xdsl_smt.semantics.semantics import AttributeSemantics, OperationSemantics
+from xdsl_smt.semantics.builtin_semantics import IntegerAttrSemantics
 
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
@@ -221,7 +223,8 @@ class AddSemantics(SimplePurePoisonSemantics):
 
         return ((res, poison_condition),)
 
-#TODO add SsubOverflowOp and UsubOverflowOp
+
+# TODO add SsubOverflowOp and UsubOverflowOp
 class SubSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
         self,
@@ -269,6 +272,7 @@ class SubSemantics(SimplePurePoisonSemantics):
         ).result
 
         return ((res, poison_condition),)
+
 
 class MulSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -318,6 +322,7 @@ class MulSemantics(SimplePurePoisonSemantics):
 
         return ((res, poison_condition),)
 
+
 class UdivSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
         self,
@@ -334,12 +339,12 @@ class UdivSemantics(SimplePurePoisonSemantics):
         assert isinstance(lhs.type, smt_bv.BitVectorType)
         width = lhs.type.width.data
 
-        #TODO: fix this -> see disjoint flag
+        # TODO: fix this -> see disjoint flag
         exact_attr = attributes.get("isExact")
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
-            assert isinstance(exact_attr, llvm.UnitAttr)
+            assert isinstance(exact_attr, UnitAttr)
             exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
@@ -351,10 +356,8 @@ class UdivSemantics(SimplePurePoisonSemantics):
         modulo = rewriter.insert(smt_bv.URemOp(lhs, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(modulo, zero)).res
         is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
-        
-        poison_condition = rewriter.insert(
-            smt.AndOp(exact_attr, is_not_exact)
-        ).result
+
+        poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
         return ((res, poison_condition),)
 
@@ -379,7 +382,7 @@ class SdivSemantics(SimplePurePoisonSemantics):
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
-            assert isinstance(exact_attr, llvm.UnitAttr)
+            assert isinstance(exact_attr, UnitAttr)
             exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
@@ -391,10 +394,8 @@ class SdivSemantics(SimplePurePoisonSemantics):
         modulo = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(modulo, zero)).res
         is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
-        
-        poison_condition = rewriter.insert(
-            smt.AndOp(exact_attr, is_not_exact)
-        ).result
+
+        poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
         return ((res, poison_condition),)
 
@@ -415,6 +416,7 @@ class AndSemantics(SimplePurePoisonSemantics):
 
         return ((res, None),)
 
+
 class XOrSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
         self,
@@ -430,6 +432,7 @@ class XOrSemantics(SimplePurePoisonSemantics):
         res = rewriter.insert(smt_bv.XorOp(lhs, rhs)).res
 
         return ((res, None),)
+
 
 class OrSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -447,14 +450,13 @@ class OrSemantics(SimplePurePoisonSemantics):
         assert isinstance(lhs.type, smt_bv.BitVectorType)
         width = lhs.type.width.data
 
-       
         disjoint_attr = attributes.get("isDisjoint")
         print(attributes)
-        #test case returns None :/
+        # test case returns None :/
         if disjoint_attr is None:
             disjoint_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(disjoint_attr, Attribute):
-            assert isinstance(disjoint_attr, llvm.UnitAttr)
+            assert isinstance(disjoint_attr, UnitAttr)
             disjoint_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
         else:
             disjoint_attr = cast(SSAValue[smt.BoolType], disjoint_attr)
@@ -463,12 +465,13 @@ class OrSemantics(SimplePurePoisonSemantics):
         rhs_and_lhs = rewriter.insert(smt_bv.AndOp(lhs, rhs)).res
         has_no_carry_on = rewriter.insert(smt.EqOp(rhs_and_lhs, zero)).res
         has_carry_on = rewriter.insert(smt.NotOp(has_no_carry_on)).res
-        
+
         poison_condition = rewriter.insert(
             smt.AndOp(disjoint_attr, has_carry_on)
         ).result
 
         return ((res, poison_condition),)
+
 
 class ShlSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -478,7 +481,6 @@ class ShlSemantics(SimplePurePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-
         lhs = operands[0]
         rhs = operands[1]
 
@@ -506,7 +508,9 @@ class ShlSemantics(SimplePurePoisonSemantics):
         is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
         is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
-        poison_condition = rewriter.insert(smt.OrOp(poison_condition, is_overflow_and_nsw)).result
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, is_overflow_and_nsw)
+        ).result
 
         # Handle nuw
         has_nuw = overflow_attr.get_nuw_flag(rewriter)
@@ -515,7 +519,9 @@ class ShlSemantics(SimplePurePoisonSemantics):
         is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
         is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
         is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).result
-        poison_condition = rewriter.insert(smt.OrOp(poison_condition, is_overflow_and_nuw)).result
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, is_overflow_and_nuw)
+        ).result
 
         # Correctly insert the ShlOp and retrieve its result
         res = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
@@ -523,9 +529,12 @@ class ShlSemantics(SimplePurePoisonSemantics):
         # If the shift amount is greater than the width of the value, poison
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
         invalid_width = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
-        poison_condition = rewriter.insert(smt.OrOp(poison_condition, invalid_width)).result
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, invalid_width)
+        ).result
 
         return ((res, poison_condition),)
+
 
 class LshrSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -535,7 +544,6 @@ class LshrSemantics(SimplePurePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-
         lhs = operands[0]
         rhs = operands[1]
 
@@ -549,7 +557,7 @@ class LshrSemantics(SimplePurePoisonSemantics):
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
-            assert isinstance(exact_attr, llvm.UnitAttr)
+            assert isinstance(exact_attr, UnitAttr)
             exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
@@ -565,9 +573,12 @@ class LshrSemantics(SimplePurePoisonSemantics):
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
         wrong_length = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
 
-        poison_condition = rewriter.insert(smt.OrOp(poison_condition, wrong_length)).result
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, wrong_length)
+        ).result
 
         return ((res, poison_condition),)
+
 
 class AshrSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
@@ -577,7 +588,6 @@ class AshrSemantics(SimplePurePoisonSemantics):
         attributes: Mapping[str, Attribute | SSAValue],
         rewriter: PatternRewriter,
     ) -> Sequence[tuple[SSAValue, SSAValue | None]]:
-
         lhs = operands[0]
         rhs = operands[1]
 
@@ -591,7 +601,7 @@ class AshrSemantics(SimplePurePoisonSemantics):
         if exact_attr is None:
             exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
         elif isinstance(exact_attr, Attribute):
-            assert isinstance(exact_attr, llvm.UnitAttr)
+            assert isinstance(exact_attr, UnitAttr)
             exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
@@ -607,12 +617,14 @@ class AshrSemantics(SimplePurePoisonSemantics):
         width_op = rewriter.insert(smt_bv.ConstantOp(width, width)).res
         wrong_length = rewriter.insert(smt_bv.UgtOp(rhs, width_op)).res
 
-        poison_condition = rewriter.insert(smt.OrOp(poison_condition, wrong_length)).result
+        poison_condition = rewriter.insert(
+            smt.OrOp(poison_condition, wrong_length)
+        ).result
 
         return ((res, poison_condition),)
 
 
-#TODO implement this, and add samesign flag
+# TODO implement this, and add samesign flag
 class ICmpSemantics(SimplePurePoisonSemantics):
     def get_pure_semantics(
         self,
@@ -717,8 +729,8 @@ class ICmpSemantics(SimplePurePoisonSemantics):
 
 
 llvm_semantics: dict[type[Operation], OperationSemantics] = {
-    llvm.AddOp: AddSemantics(), 
-    llvm.SubOp: SubSemantics(), #TODO add SsubOverflowOp and UsubOverflowOp
+    llvm.AddOp: AddSemantics(),
+    llvm.SubOp: SubSemantics(),  # TODO add SsubOverflowOp and UsubOverflowOp
     llvm.MulOp: MulSemantics(),
     llvm.UDivOp: UdivSemantics(),
     llvm.SDivOp: SdivSemantics(),
