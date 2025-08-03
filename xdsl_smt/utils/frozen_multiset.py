@@ -5,22 +5,21 @@ from dataclasses import dataclass
 T = TypeVar("T")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FrozenMultiset(Generic[T]):
     """A frozen multiset."""
 
-    __slots__ = ("_contents",)
-
     _contents: frozenset[tuple[T, int]]
 
-    def __init__(self, values: Iterable[T]):
+    @staticmethod
+    def from_iterable(values: Iterable[T]) -> FrozenMultiset[T]:
         items = dict[T, int]()
         for value in values:
             if value in items:
                 items[value] += 1
             else:
                 items[value] = 1
-        self.__setattr__("_contents", frozenset(items.items()))
+        return FrozenMultiset[T](frozenset(items.items()))
 
     def __repr__(self) -> str:
         items: list[T] = []

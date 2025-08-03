@@ -31,6 +31,7 @@ from xdsl.builder import Builder
 from xdsl_smt.utils.pretty_print import pretty_print_value
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
+from xdsl_smt.superoptimization.program_enumeration import enumerate_programs
 
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
@@ -356,7 +357,7 @@ class Program:
             and (self._is_basic or is_parameter_useless_z3(self, i))
             for i in range(arity)
         )
-        useful_input_types = FrozenMultiset(
+        useful_input_types = FrozenMultiset[Attribute].from_iterable(
             ty for ty, m in zip(function_type.inputs, useless_param_mask) if not m
         )
         self._useless_param_count = sum(useless_param_mask)
@@ -385,7 +386,7 @@ class Program:
         self._input_cardinalities = tuple(
             len(values) for values in values_for_each_useful_param
         )
-        results_with_permutations = FrozenMultiset(
+        results_with_permutations = FrozenMultiset[Image].from_iterable(
             permuted.image() for permuted in self._parameter_permutations()
         )
 
@@ -807,89 +808,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default=SMT_MLIR,
         help="The IRDL file describing the dialect to use for enumeration",
     )
-
-
-def read_program_from_enumerator(enumerator: sp.Popen[str]) -> str | None:
-    program_lines = list[str]()
-    assert enumerator.stdout is not None
-    while True:
-        output = enumerator.stdout.readline()
-
-        # End of program marker
-        if output == "// -----\n":
-            return "".join(program_lines)
-
-        # End of file
-        if not output:
-            return None
-
-        # Add the line to the program lines otherwise
-        program_lines.append(output)
-
-
-def enumerate_programs(
-    max_num_args: int,
-    num_ops: int,
-    bv_widths: str,
-    building_blocks: list[Program],
-    illegals: list[FuncOp],
-    dialect_path: str,
-    additional_options: Sequence[str] = (),
-) -> Iterable[str]:
-    # Disabled for now.
-    use_building_blocks = len(building_blocks) != 0
-    if use_building_blocks:
-        building_blocks.sort()
-        with open(BUILDING_BLOCKS_FILE, "w") as f:
-            size = building_blocks[0].size()
-            for program in building_blocks:
-                if program.size() != size:
-                    size = program.size()
-                    f.write("// +++++\n")
-                f.write(str(program.module()))
-                f.write("\n// -----\n")
-            f.write("// +++++\n")
-
-    with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
-        for program in illegals:
-            body, _, root, _ = func_to_pdl(program)
-            body.block.add_op(pdl.RewriteOp(root))
-            pattern = pdl.PatternOp(1, None, body)
-            pdl_module = ModuleOp([pattern])
-
-            f.write(str(pdl_module))
-            f.write("\n// -----\n")
-
-    enumerator = sp.Popen(
-        [
-            MLIR_ENUMERATE,
-            dialect_path,
-            "--configuration=smt",
-            f"--smt-bitvector-widths={bv_widths}",
-            # Make sure CSE is applied.
-            "--cse",
-            # Prevent any non-deterministic behavior (hopefully).
-            "--seed=1",
-            f"--max-num-args={max_num_args}",
-            f"--max-num-ops={num_ops}",
-            "--pause-between-programs",
-            "--mlir-print-op-generic",
-            f"--building-blocks={BUILDING_BLOCKS_FILE if use_building_blocks else ''}",
-            f"--exclude-subpatterns={EXCLUDE_SUBPATTERNS_FILE}",
-            *additional_options,
-        ],
-        text=True,
-        stdin=sp.PIPE,
-        stdout=sp.PIPE,
-    )
-
-    while (source := read_program_from_enumerator(enumerator)) is not None:
-        # Send a character to the enumerator to continue.
-        assert enumerator.stdin is not None
-        enumerator.stdin.write("a")
-        enumerator.stdin.flush()
-
-        yield source
 
 
 def parse_program(source: str) -> Program:
@@ -1376,6 +1294,22 @@ def main() -> None:
             enumerating_start = time.time()
             buckets: dict[Fingerprint, Bucket] = {}
             enumerated_count = 0
+            building_blocks: list[list[FuncOp]] = []
+            if phase >= 2:
+                size = canonicals[0].size()
+                building_blocks.append([])
+                for program in canonicals:
+                    if program.size() != size:
+                        building_blocks.append([])
+                        size = program.size()
+                    building_blocks[-1].append(program.func())
+            illegal_patterns = list[pdl.PatternOp]()
+            for illegal in illegals:
+                body, _, root, _ = func_to_pdl(illegal.func())
+                body.block.add_op(pdl.RewriteOp(root))
+                pattern = pdl.PatternOp(1, None, body)
+                illegal_patterns.append(pattern)
+
             with Pool() as p:
                 for program in p.imap(
                     parse_program,
@@ -1383,8 +1317,8 @@ def main() -> None:
                         args.max_num_args,
                         phase,
                         args.bitvector_widths,
-                        canonicals if phase >= 2 else [],
-                        [illegal.func() for illegal in illegals],
+                        building_blocks if phase >= 2 else None,
+                        illegal_patterns,
                         args.dialect,
                     ),
                 ):
@@ -1433,6 +1367,8 @@ def main() -> None:
                 new_canonicals.append(canonical)
                 new_rewrites[canonical] = behavior
             canonicals.extend(new_canonicals)
+            # Sort canonicals to ensure deterministic output.
+            canonicals.sort()
             choosing_time = round(time.time() - choosing_start, 2)
             print(
                 f"\033[2KChose {len(new_canonicals)} new canonical programs "
@@ -1507,13 +1443,21 @@ def main() -> None:
             for phase in range(args.phases + 1):
                 programs = list[FuncOp]()
                 print("Enumerating programs in phase", phase)
+
+                illegal_patterns = list[pdl.PatternOp]()
+                for illegal in [illegal.func() for illegal in illegals] + cst_illegals:
+                    body, _, root, _ = func_to_pdl(illegal)
+                    body.block.add_op(pdl.RewriteOp(root))
+                    pattern = pdl.PatternOp(1, None, body)
+                    illegal_patterns.append(pattern)
+
                 for program_idx, program_str in enumerate(
                     enumerate_programs(
                         args.max_num_args,
                         phase,
                         args.bitvector_widths,
-                        [],
-                        [illegal.func() for illegal in illegals] + cst_illegals,
+                        None,
+                        illegal_patterns,
                         args.dialect,
                         ["--constant-kind=synth"],
                     )
