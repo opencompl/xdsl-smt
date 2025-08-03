@@ -16,7 +16,6 @@ from typing import (
     IO,
     Any,
     Callable,
-    Generic,
     Iterable,
     Sequence,
     TypeVar,
@@ -30,6 +29,8 @@ from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
 from xdsl_smt.utils.pretty_print import pretty_print_value
+from xdsl_smt.utils.frozen_multiset import FrozenMultiset
+from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
@@ -49,7 +50,6 @@ from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl.dialects.builtin import FunctionType
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
-from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
@@ -60,36 +60,6 @@ BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}.mlir"
 
 
 T = TypeVar("T")
-
-
-class FrozenMultiset(Generic[T]):
-    __slots__ = ("_contents",)
-
-    _contents: frozenset[tuple[T, int]]
-
-    def __init__(self, values: Iterable[T]):
-        items = dict[T, int]()
-        for value in values:
-            if value in items:
-                items[value] += 1
-            else:
-                items[value] = 1
-        self._contents = frozenset(items.items())
-
-    def __repr__(self) -> str:
-        items: list[T] = []
-        for item, count in self._contents:
-            items.extend([item] * count)
-        return f"FrozenMultiset({items!r})"
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, FrozenMultiset):
-            return False
-        return self._contents.__eq__(cast(FrozenMultiset[Any], other)._contents)
-
-    def __hash__(self) -> int:
-        return self._contents.__hash__()
-
 
 Result = tuple[Any, ...]
 Image = tuple[Result, ...]
@@ -981,38 +951,6 @@ def clone_func_to_smt_func_with_constants(func: FuncOp) -> smt.DefineFunOp:
     return smt.DefineFunOp(new_region)
 
 
-def run_module_through_smtlib(module: ModuleOp) -> Any:
-    smtlib_program = StringIO()
-    print_to_smtlib(module, smtlib_program)
-
-    # Parse the SMT-LIB program and run it through the Z3 solver.
-    solver = z3.Solver()
-    # Set the timeout
-    solver.set("timeout", 25000)  # pyright: ignore[reportUnknownMemberType]
-    try:
-        solver.from_string(  # pyright: ignore[reportUnknownMemberType]
-            smtlib_program.getvalue()
-        )
-        result = solver.check()  # pyright: ignore[reportUnknownMemberType]
-    except z3.z3types.Z3Exception as e:
-        print(
-            e.value.decode(  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-                "UTF-8"
-            ),
-            end="",
-            file=sys.stderr,
-        )
-        print("The above error happened with the following query:", file=sys.stderr)
-        print(smtlib_program.getvalue(), file=sys.stderr)
-        raise Exception()
-    if result == z3.unknown:
-        print("Z3 couldn't solve the following query:", file=sys.stderr)
-        print(smtlib_program.getvalue(), file=sys.stderr)
-        return z3.unknown
-        raise Exception()
-    return result
-
-
 def inline_single_result_func(
     func: FuncOp, args: Sequence[SSAValue], insert_point: InsertPoint
 ) -> SSAValue:
@@ -1554,7 +1492,7 @@ def main() -> None:
             for rewrite in rewrites:
                 print(rewrite)
 
-        if False:
+        if True:
             ctx = Context()
             ctx.allow_unregistered = True
             ctx.load_dialect(Builtin)
@@ -1605,15 +1543,16 @@ def main() -> None:
                     grouped_cst_canonicals.setdefault(
                         canonical.function_type, []
                     ).append(canonical)
-                merged_cst_canonicals: dict[FunctionType, FuncOp] = {}
-                for function_type, ops in grouped_cst_canonicals.items():
-                    merged_cst_canonicals[
-                        function_type
-                    ] = combine_funcs_with_synth_constants(ops)
-                    merged_cst_canonicals[function_type].verify()
 
                 new_possible_canonicals = list[FuncOp]()
                 if False:
+                    merged_cst_canonicals: dict[FunctionType, FuncOp] = {}
+                    for function_type, ops in grouped_cst_canonicals.items():
+                        merged_cst_canonicals[
+                            function_type
+                        ] = combine_funcs_with_synth_constants(ops)
+                        merged_cst_canonicals[function_type].verify()
+
                     for program_idx, program in enumerate(programs):
                         print(
                             f"\033[2K Checking program {program_idx + 1}/{len(programs)}",
@@ -1639,10 +1578,11 @@ def main() -> None:
                                 continue
 
                             if is_range_subset_with_z3(program, canonical):
-                                print("Found illegal pattern:")
+                                print("Found illegal pattern:", end="")
                                 pretty_print_func(program)
-                                print("which is a subset of:")
+                                print("which is a subset of:", end="")
                                 pretty_print_func(canonical)
+                                print("")
                                 cst_illegals.append(program)
                                 break
                         else:
@@ -1666,10 +1606,11 @@ def main() -> None:
                         if is_range_subset_with_z3(lhs, rhs):
                             cst_illegals.append(lhs)
                             is_illegal_mask[lhs_idx] = True
-                            print("Found illegal pattern:")
-                            print(lhs)
-                            print("which is a subset of:")
-                            print(rhs)
+                            print("Found illegal pattern:", end="")
+                            pretty_print_func(lhs)
+                            print("which is a subset of:", end="")
+                            pretty_print_func(rhs)
+                            print("")
                             break
                     else:
                         cst_canonicals.append(lhs)
