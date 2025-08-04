@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import argparse
 import copy
@@ -939,6 +940,12 @@ def is_range_subset_of_list_with_z3(
     return is_range_subset_with_z3(left, merged_right)
 
 
+def is_range_subset(left: SymProgram, right: SymProgram) -> bool:
+    if not (left.fingerprint <= right.fingerprint):
+        return False
+    return is_range_subset_with_z3(left.func, right.func)
+
+
 def is_range_subset_with_z3(
     left: FuncOp,
     right: FuncOp,
@@ -1018,6 +1025,133 @@ def is_range_subset_with_z3(
     return z3.sat == run_module_through_smtlib(
         module
     )  # pyright: ignore[reportUnknownVariableType]
+
+
+@dataclass(frozen=True)
+class SymFingerprint:
+    fingerprint: dict[tuple[int, ...], dict[int, bool]]
+    """
+    For each list of input values, which values can be reached
+    by the program by assigning constants to `xdsl.smt.synth`.
+    """
+
+    @staticmethod
+    def _can_reach_result(
+        func: FuncOp, inputs: tuple[int, ...], result: int
+    ) -> bool | None:
+        """
+        Returns whether the program can reach the given result with the given
+        inputs.
+        This is done by checking the formula `exists csts, func(inputs, csts) == result`.
+        """
+        module = ModuleOp([])
+        builder = Builder(InsertPoint.at_end(module.body.block))
+
+        # Clone both functions into a new module.
+        smt_func = builder.insert(clone_func_to_smt_func_with_constants(func))
+        func_input_types = smt_func.func_type.inputs.data
+        func_inputs: list[SSAValue] = []
+        for input, type in zip(inputs, func_input_types[: len(inputs)], strict=True):
+            if isinstance(type, bv.BitVectorType):
+                cst_op = builder.insert(bv.ConstantOp(input, type.width))
+                func_inputs.append(cst_op.res)
+                continue
+            if isinstance(type, smt.BoolType):
+                cst_op = builder.insert(smt.ConstantBoolOp(input != 0))
+                func_inputs.append(cst_op.res)
+                continue
+            raise ValueError(f"Unsupported type: {type}")
+        for type in func_input_types[len(inputs) :]:
+            declare_cst_op = builder.insert(smt.DeclareConstOp(type))
+            func_inputs.append(declare_cst_op.res)
+        assert len(func_inputs) == len(smt_func.func_type.inputs)
+        call = builder.insert(smt.CallOp(smt_func.ret, func_inputs)).res
+
+        result_val: SSAValue
+        output_type = func.function_type.outputs.data[0]
+        if isinstance(output_type, bv.BitVectorType):
+            result_val = builder.insert(bv.ConstantOp(result, output_type.width)).res
+        elif isinstance(output_type, smt.BoolType):
+            result_val = builder.insert(smt.ConstantBoolOp(result != 0)).res
+        else:
+            raise ValueError(f"Unsupported output type: {output_type}")
+
+        check = builder.insert(smt.EqOp(call[0], result_val)).res
+        builder.insert(smt.AssertOp(check))
+
+        # Now that we have the module, run it through the Z3 solver.
+        res = run_module_through_smtlib(module)
+        if res == z3.sat:
+            return True
+        if res == z3.unsat:
+            return False
+        return None
+
+    @staticmethod
+    def compute_from_func(func: FuncOp) -> SymFingerprint:
+        # Possible inputs per argument.
+        possible_inputs: list[list[int]] = []
+        for type in [*func.function_type.inputs, func.function_type.outputs.data[0]]:
+            if isinstance(type, smt.BoolType):
+                possible_inputs.append([0, -1])
+                continue
+            if isinstance(type, bv.BitVectorType):
+                width = type.width.data
+                possible_inputs.append(
+                    list(
+                        sorted(
+                            {
+                                0,
+                                1,
+                                2,
+                                (1 << width) - 1,
+                                1 << (width - 1),
+                                (1 << (width - 1)) - 1,
+                            }
+                        )
+                    )
+                )
+                continue
+            raise ValueError(f"Unsupported type: {type}")
+
+        fingerprint: dict[tuple[int, ...], dict[int, bool]] = {}
+        for input_values in itertools.product(*possible_inputs):
+            res = SymFingerprint._can_reach_result(
+                func, input_values[:-1], input_values[-1]
+            )
+            if res is not None:
+                fingerprint.setdefault(input_values[:-1], {})[input_values[-1]] = res
+
+        return SymFingerprint(fingerprint)
+
+    def short_string(self) -> str:
+        """
+        Returns a short string used to quickly compare two fingerprints.
+        """
+        return (
+            "{{"
+            + ",".join(
+                f"[{','.join(map(str, inputs))}]:{{{','.join(str(result) if value else '!' + str(result) for result, value in results.items())}}}"
+                for inputs, results in sorted(self.fingerprint.items())
+            )
+            + "}}"
+        )
+
+    def __le__(self, other: SymFingerprint) -> bool:
+        """
+        Returns whether this fingerprint can represent a program that has a smaller
+        range than the program represented by the other fingerprint.
+        """
+        for (lhs_inputs, lhs_results), (rhs_inputs, rhs_results) in zip(
+            self.fingerprint.items(), other.fingerprint.items()
+        ):
+            if lhs_inputs != rhs_inputs:
+                return False
+            for result, value in lhs_results.items():
+                if value:
+                    if not rhs_results.get(result, True):
+                        return False
+        return True
 
 
 def is_same_behavior_with_z3(
@@ -1273,6 +1407,33 @@ class BucketStat:
         return "\t".join(self._value(f.name) for f in fields(type(self)))
 
 
+@dataclass
+class SymProgram:
+    func: FuncOp
+    fingerprint: SymFingerprint
+
+    def __init__(self, func: FuncOp):
+        self.func = func
+        self.fingerprint = SymFingerprint.compute_from_func(func)
+
+
+def parse_sym_program(source: str) -> SymProgram:
+    ctx = Context()
+    ctx.allow_unregistered = True
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Func)
+    ctx.load_dialect(SMTDialect)
+    ctx.load_dialect(SMTBitVectorDialect)
+    ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(synth.SynthDialect)
+    module = Parser(ctx, source).parse_module(True)
+    func = module.body.block.first_op
+    assert isinstance(func, FuncOp)
+    func.detach()
+
+    return SymProgram(func)
+
+
 def main() -> None:
     global_start = time.time()
 
@@ -1438,10 +1599,10 @@ def main() -> None:
             ctx.load_dialect(SMTUtilsDialect)
             ctx.load_dialect(synth.SynthDialect)
 
-            cst_canonicals = list[FuncOp]()
+            cst_canonicals = list[SymProgram]()
             cst_illegals = list[FuncOp]()
             for phase in range(args.phases + 1):
-                programs = list[FuncOp]()
+                programs = list[SymProgram]()
                 print("Enumerating programs in phase", phase)
 
                 illegal_patterns = list[pdl.PatternOp]()
@@ -1451,44 +1612,42 @@ def main() -> None:
                     pattern = pdl.PatternOp(1, None, body)
                     illegal_patterns.append(pattern)
 
-                for program_idx, program_str in enumerate(
-                    enumerate_programs(
-                        args.max_num_args,
-                        phase,
-                        args.bitvector_widths,
-                        None,
-                        illegal_patterns,
-                        args.dialect,
-                        ["--constant-kind=synth"],
-                    )
-                ):
-                    module = Parser(ctx, program_str).parse_module(True)
-                    func = module.body.block.first_op
-                    assert isinstance(func, FuncOp)
-                    func.detach()
-                    print("Enumerated", program_idx + 1, "programs", end="\r")
-
-                    should_skip = False
-                    for canonical in cst_canonicals:
-                        if func.is_structurally_equivalent(canonical):
-                            should_skip = True
-                            break
-                    for illegal in cst_illegals:
-                        if func.is_structurally_equivalent(illegal):
-                            should_skip = True
-                            break
-                    if not should_skip:
-                        programs.append(func)
+                with Pool() as p:
+                    for program in p.imap(
+                        parse_sym_program,
+                        enumerate_programs(
+                            args.max_num_args,
+                            phase,
+                            args.bitvector_widths,
+                            None,
+                            illegal_patterns,
+                            args.dialect,
+                            ["--constant-kind=synth"],
+                        ),
+                    ):
+                        should_skip = False
+                        for canonical in cst_canonicals:
+                            if program.func.is_structurally_equivalent(canonical.func):
+                                should_skip = True
+                                break
+                        for illegal in cst_illegals:
+                            if program.func.is_structurally_equivalent(illegal):
+                                should_skip = True
+                                break
+                        if not should_skip:
+                            programs.append(program)
+                        print("Enumerated", len(programs), "programs", end="\r")
+                print()
 
                 # Group canonical programs by their function type, and merge them using
                 # synth.constant.
-                grouped_cst_canonicals: dict[FunctionType, list[FuncOp]] = {}
+                grouped_cst_canonicals: dict[FunctionType, list[SymProgram]] = {}
                 for canonical in cst_canonicals:
                     grouped_cst_canonicals.setdefault(
-                        canonical.function_type, []
+                        canonical.func.function_type, []
                     ).append(canonical)
 
-                new_possible_canonicals = list[FuncOp]()
+                new_possible_canonicals = list[SymProgram]()
                 if False:
                     merged_cst_canonicals: dict[FunctionType, FuncOp] = {}
                     for function_type, ops in grouped_cst_canonicals.items():
@@ -1513,21 +1672,28 @@ def main() -> None:
                         cst_canonicals.append(program)
                 else:
                     for program_idx, program in enumerate(programs):
-                        for canonical_idx, canonical in enumerate(cst_canonicals):
+                        canonicals_with_same_type = grouped_cst_canonicals.get(
+                            program.func.function_type, []
+                        )
+                        for canonical_idx, canonical in enumerate(
+                            canonicals_with_same_type
+                        ):
                             print(
-                                f"\033[2K Checking program {program_idx + 1}/{len(programs)} against old programs {canonical_idx + 1}/{len(cst_canonicals)}",
+                                f"\033[2K Checking program {program_idx + 1}/{len(programs)} against old programs {canonical_idx + 1}/{len(canonicals_with_same_type)}",
                                 end="\r",
                             )
-                            if program.function_type != canonical.function_type:
-                                continue
+                            assert (
+                                program.func.function_type
+                                == canonical.func.function_type
+                            )
 
-                            if is_range_subset_with_z3(program, canonical):
+                            if is_range_subset(program, canonical):
                                 print("Found illegal pattern:", end="")
-                                pretty_print_func(program)
+                                pretty_print_func(program.func)
                                 print("which is a subset of:", end="")
-                                pretty_print_func(canonical)
+                                pretty_print_func(canonical.func)
                                 print("")
-                                cst_illegals.append(program)
+                                cst_illegals.append(program.func)
                                 break
                         else:
                             new_possible_canonicals.append(program)
@@ -1543,17 +1709,22 @@ def main() -> None:
 
                         if is_illegal_mask[rhs_idx]:
                             continue
-                        if lhs.function_type != rhs.function_type:
+                        if lhs.func.function_type != rhs.func.function_type:
                             continue
                         if lhs is rhs:
                             continue
-                        if is_range_subset_with_z3(lhs, rhs):
-                            cst_illegals.append(lhs)
+                        if is_range_subset(lhs, rhs):
+                            cst_illegals.append(lhs.func)
                             is_illegal_mask[lhs_idx] = True
                             print("Found illegal pattern:", end="")
-                            pretty_print_func(lhs)
+                            pretty_print_func(lhs.func)
                             print("which is a subset of:", end="")
-                            pretty_print_func(rhs)
+                            pretty_print_func(rhs.func)
+                            print("")
+                            print(
+                                len([mask for mask in is_illegal_mask if mask]),
+                                "illegal patterns found so far",
+                            )
                             print("")
                             break
                     else:
