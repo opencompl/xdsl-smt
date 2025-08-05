@@ -32,6 +32,7 @@ from xdsl.builder import Builder
 from xdsl_smt.utils.pretty_print import pretty_print_value
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
+from xdsl_smt.utils.inlining import inline_single_result_func
 from xdsl_smt.superoptimization.program_enumeration import enumerate_programs
 
 import xdsl_smt.dialects.synth_dialect as synth
@@ -868,29 +869,6 @@ def clone_func_to_smt_func_with_constants(func: FuncOp) -> smt.DefineFunOp:
             rewriter.replace_op(op, [], [new_arg])
 
     return smt.DefineFunOp(new_region)
-
-
-def inline_single_result_func(
-    func: FuncOp, args: Sequence[SSAValue], insert_point: InsertPoint
-) -> SSAValue:
-    """
-    Inline a single-result function at the current location.
-    """
-    assert len(func.function_type.outputs) == 1, "Function must have a single output."
-    assert len(func.body.blocks) == 1, "Function must have a single block."
-
-    block_copy = func.body.clone().block
-    return_op = block_copy.last_op
-    assert isinstance(return_op, ReturnOp), "Function must end with a return operation."
-    return_value = return_op.operands[0]
-    block_copy.erase_op(return_op)
-
-    if return_value in block_copy.args:
-        assert isinstance(return_value, BlockArgument)
-        return_value = args[return_value.index]
-
-    Rewriter.inline_block(block_copy, insert_point, args)
-    return return_value
 
 
 def combine_funcs_with_synth_constants(funcs: Sequence[FuncOp]) -> FuncOp:
