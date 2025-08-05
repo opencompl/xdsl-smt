@@ -10,13 +10,12 @@ import time
 import z3  # pyright: ignore[reportMissingTypeStubs]
 from dataclasses import dataclass, fields
 from enum import Enum, auto
-from functools import cache, partial
+from functools import partial
 from io import StringIO
 from multiprocessing import Pool
 from typing import (
     IO,
     Any,
-    Callable,
     Iterable,
     Sequence,
     TypeVar,
@@ -25,7 +24,7 @@ from typing import (
 
 from xdsl.context import Context
 from xdsl.ir import Attribute, Region
-from xdsl.ir.core import Block, BlockArgument, Operation, OpResult, SSAValue
+from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
@@ -33,6 +32,7 @@ from xdsl_smt.utils.pretty_print import pretty_print_value
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.inlining import inline_single_result_func
+from xdsl_smt.utils.pdl import func_to_pdl
 from xdsl_smt.superoptimization.program_enumeration import enumerate_programs
 
 import xdsl_smt.dialects.synth_dialect as synth
@@ -47,7 +47,6 @@ from xdsl.dialects.builtin import (
     IntAttr,
     IntegerAttr,
     ModuleOp,
-    StringAttr,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl.dialects.builtin import FunctionType
@@ -101,75 +100,6 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
         result[i] = x
     assert all(x is not None for x in result)
     return tuple(cast(list[T], result))
-
-
-def func_to_pdl(
-    func: FuncOp, *, arguments: Sequence[SSAValue | None] | None = None
-) -> tuple[Region, Callable[[int], SSAValue], SSAValue | None, tuple[SSAValue, ...]]:
-    """
-    Creates a region containing PDL instructions corresponding to this
-    program. Returns a containing `Region`, together with the values of the
-    inputs, the root operation (i.e., the operation the first returned value
-    comes from, if it exists), and the returned values.
-    """
-
-    if arguments is not None:
-        assert len(arguments) == len(func.function_type.inputs)
-
-    body = Region(Block())
-    builder = Builder(InsertPoint.at_end(body.block))
-
-    @cache
-    def get_type(ty: Attribute) -> SSAValue:
-        return builder.insert(pdl.TypeOp(ty)).results[0]
-
-    @cache
-    def get_attribute(attr: Attribute) -> SSAValue:
-        return builder.insert(pdl.AttributeOp(attr)).results[0]
-
-    @cache
-    def get_argument(arg: int) -> SSAValue:
-        if arguments is not None:
-            if (value := arguments[arg]) is not None:
-                return value
-        return builder.insert(pdl.OperandOp(get_type(func.args[arg].type))).results[0]
-
-    ops: dict[Operation, SSAValue] = {}
-
-    def get_value(value: SSAValue) -> SSAValue:
-        match value:
-            case BlockArgument(index=k):
-                return get_argument(k)
-            case OpResult(op=op, index=i):
-                return builder.insert(pdl.ResultOp(i, ops[op])).results[0]
-            case x:
-                raise ValueError(f"Unknown value: {x}")
-
-    [*operations, ret] = list(func.body.ops)
-    for op in operations:
-        pattern = builder.insert(
-            pdl.OperationOp(
-                op.name,
-                [StringAttr(s) for s in op.properties.keys()],
-                [get_value(operand) for operand in op.operands],
-                # Iteration order on dict is consistent betwen `.keys()` and
-                # `.values()`.
-                [get_attribute(prop) for prop in op.properties.values()],
-                [get_type(ty) for ty in op.result_types],
-            )
-        )
-        ops[op] = pattern.results[0]
-
-    assert isinstance(ret, ReturnOp)
-    assert len(ret.operands) == 1
-    root = ret.operands[0]
-
-    return (
-        body,
-        get_argument,
-        ops[root.op] if isinstance(root, OpResult) else None,
-        tuple(get_value(res) for res in ret.operands),
-    )
 
 
 @dataclass(init=False, unsafe_hash=True)
@@ -633,9 +563,7 @@ class Program:
 
     def to_pdl(
         self, *, arguments: Sequence[SSAValue | None] | None = None
-    ) -> tuple[
-        Region, Callable[[int], SSAValue], SSAValue | None, tuple[SSAValue, ...]
-    ]:
+    ) -> tuple[Region, tuple[SSAValue, ...], SSAValue | None, tuple[SSAValue, ...]]:
         """
         Creates a region containing PDL instructions corresponding to this
         program. Returns a containing `Region`, together with the values of the
@@ -708,14 +636,14 @@ class RewriteRule:
     def to_pdl(self) -> pdl.PatternOp:
         """Expresses this rewrite rule as a PDL pattern and rewrite."""
 
-        lhs, get_arg, left_root, _ = self._lhs.to_pdl()
+        lhs, args, left_root, _ = self._lhs.to_pdl()
         assert left_root is not None
         pattern = pdl.PatternOp(1, None, lhs)
 
         # Unify LHS and RHS arguments.
         arguments: list[SSAValue | None] = [None] * self._rhs.arity()
         for i, (k, _) in enumerate(self._rhs.useful_parameters()):
-            arguments[k] = get_arg(self._lhs.parameter(i))
+            arguments[k] = args[self._lhs.parameter(i)]
         rhs, _, _, right_res = self._rhs.to_pdl(arguments=arguments)
         rhs.block.add_op(pdl.ReplaceOp(left_root, None, right_res))
 
