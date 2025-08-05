@@ -994,7 +994,46 @@ class SymFingerprint:
         return None
 
     @staticmethod
+    def compute_exact_from_func(func: FuncOp) -> SymFingerprint:
+        # Possible inputs per argument.
+        possible_inputs: list[list[int]] = []
+        for type in [*func.function_type.inputs, func.function_type.outputs.data[0]]:
+            if isinstance(type, smt.BoolType):
+                possible_inputs.append([0, -1])
+                continue
+            if isinstance(type, bv.BitVectorType):
+                width = type.width.data
+                possible_inputs.append([])
+                for value in range(1 << width):
+                    possible_inputs[-1].append(value)
+                continue
+            raise ValueError(f"Unsupported type: {type}")
+
+        fingerprint: dict[tuple[int, ...], dict[int, bool]] = {}
+        for input_values in itertools.product(*possible_inputs):
+            res = SymFingerprint._can_reach_result(
+                func, input_values[:-1], input_values[-1]
+            )
+            if res is not None:
+                fingerprint.setdefault(input_values[:-1], {})[input_values[-1]] = res
+
+        return SymFingerprint(fingerprint)
+
+    @staticmethod
     def compute_from_func(func: FuncOp) -> SymFingerprint:
+        num_possibilities = 1
+        for type in [*func.function_type.inputs, func.function_type.outputs.data[0]]:
+            if isinstance(type, smt.BoolType):
+                num_possibilities *= 2
+                continue
+            if isinstance(type, bv.BitVectorType):
+                width = type.width.data
+                num_possibilities *= 1 << width
+                continue
+            raise ValueError(f"Unsupported type: {type}")
+        if num_possibilities <= 256:
+            return SymFingerprint.compute_exact_from_func(func)
+
         # Possible inputs per argument.
         possible_inputs: list[list[int]] = []
         for type in [*func.function_type.inputs, func.function_type.outputs.data[0]]:
