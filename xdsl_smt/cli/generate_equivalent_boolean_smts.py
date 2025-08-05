@@ -847,15 +847,63 @@ def is_range_subset_of_list_with_z3(
 
 
 def is_range_subset(left: SymProgram, right: SymProgram) -> bool:
-    if not (left.fingerprint <= right.fingerprint):
+    if not (left.fingerprint.may_be_subset(right.fingerprint)):
         return False
-    return is_range_subset_with_z3(left.func, right.func)
+
+    match is_range_subset_with_z3(left.func, right.func, 2_000):
+        case z3.sat:
+            return True
+        case z3.unsat:
+            return False
+        case _:
+            pass
+
+    num_cases = 1
+    for op in left.func.walk():
+        if isinstance(op, synth.ConstantOp):
+            if op.res.type == smt.BoolType():
+                num_cases *= 2
+            elif isinstance(op.res.type, bv.BitVectorType):
+                num_cases *= 1 << op.res.type.width.data
+
+    if num_cases > 256:
+        return is_range_subset_with_z3(left.func, right.func) == z3.sat
+
+    for case in range(num_cases):
+        lhs_func = left.func.clone()
+        for op in tuple(lhs_func.walk()):
+            if isinstance(op, synth.ConstantOp):
+                if op.res.type == smt.BoolType():
+                    value = case % 2
+                    case >>= 1
+                    Rewriter.replace_op(op, smt.ConstantBoolOp(value == 1))
+                elif isinstance(op.res.type, bv.BitVectorType):
+                    value = case % (1 << op.res.type.width.data)
+                    case >>= op.res.type.width.data
+                    Rewriter.replace_op(op, bv.ConstantOp(value, op.res.type.width))
+                else:
+                    raise ValueError(f"Unsupported type: {op.res.type}")
+        match is_range_subset_with_z3(lhs_func, right.func, 2_000):
+            case z3.sat:
+                continue
+            case z3.unsat:
+                return False
+            case _:
+                print("Failed with 2s timeout")
+                break
+    else:
+        return True
+    res = is_range_subset_with_z3(left.func, right.func)
+    if res == z3.unknown:
+        print("Failed with 25s timeout")
+    return res == z3.sat
 
 
 def is_range_subset_with_z3(
     left: FuncOp,
     right: FuncOp,
-):
+    timeout: int = 25_000,
+) -> Any:
     """
     Check wether the ranges of values that the `left` program can reach by assigning
     constants to `xdsl.smt.synth` is a sbuset of the range of values that the `right`
@@ -928,8 +976,8 @@ def is_range_subset_with_z3(
     builder.insertion_point = InsertPoint.at_end(module.body.block)
     builder.insert(smt.AssertOp(toplevel_val))
 
-    return z3.sat == run_module_through_smtlib(
-        module
+    return run_module_through_smtlib(
+        module, timeout
     )  # pyright: ignore[reportUnknownVariableType]
 
 
@@ -1082,7 +1130,7 @@ class SymFingerprint:
             + "}}"
         )
 
-    def __le__(self, other: SymFingerprint) -> bool:
+    def may_be_subset(self, other: SymFingerprint) -> bool:
         """
         Returns whether this fingerprint can represent a program that has a smaller
         range than the program represented by the other fingerprint.
@@ -1593,33 +1641,14 @@ def main() -> None:
                     ).append(canonical)
 
                 new_possible_canonicals = list[SymProgram]()
-                if False:
-                    merged_cst_canonicals: dict[FunctionType, FuncOp] = {}
-                    for function_type, ops in grouped_cst_canonicals.items():
-                        merged_cst_canonicals[
-                            function_type
-                        ] = combine_funcs_with_synth_constants(ops)
-                        merged_cst_canonicals[function_type].verify()
-
-                    for program_idx, program in enumerate(programs):
-                        print(
-                            f"\033[2K Checking program {program_idx + 1}/{len(programs)}",
-                            end="\r",
-                        )
-                        if program.function_type in merged_cst_canonicals:
-                            cst_canonical = merged_cst_canonicals[program.function_type]
-                            if is_range_subset_with_z3(program, cst_canonical):
-                                print("Found illegal pattern:                   ")
-                                pretty_print_func(program)
-                                print("\r")
-                                cst_illegals.append(program)
-                                continue
-                        cst_canonicals.append(program)
-                else:
-                    for program_idx, program in enumerate(programs):
-                        canonicals_with_same_type = grouped_cst_canonicals.get(
-                            program.func.function_type, []
-                        )
+                for program_idx, program in enumerate(programs):
+                    canonicals_with_same_type = grouped_cst_canonicals.get(
+                        program.func.function_type, []
+                    )
+                    if not canonicals_with_same_type:
+                        new_possible_canonicals.append(program)
+                        continue
+                    if False:
                         for canonical_idx, canonical in enumerate(
                             canonicals_with_same_type
                         ):
@@ -1642,38 +1671,81 @@ def main() -> None:
                                 break
                         else:
                             new_possible_canonicals.append(program)
+                    else:
+                        if is_range_subset_of_list_with_z3(
+                            program.func, [p.func for p in canonicals_with_same_type]
+                        ):
+                            print("Found illegal pattern:", end="")
+                            pretty_print_func(program.func)
+                            print("")
+                            cst_illegals.append(program.func)
+                        else:
+                            new_possible_canonicals.append(program)
+
                 print()
 
                 is_illegal_mask: list[bool] = [False] * len(new_possible_canonicals)
                 for lhs_idx, lhs in enumerate(new_possible_canonicals):
-                    for rhs_idx, rhs in enumerate(new_possible_canonicals):
+                    if False:
+                        for rhs_idx, rhs in enumerate(new_possible_canonicals):
+                            print(
+                                f"\033[2K Checking program for canonical {lhs_idx + 1}/{len(new_possible_canonicals)} against {rhs_idx + 1}/{len(new_possible_canonicals)}",
+                                end="\r",
+                            )
+
+                            if is_illegal_mask[rhs_idx]:
+                                continue
+                            if lhs.func.function_type != rhs.func.function_type:
+                                continue
+                            if lhs is rhs:
+                                continue
+                            if is_range_subset(lhs, rhs):
+                                cst_illegals.append(lhs.func)
+                                is_illegal_mask[lhs_idx] = True
+                                print("Found illegal pattern:", end="")
+                                pretty_print_func(lhs.func)
+                                print("which is a subset of:", end="")
+                                pretty_print_func(rhs.func)
+                                print("")
+                                print(
+                                    len([mask for mask in is_illegal_mask if mask]),
+                                    "illegal patterns found so far",
+                                )
+                                print("")
+                                break
+                        else:
+                            cst_canonicals.append(lhs)
+                    else:
                         print(
-                            f"\033[2K Checking program for canonical {lhs_idx + 1}/{len(new_possible_canonicals)} against {rhs_idx + 1}/{len(new_possible_canonicals)}",
+                            f"\033[2K Checking program for canonical {lhs_idx + 1}/{len(new_possible_canonicals)}",
                             end="\r",
                         )
-
-                        if is_illegal_mask[rhs_idx]:
-                            continue
-                        if lhs.func.function_type != rhs.func.function_type:
-                            continue
-                        if lhs is rhs:
-                            continue
-                        if is_range_subset(lhs, rhs):
+                        candidates: list[SymProgram] = []
+                        for rhs_idx, rhs in enumerate(
+                            new_possible_canonicals[lhs_idx + 1 :]
+                        ):
+                            if is_illegal_mask[rhs_idx]:
+                                continue
+                            if lhs.func.function_type != rhs.func.function_type:
+                                continue
+                            if lhs is rhs:
+                                continue
+                            candidates.append(rhs)
+                        if candidates and is_range_subset_of_list_with_z3(
+                            lhs.func, [c.func for c in candidates]
+                        ):
                             cst_illegals.append(lhs.func)
                             is_illegal_mask[lhs_idx] = True
                             print("Found illegal pattern:", end="")
                             pretty_print_func(lhs.func)
-                            print("which is a subset of:", end="")
-                            pretty_print_func(rhs.func)
                             print("")
                             print(
                                 len([mask for mask in is_illegal_mask if mask]),
                                 "illegal patterns found so far",
                             )
                             print("")
-                            break
-                    else:
-                        cst_canonicals.append(lhs)
+                        else:
+                            cst_canonicals.append(lhs)
                 print(f"== At step {phase} ==")
                 print("number of canonicals", len(cst_canonicals))
                 print("number of illegals", len(cst_illegals))
