@@ -53,6 +53,7 @@ from xdsl.dialects.builtin import FunctionType
 
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 
+sys.setrecursionlimit(100000)
 
 MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
 REMOVE_REDUNDANT_PATTERNS = "./mlir-fuzz/build/bin/remove-redundant-patterns"
@@ -843,14 +844,19 @@ def is_range_subset_of_list_with_z3(
     """
 
     merged_right = combine_funcs_with_synth_constants(right)
-    return is_range_subset_with_z3(left, merged_right)
+    return is_range_subset(left, merged_right)
 
 
-def is_range_subset(left: SymProgram, right: SymProgram) -> bool:
-    if not (left.fingerprint.may_be_subset(right.fingerprint)):
-        return False
+def is_range_subset(left: SymProgram | FuncOp, right: SymProgram | FuncOp) -> bool:
+    if isinstance(left, SymProgram) and isinstance(right, SymProgram):
+        if not (left.fingerprint.may_be_subset(right.fingerprint)):
+            return False
+    if isinstance(left, SymProgram):
+        left = left.func
+    if isinstance(right, SymProgram):
+        right = right.func
 
-    match is_range_subset_with_z3(left.func, right.func, 2_000):
+    match is_range_subset_with_z3(left, right, 2_000):
         case z3.sat:
             return True
         case z3.unsat:
@@ -859,18 +865,18 @@ def is_range_subset(left: SymProgram, right: SymProgram) -> bool:
             pass
 
     num_cases = 1
-    for op in left.func.walk():
+    for op in left.walk():
         if isinstance(op, synth.ConstantOp):
             if op.res.type == smt.BoolType():
                 num_cases *= 2
             elif isinstance(op.res.type, bv.BitVectorType):
                 num_cases *= 1 << op.res.type.width.data
 
-    if num_cases > 256:
-        return is_range_subset_with_z3(left.func, right.func) == z3.sat
+    if num_cases > 4096:
+        return is_range_subset_with_z3(left, right) == z3.sat
 
     for case in range(num_cases):
-        lhs_func = left.func.clone()
+        lhs_func = left.clone()
         for op in tuple(lhs_func.walk()):
             if isinstance(op, synth.ConstantOp):
                 if op.res.type == smt.BoolType():
@@ -883,17 +889,18 @@ def is_range_subset(left: SymProgram, right: SymProgram) -> bool:
                     Rewriter.replace_op(op, bv.ConstantOp(value, op.res.type.width))
                 else:
                     raise ValueError(f"Unsupported type: {op.res.type}")
-        match is_range_subset_with_z3(lhs_func, right.func, 2_000):
+        match is_range_subset_with_z3(lhs_func, right, 4_000):
             case z3.sat:
                 continue
             case z3.unsat:
                 return False
             case _:
-                print("Failed with 2s timeout")
+                print("Failed with 4s timeout")
                 break
     else:
+        print("Succeeded with 4s timeouts")
         return True
-    res = is_range_subset_with_z3(left.func, right.func)
+    res = is_range_subset_with_z3(left, right)
     if res == z3.unknown:
         print("Failed with 25s timeout")
     return res == z3.sat
@@ -1079,7 +1086,7 @@ class SymFingerprint:
                 num_possibilities *= 1 << width
                 continue
             raise ValueError(f"Unsupported type: {type}")
-        if num_possibilities <= 256:
+        if num_possibilities <= 16:
             return SymFingerprint.compute_exact_from_func(func)
 
         # Possible inputs per argument.
@@ -1095,11 +1102,11 @@ class SymFingerprint:
                         sorted(
                             {
                                 0,
-                                1,
-                                2,
-                                (1 << width) - 1,
-                                1 << (width - 1),
-                                (1 << (width - 1)) - 1,
+                                # 1,
+                                # 2,
+                                # (1 << width) - 1,
+                                # 1 << (width - 1),
+                                # (1 << (width - 1)) - 1,
                             }
                         )
                     )
@@ -1582,7 +1589,7 @@ def main() -> None:
             for rewrite in rewrites:
                 print(rewrite)
 
-        if True:
+        if False:
             ctx = Context()
             ctx.allow_unregistered = True
             ctx.load_dialect(Builtin)
@@ -1640,6 +1647,7 @@ def main() -> None:
                         canonical.func.function_type, []
                     ).append(canonical)
 
+                new_illegals = 0
                 new_possible_canonicals = list[SymProgram]()
                 for program_idx, program in enumerate(programs):
                     canonicals_with_same_type = grouped_cst_canonicals.get(
@@ -1677,7 +1685,11 @@ def main() -> None:
                         ):
                             print("Found illegal pattern:", end="")
                             pretty_print_func(program.func)
+                            new_illegals += 1
                             print("")
+                            print(
+                                f"Total illegal patterns found so far: {new_illegals} / {program_idx}"
+                            )
                             cst_illegals.append(program.func)
                         else:
                             new_possible_canonicals.append(program)
@@ -1721,14 +1733,12 @@ def main() -> None:
                             end="\r",
                         )
                         candidates: list[SymProgram] = []
-                        for rhs_idx, rhs in enumerate(
-                            new_possible_canonicals[lhs_idx + 1 :]
-                        ):
+                        for rhs_idx, rhs in enumerate(new_possible_canonicals):
+                            if lhs_idx == rhs_idx:
+                                continue
                             if is_illegal_mask[rhs_idx]:
                                 continue
                             if lhs.func.function_type != rhs.func.function_type:
-                                continue
-                            if lhs is rhs:
                                 continue
                             candidates.append(rhs)
                         if candidates and is_range_subset_of_list_with_z3(
@@ -1748,7 +1758,23 @@ def main() -> None:
                             cst_canonicals.append(lhs)
                 print(f"== At step {phase} ==")
                 print("number of canonicals", len(cst_canonicals))
+                for canonical in cst_canonicals:
+                    print("  ", end="")
+                    pretty_print_func(canonical.func)
+                    print("")
                 print("number of illegals", len(cst_illegals))
+
+                illegal_patterns = list[pdl.PatternOp]()
+                for illegal in [illegal.func() for illegal in illegals] + cst_illegals:
+                    body, _, root, _ = func_to_pdl(illegal)
+                    body.block.add_op(pdl.RewriteOp(root))
+                    pattern = pdl.PatternOp(1, None, body)
+                    illegal_patterns.append(pattern)
+                print(EXCLUDE_SUBPATTERNS_FILE)
+                with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
+                    for illegal in illegal_patterns:
+                        f.write(str(illegal))
+                        f.write("\n// -----\n")
 
                 # Write the canonicals and illegals to files.
                 if args.out_canonicals != "":
