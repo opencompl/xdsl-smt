@@ -15,7 +15,7 @@
   // (false = x) -> not x
   %b = "smt.eq"(%false, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%b) : (!smt.bool) -> ()
-  // CHECK-NEXT: %b = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %b = smt.not %x
   // CHECK-NEXT: "smt.assert"(%b) : (!smt.bool) -> ()
 
   // (x = true) -> x
@@ -26,7 +26,7 @@
   // (x = false) -> not x
   %d = "smt.eq"(%x, %false) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%d) : (!smt.bool) -> ()
-  // CHECK-NEXT: %d = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %d = smt.not %x
   // CHECK-NEXT: "smt.assert"(%d) : (!smt.bool) -> ()
 
   // (x = x) -> true
@@ -38,7 +38,7 @@
   // (true != x) -> not x
   %f = "smt.distinct"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%f) : (!smt.bool) -> ()
-  // CHECK-NEXT: %f = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %f = smt.not %x
   // CHECK-NEXT: "smt.assert"(%f) : (!smt.bool) -> ()
 
   // (false != x) -> x
@@ -49,7 +49,7 @@
   // (x != true) -> not x
   %h = "smt.distinct"(%x, %true) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%h) : (!smt.bool) -> ()
-  // CHECK-NEXT: %h = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %h = smt.not %x
   // CHECK-NEXT: "smt.assert"(%h) : (!smt.bool) -> ()
 
   // (x != false) -> x

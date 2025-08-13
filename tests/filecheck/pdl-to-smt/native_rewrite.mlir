@@ -32,10 +32,10 @@ builtin.module {
 // CHECK-NEXT:    %1 = "smt.bv.add"(%c0, %c1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
 // CHECK-NEXT:    %res = "smt.bv.add"(%c0, %c1) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
 // CHECK-NEXT:    %2 = "smt.eq"(%1, %res) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
-// CHECK-NEXT:    %3 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %3 = smt.not %0
 // CHECK-NEXT:    %4 = smt.and %3, %2
 // CHECK-NEXT:    %5 = smt.or %0, %4
-// CHECK-NEXT:    %6 = "smt.not"(%5) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %6 = smt.not %5
 // CHECK-NEXT:    "smt.assert"(%6) : (!smt.bool) -> ()
 // CHECK-NEXT:    "smt.check_sat"() : () -> ()
 // CHECK-NEXT:  }

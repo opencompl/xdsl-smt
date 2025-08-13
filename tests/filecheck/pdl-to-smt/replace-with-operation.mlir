@@ -32,15 +32,15 @@
 // CHECK-NEXT:    %12 = "smt.utils.second"(%1) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:    %13 = smt.or %10, %12
 // CHECK-NEXT:    %14 = "smt.bv.or"(%9, %11) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
-// CHECK-NEXT:    %15 = "smt.not"(%7) : (!smt.bool) -> !smt.bool
-// CHECK-NEXT:    %16 = "smt.not"(%13) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %15 = smt.not %7
+// CHECK-NEXT:    %16 = smt.not %13
 // CHECK-NEXT:    %17 = "smt.eq"(%8, %14) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %18 = smt.and %17, %16
 // CHECK-NEXT:    %19 = smt.implies %15, %18
-// CHECK-NEXT:    %20 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %20 = smt.not %0
 // CHECK-NEXT:    %21 = smt.and %20, %19
 // CHECK-NEXT:    %22 = smt.or %0, %21
-// CHECK-NEXT:    %23 = "smt.not"(%22) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %23 = smt.not %22
 // CHECK-NEXT:    "smt.assert"(%23) : (!smt.bool) -> ()
 // CHECK-NEXT:    "smt.check_sat"() : () -> ()
 // CHECK-NEXT:  }

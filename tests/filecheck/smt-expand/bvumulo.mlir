@@ -13,5 +13,5 @@ builtin.module {
 // CHECK:       %x = "smt.declare_const"() : () -> !smt.bv<32>
 // CHECK-NEXT:  %y = "smt.declare_const"() : () -> !smt.bv<32>
 // CHECK-NEXT:  %pred = "smt.bv.umul_noovfl"(%x, %y) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
-// CHECK-NEXT:  %pred_1 = "smt.not"(%pred) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:  %pred_1 = smt.not %pred
 // CHECK-NEXT:  "smt.assert"(%pred_1) : (!smt.bool) -> ()

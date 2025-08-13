@@ -7,7 +7,7 @@
 
   %fun = "smt.define_fun"() ({
   ^0(%x : !smt.bool):
-    %y = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+    %y = smt.not %x
     "smt.return"(%y) : (!smt.bool) -> ()
   }) : () -> ((!smt.bool) -> !smt.bool)
   // CHECK-NEXT: (define-fun $fun (($x Bool)) Bool

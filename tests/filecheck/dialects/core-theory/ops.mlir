@@ -50,7 +50,7 @@
   "smt.assert"(%ite) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (ite $x $y $z))
 
-  %not = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  %not = smt.not %x
   "smt.assert"(%not) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert (not $x))
 

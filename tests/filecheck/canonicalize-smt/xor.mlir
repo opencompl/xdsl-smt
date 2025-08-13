@@ -10,7 +10,7 @@
   // true ^ x -> not x
   %a = "smt.xor"(%true, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%a) : (!smt.bool) -> ()
-  // CHECK-NEXT: %a = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %a = smt.not %x
   // CHECK-NEXT: "smt.assert"(%a) : (!smt.bool) -> ()
 
   // false ^ x -> x
@@ -21,7 +21,7 @@
   // x ^ true -> not x
   %c = "smt.xor"(%x, %true) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%c) : (!smt.bool) -> ()
-  // CHECK-NEXT: %c = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %c = smt.not %x
   // CHECK-NEXT: "smt.assert"(%c) : (!smt.bool) -> ()
 
   // x ^ false -> x

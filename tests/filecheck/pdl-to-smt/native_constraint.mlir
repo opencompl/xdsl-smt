@@ -39,15 +39,15 @@ builtin.module {
 // CHECK-NEXT:    %6 = "smt.utils.first"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bv<32>
 // CHECK-NEXT:    %7 = "smt.utils.second"(%x) : (!smt.utils.pair<!smt.bv<32>, !smt.bool>) -> !smt.bool
 // CHECK-NEXT:    %8 = "smt.bv.sub"(%zero_attr, %6) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bv<32>
-// CHECK-NEXT:    %9 = "smt.not"(%4) : (!smt.bool) -> !smt.bool
-// CHECK-NEXT:    %10 = "smt.not"(%7) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %9 = smt.not %4
+// CHECK-NEXT:    %10 = smt.not %7
 // CHECK-NEXT:    %11 = "smt.eq"(%5, %8) : (!smt.bv<32>, !smt.bv<32>) -> !smt.bool
 // CHECK-NEXT:    %12 = smt.and %11, %10
 // CHECK-NEXT:    %13 = smt.implies %9, %12
-// CHECK-NEXT:    %14 = "smt.not"(%0) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %14 = smt.not %0
 // CHECK-NEXT:    %15 = smt.and %14, %13
 // CHECK-NEXT:    %16 = smt.or %0, %15
-// CHECK-NEXT:    %17 = "smt.not"(%16) : (!smt.bool) -> !smt.bool
+// CHECK-NEXT:    %17 = smt.not %16
 // CHECK-NEXT:    %18 = smt.and %17, %2
 // CHECK-NEXT:    "smt.assert"(%18) : (!smt.bool) -> ()
 // CHECK-NEXT:    "smt.check_sat"() : () -> ()

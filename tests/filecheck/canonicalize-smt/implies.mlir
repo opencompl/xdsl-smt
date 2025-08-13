@@ -28,7 +28,7 @@
   // (x => false) -> not x
   %d = smt.implies %x, %false
   "smt.assert"(%d) : (!smt.bool) -> ()
-  // CHECK-NEXT: %d = "smt.not"(%x) : (!smt.bool) -> !smt.bool
+  // CHECK-NEXT: %d = smt.not %x
   // CHECK-NEXT: "smt.assert"(%d) : (!smt.bool) -> ()
 
   // (x => x) -> true
