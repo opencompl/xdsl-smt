@@ -37,7 +37,7 @@ class SetSetBlockPattern(RewritePattern):
             return None
         if set_block.block_id != op.block_id:
             return None
-        if len(set_block.res.uses) != 1:
+        if not set_block.res.has_one_use():
             return None
         new_op = mem.SetBlockOp(op.block, set_block.memory, set_block.block_id)
         rewriter.replace_matched_op([new_op])

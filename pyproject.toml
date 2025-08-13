@@ -3,7 +3,7 @@ name = "xdsl-smt"
 version = "0.0.0"
 dependencies = [
   "z3-solver==4.15.1.0",
-  "xdsl==0.47.0",
+  "xdsl==0.48.3",
 ]
 
 [project.optional-dependencies]

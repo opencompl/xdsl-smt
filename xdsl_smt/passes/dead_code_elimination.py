@@ -10,7 +10,7 @@ class RemoveDeadPattern(RewritePattern):
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
         if not isinstance(op, Pure):
             return None
-        if all(len(result.uses) == 0 for result in op.results):
+        if all(not result.uses for result in op.results):
             rewriter.erase_matched_op()
 
 

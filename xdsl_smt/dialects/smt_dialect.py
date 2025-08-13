@@ -591,10 +591,9 @@ class AndCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (AndCanonicalizationPattern(),)
 
 
+AndOp_traits = AndOp.traits
 AndOp.traits = OpTraits(
-    frozenset(
-        (*AndOp.traits, SimpleSMTLibOpTrait("and"), AndCanonicalizationPatterns())
-    )
+    lambda: (*AndOp_traits, SimpleSMTLibOpTrait("and"), AndCanonicalizationPatterns())
 )
 
 
@@ -608,8 +607,9 @@ class OrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (OrCanonicalizationPattern(),)
 
 
+OrOp_traits = OrOp.traits
 OrOp.traits = OpTraits(
-    frozenset((*OrOp.traits, SimpleSMTLibOpTrait("or"), OrCanonicalizationPatterns()))
+    lambda: (*OrOp_traits, SimpleSMTLibOpTrait("or"), OrCanonicalizationPatterns())
 )
 
 
@@ -623,10 +623,9 @@ class XOrCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (XOrCanonicalizationPattern(),)
 
 
+XOrOp_traits = XOrOp.traits
 XOrOp.traits = OpTraits(
-    frozenset(
-        (*XOrOp.traits, SimpleSMTLibOpTrait("xor"), XOrCanonicalizationPatterns())
-    )
+    lambda: (*XOrOp_traits, SimpleSMTLibOpTrait("xor"), XOrCanonicalizationPatterns())
 )
 
 

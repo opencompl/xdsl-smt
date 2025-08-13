@@ -101,8 +101,8 @@ class SMTConversionCtx:
     This is used during the conversion from xDSL to SMTLib.
     """
 
-    value_to_name: dict[SSAValue, str] = field(default_factory=dict)
-    names: set[str] = field(default_factory=set)
+    value_to_name: dict[SSAValue, str] = field(default_factory=dict[SSAValue, str])
+    names: set[str] = field(default_factory=set[str])
 
     def get_fresh_name(self, value: str | SSAValue | None) -> str:
         """
@@ -175,7 +175,7 @@ class SMTConversionCtx:
             stack.popleft()
 
             # Otherwise, we add it to the let binding if they have more than one use
-            if len(val.uses) > 1:
+            if val.has_more_than_one_use():
                 let_values.append(val)
             processed.add(val)
 
