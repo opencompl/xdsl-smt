@@ -180,7 +180,7 @@ def insert_and_constraint_pow2(rewriter: PatternRewriter) -> smt.DeclareFunOp:
         [x_gt_y_op, pow_x_op, pow_y_op, pow_x_gt_y_op, implies_op, yield_op]
     )
     forall_op0 = smt.ForallOp.create(result_types=[BoolType()], regions=[body])
-    assert_op0 = smt.AssertOp(forall_op0.res)
+    assert_op0 = smt.AssertOp(forall_op0.result)
     rewriter.insert_op_before_matched_op([declare_pow_op, forall_op0, assert_op0])
 
     return declare_pow_op
@@ -251,7 +251,7 @@ def insert_and_constraint_andi(rewriter: PatternRewriter, pow2: SSAValue):
     )
     # Build the forall and the corresponding assertion
     forall_op0 = smt.ForallOp.create(result_types=[BoolType()], regions=[body])
-    assert_op0 = smt.AssertOp(forall_op0.res)
+    assert_op0 = smt.AssertOp(forall_op0.result)
 
     rewriter.insert_op_before_matched_op([forall_op0, assert_op0])
     return declare_andi_op

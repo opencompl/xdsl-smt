@@ -23,7 +23,7 @@ from typing import (
 )
 
 from xdsl.context import Context
-from xdsl.ir import Attribute, Region
+from xdsl.ir import Attribute, Region, Block
 from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
@@ -933,10 +933,12 @@ def is_range_subset_with_z3(
         len(left.function_type.inputs.data) :
     ]
     if lhs_cst_types:
-        forall_cst = builder.insert(smt.ForallOp.from_variables(lhs_cst_types))
+        forall_cst = builder.insert(
+            smt.ForallOp(Region(Block(arg_types=lhs_cst_types)))
+        )
         lhs_cst_args = forall_cst.body.block.args
         builder.insertion_point = InsertPoint.at_end(forall_cst.body.block)
-        toplevel_val = forall_cst.res
+        toplevel_val = forall_cst.result
     else:
         lhs_cst_args = ()
 
@@ -945,12 +947,14 @@ def is_range_subset_with_z3(
         len(right.function_type.inputs.data) :
     ]
     if rhs_cst_types:
-        exists_cst = builder.insert(smt.ExistsOp.from_variables(rhs_cst_types))
+        exists_cst = builder.insert(
+            smt.ExistsOp(Region(Block(arg_types=rhs_cst_types)))
+        )
         rhs_cst_args = exists_cst.body.block.args
         if toplevel_val is not None:
-            builder.insert(smt.YieldOp(exists_cst.res))
+            builder.insert(smt.YieldOp(exists_cst.result))
         else:
-            toplevel_val = exists_cst.res
+            toplevel_val = exists_cst.result
         builder.insertion_point = InsertPoint.at_end(exists_cst.body.block)
     else:
         rhs_cst_args = ()
@@ -958,13 +962,13 @@ def is_range_subset_with_z3(
     # Create the variable forall and the assert.
     if left.function_type.inputs.data:
         forall = builder.insert(
-            smt.ForallOp.from_variables(left.function_type.inputs.data)
+            smt.ForallOp(Region(Block(arg_types=left.function_type.inputs.data)))
         )
         var_args = forall.body.block.args
         if toplevel_val is not None:
-            builder.insert(smt.YieldOp(forall.res))
+            builder.insert(smt.YieldOp(forall.result))
         else:
-            toplevel_val = forall.res
+            toplevel_val = forall.result
         builder.insertion_point = InsertPoint.at_end(forall.body.block)
     else:
         var_args = ()

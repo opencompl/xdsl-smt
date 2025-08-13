@@ -4,7 +4,7 @@ import argparse
 import sys
 from typing import Mapping, Sequence
 
-from xdsl.ir import Attribute, Operation, SSAValue
+from xdsl.ir import Attribute, Operation, SSAValue, Region, Block
 from xdsl.context import Context
 from xdsl.parser import Parser
 from xdsl.pattern_rewriter import PatternRewriter
@@ -193,7 +193,7 @@ def main() -> None:
         CommonSubexpressionElimination().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
 
-    forall = ForallOp.from_variables(func_after.body.block.arg_types)
+    forall = ForallOp(Region(Block(arg_types=func_after.body.block.arg_types)))
     refinement = add_function_refinement(
         func,
         func_after,
@@ -203,7 +203,7 @@ def main() -> None:
     )
     forall.body.block.add_op(YieldOp(refinement))
     block.add_op(forall)
-    block.add_op(AssertOp(forall.res))
+    block.add_op(AssertOp(forall.result))
 
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)

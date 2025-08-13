@@ -1,6 +1,6 @@
 from typing import Sequence
 from xdsl.dialects.builtin import FunctionType, IntegerType
-from xdsl.ir import SSAValue
+from xdsl.ir import SSAValue, Region, Block
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
@@ -161,7 +161,7 @@ def memory_block_refinement(
         bytes_after = mem.GetBlockBytesOp(block_after).res
 
         # Forall index, bytes[index] >= bytes_after[index]
-        forall = ForallOp.from_variables([BitVectorType(64)])
+        forall = ForallOp(Region(Block(arg_types=[BitVectorType(64)])))
 
         forall_block = forall.body.block
 
@@ -184,7 +184,7 @@ def memory_block_refinement(
         size_refinement = EqOp(size, size_after).res
         live_refinement = EqOp(live, live_after).res
         block_properties_refinement = AndOp(size_refinement, live_refinement).result
-        block_refinement = AndOp(block_properties_refinement, forall.res).result
+        block_refinement = AndOp(block_properties_refinement, forall.result).result
 
     return block_refinement
 

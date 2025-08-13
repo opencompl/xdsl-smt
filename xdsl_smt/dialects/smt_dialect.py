@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Sequence, TypeVar, IO
+from dataclasses import dataclass
 
 from xdsl import traits
 from xdsl.traits import IsTerminator, HasCanonicalizationPatternsTrait
@@ -35,6 +36,9 @@ from xdsl.dialects.smt import (
     XOrOp,
     NotOp,
     ConstantBoolOp,
+    YieldOp,
+    ForallOp,
+    ExistsOp,
 )
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
@@ -51,20 +55,6 @@ from xdsl_smt.traits.smt_printer import (
 )
 
 
-@irdl_op_definition
-class YieldOp(IRDLOperation):
-    """`smt.yield` is used to return a result from a region."""
-
-    name = "smt.yield"
-
-    traits = traits_def(IsTerminator())
-
-    ret: Operand = operand_def(BoolType)
-
-    def __init__(self, ret: Operand | Operation):
-        super().__init__(operands=[ret])
-
-
 class QuantifierCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
     @classmethod
     def get_canonicalization_patterns(cls) -> tuple[RewritePattern, ...]:
@@ -75,39 +65,18 @@ class QuantifierCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (QuantifierCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class ForallOp(IRDLOperation, Pure, SMTLibOp):
-    """Universal quantifier."""
+@dataclass(frozen=True)
+class QuantifierSMTLibOpTrait(SMTLibOpTrait):
+    """Trait for quantifier operations that prints them in SMT-LIB format."""
 
-    name = "smt.forall"
+    name: str
 
-    res: OpResult = result_def(BoolType)
-    body: Region = region_def("single_block")
-
-    traits = traits_def(traits.Pure(), QuantifierCanonicalizationPatterns())
-
-    @staticmethod
-    def from_variables(
-        variables: Sequence[Attribute], body: Region | None = None
-    ) -> ForallOp:
-        if body is None:
-            body = Region([Block(arg_types=variables)])
-        return ForallOp.create(result_types=[BoolType()], regions=[body])
-
-    def verify_(self) -> None:
-        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, YieldOp):
-            raise VerifyException("Region does not end in yield")
-
-    @property
-    def return_val(self) -> SSAValue:
-        yield_op = self.body.block.last_op
-        if not isinstance(yield_op, YieldOp):
-            raise ValueError("Region does not end in yield")
-        return yield_op.ret
-
-    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        print("(forall (", file=stream, end="")
-        for idx, param in enumerate(self.body.block.args):
+    def print_expr_to_smtlib(
+        self, op: Operation, stream: IO[str], ctx: SMTConversionCtx
+    ) -> None:
+        assert isinstance(op, ForallOp) or isinstance(op, ExistsOp)
+        print(f"({self.name} (", file=stream, end="")
+        for idx, param in enumerate(op.body.block.args):
             param_name = ctx.get_fresh_name(param)
             if idx != 0:
                 print(" ", file=stream, end="")
@@ -115,52 +84,19 @@ class ForallOp(IRDLOperation, Pure, SMTLibOp):
             ctx.print_sort_to_smtlib(param.type, stream)
             print(")", file=stream, end="")
         print(") ", file=stream, end="")
-        ctx.print_expr_to_smtlib(self.return_val, stream)
+        ctx.print_expr_to_smtlib(op.returned_value, stream)
         print(")", file=stream, end="")
 
 
-@irdl_op_definition
-class ExistsOp(IRDLOperation, Pure, SMTLibOp):
-    """Existential quantifier."""
+ForallOp_traits = ForallOp.traits
+ForallOp.traits = OpTraits(
+    lambda: (QuantifierCanonicalizationPatterns(), QuantifierSMTLibOpTrait("forall"))
+)
 
-    name = "smt.exists"
-
-    res: OpResult = result_def(BoolType)
-    body: Region = region_def("single_block")
-
-    traits = traits_def(traits.Pure(), QuantifierCanonicalizationPatterns())
-
-    @staticmethod
-    def from_variables(
-        variables: Sequence[Attribute], body: Region | None = None
-    ) -> ExistsOp:
-        if body is None:
-            body = Region([Block(arg_types=variables)])
-        return ExistsOp.create(result_types=[BoolType()], regions=[body])
-
-    def verify_(self) -> None:
-        if len(self.body.ops) == 0 or not isinstance(self.body.block.last_op, YieldOp):
-            raise VerifyException("Region does not end in yield")
-
-    @property
-    def return_val(self) -> SSAValue:
-        yield_op = self.body.block.last_op
-        if not isinstance(yield_op, YieldOp):
-            raise ValueError("Region does not end in yield")
-        return yield_op.ret
-
-    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        print("(exists (", file=stream, end="")
-        for idx, param in enumerate(self.body.blocks[0].args):
-            param_name = ctx.get_fresh_name(param)
-            if idx != 0:
-                print(" ", file=stream, end="")
-            print(f"({param_name} ", file=stream, end="")
-            ctx.print_sort_to_smtlib(param.type, stream)
-            print(")", file=stream, end="")
-        print(") ", file=stream, end="")
-        ctx.print_expr_to_smtlib(self.return_val, stream)
-        print(")", file=stream, end="")
+ExistsOp_traits = ExistsOp.traits
+ExistsOp.traits = OpTraits(
+    lambda: (QuantifierCanonicalizationPatterns(), QuantifierSMTLibOpTrait("exists"))
+)
 
 
 @irdl_op_definition

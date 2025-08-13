@@ -504,7 +504,7 @@ def get_forall_abs_res_prime_constraint(
     forall_abs_res_prime_imply_op = ImpliesOp(
         forall_abs_res_prime_antecedent_res, forall_abs_res_prime_consequent_eq.res
     )
-    forall_abs_res_prime_yield_op = YieldOp(forall_abs_res_prime_imply_op)
+    forall_abs_res_prime_yield_op = YieldOp(forall_abs_res_prime_imply_op.result)
 
     forall_abs_res_prime_constraint_block.add_ops(
         crt_arg_first_ops
@@ -516,11 +516,11 @@ def get_forall_abs_res_prime_constraint(
         + [forall_abs_res_prime_imply_op, forall_abs_res_prime_yield_op]
     )
 
-    forall_abs_res_prime_constraint = ForallOp.from_variables(
-        [], Region(forall_abs_res_prime_constraint_block)
+    forall_abs_res_prime_constraint = ForallOp(
+        Region(forall_abs_res_prime_constraint_block)
     )
     forall_abs_res_prime_constraint_assert = AssertOp(
-        forall_abs_res_prime_constraint.res
+        forall_abs_res_prime_constraint.result
     )
 
     forall_abs_res_prime_constraint_ops: list[Operation] = [
@@ -591,11 +591,11 @@ def get_forall_crt_res_prime_constraint(
         + [forall_crt_res_prime_constraint_imply, forall_crt_res_prime_constraint_yield]
     )
 
-    forall_crt_res_prime_constraint = ForallOp.from_variables(
-        [], Region(forall_crt_res_prime_constraint_block)
+    forall_crt_res_prime_constraint = ForallOp(
+        Region(forall_crt_res_prime_constraint_block)
     )
     forall_crt_res_prime_constraint_assert = AssertOp(
-        forall_crt_res_prime_constraint.res
+        forall_crt_res_prime_constraint.result
     )
 
     forall_crt_res_prime_constraint_ops: list[Operation] = [
@@ -778,11 +778,11 @@ def get_forall_abs_res_no_counterexample(
         + [forall_abs_res_no_counterexample_yield]
     )
 
-    forall_abs_res_no_counterexample = ForallOp.from_variables(
-        [], Region(forall_abs_res_no_counterexample_block)
+    forall_abs_res_no_counterexample = ForallOp(
+        Region(forall_abs_res_no_counterexample_block)
     )
     forall_abs_res_no_counterexample_assert = AssertOp(
-        forall_abs_res_no_counterexample.res
+        forall_abs_res_no_counterexample.result
     )
 
     return (

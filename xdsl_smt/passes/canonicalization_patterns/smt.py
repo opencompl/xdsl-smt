@@ -34,7 +34,7 @@ class QuantifierCanonicalizationPattern(RewritePattern):
         # exists x. True -> True
         # exists x. False -> False
         if isinstance(op, smt.ForallOp | smt.ExistsOp):
-            if (value := get_bool_constant(op.return_val)) is None:
+            if (value := get_bool_constant(op.returned_value)) is None:
                 return None
             rewriter.replace_matched_op(smt.ConstantBoolOp(value))
             return
