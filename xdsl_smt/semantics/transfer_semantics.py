@@ -183,9 +183,9 @@ class MakeOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        false_constant = smt.ConstantBoolOp.from_bool(False)
+        false_constant = smt.ConstantBoolOp(False)
         argList = operands
-        opList: list[Operation] = [PairOp(argList[-1], false_constant.res)]
+        opList: list[Operation] = [PairOp(argList[-1], false_constant.result)]
         result = opList[-1].results[0]
         for ty in reversed(argList[:-1]):
             opList.append(PairOp(ty, result))
@@ -265,8 +265,8 @@ class UMulOverflowOpSemantics(OperationSemantics):
         umul_overflow = smt_bv.UmulOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(umul_overflow.res)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
         rewriter.insert_op_before_matched_op([umul_overflow] + ops + [poison_op, res])
         return ((res.res,), effect_state)
 
@@ -283,8 +283,8 @@ class SMulOverflowOpSemantics(OperationSemantics):
         smul_overflow = smt_bv.SmulOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(smul_overflow.res)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
         rewriter.insert_op_before_matched_op([smul_overflow] + ops + [poison_op, res])
         return ((res.res,), effect_state)
 
@@ -301,8 +301,8 @@ class UAddOverflowOpSemantics(OperationSemantics):
         uadd_overflow = smt_bv.UaddOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(uadd_overflow.res)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
         rewriter.insert_op_before_matched_op([uadd_overflow] + ops + [poison_op, res])
         return ((res.res,), effect_state)
 
@@ -319,8 +319,8 @@ class SAddOverflowOpSemantics(OperationSemantics):
         sadd_overflow = smt_bv.SaddOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(sadd_overflow.res)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
         rewriter.insert_op_before_matched_op([sadd_overflow] + ops + [poison_op, res])
         return ((res.res,), effect_state)
 
@@ -365,8 +365,8 @@ class UShlOverflowOpSemantics(OperationSemantics):
 
         bv_res, bool_to_bv1_ops = smt_bool_to_bv1(or_op.result)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
 
         rewriter.insert_op_before_matched_op(
             overflow_ops + bool_to_bv1_ops + [poison_op, res]
@@ -448,8 +448,8 @@ class SShlOverflowOpSemantics(OperationSemantics):
 
         bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.result)
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bv_res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
 
         rewriter.insert_op_before_matched_op(
             overflow_ops + bool_to_bv1_ops + [poison_op, res]
@@ -478,8 +478,8 @@ class IsPowerOf2OpSemantics(OperationSemantics):
         and_op = smt_bv.AndOp(operands[0], op_minus_one.res)
         eq_op = smt.EqOp(b0.res, and_op.res)
         bool_to_bv = smt.IteOp(eq_op.res, b1_1.res, b0_1.res)
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bool_to_bv.res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bool_to_bv.res, poison_op.result)
         rewriter.insert_op_before_matched_op(
             [
                 b0,
@@ -532,8 +532,8 @@ class CmpOpSemantics(OperationSemantics):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b1.results[0], b0.results[0])
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
 
         resList += [b1, b0, bool_to_bv, poison_op, res_op]
         rewriter.insert_op_before_matched_op(resList)
@@ -560,8 +560,8 @@ class IntersectsOpSemantics(OperationSemantics):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b0.results[0], b1.results[0])
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
 
         resList += [b1, b0, bool_to_bv, poison_op, res_op]
         rewriter.insert_op_before_matched_op(resList)
@@ -911,7 +911,7 @@ class AddPoisonOpSemantics(OperationSemantics):
         op_ty = operands[0].type
         assert isinstance(op_ty, smt_bv.BitVectorType)
         bool_false = smt.ConstantBoolOp(False)
-        res = PairOp(operands[0], bool_false.res)
+        res = PairOp(operands[0], bool_false.result)
 
         rewriter.insert_op_before_matched_op([bool_false, res])
         return ((res.res,), effect_state)

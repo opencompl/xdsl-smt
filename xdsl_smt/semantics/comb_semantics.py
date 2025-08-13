@@ -52,7 +52,7 @@ class ConstantSemantics(OperationSemantics):
             value_value = IntegerAttrSemantics().get_semantics(value_value, rewriter)
         poison_op = smt.ConstantBoolOp(False)
         rewriter.insert_op_before_matched_op(poison_op)
-        res_op = smt_utils.PairOp(value_value, poison_op.res)
+        res_op = smt_utils.PairOp(value_value, poison_op.result)
         rewriter.insert_op_before_matched_op(res_op)
         return ((res_op.res,), effect_state)
 

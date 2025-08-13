@@ -120,8 +120,8 @@ class UMulOverflowOpPattern(smt_pure_lowering_pattern(transfer.UMulOverflowOp)):
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(suml_nooverflow.res, b1.res, b0.res)
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res = PairOp(bool_to_bv.res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bool_to_bv.res, poison_op.result)
         rewriter.replace_matched_op(
             [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
         )
@@ -158,8 +158,8 @@ class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b1.results[0], b0.results[0])
 
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
 
         resList += [b1, b0, bool_to_bv, poison_op, res_op]
         rewriter.replace_matched_op(resList)
@@ -186,8 +186,8 @@ class MakeOpPattern(smt_pure_lowering_pattern(transfer.MakeOp)):
         argList = op.arguments
         # The last element is useless, getOp won't access it
         # So it can be any bool value
-        false_constant = smt.ConstantBoolOp.from_bool(False)
-        opList: list[Operation] = [PairOp(argList[-1], false_constant.res)]
+        false_constant = smt.ConstantBoolOp(False)
+        opList: list[Operation] = [PairOp(argList[-1], false_constant.result)]
         result = opList[-1].results[0]
         for ty in reversed(argList[:-1]):
             opList.append(PairOp(ty, result))

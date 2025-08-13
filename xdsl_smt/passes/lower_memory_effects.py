@@ -115,7 +115,7 @@ class LowerAlloc(RewritePattern):
         get_block_op = mem.GetBlockOp(memory, id_op.res)
         block = get_block_op.res
         true_op = smt.ConstantBoolOp(True)
-        set_live_op = mem.SetBlockLiveMarkerOp(block, true_op.res)
+        set_live_op = mem.SetBlockLiveMarkerOp(block, true_op.result)
         block = set_live_op.res
         set_block_size = mem.SetBlockSizeOp(set_live_op.res, op.size)
         block = set_block_size.res

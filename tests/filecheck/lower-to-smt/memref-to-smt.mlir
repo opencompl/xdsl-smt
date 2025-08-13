@@ -17,7 +17,7 @@ builtin.module {
 // CHECK-NEXT:      %2 = smt.bv.constant #smt.bv<126> : !smt.bv<64>
 // CHECK-NEXT:      %3, %4 = mem_effect.alloc %1, %2
 // CHECK-NEXT:      %5 = smt.bv.constant #smt.bv<5> : !smt.bv<8>
-// CHECK-NEXT:      %6 = "smt.constant"() <{value = false}> : () -> !smt.bool
+// CHECK-NEXT:      %6 = smt.constant false
 // CHECK-NEXT:      %value = "smt.utils.pair"(%5, %6) : (!smt.bv<8>, !smt.bool) -> !smt.utils.pair<!smt.bv<8>, !smt.bool>
 // CHECK-NEXT:      %7 = smt.bv.constant #smt.bv<97> : !smt.bv<64>
 // CHECK-NEXT:      %8 = mem_effect.offset_ptr %4[%7]

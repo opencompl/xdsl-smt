@@ -35,10 +35,10 @@ class IntegerOverflowAttrSemanticsAdaptor:
         """
         nuw = rewriter.insert(
             smt.ConstantBoolOp(arith.IntegerOverflowFlag.NUW in attribute.flags)
-        ).res
+        ).result
         nsw = rewriter.insert(
             smt.ConstantBoolOp(arith.IntegerOverflowFlag.NSW in attribute.flags)
-        ).res
+        ).result
         res = rewriter.insert(smt_utils.PairOp(nuw, nsw)).res
         res = cast(SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]], res)
         return IntegerOverflowAttrSemanticsAdaptor(res)
@@ -84,7 +84,7 @@ def reduce_poison_values(
     if not operands:
         no_poison_op = smt.ConstantBoolOp(False)
         rewriter.insert_op_before_matched_op([no_poison_op])
-        return operands, no_poison_op.res
+        return operands, no_poison_op.result
 
     values = list[SSAValue]()
     value, result_poison = get_int_value_and_poison(operands[0], rewriter)
@@ -114,8 +114,8 @@ class ConstantSemantics(OperationSemantics):
             assert isa(value_value, IntegerAttr)
             value_value = IntegerAttrSemantics().get_semantics(value_value, rewriter)
 
-        no_poison = smt.ConstantBoolOp.from_bool(False)
-        res = smt_utils.PairOp(value_value, no_poison.res)
+        no_poison = smt.ConstantBoolOp(False)
+        res = smt_utils.PairOp(value_value, no_poison.result)
         rewriter.insert_op_before_matched_op([no_poison, res])
         return ((res.res,), effect_state)
 
@@ -246,7 +246,7 @@ class AddiSemantics(SimplePurePoisonSemantics):
             overflow_attr = IntegerOverflowAttrSemanticsAdaptor(overflow_attr)
 
         # Handle nsw
-        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).result
         has_nsw = overflow_attr.get_nsw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result

@@ -507,7 +507,7 @@ def is_equal_to_width_of_type(
     if int_type.width.data >= 2**width_value.type.width.data:
         false_op = smt.ConstantBoolOp(False)
         rewriter.replace_matched_op([false_op], [])
-        return false_op.res
+        return false_op.result
 
     width_op = smt_bv.ConstantOp(int_type.width, width_value.type.width)
     eq_width_op = smt.EqOp(width_value, width_op.res)

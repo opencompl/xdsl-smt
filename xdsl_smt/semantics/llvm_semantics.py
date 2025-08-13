@@ -34,10 +34,10 @@ class OverflowAttrSemanticsAdaptor:
         """
         nuw = rewriter.insert(
             smt.ConstantBoolOp(llvm.OverflowFlag.NO_UNSIGNED_WRAP in attribute.data)
-        ).res
+        ).result
         nsw = rewriter.insert(
             smt.ConstantBoolOp(llvm.OverflowFlag.NO_SIGNED_WRAP in attribute.data)
-        ).res
+        ).result
         res = rewriter.insert(smt_utils.PairOp(nuw, nsw)).res
         res = cast(SSAValue[smt_utils.PairType[smt.BoolType, smt.BoolType]], res)
         return OverflowAttrSemanticsAdaptor(res)
@@ -81,7 +81,7 @@ def reduce_poison_values(
     if not operands:
         no_poison_op = smt.ConstantBoolOp(False)
         rewriter.insert_op_before_matched_op([no_poison_op])
-        return operands, no_poison_op.res
+        return operands, no_poison_op.result
 
     values = list[SSAValue]()
     value, result_poison = get_int_value_and_poison(operands[0], rewriter)
@@ -205,7 +205,7 @@ class AddSemantics(SimplePurePoisonSemantics):
             overflow_attr = OverflowAttrSemanticsAdaptor(overflow_attr)
 
         # Handle nsw
-        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).result
         has_nsw = overflow_attr.get_nsw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
@@ -255,7 +255,7 @@ class SubSemantics(SimplePurePoisonSemantics):
             overflow_attr = OverflowAttrSemanticsAdaptor(overflow_attr)
 
         # Handle nsw
-        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).result
         has_nsw = overflow_attr.get_nsw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
@@ -304,7 +304,7 @@ class MulSemantics(SimplePurePoisonSemantics):
             overflow_attr = OverflowAttrSemanticsAdaptor(overflow_attr)
 
         # Handle nsw
-        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).result
         has_nsw = overflow_attr.get_nsw_flag(rewriter)
         is_overflow = rewriter.insert(smt_bv.SmulOverflowOp(lhs, rhs)).res
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
@@ -342,10 +342,10 @@ class UdivSemantics(SimplePurePoisonSemantics):
         # TODO: fix this -> see disjoint flag
         exact_attr = attributes.get("isExact")
         if exact_attr is None:
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).result
         elif isinstance(exact_attr, Attribute):
             assert isinstance(exact_attr, UnitAttr)
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).result
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
 
@@ -380,10 +380,10 @@ class SdivSemantics(SimplePurePoisonSemantics):
 
         exact_attr = attributes.get("isExact")
         if exact_attr is None:
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).result
         elif isinstance(exact_attr, Attribute):
             assert isinstance(exact_attr, UnitAttr)
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).result
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
 
@@ -454,10 +454,10 @@ class OrSemantics(SimplePurePoisonSemantics):
         print(attributes)
         # test case returns None :/
         if disjoint_attr is None:
-            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(False)).result
         elif isinstance(disjoint_attr, Attribute):
             assert isinstance(disjoint_attr, UnitAttr)
-            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+            disjoint_attr = rewriter.insert(smt.ConstantBoolOp(True)).result
         else:
             disjoint_attr = cast(SSAValue[smt.BoolType], disjoint_attr)
         # Check if disjoint
@@ -501,7 +501,7 @@ class ShlSemantics(SimplePurePoisonSemantics):
             overflow_attr = OverflowAttrSemanticsAdaptor(overflow_attr)
 
         # Handle nsw
-        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).res
+        poison_condition = rewriter.insert(smt.ConstantBoolOp(False)).result
         has_nsw = overflow_attr.get_nuw_flag(rewriter)
         left_shift = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
         right_shift = rewriter.insert(smt_bv.AShrOp(left_shift, rhs)).res
@@ -555,10 +555,10 @@ class LshrSemantics(SimplePurePoisonSemantics):
 
         exact_attr = attributes.get("isExact")
         if exact_attr is None:
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).result
         elif isinstance(exact_attr, Attribute):
             assert isinstance(exact_attr, UnitAttr)
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).result
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
 
@@ -599,10 +599,10 @@ class AshrSemantics(SimplePurePoisonSemantics):
 
         exact_attr = attributes.get("isExact")
         if exact_attr is None:
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(False)).result
         elif isinstance(exact_attr, Attribute):
             assert isinstance(exact_attr, UnitAttr)
-            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).res
+            exact_attr = rewriter.insert(smt.ConstantBoolOp(True)).result
         else:
             exact_attr = cast(SSAValue[smt.BoolType], exact_attr)
 

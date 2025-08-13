@@ -5,7 +5,6 @@ from typing import Sequence, TypeVar, IO
 from xdsl import traits
 from xdsl.traits import IsTerminator, HasCanonicalizationPatternsTrait
 from xdsl.irdl import (
-    prop_def,
     opt_attr_def,
     operand_def,
     result_def,
@@ -27,8 +26,16 @@ from xdsl.ir import (
     Region,
     OpTraits,
 )
-from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
-from xdsl.dialects.smt import AndOp, BoolType, ImpliesOp, OrOp, XOrOp, NotOp
+from xdsl.dialects.builtin import FunctionType, StringAttr
+from xdsl.dialects.smt import (
+    AndOp,
+    BoolType,
+    ImpliesOp,
+    OrOp,
+    XOrOp,
+    NotOp,
+    ConstantBoolOp,
+)
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -40,6 +47,7 @@ from xdsl_smt.traits.smt_printer import (
     SimpleSMTLibOp,
     SMTConversionCtx,
     SimpleSMTLibOpTrait,
+    SMTLibOpTrait,
 )
 
 
@@ -504,35 +512,18 @@ class BinaryTOp(IRDLOperation, Pure):
             raise VerifyException("Operands must have the same type")
 
 
-@irdl_op_definition
-class ConstantBoolOp(IRDLOperation, Pure, SMTLibOp):
-    """Boolean constant."""
-
-    name = "smt.constant"
-
-    res: OpResult = result_def(BoolType)
-    value: BoolAttr = prop_def(BoolAttr)
-
-    traits = traits_def(traits.Pure())
-
-    def __init__(self, value: bool):
-        super().__init__(
-            result_types=[BoolType()],
-            properties={"value": IntegerAttr(-1 if value else 0, 1)},
-        )
-
-    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
-        if self.value.value.data:
+class ConstantBoolOpPrinter(SMTLibOpTrait):
+    def print_expr_to_smtlib(
+        self, op: Operation, stream: IO[str], ctx: SMTConversionCtx
+    ) -> None:
+        assert isinstance(op, ConstantBoolOp)
+        if op.value:
             print("true", file=stream, end="")
         else:
             print("false", file=stream, end="")
 
-    @staticmethod
-    def from_bool(value: bool) -> ConstantBoolOp:
-        return ConstantBoolOp.create(
-            result_types=[BoolType()],
-            properties={"value": IntegerAttr(-1 if value else 0, 1)},
-        )
+
+ConstantBoolOp.traits.add_trait(ConstantBoolOpPrinter())
 
 
 class NotCanonicalizationPatterns(HasCanonicalizationPatternsTrait):

@@ -16,7 +16,7 @@ def get_bool_constant(value: SSAValue) -> bool | None:
         return None
     if not isinstance((constant := value.op), smt.ConstantBoolOp):
         return None
-    return constant.value.value.data != 0
+    return constant.value
 
 
 def get_bv_constant(value: SSAValue) -> int | None:
@@ -36,7 +36,7 @@ class QuantifierCanonicalizationPattern(RewritePattern):
         if isinstance(op, smt.ForallOp | smt.ExistsOp):
             if (value := get_bool_constant(op.return_val)) is None:
                 return None
-            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(value))
+            rewriter.replace_matched_op(smt.ConstantBoolOp(value))
             return
 
 
@@ -47,7 +47,7 @@ class NotCanonicalizationPattern(RewritePattern):
         # not False -> True
         if (value := get_bool_constant(op.input)) is None:
             return None
-        rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(not value))
+        rewriter.replace_matched_op(smt.ConstantBoolOp(not value))
         return
 
 
@@ -60,19 +60,19 @@ class ImpliesCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op([], [op.rhs])
             else:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             return
         # x => True -> True
         # x => False -> not x
         if (value := get_bool_constant(op.rhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             else:
                 rewriter.replace_matched_op(smt.NotOp(op.lhs))
             return
         # x => x -> True
         if op.lhs == op.rhs:
-            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+            rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             return
 
 
@@ -89,7 +89,7 @@ class AndCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op([], [rhs])
             else:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(False))
             return
         # x && True -> x
         # x && False -> False
@@ -97,7 +97,7 @@ class AndCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op([], [lhs])
             else:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(False))
             return
         # x && x -> x
         if lhs == rhs:
@@ -116,7 +116,7 @@ class OrCanonicalizationPattern(RewritePattern):
         # False || x -> x
         if (value := get_bool_constant(lhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             else:
                 rewriter.replace_matched_op([], [rhs])
             return
@@ -124,7 +124,7 @@ class OrCanonicalizationPattern(RewritePattern):
         # x || False -> x
         if (value := get_bool_constant(rhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+                rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             else:
                 rewriter.replace_matched_op([], [lhs])
             return
@@ -159,7 +159,7 @@ class XOrCanonicalizationPattern(RewritePattern):
             return
         # x ^ x -> False
         if lhs == rhs:
-            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
+            rewriter.replace_matched_op(smt.ConstantBoolOp(False))
             return
 
 
@@ -184,14 +184,12 @@ class EqCanonicalizationPattern(RewritePattern):
             return
         # x == x -> True
         if op.lhs == op.rhs:
-            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
+            rewriter.replace_matched_op(smt.ConstantBoolOp(True))
             return
         # Constant folding for bitvectors
         if (value := get_bv_constant(op.lhs)) is not None:
             if (value2 := get_bv_constant(op.rhs)) is not None:
-                rewriter.replace_matched_op(
-                    smt.ConstantBoolOp.from_bool(value == value2)
-                )
+                rewriter.replace_matched_op(smt.ConstantBoolOp(value == value2))
                 return
 
 
@@ -216,14 +214,12 @@ class DistinctCanonicalizationPattern(RewritePattern):
             return
         # x != x -> False
         if op.lhs == op.rhs:
-            rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(False))
+            rewriter.replace_matched_op(smt.ConstantBoolOp(False))
             return
         # Constant folding for bitvectors
         if (value := get_bv_constant(op.lhs)) is not None:
             if (value2 := get_bv_constant(op.rhs)) is not None:
-                rewriter.replace_matched_op(
-                    smt.ConstantBoolOp.from_bool(value != value2)
-                )
+                rewriter.replace_matched_op(smt.ConstantBoolOp(value != value2))
                 return
 
 

@@ -86,7 +86,7 @@ class AllocSemantics(OperationSemantics):
 
         # Alloc doesn't return poison
         poison_op = smt.ConstantBoolOp(False)
-        poison_pointer_op = smt_utils.PairOp(alloc_op.pointer, poison_op.res)
+        poison_pointer_op = smt_utils.PairOp(alloc_op.pointer, poison_op.result)
 
         rewriter.insert_op_before_matched_op(
             [alloc_size_op, alloc_op, poison_op, poison_pointer_op]
@@ -141,7 +141,7 @@ def offset_pointer_for_indices(
     # This is sufficient to ensure that the pointer is in bounds, and that no
     # address computation is overflowing.
     in_bounds_op = smt.ConstantBoolOp(True)
-    in_bounds = in_bounds_op.res
+    in_bounds = in_bounds_op.result
     rewriter.insert_op_before_matched_op(in_bounds_op)
     for index, size in zip(indices, sizes):
         nonnegative = smt_bv.SgeOp(index, zero_op.res)

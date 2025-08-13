@@ -340,8 +340,8 @@ class IntegerConstantRewritePattern(RewritePattern):
         if not isa(op.value, IntegerAttr[IntegerType]):
             raise Exception("Cannot convert constant of type that are not integer type")
         value_op = smt_bv.ConstantOp(op.value)
-        poison_op = smt.ConstantBoolOp.from_bool(False)
-        res_op = smt_utils.PairOp(value_op.res, poison_op.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res_op = smt_utils.PairOp(value_op.res, poison_op.result)
         rewriter.replace_matched_op([value_op, poison_op, res_op])
 
 

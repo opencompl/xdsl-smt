@@ -1019,7 +1019,7 @@ class SymFingerprint:
                 continue
             if isinstance(type, smt.BoolType):
                 cst_op = builder.insert(smt.ConstantBoolOp(input != 0))
-                func_inputs.append(cst_op.res)
+                func_inputs.append(cst_op.result)
                 continue
             raise ValueError(f"Unsupported type: {type}")
         for type in func_input_types[len(inputs) :]:
@@ -1033,7 +1033,7 @@ class SymFingerprint:
         if isinstance(output_type, bv.BitVectorType):
             result_val = builder.insert(bv.ConstantOp(result, output_type.width)).res
         elif isinstance(output_type, smt.BoolType):
-            result_val = builder.insert(smt.ConstantBoolOp(result != 0)).res
+            result_val = builder.insert(smt.ConstantBoolOp(result != 0)).result
         else:
             raise ValueError(f"Unsupported output type: {output_type}")
 

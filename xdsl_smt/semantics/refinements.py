@@ -214,7 +214,7 @@ def memory_refinement(
     accessible_block_ids = set(input_block_ids + ret_block_ids_before)
 
     with ImplicitBuilder(Builder(insert_point)):
-        refinement = ConstantBoolOp(True).res
+        refinement = ConstantBoolOp(True).result
 
     for block_id in accessible_block_ids:
         block_id_after = get_mapped_block_id(
@@ -257,7 +257,7 @@ def add_function_refinement(
         func_call_after = CallOp(func_after.ret, args)
 
         # Refinement of non-state return values
-        return_values_refinement = ConstantBoolOp(True).res
+        return_values_refinement = ConstantBoolOp(True).result
 
         # Refines each non-state return value
         for (ret, ret_after), original_type in zip(

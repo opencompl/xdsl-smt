@@ -75,7 +75,7 @@ class LowerUBOp(RewritePattern):
         if inhabitant is None:
             raise ValueError(f"Type {op.res.type.type} does not have an inhabitant.")
         ub_flag = smt.ConstantBoolOp(True)
-        pair = smt_utils.PairOp(inhabitant, ub_flag.res)
+        pair = smt_utils.PairOp(inhabitant, ub_flag.result)
         rewriter.replace_matched_op([ub_flag, pair])
 
 
@@ -84,7 +84,7 @@ class LowerFromOp(RewritePattern):
     def match_and_rewrite(self, op: ub.FromOp, rewriter: PatternRewriter):
         assert isa(op.res.type, ub.UBOrType[Attribute])
         ub_flag = smt.ConstantBoolOp(False)
-        pair = smt_utils.PairOp(op.value, ub_flag.res)
+        pair = smt_utils.PairOp(op.value, ub_flag.result)
         rewriter.replace_matched_op([ub_flag, pair])
 
 

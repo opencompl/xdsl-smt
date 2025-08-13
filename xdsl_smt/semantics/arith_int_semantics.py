@@ -177,10 +177,10 @@ class IntConstantSemantics(GenericIntSemantics):
             rewriter.insert_op_before_matched_op([width_op])
             ssa_attr = value_value
 
-        no_poison = smt.ConstantBoolOp.from_bool(False)
+        no_poison = smt.ConstantBoolOp(False)
         rewriter.insert_op_before_matched_op([no_poison])
         result = self.integer_proxy.pack_integer(
-            ssa_attr, no_poison.res, width, rewriter
+            ssa_attr, no_poison.result, width, rewriter
         )
 
         return ((result,), effect_state)

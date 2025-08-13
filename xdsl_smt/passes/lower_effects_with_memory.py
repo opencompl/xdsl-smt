@@ -56,7 +56,7 @@ class LowerTriggerOp(RewritePattern):
         memory, _ = get_memory_and_ub_from_state(op.state, rewriter)
         new_ub = smt.ConstantBoolOp(True)
         rewriter.insert_op_before_matched_op([new_ub])
-        new_state = create_state(memory, new_ub.res, rewriter)
+        new_state = create_state(memory, new_ub.result, rewriter)
         rewriter.replace_matched_op([], [new_state])
 
 

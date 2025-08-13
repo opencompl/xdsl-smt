@@ -1,8 +1,8 @@
 // RUN: xdsl-smt "%s" -p=canonicalize,dce | filecheck "%s"
 
 "builtin.module"() ({
-  %true = "smt.constant"() <{value = true}> : () -> !smt.bool
-  %false = "smt.constant"() <{value = false}> : () -> !smt.bool
+  %true = smt.constant true
+  %false = smt.constant false
 
   %x = "smt.declare_const"() : () -> !smt.bool
   // CHECK:      %x = "smt.declare_const"() : () -> !smt.bool
@@ -32,7 +32,7 @@
   // (x = x) -> true
   %e = "smt.eq"(%x, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%e) : (!smt.bool) -> ()
-  // CHECK-NEXT: %e = "smt.constant"() <{value = true}> : () -> !smt.bool
+  // CHECK-NEXT: %e = smt.constant true
   // CHECK-NEXT: "smt.assert"(%e) : (!smt.bool) -> ()
 
   // (true != x) -> not x
@@ -60,6 +60,6 @@
   // (x != x) -> false
   %j = "smt.distinct"(%x, %x) : (!smt.bool, !smt.bool) -> !smt.bool
   "smt.assert"(%j) : (!smt.bool) -> ()
-  // CHECK-NEXT: %j = "smt.constant"() <{value = false}> : () -> !smt.bool
+  // CHECK-NEXT: %j = smt.constant false
   // CHECK-NEXT: "smt.assert"(%j) : (!smt.bool) -> ()
 }) : () -> ()

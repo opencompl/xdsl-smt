@@ -3,12 +3,13 @@ from xdsl.ir import Operation
 from xdsl.context import Context
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, RewritePattern
-from ..traits.effects import Pure
+from xdsl_smt.traits.effects import Pure
+from xdsl import traits
 
 
 class RemoveDeadPattern(RewritePattern):
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-        if not isinstance(op, Pure):
+        if not isinstance(op, Pure) and not op.has_trait(traits.Pure):
             return None
         if all(not result.uses for result in op.results):
             rewriter.erase_matched_op()

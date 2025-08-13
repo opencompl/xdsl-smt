@@ -97,8 +97,8 @@ class PatternRewrite(RewritePattern):
 class PatternStaticallyTrueRewrite(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: PatternOp, rewriter: PatternRewriter):
-        false_const = ConstantBoolOp.from_bool(False)
-        assert_false = AssertOp(false_const.res)
+        false_const = ConstantBoolOp(False)
+        assert_false = AssertOp(false_const.result)
         check_sat = CheckSatOp()
         rewriter.replace_matched_op([false_const, assert_false, check_sat])
 
@@ -338,8 +338,8 @@ def kb_analysis_correct(
 
     poison_op = smt_utils.SecondOp(poisoned_value)
     poison = poison_op.res
-    true_op = ConstantBoolOp.from_bool(True)
-    poison_correct = EqOp(poison, true_op.res)
+    true_op = ConstantBoolOp(True)
+    poison_correct = EqOp(poison, true_op.result)
 
     and_op_zeros = smt_bv.AndOp(value, zeros)
     zero = smt_bv.ConstantOp(0, value.type.width.data)

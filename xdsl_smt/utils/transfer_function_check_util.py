@@ -73,23 +73,23 @@ def valid_abstract_domain_check(
                 domain_constraint.getFunctionByWidth(arg_widths[i]),
                 [abs_arg],
                 constant_bv_1,
-                effect.res,
+                effect.result,
             )
 
     abs_arg_constraints_ops: list[Operation] = []
     if abs_op_constraint is not None:
         abs_arg_constraints_ops = call_function_and_assert_result_with_effect(
-            abs_op_constraint, abs_args, constant_bv_1, effect.res
+            abs_op_constraint, abs_args, constant_bv_1, effect.result
         )
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
-        abstract_func, abs_args, effect.res
+        abstract_func, abs_args, effect.result
     )
     abs_result_domain_invalid_ops = call_function_and_assert_result_with_effect(
         domain_constraint.getFunctionByWidth(result_width),
         [call_abs_func_first_op.res],
         constant_bv_0,
-        effect.res,
+        effect.result,
     )
     return (
         [effect]
@@ -128,7 +128,7 @@ def int_attr_check(
         constant_bv_1 = ConstantOp(1, 1)
 
         call_constraint_ops = call_function_and_assert_result_with_effect(
-            int_attr_constraint, int_attr_constraint_arg, constant_bv_1, effect.res
+            int_attr_constraint, int_attr_constraint_arg, constant_bv_1, effect.result
         )
         return (
             [effect]
@@ -139,7 +139,7 @@ def int_attr_check(
         )
     else:
         true_op = ConstantBoolOp(True)
-        assert_op = AssertOp(true_op.res)
+        assert_op = AssertOp(true_op.result)
         return [true_op, assert_op, CheckSatOp()]
 
 
@@ -188,32 +188,32 @@ def forward_soundness_check(
                     instance_constraint.getFunctionByWidth(arg_widths[i]),
                     [abs_arg, crt_arg],
                     constant_bv_1,
-                    effect.res,
+                    effect.result,
                 )
             )
             abs_domain_constraints_ops += call_function_and_assert_result_with_effect(
                 domain_constraint.getFunctionByWidth(arg_widths[i]),
                 [abs_arg],
                 constant_bv_1,
-                effect.res,
+                effect.result,
             )
 
     abs_arg_constraints_ops: list[Operation] = []
     if abs_op_constraint is not None:
         abs_arg_constraints_ops = call_function_and_assert_result_with_effect(
-            abs_op_constraint, abs_args, constant_bv_1, effect.res
+            abs_op_constraint, abs_args, constant_bv_1, effect.result
         )
     crt_args_constraints_ops: list[Operation] = []
     if op_constraint is not None:
         crt_args_constraints_ops = call_function_and_assert_result_with_effect(
-            op_constraint, crt_args, constant_bv_1, effect.res
+            op_constraint, crt_args, constant_bv_1, effect.result
         )
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
-        abstract_func, abs_args, effect.res
+        abstract_func, abs_args, effect.result
     )
     call_crt_func_op, call_crt_func_first_op = call_function_with_effect(
-        concrete_func, crt_args_with_poison, effect.res
+        concrete_func, crt_args_with_poison, effect.result
     )
     call_crt_first_op = FirstOp(call_crt_func_first_op.res)
 
@@ -221,7 +221,7 @@ def forward_soundness_check(
         instance_constraint.getFunctionByWidth(result_width),
         [call_abs_func_first_op.res, call_crt_first_op.res],
         constant_bv_0,
-        effect.res,
+        effect.result,
     )
 
     return (
@@ -293,10 +293,10 @@ def backward_soundness_check(
     constant_bv_1 = ConstantOp(1, 1)
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
-        abstract_func, abs_args, effect.res
+        abstract_func, abs_args, effect.result
     )
     call_crt_func_op, call_crt_func_first_op = call_function_with_effect(
-        concrete_func, crt_args_with_poison, effect.res
+        concrete_func, crt_args_with_poison, effect.result
     )
     call_crt_func_res_op = FirstOp(call_crt_func_first_op.res)
 
@@ -304,7 +304,7 @@ def backward_soundness_check(
         domain_constraint.getFunctionByWidth(result_width),
         [abs_args[0]],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     abs_arg_include_crt_res_constraint_ops = (
@@ -312,7 +312,7 @@ def backward_soundness_check(
             instance_constraint.getFunctionByWidth(result_width),
             [abs_args[0], call_crt_func_res_op.res],
             constant_bv_1,
-            effect.res,
+            effect.result,
         )
     )
 
@@ -324,7 +324,7 @@ def backward_soundness_check(
     crt_args_constraints_ops: list[Operation] = []
     if op_constraint is not None:
         crt_args_constraints_ops = call_function_and_assert_result_with_effect(
-            op_constraint, crt_args, constant_bv_1, effect.res
+            op_constraint, crt_args, constant_bv_1, effect.result
         )
 
     abs_result_not_include_crt_arg_constraint_ops = (
@@ -332,7 +332,7 @@ def backward_soundness_check(
             instance_constraint.getFunctionByWidth(arg_widths[operationNo]),
             [call_abs_func_first_op.res, crt_args[operationNo]],
             constant_bv_0,
-            effect.res,
+            effect.result,
         )
     )
 
@@ -404,10 +404,10 @@ def counterexample_check(
                 domain_constraint.getFunctionByWidth(arg_widths[i]),
                 [arg],
                 constant_bv_1,
-                effect.res,
+                effect.result,
             )
     call_counterexample_func_ops = call_function_and_assert_result_with_effect(
-        smt_counter_func, args, constant_bv_1, effect.res
+        smt_counter_func, args, constant_bv_1, effect.result
     )
 
     return (
@@ -462,7 +462,7 @@ def get_forall_abs_res_prime_constraint(
                 instance_constraint.getFunctionByWidth(arg_widths[i]),
                 [abs_arg, crt_arg],
                 constant_bv_1,
-                effect.res,
+                effect.result,
             )
 
             abs_arg_include_crt_arg_constraints_ops += abs_arg_include_crt_arg_call_tmp
@@ -477,7 +477,7 @@ def get_forall_abs_res_prime_constraint(
             op_constraint_ops,
             op_constraint_eq_op,
         ) = call_function_and_eq_result_with_effect(
-            op_constraint, crt_args, constant_bv_1, effect.res
+            op_constraint, crt_args, constant_bv_1, effect.result
         )
         forall_abs_res_prime_antecedent_ops.append(op_constraint_eq_op)
     (
@@ -487,7 +487,7 @@ def get_forall_abs_res_prime_constraint(
 
     # crt_res_fist_op is with poison, so we need another first op
     crt_res_op, crt_res_first_op = call_function_with_effect(
-        concrete_func, crt_args_with_poison, effect.res
+        concrete_func, crt_args_with_poison, effect.result
     )
     crt_res_first_first_op = FirstOp(crt_res_first_op.res)
 
@@ -498,7 +498,7 @@ def get_forall_abs_res_prime_constraint(
         instance_constraint.getFunctionByWidth(result_width),
         [abs_res_prime, crt_res_first_first_op.res],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     forall_abs_res_prime_imply_op = ImpliesOp(
@@ -563,7 +563,7 @@ def get_forall_crt_res_prime_constraint(
         instance_constraint.getFunctionByWidth(result_width),
         [abs_res_prime, crt_res_prime],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     (
@@ -573,7 +573,7 @@ def get_forall_crt_res_prime_constraint(
         instance_constraint.getFunctionByWidth(result_width),
         [abs_res, crt_res_prime],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     forall_crt_res_prime_constraint_imply = ImpliesOp(
@@ -638,13 +638,13 @@ def forward_precision_check(
                 domain_constraint.getFunctionByWidth(arg_widths[i]),
                 [abs_arg],
                 constant_bv_1,
-                effect.res,
+                effect.result,
             )
 
     abs_arg_constraints_ops: list[Operation] = []
     if abs_op_constraint is not None:
         abs_arg_constraints_ops = call_function_and_assert_result_with_effect(
-            abs_op_constraint, abs_args, constant_bv_1, effect.res
+            abs_op_constraint, abs_args, constant_bv_1, effect.result
         )
 
     abs_res_prime_ops, abs_res_prime = get_result_instance_with_effect(abstract_func)
@@ -653,7 +653,7 @@ def forward_precision_check(
         domain_constraint.getFunctionByWidth(result_width),
         [abs_res_prime],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     forall_abs_res_prime_constraint_ops = get_forall_abs_res_prime_constraint(
@@ -672,7 +672,7 @@ def forward_precision_check(
     )
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
-        abstract_func, abs_args, effect.res
+        abstract_func, abs_args, effect.result
     )
 
     forall_crt_res_prime_constraint_ops = get_forall_crt_res_prime_constraint(
@@ -699,7 +699,7 @@ def forward_precision_check(
             instance_constraint.getFunctionByWidth(result_width),
             [abs_res_prime, abs_res_ele],
             constant_bv_0,
-            effect.res,
+            effect.result,
         )
     )
 
@@ -707,7 +707,7 @@ def forward_precision_check(
         instance_constraint.getFunctionByWidth(result_width),
         [call_abs_func_first_op.res, abs_res_ele],
         constant_bv_1,
-        effect.res,
+        effect.result,
     )
 
     return (
@@ -765,7 +765,7 @@ def get_forall_abs_res_no_counterexample(
         forall_abs_res_no_counterexample_ops,
         forall_abs_res_no_counterexample_eq,
     ) = call_function_and_eq_result_with_effect(
-        smt_counter_func, args, constant_bv_0, effect.res
+        smt_counter_func, args, constant_bv_0, effect.result
     )
 
     forall_abs_res_no_counterexample_yield = YieldOp(
@@ -899,7 +899,7 @@ def backward_precision_check(
     """
 
     call_abs_func_op, call_abs_func_first_op = call_function_with_effect(
-        abstract_func, abs_args, effect.res
+        abstract_func, abs_args, effect.result
     )
 
     abs_res_prime_ops, abs_res_prime = get_result_instance_with_effect(abstract_func)
