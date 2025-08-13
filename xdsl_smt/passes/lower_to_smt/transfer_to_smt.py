@@ -151,7 +151,7 @@ class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
 
         # Neq -> Not(Eq....)
         if 1 == predicate:
-            tmp_op = smt.NotOp.get(new_op.results[0])
+            tmp_op = smt.NotOp(new_op.results[0])
             resList.append(tmp_op)
 
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)

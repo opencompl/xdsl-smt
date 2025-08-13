@@ -172,7 +172,7 @@ def main() -> None:
     )
     not_op = NotOp(refinement)
     block.add_op(not_op)
-    block.add_op(AssertOp(not_op.res))
+    block.add_op(AssertOp(not_op.result))
     block.add_op(CheckSatOp())
 
     # Inline and delete functions

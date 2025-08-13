@@ -28,7 +28,7 @@ from xdsl.ir import (
     OpTraits,
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr, BoolAttr, IntegerAttr
-from xdsl.dialects.smt import AndOp, BoolType, ImpliesOp, OrOp, XOrOp
+from xdsl.dialects.smt import AndOp, BoolType, ImpliesOp, OrOp, XOrOp, NotOp
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
 
@@ -545,26 +545,8 @@ class NotCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
         return (NotCanonicalizationPattern(),)
 
 
-@irdl_op_definition
-class NotOp(IRDLOperation, Pure, SimpleSMTLibOp):
-    """Boolean negation."""
-
-    name = "smt.not"
-
-    res: OpResult = result_def(BoolType)
-    arg: Operand = operand_def(BoolType)
-
-    traits = traits_def(traits.Pure(), NotCanonicalizationPatterns())
-
-    def __init__(self, arg: SSAValue):
-        super().__init__(result_types=[BoolType()], operands=[arg])
-
-    @staticmethod
-    def get(operand: SSAValue) -> NotOp:
-        return NotOp.create(result_types=[BoolType()], operands=[operand])
-
-    def op_name(self) -> str:
-        return "not"
+NotOp.traits.add_trait(SimpleSMTLibOpTrait("not"))
+NotOp.traits.add_trait(NotCanonicalizationPatterns())
 
 
 class ImpliesCanonicalizationPatterns(HasCanonicalizationPatternsTrait):

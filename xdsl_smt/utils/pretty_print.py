@@ -41,9 +41,9 @@ def pretty_print_value(
                 print(f"0x{value:0{width // 4}x}", end="", file=file)
             else:
                 print(f"{{:0{width}b}}".format(value), end="", file=file)
-        case OpResult(op=smt.NotOp(arg=arg), index=0):
+        case OpResult(op=smt.NotOp(input=input), index=0):
             print("¬", end="", file=file)
-            pretty_print_value(arg, True, names, file=file)
+            pretty_print_value(input, True, names, file=file)
         case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
             pretty_print_value(lhs, True, names, file=file)
             print(" ∧ ", end="", file=file)

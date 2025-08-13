@@ -66,9 +66,13 @@ class StaticallyUnmatchedConstraintError(Exception):
 class PDLToSMTRewriteContext:
     matching_effect_state: SSAValue
     rewriting_effect_state: SSAValue
-    pdl_types_to_types: dict[SSAValue, Attribute] = field(default_factory=dict)
-    pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(default_factory=dict)
-    preconditions: list[SSAValue] = field(default_factory=list)
+    pdl_types_to_types: dict[SSAValue, Attribute] = field(
+        default_factory=dict[SSAValue, Attribute]
+    )
+    pdl_op_to_values: dict[SSAValue, Sequence[SSAValue]] = field(
+        default_factory=dict[SSAValue, Sequence[SSAValue]]
+    )
+    preconditions: list[SSAValue] = field(default_factory=list[SSAValue])
 
 
 def _get_type_of_erased_type_value(value: SSAValue) -> Attribute:
@@ -292,7 +296,7 @@ class ReplaceRewrite(RewritePattern):
         )
         not_refinement = NotOp(refinement_value)
         rewriter.insert_op_before_matched_op(not_refinement)
-        not_refinement_value = not_refinement.res
+        not_refinement_value = not_refinement.result
 
         if len(self.rewrite_context.preconditions) == 0:
             assert_op = AssertOp(not_refinement_value)
@@ -404,9 +408,9 @@ class AttachOpRewrite(RewritePattern):
             op.value, zeros, ones
         )
         rewriter.insert_op_before_matched_op(analysis_correct_ops)
-        analysis_incorrect_op = NotOp.get(analysis_correct)
+        analysis_incorrect_op = NotOp(analysis_correct)
         rewriter.insert_op_before_matched_op(analysis_incorrect_op)
-        analysis_incorrect = analysis_incorrect_op.res
+        analysis_incorrect = analysis_incorrect_op.result
 
         if len(self.rewrite_context.preconditions) == 0:
             rewriter.replace_matched_op(AssertOp(analysis_incorrect))
@@ -429,7 +433,14 @@ class ApplyNativeRewriteRewrite(RewritePattern):
     native_rewrites: dict[
         str,
         Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str,
+            Callable[
+                [ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None
+            ],
+        ]
+    )
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ApplyNativeRewriteOp, rewriter: PatternRewriter, /):
@@ -449,10 +460,22 @@ class ApplyNativeConstraintRewrite(RewritePattern):
         Callable[
             [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext], SSAValue
         ],
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str,
+            Callable[
+                [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
+                SSAValue,
+            ],
+        ]
+    )
     native_static_constraints: dict[
         str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
+        ]
+    )
 
     @op_type_rewrite_pattern
     def match_and_rewrite(
@@ -489,17 +512,36 @@ class PDLToSMTLowerer:
     native_rewrites: dict[
         str,
         Callable[[ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None],
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str,
+            Callable[
+                [ApplyNativeRewriteOp, PatternRewriter, PDLToSMTRewriteContext], None
+            ],
+        ]
+    )
     native_constraints: dict[
         str,
         Callable[
             [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
             SSAValue,
         ],
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str,
+            Callable[
+                [ApplyNativeConstraintOp, PatternRewriter, PDLToSMTRewriteContext],
+                SSAValue,
+            ],
+        ]
+    )
     native_static_constraints: dict[
         str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
-    ] = field(default_factory=dict)
+    ] = field(
+        default_factory=dict[
+            str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
+        ]
+    )
     refinement: RefinementSemantics = IntegerTypeRefinementSemantics()
 
     def mark_pdl_operations(self, op: PatternOp):

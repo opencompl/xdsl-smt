@@ -217,7 +217,7 @@ class LoadSemantics(OperationSemantics):
         # or indices are not in bounds, undefined behavior is triggered.
         state_if_poison = ub_effect.TriggerOp(effect_state)
         not_in_bounds = smt.NotOp(in_bounds)
-        ub_condition = smt.OrOp(poison, not_in_bounds.res)
+        ub_condition = smt.OrOp(poison, not_in_bounds.result)
         new_state = smt.IteOp(
             ub_condition.result, state_if_poison.res, read_op.new_state
         )
@@ -276,7 +276,7 @@ class StoreSemantics(OperationSemantics):
         # undefined behavior is triggered.
         state_if_poison = ub_effect.TriggerOp(effect_state)
         not_in_bounds = smt.NotOp(in_bounds)
-        ub_condition = smt.OrOp(poison, not_in_bounds.res)
+        ub_condition = smt.OrOp(poison, not_in_bounds.result)
         new_state = smt.IteOp(
             ub_condition.result, state_if_poison.res, write_op.new_state
         )

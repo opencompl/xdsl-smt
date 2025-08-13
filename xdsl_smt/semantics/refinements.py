@@ -60,8 +60,10 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         not_before_poison = smt.NotOp(before_poison.res)
         not_after_poison = smt.NotOp(after_poison.res)
         eq_vals = smt.EqOp(before_val.res, after_val.res)
-        not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.res)
-        refinement_integer = smt.ImpliesOp(not_before_poison.res, not_poison_eq.result)
+        not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.result)
+        refinement_integer = smt.ImpliesOp(
+            not_before_poison.result, not_poison_eq.result
+        )
         rewriter.insert_op_before_matched_op(
             [
                 not_before_poison,
@@ -76,7 +78,7 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         ub_before_bool = ub_effect.ToBoolOp(state_before)
         ub_after_bool = ub_effect.ToBoolOp(state_after)
         not_ub_after = smt.NotOp(ub_after_bool.res)
-        not_ub_before_case = smt.AndOp(not_ub_after.res, refinement_integer.result)
+        not_ub_before_case = smt.AndOp(not_ub_after.result, refinement_integer.result)
         refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
         rewriter.insert_op_before_matched_op(
             [
@@ -94,7 +96,7 @@ def integer_value_refinement(
     value: SSAValue, value_after: SSAValue, insert_point: InsertPoint
 ) -> SSAValue:
     with ImplicitBuilder(Builder(insert_point)):
-        not_after_poison = NotOp.get(SecondOp(value_after).res).res
+        not_after_poison = NotOp(SecondOp(value_after).res).result
         value_eq = EqOp.get(FirstOp(value).res, FirstOp(value_after).res).res
         value_refinement = AndOp(not_after_poison, value_eq).result
         refinement = OrOp(value_refinement, SecondOp(value).res).result
@@ -265,9 +267,9 @@ def add_function_refinement(
         ):
             if not isinstance(original_type, IntegerType):
                 raise Exception("Cannot handle non-integer return types")
-            not_after_poison = NotOp.get(SecondOp(ret_after).res)
+            not_after_poison = NotOp(SecondOp(ret_after).res)
             value_eq = EqOp.get(FirstOp(ret).res, FirstOp(ret_after).res)
-            value_refinement = AndOp(not_after_poison.res, value_eq.res)
+            value_refinement = AndOp(not_after_poison.result, value_eq.res)
             refinement = OrOp(value_refinement.result, SecondOp(ret).res)
             return_values_refinement = AndOp(
                 return_values_refinement, refinement.result
@@ -289,7 +291,7 @@ def add_function_refinement(
         # Compute refinement with UB
         refinement = OrOp(
             AndOp(
-                NotOp(res_ub_after).res,
+                NotOp(res_ub_after).result,
                 AndOp(return_values_refinement, mem_refinement).result,
             ).result,
             res_ub,

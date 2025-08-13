@@ -45,7 +45,7 @@ class NotCanonicalizationPattern(RewritePattern):
     def match_and_rewrite(self, op: smt.NotOp, rewriter: PatternRewriter):
         # not True -> False
         # not False -> True
-        if (value := get_bool_constant(op.arg)) is None:
+        if (value := get_bool_constant(op.input)) is None:
             return None
         rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(not value))
         return
@@ -68,7 +68,7 @@ class ImpliesCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op(smt.ConstantBoolOp.from_bool(True))
             else:
-                rewriter.replace_matched_op(smt.NotOp.get(op.lhs))
+                rewriter.replace_matched_op(smt.NotOp(op.lhs))
             return
         # x => x -> True
         if op.lhs == op.rhs:
@@ -145,7 +145,7 @@ class XOrCanonicalizationPattern(RewritePattern):
         # False ^ x -> x
         if (value := get_bool_constant(lhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(rhs))
+                rewriter.replace_matched_op(smt.NotOp(rhs))
             else:
                 rewriter.replace_matched_op([], [rhs])
             return
@@ -153,7 +153,7 @@ class XOrCanonicalizationPattern(RewritePattern):
         # x ^ False -> x
         if (value := get_bool_constant(rhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(lhs))
+                rewriter.replace_matched_op(smt.NotOp(lhs))
             else:
                 rewriter.replace_matched_op([], [lhs])
             return
@@ -172,7 +172,7 @@ class EqCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op([], [op.rhs])
             else:
-                rewriter.replace_matched_op(smt.NotOp.get(op.rhs))
+                rewriter.replace_matched_op(smt.NotOp(op.rhs))
             return
         # x == True -> x
         # x == False -> not x
@@ -180,7 +180,7 @@ class EqCanonicalizationPattern(RewritePattern):
             if value:
                 rewriter.replace_matched_op([], [op.lhs])
             else:
-                rewriter.replace_matched_op(smt.NotOp.get(op.lhs))
+                rewriter.replace_matched_op(smt.NotOp(op.lhs))
             return
         # x == x -> True
         if op.lhs == op.rhs:
@@ -202,7 +202,7 @@ class DistinctCanonicalizationPattern(RewritePattern):
         # False != x -> x
         if (value := get_bool_constant(op.lhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(op.rhs))
+                rewriter.replace_matched_op(smt.NotOp(op.rhs))
             else:
                 rewriter.replace_matched_op([], [op.rhs])
             return
@@ -210,7 +210,7 @@ class DistinctCanonicalizationPattern(RewritePattern):
         # x != False -> x
         if (value := get_bool_constant(op.rhs)) is not None:
             if value:
-                rewriter.replace_matched_op(smt.NotOp.get(op.lhs))
+                rewriter.replace_matched_op(smt.NotOp(op.lhs))
             else:
                 rewriter.replace_matched_op([], [op.lhs])
             return
@@ -270,8 +270,8 @@ class IteMergePattern(RewritePattern):
 
             # ((x if c else y) if c' else x) -> y if c' && !c else x
             if true_ite.true_val == op.false_val:
-                not_cond2_op = smt.NotOp.get(true_ite.cond)
-                new_cond_op = smt.AndOp(op.cond, not_cond2_op.res)
+                not_cond2_op = smt.NotOp(true_ite.cond)
+                new_cond_op = smt.AndOp(op.cond, not_cond2_op.result)
                 new_ite_op = smt.IteOp(
                     new_cond_op.result, true_ite.false_val, op.false_val
                 )
@@ -290,8 +290,8 @@ class IteMergePattern(RewritePattern):
 
             # (x if c else (y if c' else x)) -> x if c || !c' else y
             if false_ite.false_val == op.true_val:
-                not_cond2_op = smt.NotOp.get(false_ite.cond)
-                new_cond_op = smt.OrOp(op.cond, not_cond2_op.res)
+                not_cond2_op = smt.NotOp(false_ite.cond)
+                new_cond_op = smt.OrOp(op.cond, not_cond2_op.result)
                 new_ite_op = smt.IteOp(
                     new_cond_op.result, op.true_val, false_ite.true_val
                 )

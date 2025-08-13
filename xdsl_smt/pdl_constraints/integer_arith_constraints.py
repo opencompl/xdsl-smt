@@ -196,7 +196,7 @@ def no_signed_overflow(
 ) -> SSAValue:
     lhs, rhs = op.args
     overflow = rewriter.insert(smt_bv.SaddOverflowOp(lhs, rhs)).res
-    no_overflow = rewriter.insert(smt.NotOp(overflow)).res
+    no_overflow = rewriter.insert(smt.NotOp(overflow)).result
     rewriter.erase_matched_op()
     return no_overflow
 

@@ -71,9 +71,9 @@ def pretty_print_value(x: SSAValue, nested: bool, *, file: IO[str] = sys.stdout)
             width = val.type.width.data
             value = val.value.data
             print(f"{{:0{width}b}}".format(value), end="", file=file)
-        case OpResult(op=smt.NotOp(arg=arg), index=0):
+        case OpResult(op=smt.NotOp(input=input), index=0):
             print("¬", end="", file=file)
-            pretty_print_value(arg, True, file=file)
+            pretty_print_value(input, True, file=file)
         case OpResult(op=smt.AndOp(operands=(lhs, rhs)), index=0):
             pretty_print_value(lhs, True, file=file)
             print(" ∧ ", end="", file=file)

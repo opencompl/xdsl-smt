@@ -355,7 +355,7 @@ class UdivSemantics(SimplePurePoisonSemantics):
         # get rhs modulo lhs
         modulo = rewriter.insert(smt_bv.URemOp(lhs, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(modulo, zero)).res
-        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).result
 
         poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
@@ -393,7 +393,7 @@ class SdivSemantics(SimplePurePoisonSemantics):
         # get rhs modulo lhs
         modulo = rewriter.insert(smt_bv.SRemOp(lhs, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(modulo, zero)).res
-        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).result
 
         poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
@@ -464,7 +464,7 @@ class OrSemantics(SimplePurePoisonSemantics):
         zero = rewriter.insert(smt_bv.ConstantOp(0, width)).res
         rhs_and_lhs = rewriter.insert(smt_bv.AndOp(lhs, rhs)).res
         has_no_carry_on = rewriter.insert(smt.EqOp(rhs_and_lhs, zero)).res
-        has_carry_on = rewriter.insert(smt.NotOp(has_no_carry_on)).res
+        has_carry_on = rewriter.insert(smt.NotOp(has_no_carry_on)).result
 
         poison_condition = rewriter.insert(
             smt.AndOp(disjoint_attr, has_carry_on)
@@ -506,7 +506,7 @@ class ShlSemantics(SimplePurePoisonSemantics):
         left_shift = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
         right_shift = rewriter.insert(smt_bv.AShrOp(left_shift, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
-        is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
+        is_overflow = rewriter.insert(smt.NotOp(is_exact)).result
         is_overflow_and_nsw = rewriter.insert(smt.AndOp(is_overflow, has_nsw)).result
         poison_condition = rewriter.insert(
             smt.OrOp(poison_condition, is_overflow_and_nsw)
@@ -517,7 +517,7 @@ class ShlSemantics(SimplePurePoisonSemantics):
         left_shift = rewriter.insert(smt_bv.ShlOp(lhs, rhs)).res
         right_shift = rewriter.insert(smt_bv.LShrOp(left_shift, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(lhs, right_shift)).res
-        is_overflow = rewriter.insert(smt.NotOp(is_exact)).res
+        is_overflow = rewriter.insert(smt.NotOp(is_exact)).result
         is_overflow_and_nuw = rewriter.insert(smt.AndOp(is_overflow, has_nuw)).result
         poison_condition = rewriter.insert(
             smt.OrOp(poison_condition, is_overflow_and_nuw)
@@ -566,7 +566,7 @@ class LshrSemantics(SimplePurePoisonSemantics):
         right_shift = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
         left_shift = rewriter.insert(smt_bv.ShlOp(right_shift, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(lhs, left_shift)).res
-        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).result
         poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
         # If the shift amount is greater than the width of the value, poison
@@ -610,7 +610,7 @@ class AshrSemantics(SimplePurePoisonSemantics):
         right_shift = rewriter.insert(smt_bv.LShrOp(lhs, rhs)).res
         left_shift = rewriter.insert(smt_bv.ShlOp(right_shift, rhs)).res
         is_exact = rewriter.insert(smt.EqOp(lhs, left_shift)).res
-        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).res
+        is_not_exact = rewriter.insert(smt.NotOp(is_exact)).result
         poison_condition = rewriter.insert(smt.AndOp(exact_attr, is_not_exact)).result
 
         # If the shift amount is greater than the width of the value, poison
