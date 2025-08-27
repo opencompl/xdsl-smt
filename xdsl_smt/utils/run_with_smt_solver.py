@@ -14,7 +14,8 @@ def run_module_through_smtlib(module: ModuleOp, timeout: int = 25000) -> Any:
     print_to_smtlib(module, smtlib_program)
 
     # Parse the SMT-LIB program and run it through the Z3 solver.
-    solver = z3.Solver()
+    ctx = z3.Context()
+    solver = z3.Solver(ctx=ctx)
     # Set the timeout
     solver.set("timeout", timeout)  # pyright: ignore[reportUnknownMemberType]
     try:
