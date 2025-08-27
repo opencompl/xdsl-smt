@@ -237,6 +237,41 @@ class Program:
             for piid in permuted_input_ids
         )
 
+    def _compute_useless_parameters(self) -> set[int]:
+        values_for_each_param = [
+            self._values_of_type(ty) for ty in self.func().function_type.inputs
+        ]
+        interpreter = build_interpreter(ModuleOp([self.func().clone()]), 64)
+
+        # This list contains, for each parameter i, a map from the values of all
+        # other parameters to the set of results obtained when varying parameter i.
+        results_for_fixed_inputs: list[
+            dict[tuple[Attribute, ...], set[tuple[Any, ...]]]
+        ] = [{} for _ in range(self.arity())]
+
+        for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
+            result = interpret(interpreter, inputs)
+            for i in range(self.arity()):
+                results_for_fixed_inputs[i].setdefault(
+                    inputs[:i] + inputs[i + 1 :], set()
+                ).add(result)
+
+        # A parameter is useless if, for every other parameters' values, varying
+        # this parameter does not change the result.
+        useless_parameters_on_cvec = {
+            i
+            for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
+            if all(len(results) == 1 for results in results_for_fixed_input.values())
+        }
+
+        if self._is_basic:
+            return useless_parameters_on_cvec
+
+        # Then, compute which of those parameters are actually useless.
+        return {
+            i for i in useless_parameters_on_cvec if is_parameter_useless_z3(self, i)
+        }
+
     def __init__(self, module: ModuleOp):
         self._module = module
 
@@ -255,55 +290,24 @@ class Program:
 
         # First, detect inputs that don't affect the results within the set of
         # inputs that we check.
-        results_for_fixed_inputs: list[dict[tuple[Attribute, ...], set[Result]]] = [
-            {
-                other_inputs: set()
-                for other_inputs in itertools.product(
-                    *(
-                        vals
-                        for vals, _ in values_for_each_param[:i]
-                        + values_for_each_param[i + 1 :]
-                    )
-                )
-            }
-            for i in range(arity)
-        ]
-        for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
-            result = interpret(interpreter, inputs)
-            for i in range(arity):
-                results_for_fixed_inputs[i][inputs[:i] + inputs[i + 1 :]].add(result)
-        assert all(
-            all(len(results) != 0 for results in results_for_fixed_input.values())
-            for results_for_fixed_input in results_for_fixed_inputs
-        )
-        param_useless_here = [
-            all(
-                len(results) == 1 and len(values_for_each_param[i]) != 1
-                for results in results_for_fixed_input.values()
-            )
-            for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
-        ]
+        useless_parameters = self._compute_useless_parameters()
 
-        # Then, compute which of those parameters are actually useless.
-        useless_param_mask = tuple(
-            param_useless_here[i]
-            and (self._is_basic or is_parameter_useless_z3(self, i))
-            for i in range(arity)
-        )
         useful_input_types = FrozenMultiset[Attribute].from_iterable(
-            ty for ty, m in zip(function_type.inputs, useless_param_mask) if not m
+            ty
+            for i, ty in enumerate(function_type.inputs)
+            if i not in useless_parameters
         )
-        self._useless_param_count = sum(useless_param_mask)
+        self._useless_param_count = len(useless_parameters)
         self._param_permutation = tuple(
-            [i for i, m in enumerate(useless_param_mask) if not m]
-            + [i for i, m in enumerate(useless_param_mask) if m]
+            [i for i in range(self.arity()) if i not in useless_parameters]
+            + [i for i in range(self.arity()) if i in useless_parameters]
         )
 
         # Now, compute the results ignoring useless parameters.
         values_for_each_useful_param = [
             (
                 [values_for_each_param[i][0][0]]
-                if useless_param_mask[i]
+                if i in useless_parameters
                 else values_for_each_param[i][0]
             )
             for i in range(arity)
