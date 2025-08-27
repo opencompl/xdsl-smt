@@ -45,7 +45,7 @@ enableExperimentalFeatures = true
 reportImportCycles = false
 reportUnnecessaryIsInstance = false
 typeCheckingMode = "strict"
-include = ["xdsl_smt"]
+include = ["xdsl_smt", "tests"]
 ignore = [
   "xdsl_smt/utils/z3_to_dialect.py",
   "xdsl_smt/utils/integer_to_z3.py",
@@ -54,5 +54,11 @@ ignore = [
   "xdsl_smt/passes/transfer_lower.py",
   "xdsl_smt/cli/xdsl_translate.py",
   "xdsl_smt/cli/transfer_smt_verifier.py",
-  "tests"
 ]
+
+[tool.pytest.ini_options]
+python_files = ["tests/*test_*.py"]
+python_classes = "Test_*"
+python_functions = "test_*"
+addopts = ["--durations=20", "--maxfail=5", "--import-mode=importlib"]
+asyncio_default_fixture_loop_scope = "function"
