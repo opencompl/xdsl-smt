@@ -36,6 +36,7 @@ def enumerate_programs(
     building_blocks: list[list[FuncOp]] | None,
     illegals: list[PatternOp],
     dialect_path: str,
+    configuration: str = "smt",
     additional_options: Sequence[str] = (),
 ) -> Iterable[str]:
     """Enumerate all programs up to a given size."""
@@ -56,7 +57,7 @@ def enumerate_programs(
         [
             MLIR_ENUMERATE,
             dialect_path,
-            "--configuration=smt",
+            f"--configuration={configuration}",
             f"--smt-bitvector-widths={bv_widths}",
             # Make sure CSE is applied.
             "--cse",
