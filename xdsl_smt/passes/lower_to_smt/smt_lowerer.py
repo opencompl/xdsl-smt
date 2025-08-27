@@ -1,5 +1,6 @@
 from __future__ import annotations
 from functools import reduce
+from xdsl.dialects.smt import BitVectorType, BoolType
 from xdsl.ir import Attribute, Operation, SSAValue, Region
 from xdsl.pattern_rewriter import PatternRewriter
 from dataclasses import dataclass
@@ -109,6 +110,8 @@ class SMTLowerer:
         """Convert a type to an SMT sort"""
         # Do not lower effect states to SMT, these are done in separate passes.
         if isinstance(type_, StateType):
+            return type_
+        if isinstance(type_, BoolType | BitVectorType):
             return type_
         if type(type_) not in SMTLowerer.type_lowerers:
             raise ValueError(f"Cannot lower {type_.name} type to SMT")
