@@ -81,8 +81,6 @@ class Fingerprint:
     well.
     """
 
-    _useful_input_types: FrozenMultiset[Attribute]
-    _output_types: tuple[Attribute, ...]
     _images: FrozenMultiset[Image]
 
 
@@ -292,11 +290,6 @@ class Program:
         # inputs that we check.
         useless_parameters = self._compute_useless_parameters()
 
-        useful_input_types = FrozenMultiset[Attribute].from_iterable(
-            ty
-            for i, ty in enumerate(function_type.inputs)
-            if i not in useless_parameters
-        )
         self._useless_param_count = len(useless_parameters)
         self._param_permutation = tuple(
             [i for i in range(self.arity()) if i not in useless_parameters]
@@ -328,8 +321,6 @@ class Program:
         )
 
         self._fingerprint = Fingerprint(
-            useful_input_types,
-            tuple(function_type.outputs),
             results_with_permutations,
         )
 
@@ -1257,11 +1248,13 @@ def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
     call1 = builder.insert(smt.CallOp(func1.ret, args1)).res
     call2 = builder.insert(smt.CallOp(func2.ret, args2)).res
 
-    assert len(call1) == 1, "Only single-result functions are supported."
+    # Check if the results are not equal.
+    all_distinct = builder.insert(smt.ConstantBoolOp(False)).result
+    for res1, res2 in zip(call1, call2, strict=True):
+        res_distinct = builder.insert(smt.DistinctOp(res1, res2)).res
+        all_distinct = builder.insert(smt.OrOp(all_distinct, res_distinct)).result
 
-    # Check if the two results are not equal
-    check = builder.insert(smt.DistinctOp(call1[0], call2[0])).res
-    builder.insert(smt.AssertOp(check))
+    builder.insert(smt.AssertOp(all_distinct))
 
     return z3.unsat == run_module_through_smtlib(
         module
