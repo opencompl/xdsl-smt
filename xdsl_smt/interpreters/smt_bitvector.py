@@ -244,6 +244,26 @@ class SMTBitVectorFunctions(InterpreterFunctions):
             case _:
                 raise ValueError(f"Unknown predicate {op.pred.value.data}")
 
+    @impl(bv.SgeOp)
+    def run_bv_sge(
+        self, interpreter: Interpreter, op: bv.SgeOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        signed_lhs = to_signed(lhs, args[0].type.width.data)
+        signed_rhs = to_signed(rhs, args[1].type.width.data)
+        return (signed_lhs >= signed_rhs,)
+
+    @impl(bv.UltOp)
+    def run_bv_ult(
+        self, interpreter: Interpreter, op: bv.UltOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        return (lhs < rhs,)
+
     @impl(bv.ShlOp)
     def run_bv_shl(
         self, interpreter: Interpreter, op: bv.ShlOp, args: tuple[Any, ...]
