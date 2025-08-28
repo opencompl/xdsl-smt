@@ -79,3 +79,15 @@ def test_size():
 def test_useless_parameter():
     pattern = useless_parameter_pattern()
     assert 1 in pattern.useless_parameters
+
+
+def test_permutations():
+    pattern = add_pattern()
+    perms = list(pattern.input_permutations())
+    assert len(perms) == 2
+    assert (0, 1, 2) in perms
+    assert (1, 0, 2) in perms
+
+    pattern = useless_parameter_pattern()
+    perms = list(pattern.input_permutations())
+    assert perms == [(0, 1, 2)]

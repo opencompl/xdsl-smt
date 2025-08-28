@@ -6,7 +6,7 @@ well as additional semantic information.
 """
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, cast, Sequence, TypeVar, Iterable
 import itertools
 import z3  # pyright: ignore[reportMissingTypeStubs]
 
@@ -27,6 +27,25 @@ from xdsl_smt.dialects import (
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
+
+
+Permutation = tuple[int, ...]
+
+T = TypeVar("T")
+
+
+def permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]:
+    assert len(seq) == len(permutation)
+    return tuple(seq[i] for i in permutation)
+
+
+def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]:
+    assert len(seq) == len(permutation)
+    result: list[T | None] = [None for _ in seq]
+    for x, i in zip(seq, permutation, strict=True):
+        result[i] = x
+    assert all(x is not None for x in result)
+    return tuple(cast(list[T], result))
 
 
 def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
@@ -75,23 +94,32 @@ def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
     return smt.DefineFunOp(new_region)
 
 
-@dataclass(frozen=True, slots=True)
+Result = tuple[Any, ...]
+
+
+@dataclass(slots=True, eq=False)
 class Fingerprint:
     """
-    The evaluation of a program on a set of inputs.
+    The evaluation of a program on a set of inputs. It is composed of an
+    ordered fingerprint, and an unordered fingerprint.
 
-    The fingerprints of two semantically equivalent programs are guaranteed to
-    compare equal. Furthermore, if two programs are semantically equivalent
-    after removing inputs that don't affect the output, and optionally permuting
-    their parameters, their fingerprints are guaranteed to compare equal as
-    well.
+    Two patterns that are semantically equivalent up to permutation will have
+    the same unordered fingerprint. When the patterns are semantically equivalent
+    (not just up to permutation), they will also have the same ordered fingerprint.
     """
 
-    _images: FrozenMultiset[tuple[Any, ...]]
-
-
-Result = tuple[Any, ...]
-Image = tuple[Result, ...]
+    ordered: tuple[Result, ...]
+    """
+    The evaluation of the program on an ordered set of inputs.
+    """
+    unordered: FrozenMultiset[tuple[Result, ...]]
+    """
+    The multiset of results of the program on a set of inputs.
+    """
+    mapping: dict[tuple[Attribute, ...], Result]
+    """
+    The evaluation of the program on a set of inputs, indexed by the inputs.
+    """
 
 
 @dataclass(init=False, unsafe_hash=True)
@@ -116,9 +144,25 @@ class Pattern:
     """
     Wether the pattern's fingerprint represents exactly the pattern behavior.
     """
-    image: Image
+    evaluation_points_per_argument: tuple[tuple[Attribute, ...], ...]
     """
-    The results, as computed in order before applying the permutation.
+    The set of values used per argument to evaluate the pattern.
+    """
+    evaluation_points: tuple[tuple[Attribute, ...], ...]
+    """
+    The set of inputs on which the pattern is evaluated for the different fingerprints.
+    """
+    ordered_fingerprint: tuple[Result, ...]
+    """
+    The evaluation of the pattern on an ordered set of inputs.
+    """
+    unordered_fingerprint: FrozenMultiset[tuple[Result, ...]]
+    """
+    The multiset of results of the pattern on a set of inputs.
+    """
+    mapping_fingerprint: dict[tuple[Attribute, ...], Result]
+    """
+    The evaluation of the pattern on a set of inputs, indexed by the inputs.
     """
 
     useless_parameters: set[int]
@@ -140,20 +184,30 @@ class Pattern:
         self.useless_parameters = self._compute_useless_parameters()
 
         # We don't need to compute multiple values for useless parameters.
-        values_for_each_useful_param = [
+        self.evaluation_points_per_argument = tuple(
             (
-                [values_for_each_param[i][0][0]]
+                (values_for_each_param[i][0][0],)
                 if i in self.useless_parameters
-                else values_for_each_param[i][0]
+                else tuple(values_for_each_param[i][0])
             )
             for i in range(self.arity + 1)
-        ]
+        )
         interpreter = build_interpreter(ModuleOp([self.semantics.clone()]), 64)
-        self.image = tuple(
-            interpret(interpreter, inputs)
-            for inputs in itertools.product(
-                *(vals for vals in values_for_each_useful_param)
+        self.evaluation_points = Pattern.get_evaluation_points(
+            self.evaluation_points_per_argument
+        )
+        self.ordered_fingerprint = tuple(
+            interpret(interpreter, point) for point in self.evaluation_points
+        )
+        self.mapping_fingerprint = {
+            point: value
+            for point, value in zip(
+                self.evaluation_points, self.ordered_fingerprint, strict=True
             )
+        }
+        self.unordered_fingerprint = FrozenMultiset[tuple[Result, ...]].from_iterable(
+            self.permutated_fingerprint(permutation)
+            for permutation in self.input_permutations()
         )
 
     def ret(self) -> SSAValue:
@@ -169,6 +223,27 @@ class Pattern:
         function arguments.
         """
         return len(self.func.function_type.inputs)
+
+    def permutated_fingerprint(self, permutation: Permutation) -> tuple[Result, ...]:
+        """
+        Returns the pattern ordered fingerprint when its arguments are permuted.
+        """
+        evaluation_points_per_arguments = permute(
+            self.evaluation_points_per_argument, permutation
+        )
+        evaluation_points = Pattern.get_evaluation_points(
+            evaluation_points_per_arguments
+        )
+        return tuple(self.mapping_fingerprint[point] for point in evaluation_points)
+
+    @staticmethod
+    def get_evaluation_points(
+        argument_points: tuple[tuple[Attribute, ...], ...],
+    ) -> tuple[tuple[Attribute, ...], ...]:
+        """Returns the evaluation points for the given argument points."""
+        return tuple(
+            inputs for inputs in itertools.product(*(vals for vals in argument_points))
+        )
 
     @staticmethod
     def _formula_size(formula: SSAValue) -> int:
@@ -241,24 +316,11 @@ class Pattern:
             module
         )  # pyright: ignore[reportUnknownVariableType]
 
-    def _compute_base_image(self) -> list[tuple[Attribute, ...]]:
-        values_for_each_useful_param = [
-            (
-                [values_of_type(ty)[0][0]]
-                if i in self.useless_parameters
-                else values_of_type(ty)[0]
-            )
-            for i, ty in enumerate(self.semantics.function_type.inputs)
-        ]
-        interpreter = build_interpreter(ModuleOp([self.semantics.clone()]), 64)
-        return list(
-            interpret(interpreter, inputs)
-            for inputs in itertools.product(
-                *(vals for vals in values_for_each_useful_param)
-            )
-        )
-
     def _compute_useless_parameters(self) -> set[int]:
+        """
+        Compute the set of parameters that do not have any effect in the
+        computation of the pattern.
+        """
         values_for_each_param = [
             values_of_type(ty) for ty in self.semantics.function_type.inputs
         ]
@@ -268,11 +330,11 @@ class Pattern:
         # other parameters to the set of results obtained when varying parameter i.
         results_for_fixed_inputs: list[
             dict[tuple[Attribute, ...], set[tuple[Any, ...]]]
-        ] = [{} for _ in range(self.arity + 1)]
+        ] = [{} for _ in range(self.arity)]
 
         for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
             result = interpret(interpreter, inputs)
-            for i in range(self.arity + 1):
+            for i in range(self.arity):
                 results_for_fixed_inputs[i].setdefault(
                     inputs[:i] + inputs[i + 1 :], set()
                 ).add(result)
@@ -290,3 +352,25 @@ class Pattern:
 
         # Then, compute which of those parameters are actually useless.
         return {i for i in useless_parameters_on_cvec if self._is_parameter_useless(i)}
+
+    def input_permutations(self) -> Iterable[Permutation]:
+        """
+        Returns the permutation of all arguments that have an effect on the
+        behavior of the pattern.
+        """
+        num_parameters_to_permute = self.arity - len(self.useless_parameters)
+        permutation_index_to_parameter = [
+            i for i in range(self.arity) if i not in self.useless_parameters
+        ]
+        parameter_to_permutation_index = {
+            param: index for index, param in enumerate(permutation_index_to_parameter)
+        }
+        for permutation in itertools.permutations(range(num_parameters_to_permute)):
+            yield tuple(
+                i
+                if i == self.arity or self.useless_parameters
+                else permutation_index_to_parameter[
+                    permutation[parameter_to_permutation_index[i]]
+                ]
+                for i in range(self.arity + 1)
+            )
