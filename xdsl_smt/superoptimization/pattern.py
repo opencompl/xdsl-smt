@@ -5,6 +5,8 @@ well as additional semantic information.
 
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, cast, Sequence, TypeVar, Iterable
 import itertools
@@ -27,7 +29,6 @@ from xdsl_smt.dialects import (
 from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
-
 
 Permutation = tuple[int, ...]
 
@@ -95,31 +96,7 @@ def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
 
 
 Result = tuple[Any, ...]
-
-
-@dataclass(slots=True, eq=False)
-class Fingerprint:
-    """
-    The evaluation of a program on a set of inputs. It is composed of an
-    ordered fingerprint, and an unordered fingerprint.
-
-    Two patterns that are semantically equivalent up to permutation will have
-    the same unordered fingerprint. When the patterns are semantically equivalent
-    (not just up to permutation), they will also have the same ordered fingerprint.
-    """
-
-    ordered: tuple[Result, ...]
-    """
-    The evaluation of the program on an ordered set of inputs.
-    """
-    unordered: FrozenMultiset[tuple[Result, ...]]
-    """
-    The multiset of results of the program on a set of inputs.
-    """
-    mapping: dict[tuple[Attribute, ...], Result]
-    """
-    The evaluation of the program on a set of inputs, indexed by the inputs.
-    """
+UnorderedFingerprint = FrozenMultiset[tuple[Result, ...]]
 
 
 @dataclass(init=False, unsafe_hash=True)
@@ -156,16 +133,12 @@ class Pattern:
     """
     The evaluation of the pattern on an ordered set of inputs.
     """
-    unordered_fingerprint: FrozenMultiset[tuple[Result, ...]]
+    unordered_fingerprint: UnorderedFingerprint
     """
     The multiset of results of the pattern on a set of inputs.
     """
-    mapping_fingerprint: dict[tuple[Attribute, ...], Result]
-    """
-    The evaluation of the pattern on a set of inputs, indexed by the inputs.
-    """
 
-    useless_parameters: set[int]
+    useless_parameters: frozenset[int]
     """
     The set of useless parameters, which do not have any effect in the computation.
     """
@@ -181,7 +154,7 @@ class Pattern:
         ]
         self.exact_fingerprint = all(total for _, total in values_for_each_param)
 
-        self.useless_parameters = self._compute_useless_parameters()
+        self.useless_parameters = frozenset(self._compute_useless_parameters())
 
         # We don't need to compute multiple values for useless parameters.
         self.evaluation_points_per_argument = tuple(
@@ -190,7 +163,7 @@ class Pattern:
                 if i in self.useless_parameters
                 else tuple(values_for_each_param[i][0])
             )
-            for i in range(self.arity + 1)
+            for i in range(self.semantics_arity)
         )
         interpreter = build_interpreter(ModuleOp([self.semantics.clone()]), 64)
         self.evaluation_points = Pattern.get_evaluation_points(
@@ -199,15 +172,9 @@ class Pattern:
         self.ordered_fingerprint = tuple(
             interpret(interpreter, point) for point in self.evaluation_points
         )
-        self.mapping_fingerprint = {
-            point: value
-            for point, value in zip(
-                self.evaluation_points, self.ordered_fingerprint, strict=True
-            )
-        }
         self.unordered_fingerprint = FrozenMultiset[tuple[Result, ...]].from_iterable(
             self.permutated_fingerprint(permutation)
-            for permutation in self.input_permutations()
+            for permutation in self.semantics_input_permutations()
         )
 
     def ret(self) -> SSAValue:
@@ -224,6 +191,14 @@ class Pattern:
         """
         return len(self.func.function_type.inputs)
 
+    @property
+    def semantics_arity(self) -> int:
+        """
+        Returns the number of arguments in the semantics function.
+        This number might differ from `arity` when an additional state is passed to the function.
+        """
+        return len(self.semantics.function_type.inputs)
+
     def permutated_fingerprint(self, permutation: Permutation) -> tuple[Result, ...]:
         """
         Returns the pattern ordered fingerprint when its arguments are permuted.
@@ -234,7 +209,14 @@ class Pattern:
         evaluation_points = Pattern.get_evaluation_points(
             evaluation_points_per_arguments
         )
-        return tuple(self.mapping_fingerprint[point] for point in evaluation_points)
+        mapping_fingerprint = {
+            permute(point, permutation): value
+            for point, value in zip(
+                self.evaluation_points, self.ordered_fingerprint, strict=True
+            )
+        }
+
+        return tuple(mapping_fingerprint[point] for point in evaluation_points)
 
     @staticmethod
     def get_evaluation_points(
@@ -368,9 +350,296 @@ class Pattern:
         for permutation in itertools.permutations(range(num_parameters_to_permute)):
             yield tuple(
                 i
-                if i == self.arity or self.useless_parameters
+                if i >= self.arity or self.useless_parameters
                 else permutation_index_to_parameter[
                     permutation[parameter_to_permutation_index[i]]
                 ]
-                for i in range(self.arity + 1)
+                for i in range(self.semantics_arity)
             )
+
+    def semantics_input_permutations(self) -> Iterable[Permutation]:
+        """
+        Returns the permutation of all arguments that have an effect on the
+        behavior of the pattern.
+        Do not permute the arguments that are part of the semantics, but not of
+        the pattern.
+        """
+        if self.arity == self.semantics_arity:
+            yield from self.input_permutations()
+            return
+        for perm in self.input_permutations():
+            yield perm + tuple(i for i in range(self.arity, self.semantics_arity))
+
+    def ordered_patterns(self) -> Iterable[OrderedPattern]:
+        """
+        Returns all the ordered patterns that are equivalent to this pattern,
+        up to permutation of the arguments.
+        """
+        for permutation in self.input_permutations():
+            yield OrderedPattern(
+                self.func,
+                self.semantics,
+                permutation,
+            )
+
+    def is_same_behavior(self, other: Pattern) -> bool:
+        """
+        Tests whether two programs are logically equivalent up to parameter
+        permutation, and ignoring useless parameters.
+        """
+
+        if self.unordered_fingerprint != other.unordered_fingerprint:
+            return False
+
+        if self.exact_fingerprint and other.exact_fingerprint:
+            return True
+
+        other_ordered = next(iter(other.ordered_patterns()))
+        for permuted in self.ordered_patterns():
+            if permuted.has_same_behavior(other_ordered):
+                return True
+
+        return False
+
+    def permute_parameters_to_match(
+        self, other: OrderedPattern
+    ) -> OrderedPattern | None:
+        """
+        Returns an identical program with permuted parameters that is logically
+        equivalent to the other program, ignoring useless arguments. If no such
+        program exists, returns `None`.
+        """
+
+        if self.unordered_fingerprint != other.unordered_fingerprint:
+            return None
+
+        for permuted in self.ordered_patterns():
+            if permuted.fingerprint == other.fingerprint:
+                if (
+                    self.exact_fingerprint
+                    and other.exact_fingerprint
+                    or permuted.is_same_behavior(other)
+                ):
+                    return permuted
+
+        return None
+
+
+class OrderedPattern(Pattern):
+    """
+    A pattern where the order of the arguments matters.
+    """
+
+    permutation: Permutation
+    """
+    The permutation of the arguments that this pattern represents.
+    """
+
+    def __init__(
+        self, func: FuncOp, semantics: FuncOp, permutation: Permutation
+    ) -> None:
+        super().__init__(func, semantics)
+        self.permutation = permutation
+
+    @staticmethod
+    def _compare_values_lexicographically(
+        left: SSAValue,
+        right: SSAValue,
+        left_params: Permutation,
+        right_params: Permutation,
+    ) -> int:
+        match left, right:
+            # Order parameters.
+            case BlockArgument(index=i), BlockArgument(index=j):
+                return left_params[i] - right_params[j]
+            # Favor operations over arguments.
+            case OpResult(), BlockArgument():
+                return -1
+            case BlockArgument(), OpResult():
+                return 1
+            # Order operations.
+            case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
+                # Favor operations with smaller arity.
+                if len(lop.operands) != len(rop.operands):
+                    return len(lop.operands) - len(rop.operands)
+                # Choose an arbitrary result if they are different.
+                if not isinstance(lop, type(rop)):
+                    return -1 if lop.name < rop.name else 1
+                if lop.properties != rop.properties:
+                    sorted_keys = sorted(
+                        set(lop.properties.keys() | rop.properties.keys())
+                    )
+                    for key in sorted_keys:
+                        if key not in lop.properties:
+                            return -1
+                        if key not in rop.properties:
+                            return 1
+                        if lop.properties[key] != rop.properties[key]:
+                            # Favor smaller properties.
+                            return (
+                                -1
+                                if str(lop.properties[key]) < str(rop.properties[key])
+                                else 1
+                            )
+                    assert False, "Logical error"
+                if i != j:
+                    return i - j
+                # Compare operands as a last resort.
+                for lo, ro in zip(lop.operands, rop.operands, strict=True):
+                    c = OrderedPattern._compare_values_lexicographically(
+                        lo, ro, left_params, right_params
+                    )
+                    if c != 0:
+                        return c
+                return 0
+            case l, r:
+                raise ValueError(f"Unknown value: {l} or {r}")
+
+    def _compare_lexicographically(self, other: OrderedPattern) -> int:
+        # Favor smaller programs.
+        if self.size < other.size:
+            return -1
+        if self.size > other.size:
+            return 1
+        # Favor programs with fewer useless parameters.
+        if len(self.useless_parameters) < len(other.useless_parameters):
+            return -1
+        if len(self.useless_parameters) > len(other.useless_parameters):
+            return 1
+        # Favor programs with fewer parameters overall.
+        if self.arity < other.arity:
+            return -1
+        if self.arity > other.arity:
+            return 1
+        # Favor programs that return less values.
+        self_out = self.ret()
+        other_out = other.ret()
+        return OrderedPattern._compare_values_lexicographically(
+            self_out,
+            other_out,
+            self.permutation,
+            other.permutation,
+        )
+        return 0
+
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, OrderedPattern):
+            return NotImplemented
+        return self._compare_lexicographically(other) < 0
+
+    def __le__(self, other: Any) -> bool:
+        if not isinstance(other, OrderedPattern):
+            return NotImplemented
+        return self._compare_lexicographically(other) <= 0
+
+    def __gt__(self, other: Any) -> bool:
+        if not isinstance(other, OrderedPattern):
+            return NotImplemented
+        return self._compare_lexicographically(other) > 0
+
+    def __ge__(self, other: Any) -> bool:
+        if not isinstance(other, OrderedPattern):
+            return NotImplemented
+        return self._compare_lexicographically(other) >= 0
+
+    @property
+    def fingerprint(self) -> tuple[Result, ...]:
+        """The ordered fingerprint of the pattern."""
+        return self.permutated_fingerprint(self.permutation)
+
+    def useful_parameters(self) -> Iterable[tuple[int, Attribute]]:
+        """
+        Returns the list of useful parameters, as (index, type) pairs.
+        """
+        useful_parameters = dict[int, Attribute]()
+        for i, ty in enumerate(self.func.function_type.inputs):
+            if i not in self.useless_parameters:
+                useful_parameters[self.permutation[i]] = ty
+        return useful_parameters.items()
+
+    def has_same_signature(self, other: OrderedPattern) -> bool:
+        """
+        Tests whether two patterns have the same signature, meaning the same
+        holes given the order from `permutation`.
+        """
+
+        if len(self.func.function_type.inputs) != len(other.func.function_type.inputs):
+            return False
+
+        inputs = self.func.function_type.inputs.data
+        other_inputs = other.func.function_type.inputs.data
+
+        ordered_inputs = permute(inputs, self.permutation)
+        other_ordered_inputs = permute(other_inputs, other.permutation)
+
+        return ordered_inputs == other_ordered_inputs
+
+    def has_same_behavior(self, other: OrderedPattern) -> bool:
+        """Tests whether two programs are logically equivalent."""
+
+        if not self.has_same_signature(other):
+            return False
+
+        if self.fingerprint != other.fingerprint:
+            return False
+
+        if self.exact_fingerprint and other.exact_fingerprint:
+            return True
+
+        return self._is_same_behavior_with_z3(other)
+
+    def _is_same_behavior_with_z3(
+        self,
+        other: OrderedPattern,
+    ) -> bool:
+        """
+        Check wether two programs are semantically equivalent after permuting the
+        arguments of the left program, using Z3. This also checks whether the input
+        types match (after permutation and removal of useless parameters).
+        """
+
+        module = ModuleOp([])
+        builder = Builder(InsertPoint.at_end(module.body.block))
+
+        # Clone both functions into a new module.
+        func_self = builder.insert(clone_func_to_smt_func(self.semantics))
+        func_other = builder.insert(clone_func_to_smt_func(other.semantics))
+
+        # Declare a variable for each function input.
+        args_self: list[SSAValue | None] = [None] * len(func_self.func_type.inputs)
+        args_other: list[SSAValue | None] = [None] * len(func_other.func_type.inputs)
+        for (self_index, self_type), (other_index, other_type) in zip(
+            self.useful_parameters(), other.useful_parameters()
+        ):
+            if self_type != other_type:
+                return False
+            arg = builder.insert(smt.DeclareConstOp(self_type)).res
+            args_self[self_index] = arg
+            args_other[other_index] = arg
+
+        for index, ty in enumerate(func_self.func_type.inputs):
+            if args_self[index] is None:
+                args_self[index] = builder.insert(smt.DeclareConstOp(ty)).res
+
+        for index, ty in enumerate(func_other.func_type.inputs):
+            if args_other[index] is None:
+                args_other[index] = builder.insert(smt.DeclareConstOp(ty)).res
+
+        args_self_complete = cast(list[SSAValue], args_self)
+        args_other_complete = cast(list[SSAValue], args_other)
+
+        # Call each function with the same arguments.
+        self_call = builder.insert(smt.CallOp(func_self.ret, args_self_complete)).res
+        other_call = builder.insert(smt.CallOp(func_other.ret, args_other_complete)).res
+
+        # We only support single-result functions for now.
+        assert len(self_call) == 1
+
+        # Check if the two results are not equal.
+        check = builder.insert(smt.DistinctOp(self_call[0], other_call[0])).res
+        builder.insert(smt.AssertOp(check))
+
+        # Now that we have the module, run it through the Z3 solver.
+        return z3.unsat == run_module_through_smtlib(
+            module
+        )  # pyright: ignore[reportUnknownVariableType]

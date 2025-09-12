@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import itertools
 import subprocess as sp
 import sys
@@ -23,13 +22,17 @@ from typing import (
 )
 
 from xdsl.context import Context
-from xdsl.ir import Attribute, Region, Block
-from xdsl.ir.core import BlockArgument, Operation, OpResult, SSAValue
+from xdsl.ir import Region, Block
+from xdsl.ir.core import Operation, SSAValue
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
+from xdsl_smt.superoptimization.pattern import (
+    Pattern,
+    UnorderedFingerprint,
+    OrderedPattern,
+)
 from xdsl_smt.utils.pretty_print import pretty_print_value
-from xdsl_smt.utils.frozen_multiset import FrozenMultiset
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.inlining import inline_single_result_func
 from xdsl_smt.utils.pdl import func_to_pdl
@@ -44,14 +47,10 @@ from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects import pdl
 from xdsl.dialects.builtin import (
     Builtin,
-    IntAttr,
-    IntegerAttr,
     ModuleOp,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl.dialects.builtin import FunctionType
-
-from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 
 sys.setrecursionlimit(100000)
 
@@ -66,22 +65,6 @@ T = TypeVar("T")
 
 Result = tuple[Any, ...]
 Image = tuple[Result, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class Fingerprint:
-    """
-    A value that can be computed from a program, and highly depends on its
-    behavior.
-
-    The fingerprints of two semantically equivalent programs are guaranteed to
-    compare equal. Furthermore, if two programs are semantically equivalent
-    after removing inputs that don't affect the output, and optionally permuting
-    their parameters, their fingerprints are guaranteed to compare equal as
-    well.
-    """
-
-    _images: FrozenMultiset[Image]
 
 
 Permutation = tuple[int, ...]
@@ -101,499 +84,23 @@ def reverse_permute(seq: Sequence[T], permutation: Permutation) -> tuple[T, ...]
     return tuple(cast(list[T], result))
 
 
-@dataclass(init=False, unsafe_hash=True)
-class Program:
-    __slots__ = (
-        "_module",
-        "_size",
-        "_cost",
-        "_input_cardinalities",
-        "_base_image",
-        "_fingerprint",
-        "_is_basic",
-        "_param_permutation",
-        "_useless_param_count",
-    )
-
-    _module: ModuleOp
-    _size: int
-    _cost: int
-    _input_cardinalities: tuple[int, ...]
-    """
-    The cardinality of each input, before applying the permutation.
-    """
-    _base_image: Image
-    """
-    The results, as computed in order before applying the permutation.
-    """
-    _fingerprint: Fingerprint
-    _is_basic: bool
-    _param_permutation: Permutation
-    _useless_param_count: int
-    """
-    The number of useless parameters. Useless parameters are always the last
-    ones after apply the permutation.
-    """
-
-    @staticmethod
-    def _formula_size(formula: SSAValue) -> int:
-        match formula:
-            case BlockArgument():
+def operation_cost(op: Operation) -> int:
+    match op:
+        case ReturnOp():
+            return 0
+        case (
+            bv.MulOp()
+            | bv.URemOp()
+            | bv.SRemOp()
+            | bv.SModOp()
+            | bv.UDivOp()
+            | bv.SDivOp()
+        ):
+            return 4
+        case op:
+            if len(op.operands) == 0:
                 return 0
-            case OpResult(op=op):
-                if len(op.operands) == 0:
-                    return 0
-                return 1 + sum(
-                    Program._formula_size(operand) for operand in op.operands
-                )
-            case x:
-                raise ValueError(f"Unknown value: {x}")
-
-    @staticmethod
-    def _operation_cost(op: Operation) -> int:
-        match op:
-            case ReturnOp():
-                return 0
-            case (
-                bv.MulOp()
-                | bv.URemOp()
-                | bv.SRemOp()
-                | bv.SModOp()
-                | bv.UDivOp()
-                | bv.SDivOp()
-            ):
-                return 4
-            case op:
-                if len(op.operands) == 0:
-                    return 0
-                return 1
-
-    @staticmethod
-    def _values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
-        """
-        Returns values of the passed type.
-
-        The boolean indicates whether the returned values cover the whole type. If
-        `true`, this means all possible values of the type were returned.
-        """
-        match ty:
-            case smt.BoolType():
-                return [IntegerAttr.from_bool(False), IntegerAttr.from_bool(True)], True
-            case bv.BitVectorType(width=IntAttr(data=width)):
-                w = min(2, width)
-                return [
-                    IntegerAttr.from_int_and_width(value, width)
-                    for value in range(1 << w)
-                ], (w == width)
-            case _:
-                raise ValueError(f"Unsupported type: {ty}")
-
-    def permute_useful_parameters(self, permutation: Permutation) -> "Program":
-        """
-        Returns a new version of this program, with the useful parameters
-        permuted according to the specified permutation. Useless parameters are
-        unaffected, and stay at the end of the parameter permutation.
-        """
-        arity = self.useful_arity()
-        assert len(permutation) == arity
-        permuted = copy.copy(self)
-        param_permutation = list(permuted._param_permutation)
-        param_permutation[:arity] = [
-            permuted._param_permutation[i] for i in permutation
-        ]
-        permuted._param_permutation = tuple(param_permutation)
-        return permuted
-
-    def _parameter_permutations(self) -> Iterable["Program"]:
-        """
-        Returns an iterator over all versions of this programs with useful
-        permuted useful parameters. Useless parameters are guaranteed to always
-        appear at the end of the permutations.
-        """
-        for permutation in itertools.permutations(range(self.useful_arity())):
-            yield self.permute_useful_parameters(permutation)
-
-    def image(self) -> Image:
-        """
-        Returns the image of this program, taking the parameter permutation
-        into account.
-        """
-        assert self._input_cardinalities is not None
-        assert self._base_image is not None
-        # This could be achieved using less memory with some arithmetic.
-        input_ids = itertools.product(*(range(c) for c in self._input_cardinalities))
-        indices: dict[tuple[int, ...], int] = {
-            iid: result_index for result_index, iid in enumerate(input_ids)
-        }
-        permuted_input_ids = itertools.product(
-            *permute(
-                [range(c) for c in self._input_cardinalities], self._param_permutation
-            )
-        )
-        return tuple(
-            self._base_image[indices[reverse_permute(piid, self._param_permutation)]]
-            for piid in permuted_input_ids
-        )
-
-    def _compute_useless_parameters(self) -> set[int]:
-        values_for_each_param = [
-            self._values_of_type(ty) for ty in self.func().function_type.inputs
-        ]
-        interpreter = build_interpreter(ModuleOp([self.func().clone()]), 64)
-
-        # This list contains, for each parameter i, a map from the values of all
-        # other parameters to the set of results obtained when varying parameter i.
-        results_for_fixed_inputs: list[
-            dict[tuple[Attribute, ...], set[tuple[Any, ...]]]
-        ] = [{} for _ in range(self.arity())]
-
-        for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
-            result = interpret(interpreter, inputs)
-            for i in range(self.arity()):
-                results_for_fixed_inputs[i].setdefault(
-                    inputs[:i] + inputs[i + 1 :], set()
-                ).add(result)
-
-        # A parameter is useless if, for every other parameters' values, varying
-        # this parameter does not change the result.
-        useless_parameters_on_cvec = {
-            i
-            for i, results_for_fixed_input in enumerate(results_for_fixed_inputs)
-            if all(len(results) == 1 for results in results_for_fixed_input.values())
-        }
-
-        if self._is_basic:
-            return useless_parameters_on_cvec
-
-        # Then, compute which of those parameters are actually useless.
-        return {
-            i for i in useless_parameters_on_cvec if is_parameter_useless_z3(self, i)
-        }
-
-    def __init__(self, module: ModuleOp):
-        self._module = module
-
-        self._size = sum(
-            Program._formula_size(argument) for argument in self.ret().arguments
-        )
-        self._cost = sum(Program._operation_cost(op) for op in self.func().body.ops)
-
-        arity = self.arity()
-        interpreter = build_interpreter(self._module, 64)
-        function_type = self.func().function_type
-        values_for_each_param = [
-            Program._values_of_type(ty) for ty in function_type.inputs
-        ]
-        self._is_basic = all(total for _, total in values_for_each_param)
-
-        # First, detect inputs that don't affect the results within the set of
-        # inputs that we check.
-        useless_parameters = self._compute_useless_parameters()
-
-        self._useless_param_count = len(useless_parameters)
-        self._param_permutation = tuple(
-            [i for i in range(self.arity()) if i not in useless_parameters]
-            + [i for i in range(self.arity()) if i in useless_parameters]
-        )
-
-        # Now, compute the results ignoring useless parameters.
-        values_for_each_useful_param = [
-            (
-                [values_for_each_param[i][0][0]]
-                if i in useless_parameters
-                else values_for_each_param[i][0]
-            )
-            for i in range(arity)
-        ]
-        self._base_image = tuple(
-            interpret(interpreter, inputs)
-            for inputs in itertools.product(
-                *(vals for vals in values_for_each_useful_param)
-            )
-        )
-
-        # Finally, compute the outputs for all permutations of useful inputs.
-        self._input_cardinalities = tuple(
-            len(values) for values in values_for_each_useful_param
-        )
-        results_with_permutations = FrozenMultiset[Image].from_iterable(
-            permuted.image() for permuted in self._parameter_permutations()
-        )
-
-        self._fingerprint = Fingerprint(
-            results_with_permutations,
-        )
-
-    def module(self) -> ModuleOp:
-        """
-        Returns the underlying module. Keep in mind that the arguments are not
-        permuted in the inner function.
-        """
-        return self._module
-
-    def func(self) -> FuncOp:
-        """
-        Returns the underlying function. Keep in mind that the arguments are not
-        permuted in the function.
-        """
-        assert len(self._module.ops) == 1
-        assert isinstance(self._module.ops.first, FuncOp)
-        return self._module.ops.first
-
-    def ret(self) -> ReturnOp:
-        """Returns the return operation of the underlying function."""
-        r = self.func().get_return_op()
-        assert r is not None
-        return r
-
-    def arity(self) -> int:
-        """
-        Returns the number of parameters this program accepts, including useless
-        parameters.
-        """
-        return len(self.func().function_type.inputs)
-
-    def useful_arity(self) -> int:
-        """Returns the number of useful parameters for this program."""
-        return self.arity() - self._useless_param_count
-
-    def size(self) -> int:
-        return self._size
-
-    def cost(self) -> int:
-        """
-        Returns the cost of this program, according to a very basic cost model.
-        """
-        return self._cost
-
-    def fingerprint(self) -> Fingerprint:
-        return self._fingerprint
-
-    def is_basic(self) -> bool:
-        """
-        Whether the whole behavior of this program is encapsulated in its
-        fingerprint. If two programs have are basic, they are equivalent if, and
-        only if, their fingerprints compare equal.
-        """
-        return self._is_basic
-
-    def parameter(self, index: int) -> int:
-        """
-        Returns the index of the passed parameter in the underlying function.
-        """
-        return self._param_permutation[index]
-
-    def useful_parameters(self) -> list[tuple[int, Attribute]]:
-        """
-        Returns the indices and types of the non-useless parameters in order.
-        """
-
-        return [
-            (i, ty)
-            for i, ty in permute(
-                list(enumerate(self.func().function_type.inputs)),
-                self._param_permutation,
-            )
-        ][: self.useful_arity()]
-
-    @staticmethod
-    def _compare_values_lexicographically(
-        left: SSAValue,
-        right: SSAValue,
-        left_params: Permutation,
-        right_params: Permutation,
-    ) -> int:
-        match left, right:
-            # Order parameters.
-            case BlockArgument(index=i), BlockArgument(index=j):
-                return left_params[i] - right_params[j]
-            # Favor operations over arguments.
-            case OpResult(), BlockArgument():
-                return -1
-            case BlockArgument(), OpResult():
-                return 1
-            # Order operations.
-            case OpResult(op=lop, index=i), OpResult(op=rop, index=j):
-                # Favor operations with smaller arity.
-                if len(lop.operands) != len(rop.operands):
-                    return len(lop.operands) - len(rop.operands)
-                # Choose an arbitrary result if they are different.
-                if not isinstance(lop, type(rop)):
-                    return -1 if lop.name < rop.name else 1
-                if lop.properties != rop.properties:
-                    sorted_keys = sorted(
-                        set(lop.properties.keys() | rop.properties.keys())
-                    )
-                    for key in sorted_keys:
-                        if key not in lop.properties:
-                            return -1
-                        if key not in rop.properties:
-                            return 1
-                        if lop.properties[key] != rop.properties[key]:
-                            # Favor smaller properties.
-                            return (
-                                -1
-                                if str(lop.properties[key]) < str(rop.properties[key])
-                                else 1
-                            )
-                    assert False, "Logical error"
-                if i != j:
-                    return i - j
-                # Compare operands as a last resort.
-                for lo, ro in zip(lop.operands, rop.operands, strict=True):
-                    c = Program._compare_values_lexicographically(
-                        lo, ro, left_params, right_params
-                    )
-                    if c != 0:
-                        return c
-                return 0
-            case l, r:
-                raise ValueError(f"Unknown value: {l} or {r}")
-
-    def _compare_lexicographically(self, other: "Program") -> int:
-        # Favor smaller programs.
-        if self.size() < other.size():
-            return -1
-        if self.size() > other.size():
             return 1
-        # Favor programs with fewer useless parameters.
-        if self._useless_param_count < other._useless_param_count:
-            return -1
-        if self._useless_param_count > other._useless_param_count:
-            return 1
-        # Favor programs with fewer parameters overall.
-        if self.arity() < other.arity():
-            return -1
-        if self.arity() > other.arity():
-            return 1
-        # Favor programs that return less values.
-        self_outs = self.ret().arguments
-        other_outs = other.ret().arguments
-        if len(self_outs) < len(other_outs):
-            return -1
-        if len(self_outs) > len(other_outs):
-            return 1
-        # Compare formula trees for each return value.
-        for self_out, other_out in zip(self_outs, other_outs, strict=True):
-            c = Program._compare_values_lexicographically(
-                self_out,
-                other_out,
-                self._param_permutation,
-                other._param_permutation,
-            )
-            if c != 0:
-                return c
-        return 0
-
-    def __lt__(self, other: Any) -> bool:
-        if not isinstance(other, Program):
-            return NotImplemented
-        return self._compare_lexicographically(other) < 0
-
-    def __le__(self, other: Any) -> bool:
-        if not isinstance(other, Program):
-            return NotImplemented
-        return self._compare_lexicographically(other) <= 0
-
-    def __gt__(self, other: Any) -> bool:
-        if not isinstance(other, Program):
-            return NotImplemented
-        return self._compare_lexicographically(other) > 0
-
-    def __ge__(self, other: Any) -> bool:
-        if not isinstance(other, Program):
-            return NotImplemented
-        return self._compare_lexicographically(other) >= 0
-
-    def computes_same_function(self, other: "Program") -> bool:
-        """
-        Tests whether two programs are logically equivalent in the usual sense.
-        """
-
-        if self.image() != other.image():
-            return False
-
-        if self.is_basic() and other.is_basic():
-            return True
-
-        return is_same_behavior_with_z3(self, other)
-
-    def is_same_behavior(self, other: "Program") -> bool:
-        """
-        Tests whether two programs are logically equivalent up to parameter
-        permutation, and ignoring useless parameters.
-        """
-
-        if self.fingerprint() != other.fingerprint():
-            return False
-
-        if self.is_basic() and other.is_basic():
-            return True
-
-        for permuted in self._parameter_permutations():
-            if permuted.computes_same_function(other):
-                return True
-
-        return False
-
-    def permute_parameters_to_match(self, other: "Program") -> "Program  | None":
-        """
-        Returns an identical program with permuted parameters that is logically
-        equivalent to the other program, ignoring useless arguments. If no such
-        program exists, returns `None`.
-        """
-
-        if self.fingerprint() != other.fingerprint():
-            return None
-
-        for permuted in self._parameter_permutations():
-            if permuted.image() == other.image():
-                if (
-                    self.is_basic()
-                    and other.is_basic()
-                    or is_same_behavior_with_z3(permuted, other)
-                ):
-                    return permuted
-
-        return None
-
-    def to_pdl(
-        self, *, arguments: Sequence[SSAValue | None] | None = None
-    ) -> tuple[Region, tuple[SSAValue, ...], SSAValue | None, tuple[SSAValue, ...]]:
-        """
-        Creates a region containing PDL instructions corresponding to this
-        program. Returns a containing `Region`, together with the values of the
-        inputs, the root operation (i.e., the operation the first returned value
-        comes from, if it exists), and the returned values.
-        """
-        return func_to_pdl(self.func(), arguments=arguments)
-
-    def pdl_pattern(self) -> ModuleOp:
-        """Creates a PDL pattern from this program."""
-
-        body, _, root, _ = self.to_pdl()
-        body.block.add_op(pdl.RewriteOp(root))
-        pattern = pdl.PatternOp(1, None, body)
-
-        return ModuleOp([pattern])
-
-    def __str__(self) -> str:
-        buffer = StringIO()
-        available_names = ("x", "y", "z", "w", "v", "u", "t", "s")
-        names: dict[SSAValue, str] = {}
-
-        for index, arg in zip(self._param_permutation, self.func().args):
-            names[arg] = available_names[index]
-            if isinstance(arg.type, bv.BitVectorType):
-                names[arg] += f"#{arg.type.width.data}"
-
-        pretty_print_value(
-            self.ret().arguments[0],
-            False,
-            names,
-            file=buffer,
-        )
-        return buffer.getvalue()
 
 
 def pretty_print_func(
@@ -620,27 +127,28 @@ def pretty_print_func(
 class RewriteRule:
     __slots__ = ("_lhs", "_rhs")
 
-    _lhs: Program
-    _rhs: Program
+    _lhs: OrderedPattern
+    _rhs: OrderedPattern
 
-    def __init__(self, lhs: Program, rhs: Program):
-        permuted_rhs = rhs.permute_parameters_to_match(lhs)
-        assert permuted_rhs is not None
-        self._lhs = lhs
-        self._rhs = permuted_rhs
+    def __init__(self, lhs: Pattern, rhs: Pattern):
+        ordered_lhs = next(iter(lhs.ordered_patterns()))
+        ordered_rhs = rhs.permute_parameters_to_match(ordered_lhs)
+        assert ordered_rhs is not None
+        self._lhs = ordered_lhs
+        self._rhs = ordered_rhs
 
     def to_pdl(self) -> pdl.PatternOp:
         """Expresses this rewrite rule as a PDL pattern and rewrite."""
 
-        lhs, args, left_root, _ = self._lhs.to_pdl()
+        lhs, args, left_root, _ = func_to_pdl(self._lhs.func)
         assert left_root is not None
         pattern = pdl.PatternOp(1, None, lhs)
 
         # Unify LHS and RHS arguments.
-        arguments: list[SSAValue | None] = [None] * self._rhs.arity()
+        arguments: list[SSAValue | None] = [None] * self._rhs.arity
         for i, (k, _) in enumerate(self._rhs.useful_parameters()):
-            arguments[k] = args[self._lhs.parameter(i)]
-        rhs, _, _, right_res = self._rhs.to_pdl(arguments=arguments)
+            arguments[k] = args[self._lhs.permutation[i]]
+        rhs, _, _, right_res = func_to_pdl(self._rhs.func, arguments=arguments)
         rhs.block.add_op(pdl.ReplaceOp(left_root, None, right_res))
 
         pattern.body.block.add_op(pdl.RewriteOp(left_root, rhs))
@@ -649,9 +157,6 @@ class RewriteRule:
 
     def __str__(self) -> str:
         return f"{self._lhs} ⇝ {self._rhs}"
-
-
-Bucket = list[Program]
 
 
 class EnumerationOrder(Enum):
@@ -666,12 +171,12 @@ class EnumerationOrder(Enum):
             return cls.COST
         raise ValueError("Invalid enumeration order: {arg!r}")
 
-    def phase(self, program: "Program") -> int:
+    def phase(self, program: Pattern) -> int:
         match self:
             case EnumerationOrder.SIZE:
-                return program.size()
+                return program.size
             case EnumerationOrder.COST:
-                return program.cost()
+                return sum(operation_cost(op) for op in program.func.body.ops)
 
     def __str__(self):
         return self.name.lower()
@@ -736,7 +241,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def parse_program(source: str) -> Program:
+def parse_program(source: str) -> Pattern:
     ctx = Context()
     ctx.allow_unregistered = True
     ctx.load_dialect(Builtin)
@@ -746,7 +251,10 @@ def parse_program(source: str) -> Program:
     ctx.load_dialect(SMTUtilsDialect)
     ctx.load_dialect(synth.SynthDialect)
 
-    return Program(Parser(ctx, source).parse_module(True))
+    module = Parser(ctx, source).parse_module()
+    func_op = module.body.block.first_op
+    assert isinstance(func_op, FuncOp)
+    return Pattern(func_op, func_op)
 
 
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
@@ -1153,133 +661,25 @@ class SymFingerprint:
         return True
 
 
-def is_same_behavior_with_z3(
-    left: Program,
-    right: Program,
-) -> bool:
-    """
-    Check wether two programs are semantically equivalent after permuting the
-    arguments of the left program, using Z3. This also checks whether the input
-    types match (after permutation and removal of useless parameters).
-    """
-
-    func_left = clone_func_to_smt_func(left.func())
-    func_right = clone_func_to_smt_func(right.func())
-
-    module = ModuleOp([])
-    builder = Builder(InsertPoint.at_end(module.body.block))
-
-    # Clone both functions into a new module.
-    func_left = builder.insert(func_left.clone())
-    func_right = builder.insert(func_right.clone())
-
-    # Declare a variable for each function input.
-    args_left: list[SSAValue | None] = [None] * len(func_left.func_type.inputs)
-    args_right: list[SSAValue | None] = [None] * len(func_right.func_type.inputs)
-    for (left_index, left_type), (right_index, right_type) in zip(
-        left.useful_parameters(), right.useful_parameters()
-    ):
-        if left_type != right_type:
-            return False
-        arg = builder.insert(smt.DeclareConstOp(left_type)).res
-        args_left[left_index] = arg
-        args_right[right_index] = arg
-
-    for index, ty in enumerate(func_left.func_type.inputs):
-        if args_left[index] is None:
-            args_left[index] = builder.insert(smt.DeclareConstOp(ty)).res
-
-    for index, ty in enumerate(func_right.func_type.inputs):
-        if args_right[index] is None:
-            args_right[index] = builder.insert(smt.DeclareConstOp(ty)).res
-
-    args_left_complete = cast(list[SSAValue], args_left)
-    args_right_complete = cast(list[SSAValue], args_right)
-
-    # Call each function with the same arguments.
-    left_call = builder.insert(smt.CallOp(func_left.ret, args_left_complete)).res
-    right_call = builder.insert(smt.CallOp(func_right.ret, args_right_complete)).res
-
-    # We only support single-result functions for now.
-    assert len(left_call) == 1
-
-    # Check if the two results are not equal.
-    check = builder.insert(smt.DistinctOp(left_call[0], right_call[0])).res
-    builder.insert(smt.AssertOp(check))
-
-    # Now that we have the module, run it through the Z3 solver.
-    return z3.unsat == run_module_through_smtlib(
-        module
-    )  # pyright: ignore[reportUnknownVariableType]
-
-
-def is_parameter_useless_z3(program: Program, arg_index: int) -> bool:
-    """
-    Use Z3 to check wether if the argument at `arg_index` is irrelevant in
-    the computation of the function.
-    """
-
-    func = program.func()
-
-    module = ModuleOp([])
-    builder = Builder(InsertPoint.at_end(module.body.block))
-
-    # Clone the function twice into the new module
-    func1 = builder.insert(clone_func_to_smt_func(func))
-    func2 = builder.insert(func1.clone())
-    function_type = func1.func_type
-
-    # Declare one variable for each function input, and two for the input we
-    # want to check.
-    args1 = list[SSAValue]()
-    args2 = list[SSAValue]()
-
-    for i, arg_type in enumerate(function_type.inputs):
-        arg1 = builder.insert(smt.DeclareConstOp(arg_type)).res
-        args1.append(arg1)
-        if i == arg_index:
-            # We declare two variables for the argument we want to check.
-            arg2 = builder.insert(smt.DeclareConstOp(arg_type)).res
-            args2.append(arg2)
-        else:
-            args2.append(arg1)
-
-    # Call the functions with their set of arguments
-    call1 = builder.insert(smt.CallOp(func1.ret, args1)).res
-    call2 = builder.insert(smt.CallOp(func2.ret, args2)).res
-
-    # Check if the results are not equal.
-    all_distinct = builder.insert(smt.ConstantBoolOp(False)).result
-    for res1, res2 in zip(call1, call2, strict=True):
-        res_distinct = builder.insert(smt.DistinctOp(res1, res2)).res
-        all_distinct = builder.insert(smt.OrOp(all_distinct, res_distinct)).result
-
-    builder.insert(smt.AssertOp(all_distinct))
-
-    return z3.unsat == run_module_through_smtlib(
-        module
-    )  # pyright: ignore[reportUnknownVariableType]
-
-
 def find_new_behaviors_in_bucket(
-    canonicals: dict[Fingerprint, list[Program]],
-    bucket: Bucket,
-) -> tuple[dict[Program, Bucket], list[Bucket]]:
+    canonicals: dict[UnorderedFingerprint, list[Pattern]],
+    bucket: list[Pattern],
+) -> tuple[dict[Pattern, list[Pattern]], list[list[Pattern]]]:
     # Sort programs into actual behavior buckets.
-    behaviors: list[Bucket] = []
-    for program in bucket:
+    behaviors: list[list[Pattern]] = []
+    for pattern in bucket:
         for behavior in behaviors:
-            if program.is_same_behavior(behavior[0]):
-                behavior.append(program)
+            if pattern.is_same_behavior(behavior[0]):
+                behavior.append(pattern)
                 break
         else:
-            behaviors.append([program])
+            behaviors.append([pattern])
 
     # Exclude known behaviors.
-    known_behaviors: dict[Program, Bucket] = {}
-    new_behaviors: list[Bucket] = []
+    known_behaviors: dict[Pattern, list[Pattern]] = {}
+    new_behaviors: list[list[Pattern]] = []
     for behavior in behaviors:
-        for canonical in canonicals.get(behavior[0].fingerprint(), []):
+        for canonical in canonicals.get(behavior[0].unordered_fingerprint, []):
             if behavior[0].is_same_behavior(canonical):
                 known_behaviors[canonical] = behavior
                 break
@@ -1289,9 +689,9 @@ def find_new_behaviors_in_bucket(
 
 
 def find_new_behaviors(
-    buckets: list[Bucket],
-    canonicals: list[Program],
-) -> tuple[dict[Program, Bucket], list[Bucket]]:
+    buckets: list[list[Pattern]],
+    canonicals: list[Pattern],
+) -> tuple[dict[Pattern, list[Pattern]], list[list[Pattern]]]:
     """
     Returns a `known_behaviors, new_behaviors` pair where `known_behaviors` is a
     map from canonical programs to buckets of new programs with the same
@@ -1299,12 +699,14 @@ def find_new_behaviors(
     programs exhibiting a new behavior.
     """
 
-    canonicals_dict: dict[Fingerprint, list[Program]] = {}
+    canonicals_dict: dict[UnorderedFingerprint, list[Pattern]] = {}
     for canonical in canonicals:
-        canonicals_dict.setdefault(canonical.fingerprint(), []).append(canonical)
+        canonicals_dict.setdefault(canonical.unordered_fingerprint, []).append(
+            canonical
+        )
 
-    known_behaviors: dict[Program, Bucket] = dict[Program, Bucket]()
-    new_behaviors: list[Bucket] = []
+    known_behaviors: dict[Pattern, list[Pattern]] = dict[Pattern, list[Pattern]]()
+    new_behaviors: list[list[Pattern]] = []
 
     with Pool() as p:
         for i, (known, new) in enumerate(
@@ -1322,18 +724,22 @@ def find_new_behaviors(
 
 
 def remove_redundant_illegal_subpatterns(
-    new_canonicals: list[Program], new_rewrites: dict[Program, Bucket]
-) -> tuple[dict[Program, Bucket], int]:
+    new_canonicals: list[Pattern], new_rewrites: dict[Pattern, list[Pattern]]
+) -> tuple[dict[Pattern, list[Pattern]], int]:
     buffer = StringIO()
     print("module {", file=buffer)
     print("module {", file=buffer)
     for canonical in new_canonicals:
-        print(canonical.module(), file=buffer)
+        print("module{", file=buffer)
+        print(canonical.func, file=buffer)
+        print("}", file=buffer)
     print("}", file=buffer)
     print("module {", file=buffer)
     for programs in new_rewrites.values():
         for program in programs:
-            print(program.module(), file=buffer)
+            print("module{", file=buffer)
+            print(program.func, file=buffer)
+            print("}", file=buffer)
     print("}", file=buffer)
     print("}", file=buffer)
     cpp_res = sp.run(
@@ -1345,7 +751,7 @@ def remove_redundant_illegal_subpatterns(
     )
     res_lines = cpp_res.stdout.splitlines()
 
-    pruned_rewrites: dict[Program, Bucket] = {
+    pruned_rewrites: dict[Pattern, list[Pattern]] = {
         canonical: [] for canonical in new_rewrites.keys()
     }
     i = 0
@@ -1373,7 +779,7 @@ class BucketStat:
     """Expected value of the size of a random program's bucket."""
 
     @classmethod
-    def from_buckets(cls, phase: int, buckets: Iterable[Bucket]):
+    def from_buckets(cls, phase: int, buckets: Iterable[list[Pattern]]):
         bucket_sizes = sorted(len(bucket) for bucket in buckets)
         n = len(bucket_sizes)
         return cls(
@@ -1442,8 +848,8 @@ def main() -> None:
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()
 
-    canonicals: list[Program] = []
-    illegals: list[Program] = []
+    canonicals: list[Pattern] = []
+    illegals: list[Pattern] = []
     rewrites: list[RewriteRule] = []
     bucket_stats: list[BucketStat] = []
 
@@ -1454,26 +860,26 @@ def main() -> None:
             print(f"\033[1m== Phase {phase} (size at most {phase}) ==\033[0m")
 
             enumerating_start = time.time()
-            buckets: dict[Fingerprint, Bucket] = {}
+            buckets: dict[UnorderedFingerprint, list[Pattern]] = {}
             enumerated_count = 0
             building_blocks: list[list[FuncOp]] = []
             if phase >= 2:
-                size = canonicals[0].size()
+                size = canonicals[0].size
                 building_blocks.append([])
                 for program in canonicals:
-                    if program.size() != size:
+                    if program.size != size:
                         building_blocks.append([])
-                        size = program.size()
-                    building_blocks[-1].append(program.func())
+                        size = program.size
+                    building_blocks[-1].append(program.func)
             illegal_patterns = list[pdl.PatternOp]()
             for illegal in illegals:
-                body, _, root, _ = func_to_pdl(illegal.func())
+                body, _, root, _ = func_to_pdl(illegal.func)
                 body.block.add_op(pdl.RewriteOp(root))
                 pattern = pdl.PatternOp(1, None, body)
                 illegal_patterns.append(pattern)
 
             with Pool() as p:
-                for program in p.imap(
+                for pattern in p.imap(
                     parse_program,
                     enumerate_programs(
                         args.max_num_args,
@@ -1484,17 +890,17 @@ def main() -> None:
                         args.dialect,
                     ),
                 ):
-                    if args.enumeration_order.phase(program) != phase:
+                    if args.enumeration_order.phase(pattern) != phase:
                         continue
                     enumerated_count += 1
                     print(
                         f"\033[2K Enumerating programs... ({enumerated_count})",
                         end="\r",
                     )
-                    fingerprint = program.fingerprint()
+                    fingerprint = pattern.unordered_fingerprint
                     if fingerprint not in buckets:
                         buckets[fingerprint] = []
-                    buckets[fingerprint].append(program)
+                    buckets[fingerprint].append(pattern)
             enumerating_time = round(time.time() - enumerating_start, 2)
             print(
                 f"\033[2KGenerated {enumerated_count} programs of this size "
@@ -1502,7 +908,7 @@ def main() -> None:
             )
             bucket_stats.append(BucketStat.from_buckets(phase, buckets.values()))
 
-            new_rewrites: dict[Program, Bucket] = {}
+            new_rewrites: dict[Pattern, list[Pattern]] = {}
 
             finding_start = time.time()
             known_behaviors, new_behaviors = find_new_behaviors(
@@ -1518,19 +924,21 @@ def main() -> None:
             )
 
             choosing_start = time.time()
-            new_canonicals: list[Program] = []
+            new_canonicals: list[Pattern] = []
             for i, behavior in enumerate(new_behaviors):
                 print(
                     f"\033[2K Choosing new canonical programs... "
                     f"({i + 1}/{len(new_behaviors)})",
                     end="\r",
                 )
-                canonical = min(behavior)
+                canonical = min(
+                    behavior, key=lambda p: next(iter(p.ordered_patterns()))
+                )
                 new_canonicals.append(canonical)
                 new_rewrites[canonical] = behavior
             canonicals.extend(new_canonicals)
             # Sort canonicals to ensure deterministic output.
-            canonicals.sort()
+            canonicals.sort(key=lambda p: next(iter(p.ordered_patterns())))
             choosing_time = round(time.time() - choosing_start, 2)
             print(
                 f"\033[2KChose {len(new_canonicals)} new canonical programs "
@@ -1571,7 +979,7 @@ def main() -> None:
         if args.out_canonicals != "":
             with open(args.out_canonicals, "w", encoding="UTF-8") as f:
                 for program in canonicals:
-                    f.write(str(program.module()))
+                    f.write(str(program.func))
                     f.write("\n// -----\n")
 
         if args.out_rewrites != "":
