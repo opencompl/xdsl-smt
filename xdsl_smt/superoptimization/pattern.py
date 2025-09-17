@@ -174,7 +174,7 @@ class Pattern:
         )
         self.unordered_fingerprint = FrozenMultiset[tuple[Result, ...]].from_iterable(
             self.permutated_fingerprint(permutation)
-            for permutation in self.semantics_input_permutations()
+            for permutation in self.input_permutations()
         )
 
     def ret(self) -> SSAValue:
@@ -312,11 +312,11 @@ class Pattern:
         # other parameters to the set of results obtained when varying parameter i.
         results_for_fixed_inputs: list[
             dict[tuple[Attribute, ...], set[tuple[Any, ...]]]
-        ] = [{} for _ in range(self.arity)]
+        ] = [{} for _ in range(self.semantics_arity)]
 
         for inputs in itertools.product(*(vals for vals, _ in values_for_each_param)):
             result = interpret(interpreter, inputs)
-            for i in range(self.arity):
+            for i in range(self.semantics_arity):
                 results_for_fixed_inputs[i].setdefault(
                     inputs[:i] + inputs[i + 1 :], set()
                 ).add(result)
@@ -356,19 +356,6 @@ class Pattern:
                 ]
                 for i in range(self.semantics_arity)
             )
-
-    def semantics_input_permutations(self) -> Iterable[Permutation]:
-        """
-        Returns the permutation of all arguments that have an effect on the
-        behavior of the pattern.
-        Do not permute the arguments that are part of the semantics, but not of
-        the pattern.
-        """
-        if self.arity == self.semantics_arity:
-            yield from self.input_permutations()
-            return
-        for perm in self.input_permutations():
-            yield perm + tuple(i for i in range(self.arity, self.semantics_arity))
 
     def ordered_patterns(self) -> Iterable[OrderedPattern]:
         """
