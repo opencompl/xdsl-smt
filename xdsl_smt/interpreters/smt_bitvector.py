@@ -255,6 +255,39 @@ class SMTBitVectorFunctions(InterpreterFunctions):
         signed_rhs = to_signed(rhs, args[1].type.width.data)
         return (signed_lhs >= signed_rhs,)
 
+    @impl(bv.SgtOp)
+    def run_bv_sgt(
+        self, interpreter: Interpreter, op: bv.SgtOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        signed_lhs = to_signed(lhs, args[0].type.width.data)
+        signed_rhs = to_signed(rhs, args[1].type.width.data)
+        return (signed_lhs > signed_rhs,)
+
+    @impl(bv.SltOp)
+    def run_bv_slt(
+        self, interpreter: Interpreter, op: bv.SltOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        signed_lhs = to_signed(lhs, args[0].type.width.data)
+        signed_rhs = to_signed(rhs, args[1].type.width.data)
+        return (signed_lhs < signed_rhs,)
+
+    @impl(bv.SleOp)
+    def run_bv_sle(
+        self, interpreter: Interpreter, op: bv.SleOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        signed_lhs = to_signed(lhs, args[0].type.width.data)
+        signed_rhs = to_signed(rhs, args[1].type.width.data)
+        return (signed_lhs <= signed_rhs,)
+
     @impl(bv.UltOp)
     def run_bv_ult(
         self, interpreter: Interpreter, op: bv.UltOp, args: tuple[Any, ...]
@@ -263,6 +296,33 @@ class SMTBitVectorFunctions(InterpreterFunctions):
         lhs = args[0].value.data
         rhs = args[1].value.data
         return (lhs < rhs,)
+
+    @impl(bv.UleOp)
+    def run_bv_ule(
+        self, interpreter: Interpreter, op: bv.UleOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        return (lhs <= rhs,)
+
+    @impl(bv.UgtOp)
+    def run_bv_ugt(
+        self, interpreter: Interpreter, op: bv.UgtOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        return (lhs > rhs,)
+
+    @impl(bv.UgeOp)
+    def run_bv_uge(
+        self, interpreter: Interpreter, op: bv.UgeOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        return (lhs >= rhs,)
 
     @impl(bv.ShlOp)
     def run_bv_shl(

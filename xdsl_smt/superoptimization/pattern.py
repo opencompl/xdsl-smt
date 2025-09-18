@@ -534,12 +534,13 @@ class OrderedPattern(Pattern):
         """The ordered fingerprint of the pattern."""
         return self.permutated_fingerprint(self.permutation)
 
-    def useful_parameters(self) -> Iterable[tuple[int, Attribute]]:
+    def useful_semantics_parameters(self) -> Iterable[tuple[int, Attribute]]:
         """
-        Returns the list of useful parameters, as (index, type) pairs.
+        Returns the list of useful parameters in the semantics function,
+        as (index, type) pairs.
         """
         useful_parameters = dict[int, Attribute]()
-        for i, ty in enumerate(self.func.function_type.inputs):
+        for i, ty in enumerate(self.semantics.function_type.inputs):
             if i not in self.useless_parameters:
                 useful_parameters[self.permutation[i]] = ty
         return useful_parameters.items()
@@ -556,8 +557,10 @@ class OrderedPattern(Pattern):
         inputs = self.func.function_type.inputs.data
         other_inputs = other.func.function_type.inputs.data
 
-        ordered_inputs = permute(inputs, self.permutation)
-        other_ordered_inputs = permute(other_inputs, other.permutation)
+        ordered_inputs = permute(inputs, self.permutation[: len(inputs)])
+        other_ordered_inputs = permute(
+            other_inputs, other.permutation[: len(other_inputs)]
+        )
 
         return ordered_inputs == other_ordered_inputs
 
@@ -596,7 +599,7 @@ class OrderedPattern(Pattern):
         args_self: list[SSAValue | None] = [None] * len(func_self.func_type.inputs)
         args_other: list[SSAValue | None] = [None] * len(func_other.func_type.inputs)
         for (self_index, self_type), (other_index, other_type) in zip(
-            self.useful_parameters(), other.useful_parameters()
+            self.useful_semantics_parameters(), other.useful_semantics_parameters()
         ):
             if self_type != other_type:
                 return False
@@ -619,12 +622,21 @@ class OrderedPattern(Pattern):
         self_call = builder.insert(smt.CallOp(func_self.ret, args_self_complete)).res
         other_call = builder.insert(smt.CallOp(func_other.ret, args_other_complete)).res
 
-        # We only support single-result functions for now.
-        assert len(self_call) == 1
-
         # Check if the two results are not equal.
-        check = builder.insert(smt.DistinctOp(self_call[0], other_call[0])).res
+        if len(self_call) == 1:
+            check = builder.insert(smt.DistinctOp(self_call[0], other_call[0])).res
+        else:
+            check = builder.insert(smt.ConstantBoolOp(True)).result
+            for res1, res2 in zip(self_call, other_call, strict=True):
+                res_distinct = builder.insert(smt.DistinctOp(res1, res2)).res
+                check = builder.insert(smt.OrOp(check, res_distinct)).result
         builder.insert(smt.AssertOp(check))
+
+        FunctionCallInline(True, {}).apply(Context(), module)
+        for op in tuple(module.body.ops):
+            if isinstance(op, smt.DefineFunOp):
+                assert not op.ret.uses
+                Rewriter().erase_op(op)
 
         # Now that we have the module, run it through the Z3 solver.
         return z3.unsat == run_module_through_smtlib(

@@ -3,7 +3,6 @@ from xdsl.parser import Parser
 from xdsl.context import Context
 
 from xdsl.dialects import get_all_dialects
-from xdsl.dialects.func import FuncOp
 
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect

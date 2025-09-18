@@ -45,12 +45,20 @@ from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects import pdl
+from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
 )
 from xdsl.dialects.func import Func, FuncOp, ReturnOp
 from xdsl.dialects.builtin import FunctionType
+
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics_using_control_flow_dialects,
+)
+from xdsl_smt.passes.smt_expand import SMTExpand
+from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMTPass
+from xdsl_smt.passes.lower_effects import LowerEffectPass
 
 sys.setrecursionlimit(100000)
 
@@ -182,6 +190,17 @@ class EnumerationOrder(Enum):
         return self.name.lower()
 
 
+class Configuration(Enum):
+    """
+    Different configurations depending on the kind of input programs.
+    For instance, LLVM needs to be lowered to SMT first before being able
+    to reason about it.
+    """
+
+    SMT = "smt"
+    ARITH = "arith"
+
+
 def register_all_arguments(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--max-num-args",
@@ -240,10 +259,19 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="The IRDL file describing the dialect to use for enumeration",
     )
 
+    arg_parser.add_argument(
+        "--configuration",
+        dest="configuration",
+        type=Configuration,
+        choices=tuple(Configuration),
+        default=Configuration.SMT,
+    )
 
-def parse_program(source: str) -> Pattern:
+
+def parse_program(configuration: Configuration, source: str) -> Pattern:
     ctx = Context()
     ctx.allow_unregistered = True
+    ctx.load_dialect(Arith)
     ctx.load_dialect(Builtin)
     ctx.load_dialect(Func)
     ctx.load_dialect(SMTDialect)
@@ -254,7 +282,19 @@ def parse_program(source: str) -> Pattern:
     module = Parser(ctx, source).parse_module()
     func_op = module.body.block.first_op
     assert isinstance(func_op, FuncOp)
-    return Pattern(func_op, func_op)
+    match configuration:
+        case Configuration.SMT:
+            semantics_op = func_op
+        case Configuration.ARITH:
+            semantics_module = module.clone()
+            load_vanilla_semantics_using_control_flow_dialects()
+            LowerToSMTPass().apply(ctx, semantics_module)
+            LowerEffectPass().apply(ctx, semantics_module)
+            SMTExpand().apply(ctx, semantics_module)
+            semantics_op = semantics_module.body.block.first_op
+            assert isinstance(semantics_op, FuncOp)
+
+    return Pattern(func_op, semantics_op)
 
 
 def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
@@ -880,7 +920,7 @@ def main() -> None:
 
             with Pool() as p:
                 for pattern in p.imap(
-                    parse_program,
+                    partial(parse_program, args.configuration),
                     enumerate_programs(
                         args.max_num_args,
                         phase,
@@ -888,6 +928,7 @@ def main() -> None:
                         building_blocks if phase >= 2 else None,
                         illegal_patterns,
                         args.dialect,
+                        args.configuration.value,
                     ),
                 ):
                     if args.enumeration_order.phase(pattern) != phase:
