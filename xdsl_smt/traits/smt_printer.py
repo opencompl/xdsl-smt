@@ -5,7 +5,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import IO
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.smt import BoolType, BitVectorType
+from xdsl.dialects.smt import BoolType, BitVectorType, SortType
 from xdsl.ir import OpResult, SSAValue, Operation, Attribute, OpTrait
 
 
@@ -232,6 +232,9 @@ class SMTConversionCtx:
             return
         if isinstance(attr, BitVectorType):
             print(f"(_ BitVec {attr.width.data})", file=stream, end="")
+            return
+        if isinstance(attr, SortType):
+            print(attr.sort_name.data, file=stream, end="")
             return
         raise Exception(f"Unknown SMT-LIB sort: {attr}")
 

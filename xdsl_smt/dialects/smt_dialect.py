@@ -15,7 +15,7 @@ from xdsl.irdl import (
     irdl_op_definition,
     Operand,
     IRDLOperation,
-    traits_def,
+    traits_def, prop_def,
 )
 from xdsl.ir import (
     Block,
@@ -38,7 +38,7 @@ from xdsl.dialects.smt import (
     ConstantBoolOp,
     YieldOp,
     ForallOp,
-    ExistsOp,
+    ExistsOp, SortType,
 )
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
@@ -359,6 +359,21 @@ class ReturnOp(IRDLOperation):
         for ret, ret_type in zip(self.ret, parent.func_type.outputs.data):
             if ret.type != ret_type:
                 raise VerifyException("Incorrect return type")
+
+@irdl_op_definition
+class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
+    """Declare a sort value."""
+
+    name = "smt.declare_sort"
+    sort = prop_def(SortType)
+
+    def __init__(self, sort:SortType):
+        super().__init__(properties={"sort":sort})
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
+        print(f"(declare-const ", file=stream, end="")
+        ctx.print_sort_to_smtlib(self.sort, stream)
+        print(")", file=stream)
 
 
 @irdl_op_definition

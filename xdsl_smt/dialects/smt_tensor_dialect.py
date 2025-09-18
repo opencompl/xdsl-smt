@@ -14,6 +14,7 @@ from xdsl.dialects.builtin import (
 )
 from xdsl.irdl import (
     attr_def,
+    prop_def,
     operand_def,
     result_def,
     irdl_attr_definition,
@@ -24,7 +25,7 @@ from xdsl.irdl import (
     Attribute,
     VarConstraint,
     base,
-    ConstraintVar,
+    ConstraintVar, var_operand_def,
 )
 from xdsl.ir import (
     Dialect,
@@ -35,12 +36,7 @@ from xdsl.ir import (
     TypeAttribute,
     AttributeCovT,
 )
-from ..traits.smt_printer import (
-    SMTLibOp,
-    SimpleSMTLibOp,
-    SMTLibSort,
-    SMTConversionCtx,
-)
+from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 
 @irdl_attr_definition
 class SMTTensorType(
@@ -106,6 +102,19 @@ class ElementwiseUnaryOperation(IRDLOperation, abc.ABC):
         if result_type is None:
             result_type = op.type
         super().__init__(operands=(op,), result_types=(result_type,))
+
+
+class TensorExtractOp(IRDLOperation, abc.ABC):
+
+    T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
+
+    tensor = operand_def(T)
+    indices = var_operand_def(BitVectorType)
+    result = result_def()
+
+    def __init__(self,  tensor: Operand, indices: Sequence[SSAValue | Operation]):
+        super().__init__(operands=(tensor,indices), result_types=(tensor.type.element_type,))
+
 
 @irdl_op_definition
 class TensorAddOp(ElementwiseBinaryOperation):
@@ -189,7 +198,7 @@ class TensorTransposeOp(IRDLOperation):
 
     operand = operand_def(SMTTensorType[ElementType])
     result = result_def(SMTTensorType[ElementType])
-    permutation = attr_def(DenseArrayBase)
+    permutation = prop_def(DenseArrayBase)
 
     def __init__(
         self, operand: SSAValue, permutation: DenseArrayBase, result_type: Attribute
@@ -197,7 +206,7 @@ class TensorTransposeOp(IRDLOperation):
         super().__init__(
             operands=(operand,),
             result_types=(result_type,),
-            attributes={"permutation": permutation},
+            properties={"permutation": permutation},
         )
 
     def get_permutation(self) -> tuple[int, ...]:
@@ -213,6 +222,7 @@ SMTTensorDialect = Dialect(
         TensorAbsOp,
         TensorTransposeOp,
         TensorSubtractOp,
+        TensorExtractOp,
     ],
     [SMTTensorType],
 )
