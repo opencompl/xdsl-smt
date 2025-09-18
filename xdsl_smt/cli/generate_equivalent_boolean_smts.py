@@ -18,7 +18,6 @@ from typing import (
     Iterable,
     Sequence,
     TypeVar,
-    cast,
 )
 
 from xdsl.context import Context
