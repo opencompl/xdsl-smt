@@ -83,7 +83,7 @@ class LowerSMTTensor(ModulePass):
                     DeclareConstOpPattern(),
                     TensorExtractOpPattern()
                 ]
-            ), walk_reverse=True
+            )
         )
         walker.rewrite_module(op)
 

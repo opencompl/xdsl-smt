@@ -62,9 +62,7 @@ class LowerTransposeOpPattern(TensorRewritePattern):
         rewriter.erase_matched_op()
 
 def stripOpName(name:str) -> str:
-    assert '.' in name
-    return name[name.index(".")+1:]
-
+    return name.replace(".", "_")
 elementwise_unary_function_set:set[DeclareFunOp] = set()
 elementwise_unary_functions:dict[str, Callable[[SSAValue],CallOp]] = {}
 
@@ -88,6 +86,8 @@ class LowerElementwiseUnaryOpPattern(TensorRewritePattern):
     def match_and_rewrite(
         self, op: ElementwiseUnaryOperation, rewriter: PatternRewriter
     ):
+        global elementwise_unary_function_set
+        global elementwise_unary_functions
         element_type = self.extract_op.result.type
         op_name = stripOpName(op.name)
         unary_function = getElementwiseFunction(op_name, element_type,
@@ -103,6 +103,8 @@ class LowerElementwiseBinaryOpPattern(TensorRewritePattern):
     def match_and_rewrite(
         self, op: ElementwiseBinaryOperation, rewriter: PatternRewriter
     ):
+        global elementwise_binary_function_set
+        global elementwise_binary_functions
         element_type = self.extract_op.result.type
         op_name = stripOpName(op.name)
         binary_function = getElementwiseFunction(op_name, element_type,
@@ -111,7 +113,7 @@ class LowerElementwiseBinaryOpPattern(TensorRewritePattern):
         extract_rhs_op = TensorExtractOp(op.rhs, self.extract_op.indices)
         call_op = binary_function(extract_lhs_op.result, extract_rhs_op.result)
         rewriter.replace_op(self.extract_op, [extract_lhs_op, extract_rhs_op, call_op])
-        rewriter.erase_matched_op()
+        rewriter.erase_op(op)
 
 
 
@@ -127,33 +129,30 @@ class TensorExtractOpPattern(RewritePattern):
     def match_and_rewrite(self, op: TensorExtractOp, rewriter: PatternRewriter):
         source = op.tensor
         source_parent_op = source.owner
-        if isinstance(source_parent_op, ElementwiseBinaryOperation):
+        if isinstance(source_parent_op, ElementwiseUnaryOperation):
             ...
-        elif isinstance(source_parent_op, ElementwiseUnaryOperation):
-            LowerElementwiseBinaryOpPattern(source_parent_op).match_and_rewrite(source_parent_op, rewriter)
+        elif isinstance(source_parent_op, ElementwiseBinaryOperation):
+            LowerElementwiseBinaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
         elif isinstance(source_parent_op, TensorTransposeOp):
             LowerTransposeOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
 
 
 
-class InsertFunctionPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: ModuleOp, rewriter: PatternRewriter):
-        block = op.body.block
-        first_op = block.first_op
-        assert first_op is not None
+def insertFunctionBeforeModule(op: ModuleOp):
+    block = op.body.block
+    first_op = block.first_op
+    assert first_op is not None
+    while len(elementwise_binary_function_set) > 0:
+        function_op = elementwise_binary_function_set.pop()
+        block.insert_op_before(function_op, first_op)
 
-        while len(elementwise_binary_function_set) > 0:
-            function_op = elementwise_binary_function_set.pop()
-            block.insert_op_before(function_op, first_op)
-
-        while len(elementwise_unary_function_set) > 0:
-            function_op = elementwise_unary_function_set.pop()
-            block.insert_op_before(function_op, first_op)
+    while len(elementwise_unary_function_set) > 0:
+        function_op = elementwise_unary_function_set.pop()
+        block.insert_op_before(function_op, first_op)
 
 
 
-class LowerSMTTensor(ModulePass):
+class RewriteSMTTensor(ModulePass):
     name = "rewrite-smt-tensor"
 
     def apply(self, ctx: Context, op: ModuleOp):
@@ -166,11 +165,4 @@ class LowerSMTTensor(ModulePass):
         )
         walker.rewrite_module(op)
 
-        walker1 = PatternRewriteWalker(
-            GreedyRewritePatternApplier(
-                [
-                    InsertFunctionPattern()
-                ]
-            ), apply_recursively=False
-        )
-        walker1.rewrite_module(op)
+        insertFunctionBeforeModule(op)

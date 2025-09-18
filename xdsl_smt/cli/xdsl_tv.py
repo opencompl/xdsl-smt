@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from io import StringIO
 
 from xdsl.dialects.stablehlo import StableHLO
 
@@ -16,6 +17,8 @@ from xdsl_smt.passes.lower_effects_with_memory import (
 )
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
+from xdsl_smt.passes.lower_smt_tensor import LowerSMTTensor
+from xdsl_smt.passes.rewrite_smt_tensor import RewriteSMTTensor
 from xdsl_smt.passes.smt_expand import SMTExpand
 
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
@@ -51,7 +54,7 @@ from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
 )
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
-from xdsl_smt.semantics.refinements import add_function_refinement
+from xdsl_smt.semantics.refinements import add_function_refinement, add_tensor_refinement
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
@@ -131,6 +134,8 @@ def main() -> None:
 
     func = module.ops.first
     func_after = module_after.ops.first
+    assert isinstance(func, DefineFunOp)
+    assert isinstance(func_after, DefineFunOp)
 
     # Combine both modules into a new one
     new_module = ModuleOp([])
@@ -140,8 +145,7 @@ def main() -> None:
     func_after.detach()
     block.add_op(func_after)
 
-    print(new_module)
-    exit(0)
+
     # Optionally simplify the module
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)
@@ -174,6 +178,12 @@ def main() -> None:
         CanonicalizePass().apply(ctx, new_module)
 
     # Add refinement operations
+    refinement = add_tensor_refinement(
+        func, func_after, InsertPoint.at_end(block)
+    )
+    block.add_op(AssertOp(refinement.results[0]))
+    block.add_op(CheckSatOp())
+    '''
     refinement = add_function_refinement(
         func, func_after, func_type, InsertPoint.at_end(block)
     )
@@ -181,12 +191,16 @@ def main() -> None:
     block.add_op(not_op)
     block.add_op(AssertOp(not_op.result))
     block.add_op(CheckSatOp())
+    '''
 
     # Inline and delete functions
     FunctionCallInline(True, {}).apply(ctx, new_module)
     for op in new_module.body.ops:
         if isinstance(op, DefineFunOp):
             new_module.body.block.erase_op(op)
+    RewriteSMTTensor().apply(ctx, new_module)
+    LowerSMTTensor().apply(ctx, new_module)
+
 
     # Optionally simplify the module
     if args.opt:
@@ -217,7 +231,10 @@ def main() -> None:
         CommonSubexpressionElimination().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
 
-    print_to_smtlib(new_module, sys.stdout)
+    stringio = StringIO()
+    print_to_smtlib(new_module, stringio)
+    s = stringio.getvalue()
+    print(s.replace("$",""))
 
 
 if __name__ == "__main__":

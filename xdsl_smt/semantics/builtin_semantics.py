@@ -17,7 +17,8 @@ class IntegerTypeSemantics(TypeSemantics):
 
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, IntegerType)
-        return smt_utils.PairType(smt_bv.BitVectorType(type.width), smt.BoolType())
+        #return smt_utils.PairType(smt_bv.BitVectorType(type.width), smt.BoolType())
+        return smt_bv.BitVectorType(type.width)
 
 
 class IndexTypeSemantics(TypeSemantics):

@@ -16,12 +16,13 @@ from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
 )
+from xdsl_smt.semantics.stablehlo_semantics import stablehlo_semantics, TensorTypeSemantics
 from xdsl_smt.semantics.transfer_semantics import (
     AbstractValueTypeSemantics,
     TransferIntegerTypeSemantics,
 )
 from xdsl_smt.semantics.transfer_semantics import transfer_semantics
-from xdsl.dialects.builtin import IntegerType, IntegerAttr, IndexType, MemRefType
+from xdsl.dialects.builtin import IntegerType, IntegerAttr, IndexType, MemRefType, TensorType
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import (
     IndexTypeSemantics,
@@ -54,6 +55,7 @@ def load_vanilla_semantics():
         IndexType: IndexTypeSemantics(),
         MemRefType: MemrefSemantics(),
         AbstractValueType: AbstractValueTypeSemantics(),
+        TensorType: TensorTypeSemantics()
     }
     SMTLowerer.attribute_semantics = {
         **arith_attribute_semantics,
@@ -66,6 +68,7 @@ def load_vanilla_semantics():
         **memref_semantics,
         **transfer_semantics,
         **llvm_semantics,
+        **stablehlo_semantics
     }
     SMTLowerer.rewrite_patterns = {
         **func_to_smt_patterns,

@@ -61,7 +61,7 @@ class SMTTensorType(
         shape = ArrayAttr(
             [IntAttr(dim) if isinstance(dim, int) else dim for dim in shape]
         )
-        super().__init__([shape, element_type, encoding])
+        super().__init__(shape, element_type, encoding)
 
     def get_num_dims(self) -> int:
         return len(self.shape.data)
@@ -103,17 +103,20 @@ class ElementwiseUnaryOperation(IRDLOperation, abc.ABC):
             result_type = op.type
         super().__init__(operands=(op,), result_types=(result_type,))
 
+@irdl_op_definition
+class TensorExtractOp(IRDLOperation):
+    #T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
 
-class TensorExtractOp(IRDLOperation, abc.ABC):
+    name = "smt.tensor.extract"
 
-    T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
-
-    tensor = operand_def(T)
+    tensor = operand_def(AnySMTTensorType)
     indices = var_operand_def(BitVectorType)
     result = result_def()
 
-    def __init__(self,  tensor: Operand, indices: Sequence[SSAValue | Operation]):
-        super().__init__(operands=(tensor,indices), result_types=(tensor.type.element_type,))
+    def __init__(self,  tensor: Operand, indices: Sequence[SSAValue | Operation], result_type: Attribute | None = None):
+        if result_type is None:
+            result_type = tensor.type.element_type
+        super().__init__(operands=(tensor,indices), result_types=(result_type,))
 
 
 @irdl_op_definition
@@ -214,7 +217,7 @@ class TensorTransposeOp(IRDLOperation):
 
 
 SMTTensorDialect = Dialect(
-    "smt_tensor",
+    "smt.tensor",
     [
         TensorAndOp,
         TensorAddOp,

@@ -13,6 +13,7 @@ from xdsl.irdl import (
     region_def,
     var_operand_def,
     irdl_op_definition,
+    irdl_attr_definition,
     Operand,
     IRDLOperation,
     traits_def, prop_def,
@@ -26,6 +27,8 @@ from xdsl.ir import (
     SSAValue,
     Region,
     OpTraits,
+    TypeAttribute,
+    ParametrizedAttribute
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.dialects.smt import (
@@ -38,7 +41,7 @@ from xdsl.dialects.smt import (
     ConstantBoolOp,
     YieldOp,
     ForallOp,
-    ExistsOp, SortType,
+    ExistsOp,
 )
 from xdsl.utils.exceptions import VerifyException
 from xdsl.pattern_rewriter import RewritePattern
@@ -51,8 +54,26 @@ from xdsl_smt.traits.smt_printer import (
     SimpleSMTLibOp,
     SMTConversionCtx,
     SimpleSMTLibOpTrait,
-    SMTLibOpTrait,
+    SMTLibOpTrait, SMTLibSort,
 )
+
+@irdl_attr_definition
+class SortType(ParametrizedAttribute, TypeAttribute, SMTLibSort):
+    """A sort"""
+
+    name = "smt.sort"
+
+    sort_name:StringAttr
+
+    def __init__(self, sort_name: str | StringAttr):
+        if isinstance(sort_name, str):
+            sort_name = StringAttr(sort_name)
+        super().__init__(sort_name)
+
+    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
+        print(self.sort_name.data, file=stream, end="")
+
+
 
 
 class QuantifierCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
@@ -205,12 +226,12 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
         print(f"{name} ", file=stream, end="")
 
         # Print the function arguments
+        print("(", file=stream, end="")
         for idx, typ in enumerate(self.func_type.inputs):
             if idx != 0:
                 print(" ", file=stream, end="")
-            print("(", file=stream, end="")
             ctx.print_sort_to_smtlib(typ, stream)
-            print(")", file=stream, end="")
+        print(")", file=stream, end="")
 
         # Print the function return type
         assert len(self.func_type.outputs.data) == 1

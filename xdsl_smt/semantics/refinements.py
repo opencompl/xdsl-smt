@@ -1,6 +1,6 @@
 from typing import Sequence
 from xdsl.dialects.builtin import FunctionType, IntegerType
-from xdsl.ir import SSAValue, Region, Block
+from xdsl.ir import SSAValue, Region, Block, Operation
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
@@ -11,7 +11,7 @@ import xdsl_smt.dialects.smt_dialect as smt
 from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.dialects.memory_dialect import BlockIDType
-from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
+from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp, TensorAddOp
 from xdsl_smt.dialects.smt_dialect import (
     BoolType,
     ConstantBoolOp,
@@ -25,7 +25,7 @@ from xdsl_smt.dialects.smt_dialect import (
     OrOp,
     ImpliesOp,
     YieldOp,
-    CallOp,
+    CallOp, DistinctOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
 from xdsl_smt.dialects.effects import ub_effect
@@ -302,8 +302,8 @@ def add_function_refinement(
     return refinement
 
 
-def add_tensor_refinement(func: CallOp,
-    func_after: CallOp,
+def add_tensor_refinement(func: DefineFunOp,
+    func_after: DefineFunOp,
     insert_point: InsertPoint):
     builder = Builder(insert_point)
     with ImplicitBuilder(builder):
@@ -321,9 +321,14 @@ def add_tensor_refinement(func: CallOp,
         tensor_type = func_call.res.types[0]
         assert isinstance(tensor_type, SMTTensorType)
         indices: list[ConstantOp] = []
+        inbound_ops:list[Operation] = []
         for dim in tensor_type.shape:
             indices.append(ConstantOp(dim, 32))
+
+        #Assert each index is in bound
+
+
         extract_func_op = TensorExtractOp(func_call.res[0], indices)
         extract_func_after_op = TensorExtractOp(func_call_after.res[0], indices)
-        eq_op = EqOp(extract_func_op.result, extract_func_after_op.result)
-    return eq_op
+        distinct_op = DistinctOp(extract_func_op.result, extract_func_after_op.result)
+    return distinct_op
