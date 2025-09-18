@@ -51,47 +51,6 @@ def lower_tensor_type(typ: Attribute) -> Attribute:
         return result
     return typ
 
-'''
-elementwise_binary_function_set:set[DeclareFunOp] = set()
-elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],CallOp]] = {}
-tensor_elementwise_binary_function_set:set[DeclareFunOp] = set()
-tensor_elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],CallOp]] = {}
-
-
-def getBinaryTensorUFAndElementFunctionByName(name:str, tensor_type:Attribute, element_type:Attribute):
-    global elementwise_binary_functions
-    global tensor_elementwise_binary_functions
-    if name not in tensor_elementwise_binary_functions:
-        tensor_uf_type = FunctionType.from_lists([tensor_type, tensor_type],[tensor_type])
-        defun_op = DeclareFunOp(tensor_uf_type, name)
-        tensor_elementwise_binary_function_set.add(defun_op)
-        tensor_elementwise_binary_functions[name] = lambda x, y: CallOp(defun_op.ret,[x,y])
-
-    if name not in elementwise_binary_functions:
-        element_uf_type = FunctionType.from_lists([element_type, element_type],[element_type])
-        defun_op = DeclareFunOp(element_uf_type, name)
-        elementwise_binary_function_set.add(defun_op)
-        elementwise_binary_functions[name] = lambda x, y: CallOp(defun_op.ret, [x, y])
-    return tensor_elementwise_binary_functions[name], elementwise_binary_functions[name]
-
-def stripOpName(name:str) -> str:
-    assert '.' in name
-    return name[name.index(".")+1:]
-
-
-class LowerElementwiseBinaryOpPattern(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(
-        self, op: ElementwiseBinaryOperation, rewriter: PatternRewriter
-    ):
-        tensor_type = op.lhs.type
-        element_type = op.result.type
-        op_name = stripOpName(op.name)
-        tensor_function, _ = getBinaryTensorUFAndElementFunctionByName(op_name, tensor_type, element_type)
-        call_op = tensor_function(op.lhs, op.rhs)
-        rewriter.replace_matched_op(call_op)
-'''
-
 
 class TensorRewritePattern(RewritePattern, ABC):
     extract_op:TensorExtractOp
@@ -188,11 +147,27 @@ class TensorExtractOpPattern(RewritePattern):
 
 
 
+class InsertFunctionPattern(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: ModuleOp, rewriter: PatternRewriter):
+        block = op.body.block
+        first_op = block.first_op
+        assert first_op is not None
+
+        while len(elementwise_binary_function_set) > 0:
+            function_op = elementwise_binary_function_set.pop()
+            block.insert_op_before(function_op, first_op)
+
+        while len(elementwise_unary_function_set) > 0:
+            function_op = elementwise_unary_function_set.pop()
+            block.insert_op_before(function_op, first_op)
+
+
+
 class LowerSMTTensor(ModulePass):
     name = "rewrite-smt-tensor"
 
     def apply(self, ctx: Context, op: ModuleOp):
-        # Remove pairs from function arguments.
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
@@ -202,5 +177,11 @@ class LowerSMTTensor(ModulePass):
         )
         walker.rewrite_module(op)
 
-        # Apply DCE pass
-        DeadCodeElimination().apply(ctx, op)
+        walker1 = PatternRewriteWalker(
+            GreedyRewritePatternApplier(
+                [
+                    InsertFunctionPattern()
+                ]
+            ), apply_recursively=False
+        )
+        walker1.rewrite_module(op)
