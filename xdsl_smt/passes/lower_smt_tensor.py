@@ -20,7 +20,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp,
+    TensorSubtractOp, IndexType,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -45,7 +45,7 @@ from .dead_code_elimination import DeadCodeElimination
 def lower_tensor_type(typ: Attribute) -> Attribute:
     if isinstance(typ, SMTTensorType):
         result = typ.element_type
-        index_type = smt_bv.BitVectorType(32)
+        index_type = IndexType
         for _ in typ.shape:
             result = smt_array.ArrayType(index_type, result)
         return result

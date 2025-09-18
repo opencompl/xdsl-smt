@@ -3,10 +3,13 @@
 import argparse
 import sys
 
+from xdsl.dialects.stablehlo import StableHLO
+
 from xdsl.context import Context
 from xdsl.ir import Operation
 from xdsl.parser import Parser
 from xdsl.rewriter import InsertPoint
+from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, SMTTensorDialect
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_effects_with_memory import (
     LowerEffectsWithMemoryPass,
@@ -82,6 +85,8 @@ def main() -> None:
     ctx.load_dialect(SMTDialect)
     ctx.load_dialect(SMTBitVectorDialect)
     ctx.load_dialect(SMTUtilsDialect)
+    ctx.load_dialect(SMTTensorDialect)
+    ctx.load_dialect(StableHLO)
     ctx.load_dialect(Comb)
     ctx.load_dialect(HW)
     ctx.load_dialect(LLVM)
@@ -135,6 +140,8 @@ def main() -> None:
     func_after.detach()
     block.add_op(func_after)
 
+    print(new_module)
+    exit(0)
     # Optionally simplify the module
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)

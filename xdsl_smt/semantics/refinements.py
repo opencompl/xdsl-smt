@@ -5,12 +5,13 @@ from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
 
-from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType, UltOp
+from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType, UltOp, ConstantOp
 import xdsl_smt.dialects.smt_dialect as smt
 
 from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.dialects.memory_dialect import BlockIDType
+from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
 from xdsl_smt.dialects.smt_dialect import (
     BoolType,
     ConstantBoolOp,
@@ -299,3 +300,30 @@ def add_function_refinement(
         refinement.name_hint = "function_refinement"
 
     return refinement
+
+
+def add_tensor_refinement(func: CallOp,
+    func_after: CallOp,
+    insert_point: InsertPoint):
+    builder = Builder(insert_point)
+    with ImplicitBuilder(builder):
+        # Quantify over all arguments
+        args = []
+        for arg in func.body.blocks[0].args:
+            const_op = DeclareConstOp(arg.type)
+            args.append(const_op.res)
+
+        # Call both operations
+        func_call = CallOp(func.ret, args)
+        func_call_after = CallOp(func_after.ret, args)
+
+        assert func_call.res.types[0] == func_call_after.res.types[0]
+        tensor_type = func_call.res.types[0]
+        assert isinstance(tensor_type, SMTTensorType)
+        indices: list[ConstantOp] = []
+        for dim in tensor_type.shape:
+            indices.append(ConstantOp(dim, 32))
+        extract_func_op = TensorExtractOp(func_call.res[0], indices)
+        extract_func_after_op = TensorExtractOp(func_call_after.res[0], indices)
+        eq_op = EqOp(extract_func_op.result, extract_func_after_op.result)
+    return eq_op

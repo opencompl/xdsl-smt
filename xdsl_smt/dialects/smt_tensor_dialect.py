@@ -73,7 +73,7 @@ class SMTTensorType(
         return self.element_type
 
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
-
+IndexType = BitVectorType(32)
 
 class ElementwiseBinaryOperation(IRDLOperation, abc.ABC):
     # TODO: Remove this constraint for complex types.

@@ -41,17 +41,6 @@ from ..dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
 
 from .dead_code_elimination import DeadCodeElimination
 
-
-def lower_tensor_type(typ: Attribute) -> Attribute:
-    if isinstance(typ, SMTTensorType):
-        result = typ.element_type
-        index_type = smt_bv.BitVectorType(32)
-        for _ in typ.shape:
-            result = smt_array.ArrayType(index_type, result)
-        return result
-    return typ
-
-
 class TensorRewritePattern(RewritePattern, ABC):
     extract_op:TensorExtractOp
 
