@@ -199,7 +199,9 @@ def main() -> None:
         if isinstance(op, DefineFunOp):
             new_module.body.block.erase_op(op)
     RewriteSMTTensor().apply(ctx, new_module)
+    print(new_module)
     LowerSMTTensor().apply(ctx, new_module)
+
 
 
     # Optionally simplify the module

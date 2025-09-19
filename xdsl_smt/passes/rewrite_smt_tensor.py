@@ -63,13 +63,20 @@ class LowerTransposeOpPattern(TensorRewritePattern):
 
 def stripOpName(name:str) -> str:
     return name.replace(".", "_")
+
+
 elementwise_unary_function_set:set[DeclareFunOp] = set()
-elementwise_unary_functions:dict[str, Callable[[SSAValue],CallOp]] = {}
+elementwise_unary_functions:dict[str, Callable[[SSAValue],Operation]] = {}
 
 
 elementwise_binary_function_set:set[DeclareFunOp] = set()
-elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],CallOp]] = {}
+elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],Operation]] = {}
 
+
+def initElementwiseIntFunction():
+    global elementwise_binary_functions
+    elementwise_binary_functions["smt_tensor_add"] = lambda x, y: smt_bv.AddOp(x, y)
+    elementwise_binary_functions["smt_tensor_subtract"] = lambda x, y: smt_bv.SubOp(x, y)
 
 def getElementwiseFunction(op_name:str, element_type:Attribute, function_set:set[DeclareFunOp],
                                   function_dict:dict[str, Callable]):
@@ -156,6 +163,8 @@ class RewriteSMTTensor(ModulePass):
     name = "rewrite-smt-tensor"
 
     def apply(self, ctx: Context, op: ModuleOp):
+        #initElementwiseIntFunction()
+
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
