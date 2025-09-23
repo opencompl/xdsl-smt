@@ -13,7 +13,6 @@ from functools import partial
 from io import StringIO
 from multiprocessing import Pool
 from typing import (
-    IO,
     Any,
     Iterable,
     Sequence,
@@ -31,7 +30,6 @@ from xdsl_smt.superoptimization.pattern import (
     UnorderedFingerprint,
     OrderedPattern,
 )
-from xdsl_smt.utils.pretty_print import pretty_print_value
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.inlining import inline_single_result_func
 from xdsl_smt.utils.pdl import func_to_pdl
@@ -91,27 +89,6 @@ def operation_cost(op: Operation) -> int:
             if len(op.operands) == 0:
                 return 0
             return 1
-
-
-def pretty_print_func(
-    func: FuncOp,
-    names: Sequence[str] = ("x", "y", "z", "w", "v", "u", "t", "s"),
-    *,
-    file: IO[str] = sys.stdout,
-):
-    val_names: dict[SSAValue, str] = {}
-    for index, arg in enumerate(func.args):
-        val_names[arg] = names[index]
-        if isinstance(arg.type, bv.BitVectorType):
-            val_names[arg] += f"#{arg.type.width.data}"
-    return_op = func.get_return_op()
-    assert return_op is not None
-    pretty_print_value(
-        return_op.arguments[0],
-        False,
-        val_names,
-        file=file,
-    )
 
 
 class RewriteRule:
@@ -277,25 +254,6 @@ def parse_program(configuration: Configuration, source: str) -> Pattern:
             assert isinstance(semantics_op, FuncOp)
 
     return Pattern(func_op, semantics_op)
-
-
-def clone_func_to_smt_func(func: FuncOp) -> smt.DefineFunOp:
-    """
-    Convert a `func.func` to an `smt.define_fun` operation.
-    Do not mutate the original function.
-    """
-    new_region = func.body.clone()
-
-    # Replace the `func.return` with an `smt.return` operation.
-    func_return = new_region.block.last_op
-    assert isinstance(func_return, ReturnOp)
-    rewriter = Rewriter()
-    rewriter.insert_op(
-        smt.ReturnOp(func_return.arguments), InsertPoint.before(func_return)
-    )
-    rewriter.erase_op(func_return)
-
-    return smt.DefineFunOp(new_region)
 
 
 def clone_func_to_smt_func_with_constants(func: FuncOp) -> smt.DefineFunOp:
@@ -1103,9 +1061,9 @@ def main() -> None:
 
                             if is_range_subset(program, canonical):
                                 print("Found illegal pattern:", end="")
-                                pretty_print_func(program.func)
+                                print(program.func)
                                 print("which is a subset of:", end="")
-                                pretty_print_func(canonical.func)
+                                print(canonical.func)
                                 print("")
                                 cst_illegals.append(program.func)
                                 break
@@ -1116,7 +1074,7 @@ def main() -> None:
                             program.func, [p.func for p in canonicals_with_same_type]
                         ):
                             print("Found illegal pattern:", end="")
-                            pretty_print_func(program.func)
+                            print(program.func)
                             new_illegals += 1
                             print("")
                             print(
@@ -1147,9 +1105,9 @@ def main() -> None:
                                 cst_illegals.append(lhs.func)
                                 is_illegal_mask[lhs_idx] = True
                                 print("Found illegal pattern:", end="")
-                                pretty_print_func(lhs.func)
+                                print(lhs.func)
                                 print("which is a subset of:", end="")
-                                pretty_print_func(rhs.func)
+                                print(rhs.func)
                                 print("")
                                 print(
                                     len([mask for mask in is_illegal_mask if mask]),
@@ -1179,7 +1137,7 @@ def main() -> None:
                             cst_illegals.append(lhs.func)
                             is_illegal_mask[lhs_idx] = True
                             print("Found illegal pattern:", end="")
-                            pretty_print_func(lhs.func)
+                            print(lhs.func)
                             print("")
                             print(
                                 len([mask for mask in is_illegal_mask if mask]),
@@ -1192,7 +1150,7 @@ def main() -> None:
                 print("number of canonicals", len(cst_canonicals))
                 for canonical in cst_canonicals:
                     print("  ", end="")
-                    pretty_print_func(canonical.func)
+                    print(canonical.func)
                     print("")
                 print("number of illegals", len(cst_illegals))
 
