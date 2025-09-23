@@ -35,14 +35,14 @@ from xdsl_smt.utils.inlining import inline_single_result_func
 from xdsl_smt.utils.pdl import func_to_pdl
 from xdsl_smt.superoptimization.program_enumeration import enumerate_programs
 
-import xdsl_smt.dialects.synth_dialect as synth
+from xdsl_smt.dialects import get_all_dialects
+from xdsl_smt.dialects import synth_dialect as synth
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import smt_bitvector_dialect as bv
 from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from xdsl_smt.dialects.smt_dialect import SMTDialect
 from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
 from xdsl.dialects import pdl
-from xdsl.dialects.arith import Arith
 from xdsl.dialects.builtin import (
     Builtin,
     ModuleOp,
@@ -230,13 +230,8 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 def parse_program(configuration: Configuration, source: str) -> Pattern:
     ctx = Context()
     ctx.allow_unregistered = True
-    ctx.load_dialect(Arith)
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
+    for dialect_name, dialect_factory in get_all_dialects().items():
+        ctx.register_dialect(dialect_name, dialect_factory)
 
     module = Parser(ctx, source).parse_module()
     func_op = module.body.block.first_op
@@ -807,12 +802,8 @@ class SymProgram:
 def parse_sym_program(source: str) -> SymProgram:
     ctx = Context()
     ctx.allow_unregistered = True
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
+    for dialect_name, dialect_factory in get_all_dialects().items():
+        ctx.register_dialect(dialect_name, dialect_factory)
     module = Parser(ctx, source).parse_module(True)
     func = module.body.block.first_op
     assert isinstance(func, FuncOp)

@@ -9,17 +9,9 @@ from xdsl.context import Context
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
 
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_dialect import SMTDialect
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
-from xdsl_smt.dialects.hw_dialect import HW
-from xdsl_smt.dialects.llvm_dialect import LLVM
+from xdsl_smt.dialects import get_all_dialects
 import xdsl_smt.dialects.synth_dialect as synth
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerAttr, IntegerType
-from xdsl.dialects.func import Func
-from xdsl.dialects.arith import Arith
-from xdsl.dialects.comb import Comb
+from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IntegerType
 import xdsl_smt.dialects.hw_dialect as hw
 
 
@@ -76,16 +68,8 @@ def main() -> None:
     args = arg_parser.parse_args()
 
     # Register all dialects
-    ctx.load_dialect(Arith)
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(synth.SynthDialect)
-    ctx.load_dialect(Comb)
-    ctx.load_dialect(HW)
-    ctx.load_dialect(LLVM)
+    for dialect_name, dialect_factory in get_all_dialects().items():
+        ctx.register_dialect(dialect_name, dialect_factory)
 
     # Start the enumerator
     enumerator = sp.Popen(
@@ -96,6 +80,7 @@ def main() -> None:
             f"--max-num-ops={args.max_num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
+            "--configuration=arith",
         ],
         stdin=sp.PIPE,
         stdout=sp.PIPE,
