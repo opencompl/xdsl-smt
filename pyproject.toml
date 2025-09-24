@@ -1,10 +1,7 @@
 [project]
 name = "xdsl-smt"
 version = "0.0.0"
-dependencies = [
-  "z3-solver==4.15.1.0",
-  "xdsl==0.48.3",
-]
+dependencies = ["z3-solver==4.15.1.0", "xdsl==0.48.3"]
 
 [project.optional-dependencies]
 dev = [
@@ -31,7 +28,8 @@ xdsl-translate = "xdsl_smt.cli.xdsl_translate:main"
 verify-pdl = "xdsl_smt.cli.verify_pdl:main"
 verifier = "xdsl_smt.cli.transfer_function_verifier:main"
 cpp-translate = "xdsl_smt.cli.cpp_translate:main"
-generate-equivalent-boolean-smts = "xdsl_smt.cli.generate_equivalent_boolean_smts:main"
+synthesize-rewrites = "xdsl_smt.cli.synthesize_rewrites:main"
+synthesize-symbolic-rewrites = "xdsl_smt.cli.synthesize_symbolic_rewrites:main"
 sanity-checker = "xdsl_smt.cli.sanity_checker:main"
 superoptimize = "xdsl_smt.cli.superoptimize:main"
 xdsl-smt-run = "xdsl_smt.cli.xdsl_smt_run:main"
