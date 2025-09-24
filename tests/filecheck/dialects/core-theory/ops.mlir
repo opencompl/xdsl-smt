@@ -79,6 +79,13 @@
   // CHECK-NEXT: (assert ({{.*}} true))
   // CHECK-NEXT: {{.*}})
 
+  %dec_fun = "smt.declare_fun"() () : () -> ((!smt.bool, !smt.bool) -> !smt.bool)
+  %dec_res = "smt.call"(%dec_fun, %true, %true) : ((!smt.bool,!smt.bool) -> !smt.bool, !smt.bool,!smt.bool) -> !smt.bool
+  "smt.assert"(%dec_res) : (!smt.bool) -> ()
+  // CHECK: (declare-fun {{.*}} (Bool Bool) Bool)
+  // CHECK-NEXT: (assert ({{.*}} true))
+  // CHECK-NEXT: {{.*}})
+
   %false = smt.constant false
   "smt.assert"(%false) : (!smt.bool) -> ()
   // CHECK-NEXT: (assert false)
