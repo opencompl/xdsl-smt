@@ -3,6 +3,7 @@
 import sys
 import argparse
 import re
+import os
 import subprocess as sp
 
 from xdsl.context import Context
@@ -71,12 +72,21 @@ def main() -> None:
     for dialect_name, dialect_factory in get_all_dialects().items():
         ctx.register_dialect(dialect_name, dialect_factory)
 
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    executable_path = os.path.join(
+        current_dir, "..", "..", "mlir-fuzz", "build", "bin", "superoptimizer"
+    )
+
+    arith_dialect_path = os.path.join(
+        current_dir, "..", "..", "mlir-fuzz", "dialects", "arith.mlir"
+    )
+
     # Start the enumerator
     enumerator = sp.Popen(
         [
-            "./mlir-fuzz/build/bin/superoptimizer",
+            executable_path,
             args.input_file,
-            "mlir-fuzz/dialects/arith.mlir",
+            arith_dialect_path,
             f"--max-num-ops={args.max_num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
@@ -134,6 +144,7 @@ def main() -> None:
                 replace_synth_with_constants(mlir_program, values)
 
                 print(mlir_program)
+                exit(0)
 
             # Set a character to the enumerator to continue
             assert enumerator.stdin is not None
@@ -144,6 +155,8 @@ def main() -> None:
         pass
     except Exception as e:
         print(f"Error while enumerating programs: {e}", file=sys.stderr)
+    print("No program found")
+    exit(1)
 
 
 if __name__ == "__main__":
