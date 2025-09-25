@@ -20,7 +20,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp, TensorPadOp,
+    TensorSubtractOp, TensorPadOp, INDEX_WIDTH,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -40,6 +40,13 @@ from ..dialects.smt_dialect import (
 from ..dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
 
 from .dead_code_elimination import DeadCodeElimination
+
+bv_constants:dict[int, smt_bv.ConstantOp] = {}
+
+def getBVConstant(x:int) -> smt_bv.ConstantOp:
+    if x not in bv_constants:
+        bv_constants[x]=smt_bv.ConstantOp.from_int_value(x, INDEX_WIDTH)
+    return bv_constants[x]
 
 class TensorRewritePattern(RewritePattern, ABC):
     extract_op:TensorExtractOp
@@ -124,6 +131,10 @@ class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
 
 
 class RewritePadOpPattern(TensorRewritePattern):
+    def checkInBound(self, pad_low, pad_high, pad_inner, cur_idx) -> list[Operation]:
+
+        ...
+
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: TensorPadOp, rewriter: PatternRewriter

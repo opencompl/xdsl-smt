@@ -73,7 +73,8 @@ class SMTTensorType(
         return self.element_type
 
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
-IndexType = BitVectorType(32)
+INDEX_WIDTH=32
+IndexType = BitVectorType(INDEX_WIDTH)
 
 def toIntegerArrayAttr(int_list: Iterable[int | IntegerAttr]) -> ArrayAttr[IntegerAttr]:
     """
