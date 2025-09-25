@@ -20,7 +20,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp,
+    TensorSubtractOp, TensorPadOp,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -49,7 +49,7 @@ class TensorRewritePattern(RewritePattern, ABC):
         super().__init__()
 
 
-class LowerTransposeOpPattern(TensorRewritePattern):
+class RewriteTransposeOpPattern(TensorRewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TensorTransposeOp, rewriter: PatternRewriter):
         extract_op = self.extract_op
@@ -105,7 +105,7 @@ class LowerElementwiseUnaryOpPattern(TensorRewritePattern):
         rewriter.erase_matched_op()
 
 
-class LowerElementwiseBinaryOpPattern(TensorRewritePattern):
+class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: ElementwiseBinaryOperation, rewriter: PatternRewriter
@@ -123,6 +123,15 @@ class LowerElementwiseBinaryOpPattern(TensorRewritePattern):
         rewriter.erase_op(op)
 
 
+class RewritePadOpPattern(TensorRewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: TensorPadOp, rewriter: PatternRewriter
+    ):
+        indices = self.extract_op.indices
+
+        ...
+
 
 class TestOpPattern(RewritePattern):
     @op_type_rewrite_pattern
@@ -139,9 +148,9 @@ class TensorExtractOpPattern(RewritePattern):
         if isinstance(source_parent_op, ElementwiseUnaryOperation):
             ...
         elif isinstance(source_parent_op, ElementwiseBinaryOperation):
-            LowerElementwiseBinaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
+            RewriteElementwiseBinaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
         elif isinstance(source_parent_op, TensorTransposeOp):
-            LowerTransposeOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
+            RewriteTransposeOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
 
 
 

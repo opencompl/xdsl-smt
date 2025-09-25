@@ -75,6 +75,36 @@ class SMTTensorType(
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
 IndexType = BitVectorType(32)
 
+def toIntegerArrayAttr(int_list: Iterable[int | IntegerAttr]) -> ArrayAttr[IntegerAttr]:
+    """
+    Constructs an ArrayAttr of IntegerAttr elements from an iterable of ints
+    or IntegerAttr objects. Each int is converted to an IntegerAttr with
+    a width of 64 bits if necessary.
+    """
+    attr_list = [
+        x if isinstance(x, IntegerAttr) else IntegerAttr.from_int_and_width(x, 64)
+        for x in int_list
+    ]
+    return ArrayAttr(attr_list)
+
+
+def toInt(x:int|IntegerAttr | IntAttr) -> int:
+    if isinstance(x, IntegerAttr):
+        return x.value.data
+    elif isinstance(x, IntAttr):
+        return x.data
+    return x
+
+
+def toTupleInt(array_attr: Iterable[int | IntAttr | IntegerAttr]) -> tuple[int, ...]:
+    """
+    Converts an ArrayAttr of IntegerAttr elements into a tuple of integers.
+    This function extracts the integer data from each IntegerAttr in the
+    provided ArrayAttr and returns it as a tuple of ints.
+    """
+    value_list = [toInt(x) for x in array_attr]
+    return tuple(value_list)
+
 class ElementwiseBinaryOperation(IRDLOperation, abc.ABC):
     # TODO: Remove this constraint for complex types.
     T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
@@ -216,6 +246,59 @@ class TensorTransposeOp(IRDLOperation):
         return cast(tuple[int, ...], self.permutation.get_values())
 
 
+@irdl_op_definition
+class TensorPadOp(IRDLOperation):
+    """
+    Performs tensor pad operation
+    """
+
+    name = "smt.tensor.pad"
+
+    ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
+
+    operand = operand_def(SMTTensorType[ElementType])
+    padding_value = operand_def(ElementType)
+    result = result_def(SMTTensorType[ElementType])
+    edge_padding_low = prop_def(ArrayAttr[IntegerAttr])
+    edge_padding_high = prop_def(ArrayAttr[IntegerAttr])
+    interior_padding = prop_def(ArrayAttr[IntegerAttr])
+
+
+    def get_result_shape(self, operand_type, edge_padding_low, edge_padding_high, interior_padding) -> SMTTensorType:
+        assert isinstance(operand_type, SMTTensorType)
+        shape = operand_type.get_shape()
+        padding_low = toTupleInt(edge_padding_low)
+        padding_high = toTupleInt(edge_padding_high)
+        padding_inner = toTupleInt(interior_padding)
+        assert len(shape) == len(padding_low) == len(padding_high) == len(padding_inner)
+        new_shape = []
+        for i in range(0, len(shape)):
+            new_shape.append(padding_low[i]+(shape[i]-1)*interior_padding[i]+shape[i]+padding_high[i])
+        return SMTTensorType(operand_type.element_type, new_shape)
+
+    def __init__(
+        self, operand: SSAValue, padding_value:SSAValue, edge_padding_low:Iterable[int |IntegerAttr],
+            edge_padding_high: Iterable[int | IntegerAttr],  interior_padding:Iterable[int |IntegerAttr],
+    ):
+        result_type = self.get_result_shape(operand.type, edge_padding_low, edge_padding_high, interior_padding)
+        super().__init__(
+            operands=(operand,padding_value),
+            result_types=(result_type,),
+            properties={"edge_padding_low": toIntegerArrayAttr(edge_padding_low),
+                        "edge_padding_high": toIntegerArrayAttr(edge_padding_high),
+                        "interior_padding": toIntegerArrayAttr(interior_padding)},
+        )
+
+    def get_edge_padding_low(self) -> tuple[int, ...]:
+        return toTupleInt(self.edge_padding_low)
+
+    def get_edge_padding_high(self) -> tuple[int, ...]:
+        return toTupleInt(self.edge_padding_high)
+
+    def get_interior_padding(self) -> tuple[int, ...]:
+        return toTupleInt(self.interior_padding)
+
+
 SMTTensorDialect = Dialect(
     "smt.tensor",
     [
@@ -226,6 +309,7 @@ SMTTensorDialect = Dialect(
         TensorTransposeOp,
         TensorSubtractOp,
         TensorExtractOp,
+        TensorPadOp
     ],
     [SMTTensorType],
 )
