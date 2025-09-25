@@ -300,6 +300,58 @@ class TensorPadOp(IRDLOperation):
         return toTupleInt(self.interior_padding)
 
 
+@irdl_op_definition
+class TensorSliceOp(IRDLOperation):
+    """
+    Performs tensor slice operation
+    """
+
+    name = "smt.tensor.slice"
+
+    ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
+
+    operand = operand_def(SMTTensorType[ElementType])
+    result = result_def(SMTTensorType[ElementType])
+    start_indices = prop_def(ArrayAttr[IntegerAttr])
+    limit_indices = prop_def(ArrayAttr[IntegerAttr])
+    strides = prop_def(ArrayAttr[IntegerAttr])
+
+
+    def get_result_shape(self, operand_type, start_indices,limit_indices, strides) -> SMTTensorType:
+        assert  isinstance(operand_type, SMTTensorType)
+        start_indices = toTupleInt(start_indices)
+        limit_indices = toTupleInt(limit_indices)
+        strides = toTupleInt(strides)
+        assert len(start_indices) == len(limit_indices) == len(strides)
+        new_shape = []
+        for i in range(0, len(strides)):
+            new_shape.append((limit_indices[i]-start_indices[i])//strides[i])
+            assert new_shape[-1] > 0
+        return SMTTensorType(operand_type.element_type, new_shape)
+
+    def __init__(
+        self, operand: SSAValue, start_indices:Iterable[int | IntegerAttr],
+            limit_indices: Iterable[int | IntegerAttr],  strides:Iterable[int | IntegerAttr],
+    ):
+        result_type = self.get_result_shape(operand.type, start_indices, limit_indices, strides)
+        super().__init__(
+            operands=(operand,),
+            result_types=(result_type,),
+            properties={"start_indices": toIntegerArrayAttr(start_indicts),
+                        "limit_indicts": toIntegerArrayAttr(limit_indicts),
+                        "strides": toIntegerArrayAttr(strides)},
+        )
+
+    def get_start_indices(self) -> tuple[int, ...]:
+        return toTupleInt(self.start_indices)
+
+    def get_limit_indicts(self) -> tuple[int, ...]:
+        return toTupleInt(self.limit_indices)
+
+    def get_strides(self) -> tuple[int, ...]:
+        return toTupleInt(self.strides)
+
+
 SMTTensorDialect = Dialect(
     "smt.tensor",
     [
@@ -310,7 +362,8 @@ SMTTensorDialect = Dialect(
         TensorTransposeOp,
         TensorSubtractOp,
         TensorExtractOp,
-        TensorPadOp
+        TensorPadOp,
+        TensorSliceOp
     ],
     [SMTTensorType],
 )

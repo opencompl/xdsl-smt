@@ -1,6 +1,8 @@
 from abc import ABC
 from typing import cast, Callable
 from dataclasses import dataclass
+
+from xdsl.dialects.smt import AndOp
 from xdsl.pattern_rewriter import (
     PatternRewriter,
 )
@@ -9,7 +11,7 @@ from xdsl.ir import Operation
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_array_dialect as smt_array
 
-from xdsl_smt.dialects.smt_dialect import BoolType, EqOp, AssertOp, DeclareFunOp
+from xdsl_smt.dialects.smt_dialect import BoolType, EqOp, AssertOp, DeclareFunOp, IteOp
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
@@ -20,7 +22,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp, TensorPadOp, INDEX_WIDTH,
+    TensorSubtractOp, TensorPadOp, INDEX_WIDTH, toTupleInt, TensorSliceOp,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -131,17 +133,86 @@ class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
 
 
 class RewritePadOpPattern(TensorRewritePattern):
-    def checkInBound(self, pad_low, pad_high, pad_inner, cur_idx) -> list[Operation]:
+    def getOriginalIndex(self, pad_low:int, pad_inner:int, cur_idx:SSAValue) -> tuple[list[Operation], SSAValue, SSAValue]:
+        """
+        cur_idx = pad_low + ori_idx * (pad_inner + 1)
+        Given the current index, returns if it has an original index and its value
+        """
+        const_0 = getBVConstant(0)
+        const_pad_low = getBVConstant(pad_low)
+        const_pad_inner_plus_1 = getBVConstant(pad_inner+1)
 
-        ...
+        cur_idx_uge_pad_low = smt_bv.UgeOp(cur_idx, const_pad_low.res)
+
+        cur_id_minus_pad_low = smt_bv.SubOp(cur_idx,const_pad_low.res)
+        urem_op = smt_bv.URemOp(cur_id_minus_pad_low.res, const_pad_inner_plus_1.res)
+        urem_op_eq_0 = EqOp(urem_op.res, const_0.res)
+
+        and_op = AndOp(cur_idx_uge_pad_low.res, urem_op_eq_0.res)
+        original_idx = smt_bv.UDivOp(cur_id_minus_pad_low.res, const_pad_inner_plus_1.res)
+        return ([cur_idx_uge_pad_low, cur_id_minus_pad_low, urem_op, urem_op_eq_0, and_op, original_idx],
+                and_op.result,
+                original_idx.res)
+
 
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: TensorPadOp, rewriter: PatternRewriter
     ):
         indices = self.extract_op.indices
+        pad_low = toTupleInt(op.edge_padding_low)
+        pad_inner = toTupleInt(op.interior_padding)
+        assert len(indices) == len(pad_inner) == len(pad_low)
+        new_ops:list[Operation]=[]
+        original_indices_check:list[SSAValue] = []
+        original_indices:list[SSAValue] = []
 
-        ...
+        for i in range(len(pad_low)):
+            ops,idx_check,idx = self.getOriginalIndex(pad_low[i], pad_inner[i], indices[i])
+            new_ops+=ops
+            original_indices_check.append(idx_check)
+            original_indices.append(idx)
+
+        and_op = AndOp(*original_indices_check)
+        original_extract_op = TensorExtractOp(op.operand, original_indices)
+        ite_op = IteOp(and_op.result, original_extract_op.result, op.padding_value)
+        rewriter.replace_op(self.extract_op, new_ops+[and_op, original_extract_op, ite_op])
+        rewriter.erase_op(op)
+
+
+class RewriteSliceOpPattern(TensorRewritePattern):
+    def getOriginalIndex(self, start_index:int, stride:int, cur_idx:SSAValue) -> tuple[list[Operation], SSAValue]:
+        """
+        cur_idx = pad_low + ori_idx * (pad_inner + 1)
+        Given the current index, returns if it has an original index and its value
+        """
+        const_start_index = getBVConstant(start_index)
+        const_stride = getBVConstant(stride)
+
+        mul_stride = smt_bv.MulOp(const_stride.res, cur_idx)
+        add_start_index = smt_bv.AddOp(const_start_index.res, mul_stride.res)
+        return [mul_stride, add_start_index], add_start_index.res
+
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: TensorSliceOp, rewriter: PatternRewriter
+    ):
+        indices = self.extract_op.indices
+        start_indices = toTupleInt(op.start_indices)
+        strides = toTupleInt(op.strides)
+        new_ops:list[Operation]=[]
+        original_indices:list[SSAValue] = []
+
+        for i in range(len(strides)):
+            ops, idx = self.getOriginalIndex(start_indices[i], strides[i], indices[i])
+            new_ops+=ops
+            original_indices.append(idx)
+
+        extract_op = TensorExtractOp(op.operand, original_indices)
+        rewriter.replace_op(self.extract_op, new_ops+[extract_op])
+        rewriter.erase_op(op)
+
 
 
 class TestOpPattern(RewritePattern):
@@ -162,6 +233,10 @@ class TensorExtractOpPattern(RewritePattern):
             RewriteElementwiseBinaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
         elif isinstance(source_parent_op, TensorTransposeOp):
             RewriteTransposeOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
+        elif isinstance(source_parent_op, TensorPadOp):
+            RewritePadOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
+        elif isinstance(source_parent_op, TensorSliceOp):
+            RewriteSliceOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
 
 
 
@@ -183,7 +258,7 @@ class RewriteSMTTensor(ModulePass):
     name = "rewrite-smt-tensor"
 
     def apply(self, ctx: Context, op: ModuleOp):
-        #initElementwiseIntFunction()
+        initElementwiseIntFunction()
 
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
