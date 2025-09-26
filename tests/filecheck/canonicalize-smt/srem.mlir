@@ -81,4 +81,3 @@
   // CHECK-NEXT: %i_eq = "smt.eq"(%i, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%i_eq) : (!smt.bool) -> ()
 }) : () -> ()
-
