@@ -286,6 +286,15 @@ class UAddOverflowOp(PredicateOp):
 class SAddOverflowOp(PredicateOp):
     name = "transfer.sadd_overflow"
 
+@irdl_op_definition
+class USubOverflowOp(PredicateOp):
+    name = "transfer.usub_overflow"
+
+
+@irdl_op_definition
+class SSubOverflowOp(PredicateOp):
+    name = "transfer.ssub_overflow"
+
 
 @irdl_op_definition
 class AndOp(BinOp):
@@ -829,6 +838,8 @@ Transfer = Dialect(
         SAddOverflowOp,
         UShlOverflowOp,
         SShlOverflowOp,
+        USubOverflowOp,
+        SSubOverflowOp,
         SelectOp,
         IsPowerOf2Op,
         IsAllOnesOp,
