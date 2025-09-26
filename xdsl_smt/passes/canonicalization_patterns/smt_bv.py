@@ -156,15 +156,14 @@ class SDivFold(RewritePattern):
 class URemFold(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt_bv.URemOp, rewriter: PatternRewriter):
-        # return
         # Check if rhs is constant
         rhs = get_bv_constant(op.rhs)
         if rhs is None:
             return
 
         # A remainder by zero should return the lhs value
-        if rhs == 0 and isinstance(op.lhs, OpResult):
-            rewriter.replace_matched_op(op.lhs.op.clone())
+        if rhs == 0:
+            rewriter.replace_matched_op([], [op.lhs])
             return
 
         # Check if lhs is constant
@@ -180,7 +179,6 @@ class URemFold(RewritePattern):
 class SRemFold(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt_bv.SRemOp, rewriter: PatternRewriter):
-        # Get the result width
         assert isinstance(type := op.results[0].type, smt_bv.BitVectorType)
         width = type.width.data
 
@@ -192,8 +190,8 @@ class SRemFold(RewritePattern):
         rhs = unsigned_to_signed(rhs, width)
 
         # A remainder by zero should return the lhs value
-        if rhs == 0 and isinstance(op.lhs, OpResult):
-            rewriter.replace_matched_op(op.lhs.op.clone())
+        if rhs == 0:
+            rewriter.replace_matched_op([], [op.lhs])
             return
 
         # Check if lhs is constant
