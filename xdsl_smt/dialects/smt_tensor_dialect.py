@@ -234,12 +234,9 @@ class TensorTransposeOp(IRDLOperation):
     """
 
     name = "smt.tensor.transpose"
-    ElementType: ClassVar = VarConstraint(
-        "ElementType", irdl_to_attr_constraint(Attribute)
-    )
 
-    operand = operand_def(SMTTensorType[ElementType])
-    result = result_def(SMTTensorType[ElementType])
+    operand = operand_def(AnySMTTensorType)
+    result = result_def(AnySMTTensorType)
     permutation = prop_def(ArrayAttr[IntegerAttr])
 
     def __init__(
@@ -266,13 +263,9 @@ class TensorPadOp(IRDLOperation):
 
     name = "smt.tensor.pad"
 
-    ElementType: ClassVar = VarConstraint(
-        "ElementType", irdl_to_attr_constraint(Attribute)
-    )
-
-    operand = operand_def(SMTTensorType[ElementType])
-    padding_value = operand_def(ElementType)
-    result = result_def(SMTTensorType[ElementType])
+    operand = operand_def(AnySMTTensorType)
+    padding_value = operand_def(Attribute)
+    result = result_def(AnySMTTensorType)
     edge_padding_low = prop_def(ArrayAttr[IntegerAttr])
     edge_padding_high = prop_def(ArrayAttr[IntegerAttr])
     interior_padding = prop_def(ArrayAttr[IntegerAttr])
@@ -339,12 +332,8 @@ class TensorSliceOp(IRDLOperation):
 
     name = "smt.tensor.slice"
 
-    ElementType: ClassVar = VarConstraint(
-        "ElementType", irdl_to_attr_constraint(Attribute)
-    )
-
-    operand = operand_def(SMTTensorType[ElementType])
-    result = result_def(SMTTensorType[ElementType])
+    operand = operand_def(AnySMTTensorType)
+    result = result_def(AnySMTTensorType)
     start_indices = prop_def(ArrayAttr[IntegerAttr])
     limit_indices = prop_def(ArrayAttr[IntegerAttr])
     strides = prop_def(ArrayAttr[IntegerAttr])
