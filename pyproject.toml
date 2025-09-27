@@ -50,7 +50,6 @@ ignore = [
   "xdsl_smt/utils/z3_to_dialect.py",
   "xdsl_smt/utils/integer_to_z3.py",
   "xdsl_smt/passes/calculate_smt.py",
-  "xdsl_smt/passes/transfer_lower.py",
   "xdsl_smt/cli/xdsl_translate.py",
   "xdsl_smt/cli/transfer_smt_verifier.py",
 ]

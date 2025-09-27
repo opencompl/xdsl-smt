@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import singledispatch
 from typing import TextIO
 
 from xdsl.context import Context
@@ -18,29 +17,18 @@ from xdsl.pattern_rewriter import (
 from ..utils.lower_utils import (
     CPP_CLASS_KEY,
     INDUCTION_KEY,
-    lowerDispatcher,
-    lowerInductionOps,
     lowerOperation,
     set_int_to_apint,
+    set_use_custom_vec,
 )
 
 autogen = 0
-
-
-@singledispatch
-def transferFunction(op: Operation, fout: TextIO):
-    pass
-
-
-indent = "\t"
-funcPrefix = 'extern "C" '
-funcStr = funcPrefix
+funcStr = ""
 needDispatch: list[FuncOp] = []
 inductionOp: list[FuncOp] = []
 
 
-@transferFunction.register
-def _(op: Operation, fout: TextIO):
+def transfer_func(op: Operation, fout: TextIO):
     global needDispatch
     global inductionOp
     if isinstance(op, ModuleOp):
@@ -64,7 +52,7 @@ def _(op: Operation, fout: TextIO):
     if isinstance(parentOp, FuncOp) and parentOp.body.block.last_op == op:
         funcStr += "}\n"
         fout.write(funcStr)
-        funcStr = funcPrefix
+        funcStr = ""
 
 
 @dataclass
@@ -74,19 +62,7 @@ class LowerOperation(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: Operation, _: PatternRewriter):
-        transferFunction(op, self.fout)
-
-
-def addInductionOps(fout: TextIO):
-    global inductionOp
-    if len(inductionOp) != 0:
-        fout.write(lowerInductionOps(inductionOp))
-
-
-def addDispatcher(fout: TextIO, is_forward: bool):
-    global needDispatch
-    if len(needDispatch) != 0:
-        fout.write(lowerDispatcher(needDispatch, is_forward))
+        transfer_func(op, self.fout)
 
 
 @dataclass(frozen=True)
@@ -94,14 +70,16 @@ class LowerToCpp(ModulePass):
     name = "trans_lower"
     fout: TextIO
     int_to_apint: bool = False
+    use_custom_vec: bool = False
 
     def apply(self, ctx: Context, op: ModuleOp) -> None:
         global autogen
         autogen = 0
         set_int_to_apint(self.int_to_apint)
+        set_use_custom_vec(self.use_custom_vec)
         # We found PatternRewriteWalker skipped the op itself during iteration
         # Do it manually on op
-        transferFunction(op, self.fout)
+        transfer_func(op, self.fout)
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier([LowerOperation(self.fout)]),
             walk_regions_first=False,

@@ -31,7 +31,7 @@ from xdsl.irdl import (
     VarOperand,
     irdl_attr_definition,
     irdl_op_definition,
-    param_def,
+    ParameterDef,
     IRDLOperation,
     traits_def,
     lazy_traits_def,
@@ -285,6 +285,7 @@ class UAddOverflowOp(PredicateOp):
 @irdl_op_definition
 class SAddOverflowOp(PredicateOp):
     name = "transfer.sadd_overflow"
+
 
 @irdl_op_definition
 class USubOverflowOp(PredicateOp):
@@ -545,7 +546,7 @@ class CmpOp(PredicateOp):
 @irdl_attr_definition
 class AbstractValueType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.abs_value"
-    fields: ArrayAttr[Attribute] = param_def()
+    fields: ParameterDef[ArrayAttr[Attribute]]
 
     def get_num_fields(self) -> int:
         return len(self.fields.data)
@@ -556,13 +557,13 @@ class AbstractValueType(ParametrizedAttribute, TypeAttribute):
     def __init__(self, shape: list[Attribute] | ArrayAttr[Attribute]) -> None:
         if isinstance(shape, list):
             shape = ArrayAttr(shape)
-        super().__init__(shape)
+        super().__init__([shape])
 
 
 @irdl_attr_definition
 class TupleType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.tuple"
-    fields: ArrayAttr[Attribute] = param_def()
+    fields: ParameterDef[ArrayAttr[Attribute]]
 
     def get_num_fields(self) -> int:
         return len(self.fields.data)
@@ -573,7 +574,7 @@ class TupleType(ParametrizedAttribute, TypeAttribute):
     def __init__(self, shape: list[Attribute] | ArrayAttr[Attribute]) -> None:
         if isinstance(shape, list):
             shape = ArrayAttr(shape)
-        super().__init__(shape)
+        super().__init__([shape])
 
 
 @irdl_op_definition
@@ -794,6 +795,11 @@ class GetSignedMinValueOp(UnaryOp):
     name = "transfer.get_signed_min_value"
 
 
+@irdl_op_definition
+class GetLimitedValueOp(BinOp):
+    name = "transfer.get_limited_value"
+
+
 Transfer = Dialect(
     "transfer",
     [
@@ -856,6 +862,7 @@ Transfer = Dialect(
         AddPoisonOp,
         RemovePoisonOp,
         ReverseBitsOp,
+        GetLimitedValueOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],
 )

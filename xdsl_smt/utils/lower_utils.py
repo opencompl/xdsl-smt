@@ -187,7 +187,7 @@ unsignedReturnedType = {
 }
 
 int_to_apint = False
-use_custom_vec = True
+use_custom_vec = False
 EQ = " = "
 END = ";\n"
 IDNT = "\t"
@@ -818,22 +818,7 @@ def castToUnisgnedFromAPInt(operand: SSAValue | str) -> str:
 
 
 @lowerOperation.register
-def _(op: SetHighBitsOp):
-    return set_clear_bits(op)
-
-
-@lowerOperation.register
-def _(op: SetLowBitsOp):
-    return set_clear_bits(op)
-
-
-@lowerOperation.register
-def _(op: ClearHighBitsOp):
-    return set_clear_bits(op)
-
-
-@lowerOperation.register
-def _(op: ClearLowBitsOp):
+def _(op: SetHighBitsOp | SetLowBitsOp | ClearHighBitsOp | ClearLowBitsOp):
     return set_clear_bits(op)
 
 
@@ -862,12 +847,7 @@ def _(op: ClearSignBitOp):
 
 
 @lowerOperation.register
-def _(op: GetLowBitsOp):
-    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
-
-
-@lowerOperation.register
-def _(op: GetHighBitsOp):
+def _(op: GetLowBitsOp | GetHighBitsOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
 
 
@@ -877,22 +857,7 @@ def _(op: GetBitWidthOp):
 
 
 @lowerOperation.register
-def _(op: SMaxOp):
-    return lower_min_max(op)
-
-
-@lowerOperation.register
-def _(op: SMinOp):
-    return lower_min_max(op)
-
-
-@lowerOperation.register
-def _(op: UMaxOp):
-    return lower_min_max(op)
-
-
-@lowerOperation.register
-def _(op: UMinOp):
+def _(op: SMaxOp | SMinOp | UMaxOp | UMinOp):
     return lower_min_max(op)
 
 
@@ -908,22 +873,7 @@ def lower_min_max(op: UMinOp | UMaxOp | SMinOp | SMaxOp) -> str:
 
 
 @lowerOperation.register
-def _(op: ShlOp):
-    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
-
-
-@lowerOperation.register
-def _(op: AShrOp):
-    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
-
-
-@lowerOperation.register
-def _(op: LShrOp):
-    return lowerToClassMethod(op, castToUnisgnedFromAPInt)
-
-
-@lowerOperation.register
-def _(op: ExtractOp):
+def _(op: ShlOp | AShrOp | LShrOp | ExtractOp):
     return lowerToClassMethod(op, castToUnisgnedFromAPInt)
 
 
