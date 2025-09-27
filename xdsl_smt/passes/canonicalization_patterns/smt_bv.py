@@ -27,6 +27,16 @@ def unsigned_to_signed(value: int, width: int) -> int:
     return value - (1 << width) if value >= (1 << (width - 1)) else value
 
 
+def get_min_signed_value(width: int) -> int:
+    "Return the minimum signed integer value for a given width as an unsigned int"
+    return 1 << (width - 1)
+
+
+def get_all_ones(width: int) -> int:
+    "Return the unsigned int representation of a bitvector of 1's at a given width."
+    return (1 << width) - 1
+
+
 def bv_folding_canonicalization_pattern(
     op_type: type[Operation], operator: Callable[[Sequence[int]], int]
 ) -> type[RewritePattern]:
@@ -78,6 +88,32 @@ XorCanonicalizationPattern = bv_folding_canonicalization_pattern(
 )
 
 
+class UDivFold(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: smt_bv.UDivOp, rewriter: PatternRewriter):
+        # Get the result width
+        assert isinstance(type := op.results[0].type, smt_bv.BitVectorType)
+        width = type.width.data
+
+        # Check if rhs is constant
+        rhs = get_bv_constant(op.rhs)
+        if rhs is None:
+            return
+
+        # Division by zero returns a bv of all ones
+        if rhs == 0:
+            all_ones_bv = get_all_ones(width)
+            rewriter.replace_matched_op(smt_bv.ConstantOp(all_ones_bv, type.width))
+            return
+
+        # Check if lhs is constant
+        lhs = get_bv_constant(op.lhs)
+        if lhs is None:
+            return
+
+        rewriter.replace_matched_op(smt_bv.ConstantOp(lhs // rhs, type.width))
+
+
 class SDivFold(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt_bv.SDivOp, rewriter: PatternRewriter):
@@ -94,9 +130,22 @@ class SDivFold(RewritePattern):
         lhs = unsigned_to_signed(lhs, width)
         rhs = unsigned_to_signed(rhs, width)
 
-        # Division by zero or overflow
-        if rhs == 0 or (lhs == -(2 ** (width - 1)) and rhs == -1):
-            rewriter.replace_matched_op(smt_bv.ConstantOp(0, type.width))
+        # Division by zero returns:
+        #   all ones if lhs is positve
+        #   one if lhs is negative
+        if rhs == 0:
+            if lhs >= 0:
+                all_ones_bv = get_all_ones(width)
+                rewriter.replace_matched_op(smt_bv.ConstantOp(all_ones_bv, type.width))
+                return
+            else:
+                rewriter.replace_matched_op(smt_bv.ConstantOp(1, type.width))
+                return
+
+        # An underflowing signed division should return the signed min value
+        if lhs == -(2 ** (width - 1)) and rhs == -1:
+            signed_min_val = get_min_signed_value(width)
+            rewriter.replace_matched_op(smt_bv.ConstantOp(signed_min_val, type.width))
             return
 
         value = lhs // rhs if lhs * rhs > 0 else (lhs + (-lhs % rhs)) // rhs
@@ -104,33 +153,55 @@ class SDivFold(RewritePattern):
         rewriter.replace_matched_op(smt_bv.ConstantOp(value, type.width))
 
 
+class URemFold(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: smt_bv.URemOp, rewriter: PatternRewriter):
+        # Check if rhs is constant
+        rhs = get_bv_constant(op.rhs)
+        if rhs is None:
+            return
+
+        # A remainder by zero should return the lhs value
+        if rhs == 0:
+            rewriter.replace_matched_op([], [op.lhs])
+            return
+
+        # Check if lhs is constant
+        lhs = get_bv_constant(op.lhs)
+        if lhs is None:
+            return
+
+        assert isinstance(type := op.results[0].type, smt_bv.BitVectorType)
+
+        rewriter.replace_matched_op(smt_bv.ConstantOp(lhs % rhs, type.width))
+
+
 class SRemFold(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: smt_bv.SRemOp, rewriter: PatternRewriter):
-        # Check if all operands are constants
-        lhs = get_bv_constant(op.lhs)
-        rhs = get_bv_constant(op.rhs)
-        if lhs is None or rhs is None:
-            return
-
-        # Get the result width
         assert isinstance(type := op.results[0].type, smt_bv.BitVectorType)
         width = type.width.data
 
-        lhs = unsigned_to_signed(lhs, width)
-        rhs = unsigned_to_signed(rhs, width)
-
-        # Remainder by zero or overflow
-        if rhs == 0 or (lhs == -(2 ** (width - 1)) and rhs == -1):
-            rewriter.replace_matched_op(smt_bv.ConstantOp(0, type.width))
+        # Check if rhs is constant
+        rhs = get_bv_constant(op.rhs)
+        if rhs is None:
             return
 
-        if lhs < 0 and rhs > 0 or lhs > 0 and rhs < 0:
-            value = (lhs % rhs) - rhs
-        else:
-            value = lhs % rhs
+        rhs = unsigned_to_signed(rhs, width)
 
-        value = wrap_value(value, width)
+        # A remainder by zero should return the lhs value
+        if rhs == 0:
+            rewriter.replace_matched_op([], [op.lhs])
+            return
+
+        # Check if lhs is constant
+        lhs = get_bv_constant(op.lhs)
+        if lhs is None:
+            return
+
+        lhs = unsigned_to_signed(lhs, width)
+
+        value = wrap_value(lhs % rhs, width)
         rewriter.replace_matched_op(smt_bv.ConstantOp(value, type.width))
 
 
