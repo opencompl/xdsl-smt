@@ -17,6 +17,7 @@ from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
 from xdsl_smt.dialects.effects.memory_effect import MemoryEffectDialect
 from xdsl_smt.dialects.memory_dialect import MemoryDialect
+from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorDialect
 from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
@@ -76,6 +77,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTIntDialect.name, lambda: SMTIntDialect)
         self.ctx.register_dialect(SMTBitVectorDialect.name, lambda: SMTBitVectorDialect)
         self.ctx.register_dialect(SMTArray.name, lambda: SMTArray)
+        self.ctx.register_dialect(SMTTensorDialect.name, lambda: SMTTensorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)

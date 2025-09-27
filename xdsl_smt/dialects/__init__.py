@@ -22,6 +22,7 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
         from xdsl_smt.dialects.smt_dialect import SMTDialect
         from xdsl_smt.dialects.smt_int_dialect import SMTIntDialect
         from xdsl_smt.dialects.smt_utils_dialect import SMTUtilsDialect
+        from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorDialect
 
         dialects = [
             SMTArray,
@@ -29,6 +30,7 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
             SMTDialect,
             SMTIntDialect,
             SMTUtilsDialect,
+            SMTTensorDialect,
         ]
         return Dialect(
             "smt",
