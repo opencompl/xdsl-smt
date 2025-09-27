@@ -102,7 +102,7 @@
     %r = "transfer.smax"(%x, %y) : (!transfer.integer,!transfer.integer) -> !transfer.integer
     "func.return"(%r) : (!transfer.integer) -> ()
   }) {"sym_name" = "smax_test", "function_type" = (!transfer.integer, !transfer.integer) -> !transfer.integer} : () -> ()
- 
+
  "func.func"() ({
   ^0(%x : !transfer.integer, %y : !transfer.integer):
     %r = "transfer.get_high_bits"(%x, %y) : (!transfer.integer, !transfer.integer) -> !transfer.integer
@@ -113,7 +113,7 @@
   ^0(%x : !transfer.integer, %y : !transfer.integer):
     %r = "transfer.get_low_bits"(%x, %y) : (!transfer.integer, !transfer.integer) -> !transfer.integer
     "func.return"(%r) : (!transfer.integer) -> ()
-  }) {"sym_name" = "get_low_bits_test", "function_type" = (!transfer.integer, !transfer.integer) -> !transfer.integer} : () -> () 
+  }) {"sym_name" = "get_low_bits_test", "function_type" = (!transfer.integer, !transfer.integer) -> !transfer.integer} : () -> ()
 
   "func.func"() ({
   ^0(%x : !transfer.integer, %y : !transfer.integer):

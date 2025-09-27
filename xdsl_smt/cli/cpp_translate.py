@@ -73,6 +73,6 @@ def main() -> None:
     funcs = _parse_mlir_module(args.input, ctx)
     output = args.output.open("w", encoding="utf-8") if args.output else sys.stdout
 
-    LowerToCpp(
-        output, int_to_apint=args.apint, use_custom_vec=args.custom_vec
-    ).apply(ctx, funcs)
+    LowerToCpp(output, int_to_apint=args.apint, use_custom_vec=args.custom_vec).apply(
+        ctx, funcs
+    )

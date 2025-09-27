@@ -96,7 +96,7 @@
     %r = "transfer.cmp"(%x, %y) {predicate = 8} : (!transfer.integer, !transfer.integer) -> i1
     "func.return"(%r) : (i1) -> ()
   }) {"sym_name" = "ugt_test", "function_type" = (!transfer.integer, !transfer.integer) -> i1} : () -> ()
-  
+
   "func.func"() ({
   ^0(%x : !transfer.integer, %y : !transfer.integer):
     %r = "transfer.cmp"(%x, %y) {predicate = 9} : (!transfer.integer, !transfer.integer) -> i1
