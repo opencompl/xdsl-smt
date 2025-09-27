@@ -6,8 +6,10 @@
   %zero = smt.bv.constant #smt.bv<0> : !smt.bv<8>
   %five = smt.bv.constant #smt.bv<5> : !smt.bv<8>
   %c13 = smt.bv.constant #smt.bv<13> : !smt.bv<8>
+  %m1 = smt.bv.constant #smt.bv<255> : !smt.bv<8>
   %m5 = smt.bv.constant #smt.bv<251> : !smt.bv<8>
   %m13 = smt.bv.constant #smt.bv<243> : !smt.bv<8>
+  %int_min = smt.bv.constant #smt.bv<128> : !smt.bv<8>
 
   // Case 1: x sdiv 5  ==>  unchanged (rhs not zero, lhs not constant)
   %a = "smt.bv.sdiv"(%x, %five) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
@@ -77,4 +79,14 @@
   // CHECK-NEXT: %h = smt.bv.constant #smt.bv<1> : !smt.bv<8>
   // CHECK-NEXT: %h_eq = "smt.eq"(%h, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%h_eq) : (!smt.bool) -> ()
+
+  // sdiv underflow semantics
+
+  // Case 9: int_min sdiv -1  ==> int_min
+  %i = "smt.bv.sdiv"(%int_min, %m1) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+  %i_eq = "smt.eq"(%i, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
+  "smt.assert"(%i_eq) : (!smt.bool) -> ()
+  // CHECK-NEXT: %i = smt.bv.constant #smt.bv<128> : !smt.bv<8>
+  // CHECK-NEXT: %i_eq = "smt.eq"(%i, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
+  // CHECK-NEXT: "smt.assert"(%i_eq) : (!smt.bool) -> ()
 }) : () -> ()
