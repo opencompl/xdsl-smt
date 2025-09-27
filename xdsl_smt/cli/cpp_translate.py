@@ -30,6 +30,14 @@ def _register_args() -> argparse.Namespace:
         default=None,
         help="Path to the output MLIR file (defaults to stdout if omitted).",
     )
+    parser.add_argument(
+        "--apint", action="store_true", help="Use apints for bitvector type lowering"
+    )
+    parser.add_argument(
+        "--custom_vec",
+        action="store_true",
+        help="Use custom vec class for transfer value lowering",
+    )
 
     return parser.parse_args()
 
@@ -65,4 +73,6 @@ def main() -> None:
     funcs = _parse_mlir_module(args.input, ctx)
     output = args.output.open("w", encoding="utf-8") if args.output else sys.stdout
 
-    LowerToCpp(output).apply(ctx, funcs)
+    LowerToCpp(
+        output, int_to_apint=args.apint, use_custom_vec=args.custom_vec
+    ).apply(ctx, funcs)
