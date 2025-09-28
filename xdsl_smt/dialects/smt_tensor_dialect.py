@@ -50,7 +50,7 @@ class SMTTensorType(
     def __init__(
         self,
         element_type: AttributeCovT,
-        shape: Iterable[int | IntAttr],
+        shape: Iterable[int] | Iterable[IntAttr],
         encoding: Attribute = NoneAttr(),
     ):
         shape = ArrayAttr(
@@ -69,8 +69,6 @@ class SMTTensorType(
 
 
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
-INDEX_WIDTH = 64
-IndexType = BitVectorType(INDEX_WIDTH)
 
 
 def to_integer_array_attr(
@@ -96,7 +94,9 @@ def to_int(x: int | IntegerAttr | IntAttr) -> int:
     return x
 
 
-def to_tuple_int(array_attr: Iterable[int | IntAttr | IntegerAttr]) -> tuple[int, ...]:
+def to_tuple_int(
+    array_attr: Iterable[IntegerAttr] | Iterable[IntAttr] | Iterable[int],
+) -> tuple[int, ...]:
     """
     Converts an ArrayAttr of IntegerAttr elements into a tuple of integers.
     This function extracts the integer data from each IntegerAttr in the
