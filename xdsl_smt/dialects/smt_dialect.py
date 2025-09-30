@@ -210,7 +210,7 @@ class DeclareFunOp(IRDLOperation, SMTLibScriptOp):
             if idx != 0:
                 print(" ", file=stream, end="")
             ctx.print_sort_to_smtlib(typ, stream)
-        print(")", file=stream, end="")
+        print(") ", file=stream, end="")
 
         # Print the function return type
         assert len(self.func_type.outputs.data) == 1

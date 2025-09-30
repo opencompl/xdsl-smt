@@ -196,7 +196,7 @@ class SymFingerprint:
         builder.insert(smt.AssertOp(check))
 
         # Now that we have the module, run it through the Z3 solver.
-        res = run_module_through_smtlib(module)
+        res = run_module_through_smtlib(module)[0]
         if res == z3.sat:
             return True
         if res == z3.unsat:
@@ -519,9 +519,9 @@ def is_range_subset_with_z3(
     builder.insertion_point = InsertPoint.at_end(module.body.block)
     builder.insert(smt.AssertOp(toplevel_val))
 
-    return run_module_through_smtlib(
-        module, timeout
-    )  # pyright: ignore[reportUnknownVariableType]
+    return run_module_through_smtlib(module, timeout)[
+        0
+    ]  # pyright: ignore[reportUnknownVariableType]
 
 
 def main():

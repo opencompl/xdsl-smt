@@ -277,8 +277,8 @@ class Pattern:
                 assert not op.ret.uses
                 Rewriter().erase_op(op)
 
-        return z3.unsat == run_module_through_smtlib(
-            module
+        return (
+            z3.unsat == run_module_through_smtlib(module)[0]
         )  # pyright: ignore[reportUnknownVariableType]
 
     def _compute_useless_parameters(self) -> set[int]:
@@ -622,6 +622,6 @@ class OrderedPattern(Pattern):
                 Rewriter().erase_op(op)
 
         # Now that we have the module, run it through the Z3 solver.
-        return z3.unsat == run_module_through_smtlib(
-            module
+        return (
+            z3.unsat == run_module_through_smtlib(module)[0]
         )  # pyright: ignore[reportUnknownVariableType]

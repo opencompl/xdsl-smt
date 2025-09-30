@@ -9,7 +9,9 @@ from xdsl.dialects.builtin import ModuleOp
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
-def run_module_through_smtlib(module: ModuleOp, timeout: int = 25000) -> Any:
+def run_module_through_smtlib(
+    module: ModuleOp, timeout: int = 25000
+) -> tuple[Any, z3.Solver]:
     smtlib_program = StringIO()
     print_to_smtlib(module, smtlib_program)
 
@@ -34,8 +36,4 @@ def run_module_through_smtlib(module: ModuleOp, timeout: int = 25000) -> Any:
         print("The above error happened with the following query:", file=sys.stderr)
         print(smtlib_program.getvalue(), file=sys.stderr)
         raise e
-    if result == z3.unknown:
-        print("Z3 couldn't solve the following query:", file=sys.stderr)
-        print(smtlib_program.getvalue(), file=sys.stderr)
-        return z3.unknown
-    return result
+    return result, solver
