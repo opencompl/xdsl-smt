@@ -78,11 +78,11 @@ def z3_value_to_attribute(val: z3.ExprRef) -> Attribute:
     if isinstance(val, z3.DatatypeRef):
         if val.decl().name() == "pair":
             first = z3_value_to_attribute(
-                val.arg(0)
-            )  # pyright: ignore[reportUnknownMemberType]
+                val.arg(0)  # pyright: ignore[reportUnknownMemberType]
+            )
             second = z3_value_to_attribute(
-                val.arg(1)
-            )  # pyright: ignore[reportUnknownMemberType]
+                val.arg(1)  # pyright: ignore[reportUnknownMemberType]
+            )
             return ArrayAttr([first, second])
     if isinstance(val, z3.BitVecNumRef):
         return BitVectorAttr(int(val.as_long()), val.size())
