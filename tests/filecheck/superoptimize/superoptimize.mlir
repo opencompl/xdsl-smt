@@ -1,0 +1,12 @@
+// RUN: superoptimize %s --max-num-ops=2 --dialect=%S/arith.irdl | filecheck %s
+
+func.func @foo(%x: i32) -> i32 {
+  %c0 = arith.constant 0 : i32
+  %r = arith.muli %x, %c0 : i32
+  func.return %r : i32
+}
+
+// CHECK:       func.func @foo(%arg0 : i32) -> i32 {
+// CHECK-NEXT:    %0 = arith.constant 0 : i32
+// CHECK-NEXT:    func.return %0 : i32
+// CHECK-NEXT:  }

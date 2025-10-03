@@ -47,6 +47,23 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="The timeout passed to the SMT solver in milliseconds",
         default=8000,
     )
+    arg_parser.add_argument(
+        "--use-input-ops",
+        help="Reuse the existing operations and values",
+        action="store_true",
+    )
+    arg_parser.add_argument(
+        "--dialect",
+        type=str,
+        help="The IRDL file defining the dialect we want to use for synthesis",
+    )
+    arg_parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        help="Print debugging information in stderr",
+        action="store_true",
+    )
 
 
 def replace_synth_with_constants(
@@ -72,13 +89,12 @@ def main() -> None:
     for dialect_name, dialect_factory in get_all_dialects().items():
         ctx.register_dialect(dialect_name, dialect_factory)
 
+    with open(args.input_file, "r") as f:
+        input_program = Parser(ctx, f.read()).parse_module()
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     executable_path = os.path.join(
         current_dir, "..", "..", "mlir-fuzz", "build", "bin", "superoptimizer"
-    )
-
-    arith_dialect_path = os.path.join(
-        current_dir, "..", "..", "mlir-fuzz", "dialects", "arith.mlir"
     )
 
     # Start the enumerator
@@ -86,11 +102,12 @@ def main() -> None:
         [
             executable_path,
             args.input_file,
-            arith_dialect_path,
+            args.dialect,
             f"--max-num-ops={args.max_num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
             "--configuration=arith",
+            f"--use-input-ops={args.use_input_ops}",
         ],
         stdin=sp.PIPE,
         stdout=sp.PIPE,
@@ -113,43 +130,26 @@ def main() -> None:
                 stderr=sp.PIPE,
             )
             if res.returncode != 0:
-                print(
-                    f"Error while synthesizing program: {res.stderr.decode('utf-8')}",
-                    file=sys.stderr,
-                )
+                if args.verbose:
+                    print("Example failed:", file=sys.stderr)
+                    print(program.decode("utf-8"), file=sys.stderr)
+                assert enumerator.stdin is not None
+                enumerator.stdin.write(b"a")
+                enumerator.stdin.flush()
                 continue
 
-            res_z3 = sp.run(
-                ["z3", "-in", f"-T:{args.timeout}"],
-                input=res.stdout + b"\n(get-model)",
-                stdout=sp.PIPE,
-                stderr=sp.PIPE,
-            )
+            resulting_program = Parser(ctx, res.stdout.decode("utf-8")).parse_module()
+            if resulting_program.is_structurally_equivalent(input_program):
+                if args.verbose:
+                    print("Synthesized the same program:", file=sys.stderr)
+                    print(resulting_program, file=sys.stderr)
+                assert enumerator.stdin is not None
+                enumerator.stdin.write(b"a")
+                enumerator.stdin.flush()
+                continue
 
-            if "model is not available" not in res_z3.stdout.decode():
-                values_str: list[str] = re.findall(
-                    r"#([xb][0-9a-f]+)", res_z3.stdout.decode()
-                )
-                values: list[IntegerAttr[IntegerType]] = []
-                for value in values_str:
-                    if value.startswith("x"):
-                        val = int(value[1:], 16)
-                        bitwidth = len(value[1:]) * 4
-                    else:
-                        val = int(value[1:], 2)
-                        bitwidth = len(value[1:])
-                    values.append(IntegerAttr(val, bitwidth))
-
-                mlir_program = Parser(ctx, program.decode()).parse_module()
-                replace_synth_with_constants(mlir_program, values)
-
-                print(mlir_program)
-                exit(0)
-
-            # Set a character to the enumerator to continue
-            assert enumerator.stdin is not None
-            enumerator.stdin.write(b"a")
-            enumerator.stdin.flush()
+            print(resulting_program.ops.first)
+            exit(0)
     except BrokenPipeError as e:
         # The enumerator has terminated
         pass
