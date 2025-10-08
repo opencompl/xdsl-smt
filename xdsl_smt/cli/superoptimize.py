@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-import re
 import os
 import subprocess as sp
 
