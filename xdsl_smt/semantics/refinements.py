@@ -27,7 +27,6 @@ from xdsl_smt.dialects.smt_dialect import (
     CallOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
-from xdsl_smt.dialects.effects import ub_effect
 import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
@@ -37,8 +36,6 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        state_before: SSAValue,
-        state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         """Compute the refinement from a value with poison semantics to a value with poison semantics."""
@@ -73,23 +70,7 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
                 refinement_integer,
             ]
         )
-
-        # With UB, our refinement is: ub_before \/ (not ub_after /\ integer_refinement)
-        ub_before_bool = ub_effect.ToBoolOp(state_before)
-        ub_after_bool = ub_effect.ToBoolOp(state_after)
-        not_ub_after = smt.NotOp(ub_after_bool.res)
-        not_ub_before_case = smt.AndOp(not_ub_after.result, refinement_integer.result)
-        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
-        rewriter.insert_op_before_matched_op(
-            [
-                ub_before_bool,
-                ub_after_bool,
-                not_ub_after,
-                not_ub_before_case,
-                refinement,
-            ]
-        )
-        return refinement.result
+        return refinement_integer.result
 
 
 def integer_value_refinement(

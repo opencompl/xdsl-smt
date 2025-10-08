@@ -16,13 +16,15 @@ from xdsl.dialects.pdl import (
 from xdsl.utils.hints import isa
 from xdsl.rewriter import InsertPoint, Rewriter
 
+from xdsl_smt.dialects.effects import ub_effect
 from xdsl_smt.dialects.effects.effect import StateType
 from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
-from ..dialects import pdl_dataflow as pdl_dataflow
-from ..dialects import smt_bitvector_dialect as smt_bv
-from ..dialects import smt_utils_dialect as smt_utils
+from xdsl_smt.dialects import pdl_dataflow as pdl_dataflow
+from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import smt_utils_dialect as smt_utils
+from xdsl_smt.dialects import smt_dialect as smt
 
 from xdsl.ir import Attribute, ErasedSSAValue, Operation, SSAValue
 from xdsl.context import Context
@@ -287,14 +289,27 @@ class ReplaceRewrite(RewritePattern):
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_values[0]
 
-        refinement_value = self.refinement.get_semantics(
+        value_refinement = self.refinement.get_semantics(
             replaced_value,
             replacing_value,
-            self.rewrite_context.matching_effect_state,
-            self.rewrite_context.rewriting_effect_state,
             rewriter,
         )
-        not_refinement = NotOp(refinement_value)
+        # With UB, our refinement is: ub_before \/ (not ub_after /\ integer_refinement)
+        ub_before_bool = ub_effect.ToBoolOp(self.rewrite_context.matching_effect_state)
+        ub_after_bool = ub_effect.ToBoolOp(self.rewrite_context.rewriting_effect_state)
+        not_ub_after = smt.NotOp(ub_after_bool.res)
+        not_ub_before_case = smt.AndOp(not_ub_after.result, value_refinement)
+        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
+        rewriter.insert_op_before_matched_op(
+            [
+                ub_before_bool,
+                ub_after_bool,
+                not_ub_after,
+                not_ub_before_case,
+                refinement,
+            ]
+        )
+        not_refinement = NotOp(refinement.result)
         rewriter.insert_op_before_matched_op(not_refinement)
         not_refinement_value = not_refinement.result
 

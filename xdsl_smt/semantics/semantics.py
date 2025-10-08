@@ -80,8 +80,6 @@ class RefinementSemantics:
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        state_before: SSAValue,
-        state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         pass
