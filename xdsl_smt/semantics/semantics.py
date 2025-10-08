@@ -4,6 +4,7 @@ from abc import abstractmethod
 from typing import Mapping, Sequence
 
 from xdsl.ir import Attribute, SSAValue
+from xdsl.builder import Builder
 from xdsl.pattern_rewriter import PatternRewriter
 
 
@@ -80,6 +81,6 @@ class RefinementSemantics:
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        rewriter: PatternRewriter,
+        builder: Builder,
     ) -> SSAValue:
         pass

@@ -1,7 +1,6 @@
 from typing import Sequence
 from xdsl.dialects.builtin import FunctionType, IntegerType
-from xdsl.ir import SSAValue, Region, Block
-from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.ir import SSAValue, Region, Block, Attribute
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
 
@@ -27,7 +26,6 @@ from xdsl_smt.dialects.smt_dialect import (
     CallOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
-import xdsl_smt.dialects.smt_utils_dialect as smt_utils
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
@@ -36,41 +34,23 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        rewriter: PatternRewriter,
+        builder: Builder,
     ) -> SSAValue:
         """Compute the refinement from a value with poison semantics to a value with poison semantics."""
-        before_poison = smt_utils.SecondOp(val_before)
-        after_poison = smt_utils.SecondOp(val_after)
+        before_poison = builder.insert(SecondOp(val_before)).res
+        after_poison = builder.insert(SecondOp(val_after)).res
 
-        before_val = smt_utils.FirstOp(val_before)
-        after_val = smt_utils.FirstOp(val_after)
+        before_val = builder.insert(FirstOp(val_before)).res
+        after_val = builder.insert(FirstOp(val_after)).res
 
-        rewriter.insert_op_before_matched_op(
-            [
-                before_poison,
-                after_poison,
-                before_val,
-                after_val,
-            ]
-        )
-
-        not_before_poison = smt.NotOp(before_poison.res)
-        not_after_poison = smt.NotOp(after_poison.res)
-        eq_vals = smt.EqOp(before_val.res, after_val.res)
-        not_poison_eq = smt.AndOp(eq_vals.res, not_after_poison.result)
-        refinement_integer = smt.ImpliesOp(
-            not_before_poison.result, not_poison_eq.result
-        )
-        rewriter.insert_op_before_matched_op(
-            [
-                not_before_poison,
-                not_after_poison,
-                eq_vals,
-                not_poison_eq,
-                refinement_integer,
-            ]
-        )
-        return refinement_integer.result
+        not_before_poison = builder.insert(smt.NotOp(before_poison)).result
+        not_after_poison = builder.insert(smt.NotOp(after_poison)).result
+        eq_vals = builder.insert(smt.EqOp(before_val, after_val)).res
+        not_poison_eq = builder.insert(smt.AndOp(eq_vals, not_after_poison)).result
+        refinement_integer = builder.insert(
+            smt.ImpliesOp(not_before_poison, not_poison_eq)
+        ).result
+        return refinement_integer
 
 
 def integer_value_refinement(
@@ -122,6 +102,15 @@ def get_mapped_block_id(
             result_value = IteOp(is_eq, output_after, result_value).res
 
     return result_value
+
+
+def find_refinement_semantics(
+    type_before: Attribute,
+    type_after: Attribute,
+) -> RefinementSemantics:
+    if isinstance(type_before, IntegerType) and isinstance(type_after, IntegerType):
+        return IntegerTypeRefinementSemantics()
+    raise Exception(f"No refinement semantics for types {type_before}, {type_after}")
 
 
 def memory_block_refinement(
@@ -212,6 +201,114 @@ def memory_refinement(
     return refinement
 
 
+def function_results_refinement(
+    call_before: CallOp,
+    function_type_before: FunctionType,
+    call_after: CallOp,
+    function_type_after: FunctionType,
+    insert_point: InsertPoint,
+) -> SSAValue[BoolType]:
+    """
+    Create operations to check that the results of a function call refines another.
+    """
+    assert function_type_before == function_type_after
+    builder = Builder(insert_point)
+    # Refinement of non-state return values
+    return_values_refinement = builder.insert(ConstantBoolOp(True)).result
+
+    # Refines each non-state return value
+    for ret, ret_after, original_type, original_type_after in zip(
+        call_before.res[:-1],
+        call_after.res[:-1],
+        function_type_before.outputs.data,
+        function_type_after.outputs.data,
+        strict=True,
+    ):
+        refinement_semantics = find_refinement_semantics(
+            original_type, original_type_after
+        )
+        value_refinement = refinement_semantics.get_semantics(ret, ret_after, builder)
+        return_values_refinement = builder.insert(
+            AndOp(return_values_refinement, value_refinement)
+        ).result
+    return_values_refinement.name_hint = "return_values_refinement"
+
+    # Refinement of memory
+    mem_refinement = memory_refinement(call_before, call_after, insert_point)
+    mem_refinement.name_hint = "memory_refinement"
+
+    with ImplicitBuilder(builder):
+        # Get ub results
+        res_ub = SecondOp(call_before.res[-1]).res
+        res_ub_after = SecondOp(call_after.res[-1]).res
+
+        res_ub.name_hint = "ub"
+        res_ub_after.name_hint = "ub_after"
+
+        # Compute refinement with UB
+        refinement = OrOp(
+            AndOp(
+                NotOp(res_ub_after).result,
+                AndOp(return_values_refinement, mem_refinement).result,
+            ).result,
+            res_ub,
+        ).result
+        refinement.name_hint = "function_refinement"
+
+    return refinement
+
+
+def insert_function_refinement_with_declare_const(
+    func_before: DefineFunOp,
+    func_type_before: FunctionType,
+    func_after: DefineFunOp,
+    func_type_after: FunctionType,
+    insert_point: InsertPoint,
+) -> SSAValue[BoolType]:
+    """
+    Create operations to check that one function refines another.
+    Arguments passed to the function are created with declare-const ops.
+    """
+    builder = Builder(insert_point)
+    args_before: list[SSAValue] = []
+    args_after: list[SSAValue] = []
+    for (arg_before, arg_after), (type_before, type_after) in zip(
+        zip(func_before.arg_types, func_after.arg_types, strict=True),
+        zip(
+            func_type_before.inputs,
+            func_type_after.inputs,
+            strict=True,
+        ),
+    ):
+        if arg_before == arg_after and type_before == type_after:
+            const_op = builder.insert(DeclareConstOp(arg_before))
+            args_before.append(const_op.res)
+            args_after.append(const_op.res)
+        else:
+            const_before = builder.insert(DeclareConstOp(type_before))
+            const_after = builder.insert(DeclareConstOp(type_after))
+            args_before.append(const_before.res)
+            args_after.append(const_after.res)
+
+    if len(func_before.arg_types) != len(func_type_before.inputs):
+        assert len(func_before.arg_types) == len(func_type_before.inputs) + 1
+        assert len(func_after.arg_types) == len(func_type_after.inputs) + 1
+        arg = builder.insert(DeclareConstOp(func_before.arg_types[-1]))
+        args_before.append(arg.res)
+        args_after.append(arg.res)
+
+    call_before = builder.insert(CallOp(func_before.ret, args_before))
+    call_after = builder.insert(CallOp(func_after.ret, args_after))
+
+    return function_results_refinement(
+        call_before,
+        func_type_before,
+        call_after,
+        func_type_after,
+        insert_point,
+    )
+
+
 def add_function_refinement(
     func: DefineFunOp,
     func_after: DefineFunOp,
@@ -237,46 +334,6 @@ def add_function_refinement(
         func_call = CallOp(func.ret, args)
         func_call_after = CallOp(func_after.ret, args)
 
-        # Refinement of non-state return values
-        return_values_refinement = ConstantBoolOp(True).result
-
-        # Refines each non-state return value
-        for (ret, ret_after), original_type in zip(
-            zip(func_call.res[:-1], func_call_after.res[:-1], strict=True),
-            function_type.outputs.data,
-            strict=True,
-        ):
-            if not isinstance(original_type, IntegerType):
-                raise Exception("Cannot handle non-integer return types")
-            not_after_poison = NotOp(SecondOp(ret_after).res)
-            value_eq = EqOp.get(FirstOp(ret).res, FirstOp(ret_after).res)
-            value_refinement = AndOp(not_after_poison.result, value_eq.res)
-            refinement = OrOp(value_refinement.result, SecondOp(ret).res)
-            return_values_refinement = AndOp(
-                return_values_refinement, refinement.result
-            ).result
-        return_values_refinement.name_hint = "return_values_refinement"
-
-    # Refinement of memory
-    mem_refinement = memory_refinement(func_call, func_call_after, insert_point)
-    mem_refinement.name_hint = "memory_refinement"
-
-    with ImplicitBuilder(builder):
-        # Get ub results
-        res_ub = SecondOp(func_call.res[-1]).res
-        res_ub_after = SecondOp(func_call_after.res[-1]).res
-
-        res_ub.name_hint = "ub"
-        res_ub_after.name_hint = "ub_after"
-
-        # Compute refinement with UB
-        refinement = OrOp(
-            AndOp(
-                NotOp(res_ub_after).result,
-                AndOp(return_values_refinement, mem_refinement).result,
-            ).result,
-            res_ub,
-        ).result
-        refinement.name_hint = "function_refinement"
-
-    return refinement
+    return function_results_refinement(
+        func_call, function_type, func_call_after, function_type, insert_point
+    )

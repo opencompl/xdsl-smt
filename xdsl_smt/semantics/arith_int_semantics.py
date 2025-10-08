@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from typing import Mapping, Sequence
 from xdsl.ir import SSAValue, Attribute, Operation
+from xdsl.builder import Builder
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.hints import isa
 from xdsl.dialects.builtin import IntegerType, IntegerAttr
@@ -26,13 +27,13 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        rewriter: PatternRewriter,
+        builder: Builder,
     ) -> SSAValue:
         before_val, before_poison, _ = self.integer_proxy.unpack_integer(
-            val_before, rewriter
+            val_before, builder
         )
         after_val, after_poison, _ = self.integer_proxy.unpack_integer(
-            val_after, rewriter
+            val_after, builder
         )
 
         eq_vals = smt.EqOp(before_val, after_val)
@@ -42,7 +43,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         refinement_integer = smt.ImpliesOp(
             not_before_poison.result, not_poison_eq.result
         )
-        rewriter.insert_op_before_matched_op(
+        builder.insert_op(
             [
                 not_before_poison,
                 not_after_poison,

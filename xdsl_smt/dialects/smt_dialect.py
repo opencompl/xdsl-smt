@@ -283,6 +283,11 @@ class DefineFunOp(IRDLOperation, SMTLibScriptOp):
             raise ValueError("Region does not end in a return")
         return ret_op.ret
 
+    @property
+    def arg_types(self) -> Sequence[Attribute]:
+        """Get the argument types of this operation."""
+        return self.body.block.arg_types
+
     @staticmethod
     def from_function_type(
         func_type: FunctionType, name: str | StringAttr | None = None

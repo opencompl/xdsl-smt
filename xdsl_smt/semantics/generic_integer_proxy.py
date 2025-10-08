@@ -7,6 +7,7 @@ from xdsl_smt.dialects import smt_int_dialect as smt_int
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
 from xdsl.rewriter import InsertPoint
+from xdsl.builder import Builder
 from xdsl.dialects.builtin import IntegerType, FunctionType
 from xdsl_smt.dialects.smt_dialect import BoolType
 
@@ -35,31 +36,29 @@ class IntegerProxy:
         return outer_pair_type
 
     def unpack_integer(
-        self, smt_integer: SSAValue, rewriter: PatternRewriter
+        self, smt_integer: SSAValue, builder: Builder
     ) -> Tuple[SSAValue, SSAValue, SSAValue]:
         "Extract the different pieces of a generic integer."
-        payload = self._get_payload(smt_integer, rewriter)
-        poison = self._get_poison(smt_integer, rewriter)
-        width = self._get_width(smt_integer, rewriter)
+        payload = self._get_payload(smt_integer, builder)
+        poison = self._get_poison(smt_integer, builder)
+        width = self._get_width(smt_integer, builder)
         return payload, poison, width
 
-    def _get_payload(
-        self, smt_integer: SSAValue, rewriter: PatternRewriter
-    ) -> SSAValue:
+    def _get_payload(self, smt_integer: SSAValue, builder: Builder) -> SSAValue:
         get_inner_pair_op = smt_utils.FirstOp(smt_integer)
         get_payload_op = smt_utils.FirstOp(get_inner_pair_op.res)
-        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_payload_op])
+        builder.insert_op([get_inner_pair_op, get_payload_op])
         return get_payload_op.res
 
-    def _get_width(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+    def _get_width(self, smt_integer: SSAValue, builder: Builder) -> SSAValue:
         get_width_op = smt_utils.SecondOp(smt_integer)
-        rewriter.insert_op_before_matched_op([get_width_op])
+        builder.insert(get_width_op)
         return get_width_op.res
 
-    def _get_poison(self, smt_integer: SSAValue, rewriter: PatternRewriter) -> SSAValue:
+    def _get_poison(self, smt_integer: SSAValue, builder: Builder) -> SSAValue:
         get_inner_pair_op = smt_utils.FirstOp(smt_integer)
         get_poison_op = smt_utils.SecondOp(get_inner_pair_op.res)
-        rewriter.insert_op_before_matched_op([get_inner_pair_op, get_poison_op])
+        builder.insert_op([get_inner_pair_op, get_poison_op])
         return get_poison_op.res
 
     def pack_integer(

@@ -48,7 +48,9 @@ from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
 )
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
-from xdsl_smt.semantics.refinements import add_function_refinement
+from xdsl_smt.semantics.refinements import (
+    insert_function_refinement_with_declare_const,
+)
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
@@ -109,7 +111,9 @@ def main() -> None:
     load_vanilla_semantics()
 
     assert isinstance(module.ops.first, FuncOp)
-    func_type = module.ops.first.function_type
+    func_type_before = module.ops.first.function_type
+    assert isinstance(module_after.ops.first, FuncOp)
+    func_type_after = module_after.ops.first.function_type
 
     # Convert both module to SMTLib
     LowerToSMTPass().apply(ctx, module)
@@ -166,9 +170,12 @@ def main() -> None:
         DeadCodeElimination().apply(ctx, new_module)
         CanonicalizePass().apply(ctx, new_module)
 
-    # Add refinement operations
-    refinement = add_function_refinement(
-        func, func_after, func_type, InsertPoint.at_end(block)
+    refinement = insert_function_refinement_with_declare_const(
+        func,
+        func_type_before,
+        func_after,
+        func_type_after,
+        InsertPoint.at_end(block),
     )
     not_op = NotOp(refinement)
     block.add_op(not_op)
