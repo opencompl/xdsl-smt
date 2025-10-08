@@ -13,7 +13,6 @@ from xdsl_smt.semantics.semantics import AttributeSemantics, RefinementSemantics
 from xdsl_smt.dialects import transfer
 from xdsl.dialects import arith, pdl, comb
 from xdsl_smt.semantics.generic_integer_proxy import IntegerProxy
-from xdsl_smt.dialects.effects import ub_effect
 from xdsl.ir import OpResult
 
 GENERIC_INT_WIDTH = 64
@@ -27,8 +26,6 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
         self,
         val_before: SSAValue,
         val_after: SSAValue,
-        state_before: SSAValue,
-        state_after: SSAValue,
         rewriter: PatternRewriter,
     ) -> SSAValue:
         before_val, before_poison, _ = self.integer_proxy.unpack_integer(
@@ -54,24 +51,7 @@ class IntIntegerTypeRefinementSemantics(RefinementSemantics):
                 refinement_integer,
             ]
         )
-
-        # With UB, our refinement is: ub_before \/ (not ub_after /\ integer_refinement)
-        ub_before_bool = ub_effect.ToBoolOp(state_before)
-        ub_after_bool = ub_effect.ToBoolOp(state_after)
-        not_ub_after = smt.NotOp(ub_after_bool.res)
-        not_ub_before_case = smt.AndOp(not_ub_after.result, refinement_integer.result)
-        refinement = smt.OrOp(ub_before_bool.res, not_ub_before_case.result)
-        rewriter.insert_op_before_matched_op(
-            [
-                ub_before_bool,
-                ub_after_bool,
-                not_ub_after,
-                not_ub_before_case,
-                refinement,
-            ]
-        )
-
-        return refinement.result
+        return refinement_integer.result
 
 
 class IntIntegerAttrSemantics(AttributeSemantics):
