@@ -55,12 +55,26 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "--dialect",
         type=str,
         help="The IRDL file defining the dialect we want to use for synthesis",
+        required=True,
     )
     arg_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
         help="Print debugging information in stderr",
+        action="store_true",
+    )
+    arg_parser.add_argument(
+        "--configuration",
+        dest="configuration",
+        type=str,
+        help="The configuration to use for synthesis",
+        default="arith",
+    )
+    arg_parser.add_argument(
+        "--optimize",
+        dest="optimize",
+        help="Only generate programs with a lower cost than the input program",
         action="store_true",
     )
 
@@ -105,8 +119,9 @@ def main() -> None:
             f"--max-num-ops={args.max_num_ops}",
             "--pause-between-programs",
             "--mlir-print-op-generic",
-            "--configuration=arith",
+            f"--configuration={args.configuration}",
             f"--use-input-ops={args.use_input_ops}",
+            # "--optimize" if args.optimize is not None else "",
         ],
         stdin=sp.PIPE,
         stdout=sp.PIPE,
