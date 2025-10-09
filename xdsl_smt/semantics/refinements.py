@@ -53,6 +53,28 @@ class IntegerTypeRefinementSemantics(RefinementSemantics):
         return refinement_integer
 
 
+class IntToIntPoisonRefinementSemantics(RefinementSemantics):
+    def get_semantics(
+        self,
+        val_before: SSAValue,
+        val_after: SSAValue,
+        builder: Builder,
+    ) -> SSAValue:
+        """
+        Compute the refinement from an integer without poison semantics
+        to a integer with poison semantics.
+        """
+        before_val = val_before
+        after_val = builder.insert(FirstOp(val_after)).res
+
+        after_poison = builder.insert(SecondOp(val_after)).res
+        not_after_poison = builder.insert(smt.NotOp(after_poison)).result
+
+        eq_vals = builder.insert(smt.EqOp(before_val, after_val)).res
+        refinement = builder.insert(smt.AndOp(eq_vals, not_after_poison)).result
+        return refinement
+
+
 def integer_value_refinement(
     value: SSAValue, value_after: SSAValue, insert_point: InsertPoint
 ) -> SSAValue:
@@ -110,6 +132,8 @@ def find_refinement_semantics(
 ) -> RefinementSemantics:
     if isinstance(type_before, IntegerType) and isinstance(type_after, IntegerType):
         return IntegerTypeRefinementSemantics()
+    if isinstance(type_before, BitVectorType) and isinstance(type_after, IntegerType):
+        return IntToIntPoisonRefinementSemantics()
     raise Exception(f"No refinement semantics for types {type_before}, {type_after}")
 
 
@@ -211,7 +235,6 @@ def function_results_refinement(
     """
     Create operations to check that the results of a function call refines another.
     """
-    assert function_type_before == function_type_after
     builder = Builder(insert_point)
     # Refinement of non-state return values
     return_values_refinement = builder.insert(ConstantBoolOp(True)).result
@@ -285,10 +308,16 @@ def insert_function_refinement_with_declare_const(
             args_before.append(const_op.res)
             args_after.append(const_op.res)
         else:
-            const_before = builder.insert(DeclareConstOp(type_before))
-            const_after = builder.insert(DeclareConstOp(type_after))
+            const_before = builder.insert(DeclareConstOp(arg_before))
+            const_after = builder.insert(DeclareConstOp(arg_after))
             args_before.append(const_before.res)
             args_after.append(const_after.res)
+            # Add refinement between arguments
+            refinement_semantics = find_refinement_semantics(type_before, type_after)
+            arg_refinement = refinement_semantics.get_semantics(
+                const_before.res, const_after.res, builder
+            )
+            builder.insert(smt.AssertOp(arg_refinement))
 
     if len(func_before.arg_types) != len(func_type_before.inputs):
         assert len(func_before.arg_types) == len(func_type_before.inputs) + 1
