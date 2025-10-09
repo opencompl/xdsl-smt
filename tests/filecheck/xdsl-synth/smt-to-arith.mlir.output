@@ -1,0 +1,12 @@
+// This file is used by `smt-to-arith.mlir`
+
+func.func @test(%arg0 : i8, %arg1 : i8) -> i8 {
+  %zero = synth.constant : i8
+  %is_zero_div = arith.cmpi eq, %arg1, %zero : i8
+  %minus_one = synth.constant : i8
+  %one = synth.constant : i8
+  %lhs = arith.select %is_zero_div, %minus_one, %arg0 : i8
+  %rhs = arith.select %is_zero_div, %one, %arg1 : i8
+  %r = arith.divui %lhs, %rhs : i8
+  func.return %r : i8
+}

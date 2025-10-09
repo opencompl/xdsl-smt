@@ -125,7 +125,7 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
             raise Exception("Expected function type, got ", func.type)
         return CallOp.build(
             operands=[func, args],
-            result_types=[func.type.outputs.data[0]],
+            result_types=[func.type.outputs.data],
         )
 
     def verify_(self) -> None:
@@ -135,8 +135,6 @@ class CallOp(IRDLOperation, Pure, SMTLibOp):
         for arg, arg_type in zip(self.args, self.func.type.inputs.data):
             if arg.type != arg_type:
                 raise VerifyException("Incorrect argument type")
-        if len(self.func.type.outputs.data) != 1:
-            raise VerifyException("Incorrect number of return values")
         if tuple(res.type for res in self.res) != self.func.type.outputs.data:
             raise VerifyException("Incorrect return type")
 

@@ -290,7 +290,7 @@ def insert_function_refinement_with_declare_const(
 ) -> SSAValue[BoolType]:
     """
     Create operations to check that one function refines another.
-    Arguments passed to the function are created with declare-const ops.
+    Arguments passed to the functions are created with declare-const ops.
     """
     builder = Builder(insert_point)
     args_before: list[SSAValue] = []
@@ -338,31 +338,91 @@ def insert_function_refinement_with_declare_const(
     )
 
 
-def add_function_refinement(
-    func: DefineFunOp,
+def insert_function_refinement_with_forall(
+    func_before: DefineFunOp,
+    func_type_before: FunctionType,
     func_after: DefineFunOp,
-    function_type: FunctionType,
+    func_type_after: FunctionType,
     insert_point: InsertPoint,
-    *,
-    args: Sequence[SSAValue] | None = None,
-) -> SSAValue:
+) -> SSAValue[BoolType]:
     """
     Create operations to check that one function refines another.
-    An assert check is added to the end of the list of operations.
+    This check uses an outside forall quantifier.
     """
     builder = Builder(insert_point)
-    with ImplicitBuilder(builder):
-        # Quantify over all arguments
-        if args is None:
-            args = []
-            for arg in func.body.blocks[0].args:
-                const_op = DeclareConstOp(arg.type)
-                args.append(const_op.res)
+    outer_forall_result: SSAValue | None = None
+    args_before: list[SSAValue] = []
+    args_after: list[SSAValue] = []
+    preconditions: list[SSAValue] = []
+    for (arg_before, arg_after), (type_before, type_after) in zip(
+        zip(func_before.arg_types, func_after.arg_types, strict=True),
+        zip(
+            func_type_before.inputs,
+            func_type_after.inputs,
+            strict=True,
+        ),
+    ):
+        forall: ForallOp
+        if arg_before == arg_after and type_before == type_after:
+            forall = builder.insert(ForallOp(Region(Block(arg_types=[arg_before]))))
+            builder.insertion_point = InsertPoint.at_end(forall.body.block)
+            args_before.append(forall.body.block.args[0])
+            args_after.append(forall.body.block.args[0])
+        else:
+            forall = builder.insert(
+                ForallOp(Region(Block(arg_types=[arg_before, arg_after])))
+            )
+            builder.insertion_point = InsertPoint.at_end(forall.body.block)
+            args_before.append(forall.body.block.args[0])
+            args_after.append(forall.body.block.args[1])
+            # Add refinement between arguments
+            refinement_semantics = find_refinement_semantics(type_before, type_after)
+            arg_refinement = refinement_semantics.get_semantics(
+                args_before[-1], args_after[-1], builder
+            )
+            preconditions.append(arg_refinement)
+        # If we are in a forall, yield the value
+        if outer_forall_result is not None:
+            builder.insert_op(YieldOp(forall.result), InsertPoint.after(forall))
+        if outer_forall_result is None:
+            outer_forall_result = forall.result
 
-        # Call both operations
-        func_call = CallOp(func.ret, args)
-        func_call_after = CallOp(func_after.ret, args)
+    if len(func_before.arg_types) != len(func_type_before.inputs):
+        assert len(func_before.arg_types) == len(func_type_before.inputs) + 1
+        assert len(func_after.arg_types) == len(func_type_after.inputs) + 1
+        forall = builder.insert(
+            ForallOp(Region(Block(arg_types=[func_before.arg_types[-1]])))
+        )
+        builder.insertion_point = InsertPoint.at_end(forall.body.block)
+        args_before.append(forall.body.block.args[0])
+        args_after.append(forall.body.block.args[0])
+        if outer_forall_result is not None:
+            builder.insert_op(YieldOp(forall.result), InsertPoint.after(forall))
+        if outer_forall_result is None:
+            outer_forall_result = forall.result
 
-    return function_results_refinement(
-        func_call, function_type, func_call_after, function_type, insert_point
+    preconditions_conjunction: SSAValue = builder.insert(ConstantBoolOp(True)).result
+    for precondition in preconditions:
+        preconditions_conjunction = builder.insert(
+            AndOp(preconditions_conjunction, precondition)
+        ).result
+
+    call_before = builder.insert(CallOp(func_before.ret, args_before))
+    call_after = builder.insert(CallOp(func_after.ret, args_after))
+
+    results_refinement = function_results_refinement(
+        call_before,
+        func_type_before,
+        call_after,
+        func_type_after,
+        insert_point,
     )
+
+    refinement = builder.insert(
+        ImpliesOp(preconditions_conjunction, results_refinement)
+    ).result
+
+    if outer_forall_result is not None:
+        builder.insert(YieldOp(refinement))
+        return outer_forall_result
+    return refinement

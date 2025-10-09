@@ -6,7 +6,7 @@ program such that it is a refinement of an LHS program.
 import z3  # type: ignore[reportMissingTypeStubs]
 from typing import Sequence, Mapping, cast, Any
 from xdsl.context import Context
-from xdsl.ir import SSAValue, Attribute, Region, Block, OperationInvT
+from xdsl.ir import SSAValue, Attribute, OperationInvT
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.builder import Builder
@@ -23,8 +23,6 @@ from xdsl_smt.dialects.smt_dialect import (
     DeclareConstOp,
     DefineFunOp,
     AssertOp,
-    ForallOp,
-    YieldOp,
     CheckSatOp,
     BoolType,
 )
@@ -37,7 +35,9 @@ from xdsl.dialects.func import FuncOp
 from xdsl.dialects.builtin import ArrayAttr
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorAttr
 from xdsl_smt.semantics.semantics import OperationSemantics
-from xdsl_smt.semantics.refinements import add_function_refinement
+from xdsl_smt.semantics.refinements import (
+    insert_function_refinement_with_forall,
+)
 
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
@@ -105,9 +105,10 @@ def move_synth_constants_at_toplevel(
             builder.insert(op)
 
 
-def optimize_module(ctx: Context, module: ModuleOp) -> None:
+def optimize_module(ctx: Context, module: ModuleOp, with_pairs: bool = True) -> None:
     CanonicalizePass().apply(ctx, module)
-    LowerPairs().apply(ctx, module)
+    if with_pairs:
+        LowerPairs().apply(ctx, module)
     CanonicalizePass().apply(ctx, module)
     CommonSubexpressionElimination().apply(ctx, module)
     CanonicalizePass().apply(ctx, module)
@@ -203,10 +204,14 @@ def synthesize_constants(
 
     rhs = rhs_old.clone()
 
+    func_lhs = get_op_from_module(lhs, FuncOp)
+    assert isinstance(func_lhs, FuncOp)
+    lhs_func_type = func_lhs.function_type
+
     # Move smt.synth.constant to function arguments
     func_rhs = get_op_from_module(rhs, FuncOp)
     assert isinstance(func_rhs, FuncOp)
-    func_type = func_rhs.function_type
+    rhs_func_type = func_rhs.function_type
 
     # Move synth.constant outside of the rhs function body
     move_synth_constants_at_toplevel(rhs, InsertPoint.at_start(rhs.body.block))
@@ -230,29 +235,28 @@ def synthesize_constants(
         block.add_op(op)
 
     if optimize:
-        optimize_module(ctx, new_module)
+        optimize_module(ctx, new_module, with_pairs=False)
 
     LowerMemoryEffectsPass().apply(ctx, new_module)
 
     if optimize:
-        optimize_module(ctx, new_module)
+        optimize_module(ctx, new_module, with_pairs=False)
 
     LowerEffectsWithMemoryPass().apply(ctx, new_module)
 
     if optimize:
-        optimize_module(ctx, new_module)
+        optimize_module(ctx, new_module, with_pairs=False)
 
-    forall = ForallOp(Region(Block(arg_types=func_rhs.body.block.arg_types)))
-    refinement = add_function_refinement(
+    new_module.verify()
+    refinement = insert_function_refinement_with_forall(
         func,
+        lhs_func_type,
         func_rhs,
-        func_type,
-        InsertPoint.at_end(forall.body.block),
-        args=forall.body.block.args,
+        rhs_func_type,
+        InsertPoint.at_end(block),
     )
-    forall.body.block.add_op(YieldOp(refinement))
-    block.add_op(forall)
-    block.add_op(AssertOp(forall.result))
+    block.add_op(AssertOp(refinement))
+    new_module.verify()
 
     if optimize:
         optimize_module(ctx, new_module)
