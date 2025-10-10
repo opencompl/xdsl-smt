@@ -8,7 +8,6 @@ from xdsl.ir import Attribute, Operation, SSAValue
 from xdsl.context import Context
 from xdsl.parser import Parser
 from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.rewriter import InsertPoint
 
 from xdsl_smt.dialects import synth_dialect
 
@@ -26,10 +25,9 @@ from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.synth_dialect import SynthDialect
 from xdsl.dialects.builtin import Builtin, ModuleOp
-from xdsl.dialects.func import Func, FuncOp
+from xdsl.dialects.func import Func
 from xdsl.dialects.arith import Arith
 from xdsl.dialects.comb import Comb
-from xdsl.builder import Builder
 
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
 from xdsl_smt.superoptimization.synthesizer import synthesize_constants
@@ -50,18 +48,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         "pairs and applying constant folding.",
         action="store_true",
     )
-
-
-def move_synth_constants_outside_of_function(
-    func: FuncOp, insert_point: InsertPoint
-) -> None:
-    """Move synth.constant operations to the beginning of the module."""
-    builder = Builder(insert_point)
-
-    for op in func.walk():
-        if isinstance(op, synth_dialect.ConstantOp):
-            op.detach()
-            builder.insert(op)
 
 
 class SynthSemantics(OperationSemantics):
