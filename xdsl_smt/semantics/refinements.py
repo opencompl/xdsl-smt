@@ -1,11 +1,11 @@
 from typing import Sequence
-from xdsl.dialects.builtin import FunctionType, IntegerType
+from xdsl.dialects.builtin import FunctionType, IntegerType, i1
 from xdsl.ir import SSAValue, Region, Block, Attribute
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
 
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType, UltOp
-import xdsl_smt.dialects.smt_dialect as smt
+from xdsl_smt.dialects import smt_dialect as smt, smt_bitvector_dialect as smt_bv
 
 from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
@@ -26,6 +26,7 @@ from xdsl_smt.dialects.smt_dialect import (
     CallOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
+from xdsl_smt.interpreters import smt_bitvector
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
@@ -66,6 +67,30 @@ class IntToIntPoisonRefinementSemantics(RefinementSemantics):
         """
         before_val = val_before
         after_val = builder.insert(FirstOp(val_after)).res
+
+        after_poison = builder.insert(SecondOp(val_after)).res
+        not_after_poison = builder.insert(smt.NotOp(after_poison)).result
+
+        eq_vals = builder.insert(smt.EqOp(before_val, after_val)).res
+        refinement = builder.insert(smt.AndOp(eq_vals, not_after_poison)).result
+        return refinement
+
+
+class BoolToIntPoisonRefinementSemantics(RefinementSemantics):
+    def get_semantics(
+        self,
+        val_before: SSAValue,
+        val_after: SSAValue,
+        builder: Builder,
+    ) -> SSAValue:
+        """
+        Compute the refinement from an integer without poison semantics
+        to a integer with poison semantics.
+        """
+        before_val = val_before
+        after_val_int = builder.insert(FirstOp(val_after)).res
+        zero = builder.insert(smt_bv.ConstantOp(0, 1)).res
+        after_val = builder.insert(smt.DistinctOp(after_val_int, zero)).res
 
         after_poison = builder.insert(SecondOp(val_after)).res
         not_after_poison = builder.insert(smt.NotOp(after_poison)).result
@@ -134,6 +159,8 @@ def find_refinement_semantics(
         return IntegerTypeRefinementSemantics()
     if isinstance(type_before, BitVectorType) and isinstance(type_after, IntegerType):
         return IntToIntPoisonRefinementSemantics()
+    if isinstance(type_before, BoolType) and type_after == i1:
+        return BoolToIntPoisonRefinementSemantics()
     raise Exception(f"No refinement semantics for types {type_before}, {type_after}")
 
 
