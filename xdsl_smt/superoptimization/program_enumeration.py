@@ -2,10 +2,12 @@ import subprocess as sp
 import time
 from typing import Sequence, Iterable
 
+from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
+
 from xdsl.dialects.func import FuncOp
 from xdsl.dialects.pdl import PatternOp
 
-MLIR_ENUMERATE = "./mlir-fuzz/build/bin/mlir-enumerate"
+MLIR_ENUMERATE_PATH = get_mlir_fuzz_executable_path("mlir-enumerate")
 EXCLUDE_SUBPATTERNS_FILE = f"/tmp/exclude-subpatterns-{time.time()}.mlir"
 BUILDING_BLOCKS_FILE = f"/tmp/building-blocks-{time.time()}.mlir"
 
@@ -55,7 +57,7 @@ def enumerate_programs(
 
     enumerator = sp.Popen(
         [
-            MLIR_ENUMERATE,
+            MLIR_ENUMERATE_PATH,
             dialect_path,
             f"--configuration={configuration}",
             f"--smt-bitvector-widths={bv_widths}",

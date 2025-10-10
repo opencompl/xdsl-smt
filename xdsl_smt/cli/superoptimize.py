@@ -2,8 +2,9 @@
 
 import sys
 import argparse
-import os
 import subprocess as sp
+
+from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
 
 from xdsl.context import Context
 from xdsl.parser import Parser
@@ -105,10 +106,7 @@ def main() -> None:
     with open(args.input_file, "r") as f:
         input_program = Parser(ctx, f.read()).parse_module()
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    executable_path = os.path.join(
-        current_dir, "..", "..", "mlir-fuzz", "build", "bin", "superoptimizer"
-    )
+    executable_path = get_mlir_fuzz_executable_path("superoptimizer")
 
     # Start the enumerator
     enumerator = sp.Popen(
