@@ -258,7 +258,6 @@ def synthesize_constants(
         InsertPoint.at_end(block),
     )
     block.add_op(AssertOp(refinement))
-    new_module.verify()
 
     if optimize:
         optimize_module(ctx, new_module)
@@ -286,8 +285,13 @@ def synthesize_constants(
 
     # Expand ops not supported by all SMT solvers
     SMTExpand().apply(ctx, new_module)
+
     if optimize:
         optimize_module(ctx, new_module)
+    else:
+        # Remove pairs for the last time if we did not optimize before.
+        # Without this call, some seemingly simple examples return `unknown` with z3.
+        LowerPairs().apply(ctx, new_module)
 
     name_to_ssavalue = assign_name_hints_to_declare_const(new_module)
 

@@ -61,7 +61,7 @@ def main() -> None:
 
     load_vanilla_semantics()
 
-    res_rhs = synthesize_constants(module, module_after, ctx, True)
+    res_rhs = synthesize_constants(module, module_after, ctx, args.opt)
     if res_rhs is None:
         print("Synthesis failed")
         exit(1)

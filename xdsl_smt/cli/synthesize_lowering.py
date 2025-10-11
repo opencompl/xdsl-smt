@@ -41,6 +41,11 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="The timeout passed to the SMT solver in milliseconds",
         default=8000,
     )
+    arg_parser.add_argument(
+        "--opt",
+        help="Run some optimizations on the SMT query before passing it to the solver",
+        action="store_true",
+    )
 
 
 def get_input_operations(
@@ -93,7 +98,8 @@ def try_synthesize_lowering_for_module(
             f"--max-num-ops={size}",
             f"--dialect={args.output_dialect}",
             f"--configuration={args.output_configuration}",
-        ],
+        ]
+        + (["--opt"] if args.opt else []),
         capture_output=True,
         text=True,
     )

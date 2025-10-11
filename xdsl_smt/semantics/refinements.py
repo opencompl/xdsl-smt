@@ -441,7 +441,7 @@ def insert_function_refinement_with_forall(
         func_type_before,
         call_after,
         func_type_after,
-        insert_point,
+        builder.insertion_point,
     )
 
     refinement = builder.insert(

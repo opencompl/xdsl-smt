@@ -77,9 +77,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default="arith",
     )
     arg_parser.add_argument(
-        "--optimize",
-        dest="optimize",
-        help="Only generate programs with a lower cost than the input program",
+        "--opt",
+        dest="opt",
+        help="Optimize SMT queries before sending them to the solver",
         action="store_true",
     )
 
@@ -126,7 +126,6 @@ def main() -> None:
             "--mlir-print-op-generic",
             f"--configuration={args.configuration}",
             f"--use-input-ops={args.use_input_ops}",
-            # "--optimize" if args.optimize is not None else "",
         ],
         stdin=sp.PIPE,
         stdout=sp.PIPE,
@@ -143,8 +142,9 @@ def main() -> None:
 
             # Call the synthesizer with the read program in stdin
             result_program = synthesize_constants(
-                input_program, rhs_program, ctx, args.optimize, args.timeout
+                input_program, rhs_program, ctx, args.opt, args.timeout
             )
+
             if result_program is None:
                 if args.verbose:
                     print("Example failed:", file=sys.stderr)
