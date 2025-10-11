@@ -26,7 +26,6 @@ from xdsl_smt.dialects.smt_dialect import (
     CallOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
-from xdsl_smt.interpreters import smt_bitvector
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
