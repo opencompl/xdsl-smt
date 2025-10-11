@@ -198,6 +198,8 @@ def synthesize_constants(
     optimize: bool,
     timeout: int | None = None,
 ) -> ModuleOp | None:
+    lhs = lhs.clone()
+    rhs = rhs.clone()
     rhs_old = rhs
     # Give a name to each synth.constant so we can track them during the pipeline.
     name_to_synth_const = assign_names_to_synth_constants(rhs_old)

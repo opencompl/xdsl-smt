@@ -4,19 +4,23 @@ import sys
 import argparse
 import subprocess as sp
 
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
 from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
 
 from xdsl.context import Context
 from xdsl.parser import Parser
 from xdsl.rewriter import Rewriter
 
+from xdsl_smt.superoptimization.synthesizer import synthesize_constants
 from xdsl_smt.dialects import get_all_dialects
 import xdsl_smt.dialects.synth_dialect as synth
 from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IntegerType
 import xdsl_smt.dialects.hw_dialect as hw
 
 
-def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
+def read_program_from_enumerator(
+    enumerator: sp.Popen[bytes], ctx: Context
+) -> ModuleOp | None:
     program_lines = list[bytes]()
     assert enumerator.stdout is not None
     while True:
@@ -24,7 +28,7 @@ def read_program_from_enumerator(enumerator: sp.Popen[bytes]) -> bytes | None:
 
         # End of program marker
         if output == b"// -----\n":
-            return b"".join(program_lines)
+            return Parser(ctx, b"".join(program_lines).decode("utf-8")).parse_module()
 
         # End of file
         if not output:
@@ -93,11 +97,14 @@ def replace_synth_with_constants(
 
 
 def main() -> None:
-    ctx = Context()
-    ctx.allow_unregistered = True
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
     args = arg_parser.parse_args()
+
+    ctx = Context()
+    ctx.allow_unregistered = True
+
+    load_vanilla_semantics()
 
     # Register all dialects
     for dialect_name, dialect_factory in get_all_dialects().items():
@@ -128,39 +135,35 @@ def main() -> None:
     try:
         while True:
             # Read one program from stdin
-            program = read_program_from_enumerator(enumerator)
+            rhs_program = read_program_from_enumerator(enumerator, ctx)
 
             # End of file
-            if program is None:
+            if rhs_program is None:
                 break
 
             # Call the synthesizer with the read program in stdin
-            res = sp.run(
-                ["xdsl-synth", args.input_file, "-opt"],
-                input=program,
-                stdout=sp.PIPE,
-                stderr=sp.PIPE,
+            result_program = synthesize_constants(
+                input_program, rhs_program, ctx, args.optimize, args.timeout
             )
-            if res.returncode != 0:
+            if result_program is None:
                 if args.verbose:
                     print("Example failed:", file=sys.stderr)
-                    print(program.decode("utf-8"), file=sys.stderr)
+                    print(rhs_program, file=sys.stderr)
                 assert enumerator.stdin is not None
                 enumerator.stdin.write(b"a")
                 enumerator.stdin.flush()
                 continue
 
-            resulting_program = Parser(ctx, res.stdout.decode("utf-8")).parse_module()
-            if resulting_program.is_structurally_equivalent(input_program):
+            if result_program.is_structurally_equivalent(input_program):
                 if args.verbose:
                     print("Synthesized the same program:", file=sys.stderr)
-                    print(resulting_program, file=sys.stderr)
+                    print(result_program, file=sys.stderr)
                 assert enumerator.stdin is not None
                 enumerator.stdin.write(b"a")
                 enumerator.stdin.flush()
                 continue
 
-            print(resulting_program.ops.first)
+            print(result_program.ops.first)
             exit(0)
     except BrokenPipeError as e:
         # The enumerator has terminated
