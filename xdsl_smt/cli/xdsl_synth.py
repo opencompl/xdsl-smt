@@ -2,32 +2,13 @@
 
 import argparse
 import sys
-from typing import Mapping, Sequence
 
-from xdsl.ir import Attribute, Operation, SSAValue
+from xdsl.ir import Operation
 from xdsl.context import Context
 from xdsl.parser import Parser
-from xdsl.pattern_rewriter import PatternRewriter
 
-from xdsl_smt.dialects import synth_dialect
-
-from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
-from xdsl_smt.semantics.semantics import OperationSemantics
-from xdsl_smt.dialects.smt_dialect import (
-    DeclareConstOp,
-    SMTDialect,
-)
-from xdsl_smt.dialects.smt_bitvector_dialect import SMTBitVectorDialect
-from xdsl_smt.dialects.smt_utils_dialect import (
-    SMTUtilsDialect,
-)
-from xdsl_smt.dialects.hw_dialect import HW
-from xdsl_smt.dialects.llvm_dialect import LLVM
-from xdsl_smt.dialects.synth_dialect import SynthDialect
-from xdsl.dialects.builtin import Builtin, ModuleOp
-from xdsl.dialects.func import Func
-from xdsl.dialects.arith import Arith
-from xdsl.dialects.comb import Comb
+from xdsl_smt.dialects import get_all_dialects
+from xdsl.dialects.builtin import ModuleOp
 
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
 from xdsl_smt.superoptimization.synthesizer import synthesize_constants
@@ -50,20 +31,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-class SynthSemantics(OperationSemantics):
-    def get_semantics(
-        self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue | None,
-        rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        result_type = SMTLowerer.lower_type(results[0])
-        res = rewriter.insert(DeclareConstOp(result_type)).res
-        return ((res,), effect_state)
-
-
 def main() -> None:
     ctx = Context()
     ctx.allow_unregistered = True
@@ -72,16 +39,8 @@ def main() -> None:
     args = arg_parser.parse_args()
 
     # Register all dialects
-    ctx.load_dialect(Arith)
-    ctx.load_dialect(Builtin)
-    ctx.load_dialect(Func)
-    ctx.load_dialect(SMTDialect)
-    ctx.load_dialect(SMTBitVectorDialect)
-    ctx.load_dialect(SMTUtilsDialect)
-    ctx.load_dialect(SynthDialect)
-    ctx.load_dialect(Comb)
-    ctx.load_dialect(HW)
-    ctx.load_dialect(LLVM)
+    for dialect_name, dialect_factory in get_all_dialects().items():
+        ctx.register_dialect(dialect_name, dialect_factory)
 
     # Parse the files
     def parse_file(file: str | None) -> Operation:
@@ -101,7 +60,6 @@ def main() -> None:
     assert isinstance(module_after, ModuleOp)
 
     load_vanilla_semantics()
-    SMTLowerer.op_semantics[synth_dialect.ConstantOp] = SynthSemantics()
 
     res_rhs = synthesize_constants(module, module_after, ctx, True)
     if res_rhs is None:
