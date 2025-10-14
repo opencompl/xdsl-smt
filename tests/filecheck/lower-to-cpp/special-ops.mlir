@@ -6,7 +6,7 @@
     %r = "transfer.select"(%c, %x, %y) : (i1, !transfer.integer, !transfer.integer) -> !transfer.integer
     "func.return"(%r) : (!transfer.integer) -> ()
   }) {"sym_name" = "select_test", "function_type" = (i1, !transfer.integer, !transfer.integer) -> !transfer.integer} : () -> ()
-  
+
   "func.func"() ({
   ^0(%lhs : !transfer.abs_value<[!transfer.integer, !transfer.integer]>, %rhs : !transfer.abs_value<[!transfer.integer, !transfer.integer]>):
     %lhs0 = "transfer.get"(%lhs) {index = 0} : (!transfer.abs_value<[!transfer.integer, !transfer.integer]>) -> !transfer.integer
