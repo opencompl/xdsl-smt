@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from typing import TextIO
+import sys
 
-from xdsl.context import Context
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.func import FuncOp
 from xdsl.ir import Operation
-from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
     PatternRewriter,
@@ -15,22 +14,17 @@ from xdsl.pattern_rewriter import (
 )
 
 from ..utils.lower_utils import (
-    CPP_CLASS_KEY,
-    INDUCTION_KEY,
     lowerOperation,
-    set_int_to_apint,
+    set_use_apint,
     set_use_custom_vec,
+    set_use_llvm_kb,
 )
 
 autogen = 0
 funcStr = ""
-needDispatch: list[FuncOp] = []
-inductionOp: list[FuncOp] = []
 
 
 def transfer_func(op: Operation, fout: TextIO):
-    global needDispatch
-    global inductionOp
     if isinstance(op, ModuleOp):
         return
     if len(op.results) > 0 and op.results[0].name_hint is None:
@@ -42,10 +36,6 @@ def transfer_func(op: Operation, fout: TextIO):
             if arg.name_hint is None:
                 arg.name_hint = "autogen" + str(autogen)
                 autogen += 1
-        if CPP_CLASS_KEY in op.attributes:
-            needDispatch.append(op)
-        if INDUCTION_KEY in op.attributes:
-            inductionOp.append(op)
     global funcStr
     funcStr += lowerOperation(op)
     parentOp = op.parent_op()
@@ -65,25 +55,24 @@ class LowerOperation(RewritePattern):
         transfer_func(op, self.fout)
 
 
-@dataclass(frozen=True)
-class LowerToCpp(ModulePass):
-    name = "trans_lower"
-    fout: TextIO
-    int_to_apint: bool = False
-    use_custom_vec: bool = False
+def lower_to_cpp(
+    op: ModuleOp,
+    fout: TextIO = sys.stdout,
+    use_apint: bool = False,
+    use_custom_vec: bool = False,
+    use_llvm_kb: bool = False,
+) -> None:
+    global autogen
+    autogen = 0
 
-    def apply(self, ctx: Context, op: ModuleOp) -> None:
-        global autogen
-        autogen = 0
-        set_int_to_apint(self.int_to_apint)
-        set_use_custom_vec(self.use_custom_vec)
-        # We found PatternRewriteWalker skipped the op itself during iteration
-        # Do it manually on op
-        transfer_func(op, self.fout)
-        walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier([LowerOperation(self.fout)]),
-            walk_regions_first=False,
-            apply_recursively=False,
-            walk_reverse=False,
-        )
-        walker.rewrite_module(op)
+    # set options
+    set_use_apint(use_apint)
+    set_use_custom_vec(use_custom_vec)
+    set_use_llvm_kb(use_llvm_kb)
+
+    PatternRewriteWalker(
+        GreedyRewritePatternApplier([LowerOperation(fout)]),
+        walk_regions_first=False,
+        apply_recursively=False,
+        walk_reverse=False,
+    ).rewrite_module(op)

@@ -2,7 +2,7 @@ from functools import singledispatch
 from typing import Callable
 
 import xdsl.dialects.arith as arith
-from xdsl.dialects.builtin import IndexType, IntegerAttr, IntegerType
+from xdsl.dialects.builtin import IndexType, IntegerType
 from xdsl.dialects.func import CallOp, FuncOp, ReturnOp
 from xdsl.ir import Attribute, Block, BlockArgument, Operation, SSAValue
 
@@ -150,6 +150,10 @@ operNameToCpp = {
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
+# consts
+EQ = " = "
+END = ";\n"
+IDNT = "\t"
 
 VAL_EXCEEDS_BW = "{1}.uge({1}.getBitWidth())"
 RHS_IS_ZERO = "{1} == 0"
@@ -178,34 +182,28 @@ op_to_cons: dict[type[Operation], list[tuple[str, str]]] = {
     SDivOp: [SDIV_ACTION0, SDIV_ACTION1, SDIV_ACTION2],
 }
 
-unsignedReturnedType = {
-    CountLOneOp,
-    CountLZeroOp,
-    CountROneOp,
-    CountRZeroOp,
-    GetBitWidthOp,
-}
-
-int_to_apint = False
+# lowering config
+use_apint = False
 use_custom_vec = False
-EQ = " = "
-END = ";\n"
-IDNT = "\t"
-CPP_CLASS_KEY = "CPPCLASS"
-INDUCTION_KEY = "induction"
-OPERATION_NO = "operationNo"
+use_llvm_kb = False
 
 
-def set_int_to_apint(to_apint: bool) -> None:
-    global int_to_apint
-    int_to_apint = to_apint
+def set_use_apint(f: bool) -> None:
+    global use_apint
+    use_apint = f
 
 
-def set_use_custom_vec(custom_vec: bool) -> None:
+def set_use_custom_vec(f: bool) -> None:
     global use_custom_vec
-    use_custom_vec = custom_vec
+    use_custom_vec = f
 
 
+def set_use_llvm_kb(f: bool) -> None:
+    global use_llvm_kb
+    use_llvm_kb = f
+
+
+# helpers
 def get_ret_val(op: Operation) -> str:
     ret_val = op.results[0].name_hint
     assert ret_val
@@ -229,130 +227,44 @@ def get_op_str(op: Operation) -> str:
 
 
 def lowerType(typ: Attribute, specialOp: Operation | Block | None = None) -> str:
+    unsigned_ret_type = {
+        CountLOneOp,
+        CountLZeroOp,
+        CountROneOp,
+        CountRZeroOp,
+        GetBitWidthOp,
+    }
+
     if specialOp is not None:
-        for op in unsignedReturnedType:
+        for op in unsigned_ret_type:
             if isinstance(specialOp, op):
                 return "unsigned"
-    if isinstance(typ, TransIntegerType):
-        return "APInt"
+
+    if isinstance(typ, TransIntegerType) or (
+        isinstance(typ, IntegerType) and use_apint
+    ):
+        return "const APInt"
     elif isinstance(typ, AbstractValueType) or isinstance(typ, TupleType):
         fields = typ.get_fields()
         typeName = lowerType(fields[0])
         for i in range(1, len(fields)):
             assert lowerType(fields[i]) == typeName
+
         if use_custom_vec:
             return "Vec<" + str(len(fields)) + ">"
-        return "std::vector<" + typeName + ">"
-    elif isinstance(typ, IntegerType):
-        return "int" if not int_to_apint else "APInt"
-    elif isinstance(typ, IndexType):
-        return "int"
-    assert False and "unsupported type"
-
-
-def lowerInductionOps(inductionOp: list[FuncOp]) -> str:
-    if len(inductionOp) > 0:
-        functionSignature = """
-{returnedType} {funcName}(ArrayRef<{returnedType}> operands){{
-    {returnedType} result={funcName}(operands[0], operands[1]);
-    for(int i=2;i<operands.size();++i){{
-        result={funcName}(result, operands[i]);
-    }}
-    return result;
-}}
-
-"""
-        result = ""
-        for func in inductionOp:
-            funcName = func.sym_name.data
-            ret_ty = lowerType(func.function_type.outputs.data[0])
-            result += functionSignature.format(returnedType=ret_ty, funcName=funcName)
-
-        return result
-
-    return ""
-
-
-def lowerDispatcher(needDispatch: list[FuncOp], is_forward: bool) -> str:
-    if len(needDispatch) > 0:
-        returnedType = needDispatch[0].function_type.outputs.data[0]
-        for func in needDispatch:
-            if func.function_type.outputs.data[0] != returnedType:
-                print(func)
-                print(func.function_type.outputs.data[0])
-                assert (
-                    "we assume all transfer functions have the same returned type"
-                    and False
-                )
-        returnedType = lowerType(returnedType)
-        funcName = "naiveDispatcher"
-        # we assume all operands have the same type as expr
-        # User should tell the generator all operands
-        if is_forward:
-            expr = "(Operation* op, std::vector<std::vector<llvm::APInt>> operands)"
+        elif use_llvm_kb:
+            assert len(fields) == 2
+            return "const llvm::KnownBits"
         else:
-            expr = "(Operation* op, std::vector<std::vector<llvm::APInt>> operands, unsigned operationNo)"
-        functionSignature = (
-            "std::optional<" + returnedType + "> " + funcName + expr + "{{\n{0}}}\n\n"
-        )
+            return "std::vector<" + typeName + ">"
+    elif isinstance(typ, IndexType) or isinstance(typ, IntegerType):
+        return "int"
 
-        dyn_cast = (
-            IDNT
-            + "if(auto castedOp=dyn_cast<{0}>(op);castedOp&&{1}){{\n{2}"
-            + IDNT
-            + "}}\n"
-        )
-        return_inst = IDNT + IDNT + "return {0}({1});\n"
-
-        def handleOneTransferFunction(func: FuncOp, operationNo: int) -> str:
-            blockStr = ""
-            for cppClass in func.attributes[CPP_CLASS_KEY]:  # type: ignore
-                argStr = ""
-                if INDUCTION_KEY in func.attributes:
-                    argStr = "operands"
-                else:
-                    if len(func.args) > 0:
-                        argStr = "operands[0]"
-                    for i in range(1, len(func.args)):
-                        argStr += ", operands[" + str(i) + "]"
-                ifBody = return_inst.format(func.sym_name.data, argStr)
-                if operationNo == -1:
-                    operationNoStr = "true"
-                else:
-                    operationNoStr = "operationNo == " + str(operationNo)
-                blockStr += dyn_cast.format(cppClass.data, operationNoStr, ifBody)  # type: ignore
-            return blockStr
-
-        funcBody = ""
-        for func in needDispatch:
-            if is_forward:
-                funcBody += handleOneTransferFunction(func, -1)
-            else:
-                operationNo = func.attributes[OPERATION_NO]
-                assert isinstance(operationNo, IntegerAttr)
-                funcBody += handleOneTransferFunction(func, operationNo.value.data)
-        funcBody += IDNT + "return {};\n"
-
-        return functionSignature.format(funcBody)
-
-    return ""
+    raise ValueError(f"unsupported type: {type(typ)}")
 
 
 def isFunctionCall(opName: str) -> bool:
     return opName[0] == "."
-
-
-def lowerToNonClassMethod(op: Operation) -> str:
-    ret_type = lowerType(op.results[0].type, op)
-    ret_val = get_ret_val(op)
-    expr = "("
-    if len(op.operands) > 0:
-        expr += get_operand(op, 0)
-    for i in range(1, len(op.operands)):
-        expr += "," + get_operand(op, i)
-    expr += ")"
-
-    return IDNT + ret_type + " " + ret_val + EQ + get_op_str(op) + expr + END
 
 
 def lowerToClassMethod(
@@ -492,22 +404,42 @@ def _(op: GetOp) -> str:
     returnedValue = get_ret_val(op)
     index = op.attributes["index"].value.data  # type: ignore
 
-    return (
-        IDNT
-        + returnedType
-        + " "
-        + returnedValue
-        + EQ
-        + get_operand(op, 0)
-        + get_op_str(op).format(index)  # type: ignore
-        + END
-    )
+    if use_llvm_kb:
+        return (
+            IDNT
+            + returnedType
+            + " "
+            + returnedValue
+            + EQ
+            + get_operand(op, 0)
+            + (".Zero" if index == 0 else ".One")
+            + END
+        )
+
+    else:
+        return (
+            IDNT
+            + returnedType
+            + " "
+            + returnedValue
+            + EQ
+            + get_operand(op, 0)
+            + get_op_str(op).format(index)  # type: ignore
+            + END
+        )
 
 
 @lowerOperation.register
 def _(op: MakeOp) -> str:
-    returnedType = lowerType(op.results[0].type, op)
     returnedValue = get_ret_val(op)
+
+    if use_llvm_kb and isinstance(op.results[0].type, AbstractValueType):
+        s = f"{IDNT}llvm::KnownBits {returnedValue}{END}"
+        s += f"{IDNT}{returnedValue}.Zero = {get_operand(op, 0)}{END}"
+        s += f"{IDNT}{returnedValue}.One = {get_operand(op, 1)}{END}"
+        return s
+
+    returnedType = lowerType(op.results[0].type, op)
     expr = ""
     if len(op.operands) > 0:
         expr += get_operand(op, 0)
@@ -723,8 +655,18 @@ def set_clear_bits(
 @lowerOperation.register
 def _(op: FuncOp):
     def lowerArgs(arg: BlockArgument) -> str:
+        global use_apint
         assert arg.name_hint
-        return lowerType(arg.type) + " " + arg.name_hint
+        s = f"{lowerType(arg.type)} {arg.name_hint}"
+        if (
+            isinstance(arg.type, AbstractValueType)
+            or isinstance(arg.type, TupleType)
+            or isinstance(arg.type, TransIntegerType)
+            or (isinstance(arg.type, IntegerType) and use_apint)
+        ):
+            s = f"{lowerType(arg.type)} &{arg.name_hint}"
+
+        return s
 
     returnedType = lowerType(op.function_type.outputs.data[0])
     funcName = op.sym_name.data

@@ -104,77 +104,77 @@
   }) {"sym_name" = "uge_test", "function_type" = (!transfer.integer, !transfer.integer) -> i1} : () -> ()
 }) : () -> ()
 
-// CHECK:       int umul_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.umul_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int smul_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.smul_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int uadd_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.uadd_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int sadd_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.sadd_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int ushl_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.ushl_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int sshl_ov_test(APInt x,APInt y){
-// CHECK-NEXT:  	bool r;
-// CHECK-NEXT:  	x.sshl_ov(y,r);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int intersects_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.intersects(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int eq_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.eq(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int neq_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.ne(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int slt_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.slt(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int sle_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.sle(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int sgt_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.sgt(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int sge_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.sge(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int ult_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.ult(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int ule_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.ule(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int ugt_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.ugt(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  int uge_test(APInt x,APInt y){
-// CHECK-NEXT:  	int r = x.uge(y);
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
+// CHECK:      int umul_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.umul_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int smul_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.smul_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int uadd_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.uadd_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int sadd_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.sadd_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int ushl_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.ushl_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int sshl_ov_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	bool r;
+// CHECK-NEXT: 	x.sshl_ov(y,r);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int intersects_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.intersects(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int eq_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.eq(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int neq_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.ne(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int slt_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.slt(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int sle_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.sle(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int sgt_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.sgt(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int sge_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.sge(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int ult_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.ult(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int ule_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.ule(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int ugt_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.ugt(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: int uge_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	int r = x.uge(y);
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }

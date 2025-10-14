@@ -10,7 +10,7 @@ from xdsl.parser import Parser
 
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.transfer import Transfer
-from xdsl_smt.passes.transfer_lower import LowerToCpp
+from xdsl_smt.passes.transfer_lower import lower_to_cpp
 
 
 def _register_args() -> argparse.Namespace:
@@ -31,12 +31,19 @@ def _register_args() -> argparse.Namespace:
         help="Path to the output MLIR file (defaults to stdout if omitted).",
     )
     parser.add_argument(
-        "--apint", action="store_true", help="Use apints for bitvector type lowering"
+        "--apint",
+        action="store_true",
+        help="Use LLVM APInts for bitvector type lowering",
     )
     parser.add_argument(
         "--custom_vec",
         action="store_true",
-        help="Use custom vec class for transfer value lowering",
+        help="Use custom vec class for abstract value lowering",
+    )
+    parser.add_argument(
+        "--llvm_kb",
+        action="store_true",
+        help="Use LLVM KnownBits for abstract value lowering",
     )
 
     return parser.parse_args()
@@ -55,7 +62,9 @@ def _parse_mlir_module(p: Path | None, ctx: Context) -> ModuleOp:
         raise ValueError(f"mlir in '{fname}' is neither a ModuleOp, nor a FuncOp")
 
 
-def _get_ctx() -> Context:
+def main() -> None:
+    args = _register_args()
+
     ctx = Context()
     ctx.load_dialect(Arith)
     ctx.load_dialect(Builtin)
@@ -63,16 +72,16 @@ def _get_ctx() -> Context:
     ctx.load_dialect(Transfer)
     ctx.load_dialect(LLVM)
 
-    return ctx
-
-
-def main() -> None:
-    args = _register_args()
-
-    ctx = _get_ctx()
-    funcs = _parse_mlir_module(args.input, ctx)
+    module = _parse_mlir_module(args.input, ctx)
     output = args.output.open("w", encoding="utf-8") if args.output else sys.stdout
 
-    LowerToCpp(output, int_to_apint=args.apint, use_custom_vec=args.custom_vec).apply(
-        ctx, funcs
+    if args.custom_vec and args.llvm_kb:
+        raise ValueError("Cannot lower with both custom vectors and LLVM KnownBits")
+
+    lower_to_cpp(
+        module,
+        output,
+        use_apint=args.apint,
+        use_custom_vec=args.custom_vec,
+        use_llvm_kb=args.llvm_kb,
     )

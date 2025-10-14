@@ -140,32 +140,32 @@
   }) {"sym_name" = "clear_low_bits_test", "function_type" = (!transfer.integer, !transfer.integer) -> !transfer.integer} : () -> ()
 }) : () -> ()
 
-// CHECK:       APInt add_test(APInt x,APInt y){
-// CHECK-NEXT:  	APInt r = x+y;
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  APInt sub_test(APInt x,APInt y){
-// CHECK-NEXT:  	APInt r = x-y;
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  APInt mul_test(APInt x,APInt y){
-// CHECK-NEXT:  	APInt r = x*y;
-// CHECK-NEXT:  	return r;
-// CHECK-NEXT:  }
-// CHECK-NEXT:  APInt and_test(APInt x,APInt y){
-// CHECK-NEXT:  	APInt r = x&y;
-// CHECK-NEXT:    return r;
-// CHECK-NEXT: }
-// CHECK-NEXT: APInt or_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x|y;
+// CHECK:      const APInt add_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x+y;
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt xor_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x^y;
+// CHECK-NEXT: const APInt sub_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x-y;
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt udiv_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt mul_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x*y;
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: const APInt and_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x&y;
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: const APInt or_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x|y;
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: const APInt xor_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x^y;
+// CHECK-NEXT: 	return r;
+// CHECK-NEXT: }
+// CHECK-NEXT: const APInt udiv_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y == 0) {
 // CHECK-NEXT: 		r = APInt(x.getBitWidth(), -1);
 // CHECK-NEXT: 	} else {
@@ -173,8 +173,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt sdiv_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt sdiv_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (x.isMinSignedValue() && y == -1) {
 // CHECK-NEXT: 		r = APInt::getSignedMinValue(x.getBitWidth());
 // CHECK-NEXT: 	} else if (y == 0 && x.isNonNegative()) {
@@ -186,8 +186,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt urem_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt urem_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y == 0) {
 // CHECK-NEXT: 		r = x;
 // CHECK-NEXT: 	} else {
@@ -195,8 +195,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt srem_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt srem_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y == 0) {
 // CHECK-NEXT: 		r = x;
 // CHECK-NEXT: 	} else {
@@ -204,8 +204,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt shl_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt shl_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y.uge(y.getBitWidth())) {
 // CHECK-NEXT: 		r = APInt(x.getBitWidth(), 0);
 // CHECK-NEXT: 	} else {
@@ -213,8 +213,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt ashr_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt ashr_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y.uge(y.getBitWidth()) && x.isSignBitSet()) {
 // CHECK-NEXT: 		r = APInt(x.getBitWidth(), -1);
 // CHECK-NEXT: 	} else if (y.uge(y.getBitWidth()) && x.isSignBitClear()) {
@@ -224,8 +224,8 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt lshr_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r;
+// CHECK-NEXT: const APInt lshr_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r;
 // CHECK-NEXT: 	if (y.uge(y.getBitWidth())) {
 // CHECK-NEXT: 		r = APInt(x.getBitWidth(), 0);
 // CHECK-NEXT: 	} else {
@@ -233,56 +233,56 @@
 // CHECK-NEXT: 	}
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt umin_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = A::APIntOps::umin(x,y);
+// CHECK-NEXT: const APInt umin_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = A::APIntOps::umin(x,y);
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt smin_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = A::APIntOps::smin(x,y);
+// CHECK-NEXT: const APInt smin_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = A::APIntOps::smin(x,y);
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt umax_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = A::APIntOps::umax(x,y);
+// CHECK-NEXT: const APInt umax_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = A::APIntOps::umax(x,y);
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt smax_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = A::APIntOps::smax(x,y);
+// CHECK-NEXT: const APInt smax_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = A::APIntOps::smax(x,y);
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt get_high_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x.getHiBits(y.getZExtValue());
+// CHECK-NEXT: const APInt get_high_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x.getHiBits(y.getZExtValue());
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt get_low_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x.getLoBits(y.getZExtValue());
+// CHECK-NEXT: const APInt get_low_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x.getLoBits(y.getZExtValue());
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt set_high_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x;
+// CHECK-NEXT: const APInt set_high_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x;
 // CHECK-NEXT: 	if (y.ule(y.getBitWidth()))
 // CHECK-NEXT: 		r.setHighBits(y.getZExtValue());
 // CHECK-NEXT: 	else
 // CHECK-NEXT: 		r.setHighBits(y.getBitWidth());
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt set_low_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x;
+// CHECK-NEXT: const APInt set_low_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x;
 // CHECK-NEXT: 	if (y.ule(y.getBitWidth()))
 // CHECK-NEXT: 		r.setLowBits(y.getZExtValue());
 // CHECK-NEXT: 	else
 // CHECK-NEXT: 		r.setLowBits(y.getBitWidth());
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt clear_high_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x;
+// CHECK-NEXT: const APInt clear_high_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x;
 // CHECK-NEXT: 	if (y.ule(y.getBitWidth()))
 // CHECK-NEXT: 		r.clearHighBits(y.getZExtValue());
 // CHECK-NEXT: 	else
 // CHECK-NEXT: 		r.clearHighBits(y.getBitWidth());
 // CHECK-NEXT: 	return r;
 // CHECK-NEXT: }
-// CHECK-NEXT: APInt clear_low_bits_test(APInt x,APInt y){
-// CHECK-NEXT: 	APInt r = x;
+// CHECK-NEXT: const APInt clear_low_bits_test(const APInt &x,const APInt &y){
+// CHECK-NEXT: 	const APInt r = x;
 // CHECK-NEXT: 	if (y.ule(y.getBitWidth()))
 // CHECK-NEXT: 		r.clearLowBits(y.getZExtValue());
 // CHECK-NEXT: 	else
