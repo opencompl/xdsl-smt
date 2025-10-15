@@ -69,6 +69,12 @@ class SMTBitVectorFunctions(InterpreterFunctions):
     ) -> tuple[Any, ...]:
         return compute(lambda l, r: l + r, args)
 
+    @impl(bv.SubOp)
+    def run_bv_sub(
+        self, interpreter: Interpreter, op: bv.SubOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return compute(lambda l, r: l - r, args)
+
     @impl(bv.AndOp)
     def run_bv_and(
         self, interpreter: Interpreter, op: bv.AndOp, args: tuple[Any, ...]
@@ -329,3 +335,39 @@ class SMTBitVectorFunctions(InterpreterFunctions):
         self, interpreter: Interpreter, op: bv.ShlOp, args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
         return compute(lambda l, r: l << r, args)
+
+    @impl(bv.ExtractOp)
+    def run_bv_extract(
+        self, interpreter: Interpreter, op: bv.ExtractOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        bv_attr = args[0]
+        start = op.start.data
+        end = op.end.data
+        width = end - start + 1
+        value = (bv_attr.value.data >> start) & ((1 << width) - 1)
+        return (bv.BitVectorAttr(value, width),)
+
+    @impl(bv.SignExtendOp)
+    def run_bv_sign_extend(
+        self, interpreter: Interpreter, op: bv.SignExtendOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        bv_attr = args[0]
+        result_type = op.res.type
+        assert isinstance(result_type, BitVectorType)
+        result_width = result_type.width.data
+        result_value = to_signed(bv_attr.value.data, bv_attr.type.width.data)
+        result_value = to_unsigned(result_value, result_width)
+        return (bv.BitVectorAttr(result_value, result_width),)
+
+    @impl(bv.ZeroExtendOp)
+    def run_bv_zero_extend(
+        self, interpreter: Interpreter, op: bv.ZeroExtendOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, ...])
+        bv_attr = args[0]
+        result_type = op.res.type
+        assert isinstance(result_type, BitVectorType)
+        result_width = result_type.width.data
+        return (bv.BitVectorAttr(bv_attr.value.data, result_width),)
