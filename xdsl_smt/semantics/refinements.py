@@ -282,14 +282,23 @@ def function_results_refinement(
         ).result
     return_values_refinement.name_hint = "return_values_refinement"
 
+    has_memory = isa(call_before.res[-1].type, PairType)
+
     # Refinement of memory
-    mem_refinement = memory_refinement(call_before, call_after, insert_point)
+    if has_memory:
+        mem_refinement = memory_refinement(call_before, call_after, insert_point)
+    else:
+        mem_refinement = builder.insert(ConstantBoolOp(True)).result
     mem_refinement.name_hint = "memory_refinement"
 
     with ImplicitBuilder(builder):
         # Get ub results
-        res_ub = SecondOp(call_before.res[-1]).res
-        res_ub_after = SecondOp(call_after.res[-1]).res
+        if has_memory:
+            res_ub = SecondOp(call_before.res[-1]).res
+            res_ub_after = SecondOp(call_after.res[-1]).res
+        else:
+            res_ub = call_before.res[-1]
+            res_ub_after = call_after.res[-1]
 
         res_ub.name_hint = "ub"
         res_ub_after.name_hint = "ub_after"
@@ -303,7 +312,6 @@ def function_results_refinement(
             res_ub,
         ).result
         refinement.name_hint = "function_refinement"
-
     return refinement
 
 

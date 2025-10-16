@@ -16,6 +16,7 @@ from xdsl.ir import SSAValue, BlockArgument, OpResult, Attribute
 from xdsl.context import Context
 from xdsl.builder import Builder
 from xdsl.rewriter import InsertPoint, Rewriter
+from xdsl.utils.hints import isa
 
 from xdsl.dialects.func import FuncOp, ReturnOp
 from xdsl.dialects.builtin import IntegerAttr, ArrayAttr, IntAttr, ModuleOp
@@ -30,6 +31,7 @@ from xdsl_smt.cli.xdsl_smt_run import build_interpreter, interpret
 from xdsl_smt.utils.run_with_smt_solver import run_module_through_smtlib
 from xdsl_smt.utils.frozen_multiset import FrozenMultiset
 from xdsl_smt.utils.permutation import Permutation, permute
+from xdsl_smt.semantics.refinements import function_results_refinement
 
 
 def values_of_type(ty: Attribute) -> tuple[list[Attribute], bool]:
@@ -368,7 +370,6 @@ class Pattern:
         for permuted in self.ordered_patterns():
             if permuted.has_same_behavior(other_ordered):
                 return True
-
         return False
 
     def permute_parameters_to_match(
@@ -393,6 +394,19 @@ class Pattern:
                     return permuted
 
         return None
+
+    def is_refinement(self, other: Pattern) -> bool:
+        """
+        Tests whether this program refines another program up to parameter
+        permutation, and ignoring useless parameters.
+        """
+
+        other_ordered = next(iter(other.ordered_patterns()))
+        for permuted in self.ordered_patterns():
+            if permuted.has_refinement(other_ordered):
+                return True
+
+        return False
 
 
 class OrderedPattern(Pattern):
@@ -606,14 +620,116 @@ class OrderedPattern(Pattern):
         other_call = builder.insert(smt.CallOp(func_other.ret, args_other_complete)).res
 
         # Check if the two results are not equal.
-        if len(self_call) == 1:
-            check = builder.insert(smt.DistinctOp(self_call[0], other_call[0])).res
-        else:
-            check = builder.insert(smt.ConstantBoolOp(True)).result
-            for res1, res2 in zip(self_call, other_call, strict=True):
-                res_distinct = builder.insert(smt.DistinctOp(res1, res2)).res
-                check = builder.insert(smt.OrOp(check, res_distinct)).result
+        check = builder.insert(smt.ConstantBoolOp(False)).result
+        for res1, res2 in zip(self_call, other_call, strict=True):
+            # Hack to handle poison equality.
+            if isa(res1.type, pair.PairType[bv.BitVectorType, smt.BoolType]):
+                value1 = builder.insert(pair.FirstOp(res1)).res
+                value2 = builder.insert(pair.FirstOp(res2)).res
+                poison1 = builder.insert(pair.SecondOp(res1)).res
+                poison2 = builder.insert(pair.SecondOp(res2)).res
+                # They are distinct if (poison1 != poison2) or (poison1 == poison2 == false and value1 != value2)
+                poison_distinct = builder.insert(smt.DistinctOp(poison1, poison2)).res
+                value_distinct = builder.insert(smt.DistinctOp(value1, value2)).res
+                both_not_poison = builder.insert(
+                    smt.AndOp(
+                        builder.insert(smt.NotOp(poison1)).result,
+                        builder.insert(smt.NotOp(poison2)).result,
+                    )
+                ).result
+                distinct = builder.insert(
+                    smt.OrOp(
+                        poison_distinct,
+                        builder.insert(
+                            smt.AndOp(both_not_poison, value_distinct)
+                        ).result,
+                    )
+                ).result
+            else:
+                distinct = builder.insert(smt.DistinctOp(res1, res2)).res
+            distinct.name_hint = "result_different"
+            check = builder.insert(smt.OrOp(check, distinct)).result
         builder.insert(smt.AssertOp(check))
+
+        FunctionCallInline(True, {}).apply(Context(), module)
+        for op in tuple(module.body.ops):
+            if isinstance(op, smt.DefineFunOp):
+                assert not op.ret.uses
+                Rewriter().erase_op(op)
+
+        # Now that we have the module, run it through the Z3 solver.
+        return (
+            z3.unsat == run_module_through_smtlib(module)[0]
+        )  # pyright: ignore[reportUnknownVariableType]
+
+    def has_refinement(self, other: OrderedPattern) -> bool:
+        """Tests whether a program refines an order program."""
+
+        if not self.has_same_signature(other):
+            return False
+
+        # if self.fingerprint != other.fingerprint:
+        #     return False
+
+        # if self.exact_fingerprint and other.exact_fingerprint:
+        #     return True
+
+        return self._is_refinement_with_z3(other)
+
+    def _is_refinement_with_z3(
+        self,
+        other: OrderedPattern,
+    ) -> bool:
+        """
+        Check wether this program refines another program after permuting the
+        arguments of the left program, using Z3. This also checks whether the input
+        types match (after permutation and removal of useless parameters).
+        """
+
+        module = ModuleOp([])
+        builder = Builder(InsertPoint.at_end(module.body.block))
+
+        # Clone both functions into a new module.
+        func_self = builder.insert(clone_func_to_smt_func(self.semantics))
+        func_other = builder.insert(clone_func_to_smt_func(other.semantics))
+
+        # Declare a variable for each function input.
+        args_self: list[SSAValue | None] = [None] * len(func_self.func_type.inputs)
+        args_other: list[SSAValue | None] = [None] * len(func_other.func_type.inputs)
+        for (self_index, self_type), (other_index, other_type) in zip(
+            self.useful_semantics_parameters(), other.useful_semantics_parameters()
+        ):
+            if self_type != other_type:
+                return False
+            arg = builder.insert(smt.DeclareConstOp(self_type)).res
+            args_self[self_index] = arg
+            args_other[other_index] = arg
+
+        for index, ty in enumerate(func_self.func_type.inputs):
+            if args_self[index] is None:
+                args_self[index] = builder.insert(smt.DeclareConstOp(ty)).res
+
+        for index, ty in enumerate(func_other.func_type.inputs):
+            if args_other[index] is None:
+                args_other[index] = builder.insert(smt.DeclareConstOp(ty)).res
+
+        args_self_complete = cast(list[SSAValue], args_self)
+        args_other_complete = cast(list[SSAValue], args_other)
+
+        # Call each function with the same arguments.
+        self_call = builder.insert(smt.CallOp(func_self.ret, args_self_complete))
+        other_call = builder.insert(smt.CallOp(func_other.ret, args_other_complete))
+
+        refinement = function_results_refinement(
+            other_call,
+            other.func.function_type,
+            self_call,
+            self.func.function_type,
+            builder.insertion_point,
+        )
+        not_refinement = builder.insert(smt.NotOp(refinement)).result
+        builder.insert(smt.AssertOp(not_refinement))
+        builder.insert
 
         FunctionCallInline(True, {}).apply(Context(), module)
         for op in tuple(module.body.ops):

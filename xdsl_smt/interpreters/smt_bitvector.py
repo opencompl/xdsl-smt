@@ -371,3 +371,27 @@ class SMTBitVectorFunctions(InterpreterFunctions):
         assert isinstance(result_type, BitVectorType)
         result_width = result_type.width.data
         return (bv.BitVectorAttr(bv_attr.value.data, result_width),)
+
+    @impl(bv.SaddOverflowOp)
+    def run_bv_sadd_overflow(
+        self, interpreter: Interpreter, op: bv.SaddOverflowOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, bv.BitVectorAttr])
+        width = args[0].type.width.data
+        lhs = to_signed(args[0].value.data, width)
+        rhs = to_signed(args[1].value.data, width)
+        result = lhs + rhs
+        overflow = not (-(1 << (width - 1)) <= result < (1 << (width - 1)))
+        return (overflow,)
+
+    @impl(bv.UaddOverflowOp)
+    def run_bv_uadd_overflow(
+        self, interpreter: Interpreter, op: bv.UaddOverflowOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert isa(args, tuple[bv.BitVectorAttr, bv.BitVectorAttr])
+        width = args[0].type.width.data
+        lhs = args[0].value.data
+        rhs = args[1].value.data
+        result = lhs + rhs
+        overflow = not (0 <= result < (1 << width))
+        return (overflow,)

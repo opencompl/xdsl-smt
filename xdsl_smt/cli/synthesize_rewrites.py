@@ -41,6 +41,9 @@ from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
 from xdsl_smt.passes.smt_expand import SMTExpand
 from xdsl_smt.passes.lower_to_smt.lower_to_smt import LowerToSMTPass
 from xdsl_smt.passes.lower_effects import LowerEffectPass
+from xdsl_smt.passes.lower_pairs import LowerPairs
+
+NUM_PROCESSES: int | None = None
 
 sys.setrecursionlimit(100000)
 
@@ -217,6 +220,13 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default=Configuration.SMT,
     )
 
+    arg_parser.add_argument(
+        "--consider-refinements",
+        dest="consider-refinements",
+        action="store_true",
+        help="if present, check for refinements to reduce the number of canonical programs",
+    )
+
 
 def parse_program(configuration: Configuration, source: str) -> Pattern:
     ctx = Context()
@@ -236,6 +246,7 @@ def parse_program(configuration: Configuration, source: str) -> Pattern:
             LowerToSMTPass().apply(ctx, semantics_module)
             LowerEffectPass().apply(ctx, semantics_module)
             SMTExpand().apply(ctx, semantics_module)
+            LowerPairs().apply(ctx, semantics_module)
             semantics_op = semantics_module.body.block.first_op
             assert isinstance(semantics_op, FuncOp)
 
@@ -289,7 +300,7 @@ def find_new_behaviors(
     known_behaviors: dict[Pattern, list[Pattern]] = dict[Pattern, list[Pattern]]()
     new_behaviors: list[list[Pattern]] = []
 
-    with Pool() as p:
+    with Pool(processes=NUM_PROCESSES) as p:
         for i, (known, new) in enumerate(
             p.imap(partial(find_new_behaviors_in_bucket, canonicals_dict), buckets)
         ):
@@ -305,8 +316,10 @@ def find_new_behaviors(
 
 
 def remove_redundant_illegal_subpatterns(
-    new_canonicals: list[Pattern], new_rewrites: dict[Pattern, list[Pattern]]
-) -> tuple[dict[Pattern, list[Pattern]], int]:
+    new_canonicals: list[Pattern],
+    new_rewrites: dict[Pattern, list[Pattern]],
+    new_refinements: list[tuple[Pattern, Pattern]],
+) -> tuple[dict[Pattern, list[Pattern]], list[tuple[Pattern, Pattern]], int]:
     buffer = StringIO()
     print("module {", file=buffer)
     print("module {", file=buffer)
@@ -321,6 +334,10 @@ def remove_redundant_illegal_subpatterns(
             print("module{", file=buffer)
             print(program.func, file=buffer)
             print("}", file=buffer)
+    for _, program in new_refinements:
+        print("module{", file=buffer)
+        print(program.func, file=buffer)
+        print("}", file=buffer)
     print("}", file=buffer)
     print("}", file=buffer)
     cpp_res = sp.run(
@@ -345,7 +362,14 @@ def remove_redundant_illegal_subpatterns(
             else:
                 pruned_rewrites[canonical].append(program)
             i += 1
-    return pruned_rewrites, pruned_count
+    pruned_refinements: list[tuple[Pattern, Pattern]] = []
+    for program, refined in new_refinements:
+        if res_lines[i] == "true":
+            pruned_count += 1
+        else:
+            pruned_refinements.append((program, refined))
+        i += 1
+    return pruned_rewrites, pruned_refinements, pruned_count
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,7 +456,7 @@ def main() -> None:
                 pattern = pdl.PatternOp(1, None, body)
                 illegal_patterns.append(pattern)
 
-            with Pool() as p:
+            with Pool(processes=NUM_PROCESSES) as p:
                 for pattern in p.imap(
                     partial(parse_program, args.configuration),
                     enumerate_programs(
@@ -490,23 +514,52 @@ def main() -> None:
                     behavior, key=lambda p: next(iter(p.ordered_patterns()))
                 )
                 new_canonicals.append(canonical)
-                new_rewrites[canonical] = behavior
-            canonicals.extend(new_canonicals)
-            # Sort canonicals to ensure deterministic output.
-            canonicals.sort(key=lambda p: next(iter(p.ordered_patterns())))
+                behavior.remove(canonical)
+                if behavior:
+                    new_rewrites[canonical] = behavior
             choosing_time = round(time.time() - choosing_start, 2)
             print(
                 f"\033[2KChose {len(new_canonicals)} new canonical programs "
                 f"in {choosing_time:.02f} s."
             )
 
+            new_refinements: list[tuple[Pattern, Pattern]] = []
+            if args.consider_refinements:
+                print("Checking for refinements between canonicals:")
+                index: int = 0
+                num_canonicals = len(new_canonicals)
+                for i, pattern in enumerate(new_canonicals.copy()):
+                    print(
+                        f"\033Checking for refinements: [2K  ({i + 1}/{num_canonicals})",
+                        end="\r",
+                    )
+                    for pattern2 in new_canonicals:
+                        if pattern is pattern2:
+                            continue
+                        if pattern2.is_refinement(pattern):
+                            new_refinements.append((pattern2, pattern))
+                            del new_canonicals[index]
+                            break
+                    else:
+                        index += 1
+
+            canonicals.extend(new_canonicals)
+            # Sort canonicals to ensure deterministic output.
+            canonicals.sort(key=lambda p: next(iter(p.ordered_patterns())))
+
             print(" Removing redundant illegal sub-patterns...", end="\r")
             pruning_start = time.time()
-            pruned_rewrites, pruned_count = remove_redundant_illegal_subpatterns(
-                new_canonicals, new_rewrites
+            (
+                pruned_rewrites,
+                pruned_refinements,
+                pruned_count,
+            ) = remove_redundant_illegal_subpatterns(
+                new_canonicals, new_rewrites, new_refinements
             )
             for new_illegals in pruned_rewrites.values():
                 illegals.extend(new_illegals)
+            for _, new_illegal in pruned_refinements:
+                illegals.append(new_illegal)
             rewrites.extend(
                 RewriteRule(program, canonical)
                 for canonical, bucket in pruned_rewrites.items()
