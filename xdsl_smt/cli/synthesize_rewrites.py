@@ -222,7 +222,7 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
 
     arg_parser.add_argument(
         "--consider-refinements",
-        dest="consider-refinements",
+        dest="consider_refinements",
         action="store_true",
         help="if present, check for refinements to reduce the number of canonical programs",
     )
