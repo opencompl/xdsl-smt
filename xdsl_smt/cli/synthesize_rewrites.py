@@ -19,6 +19,8 @@ from typing import (
 from xdsl.context import Context
 from xdsl.ir.core import Operation, SSAValue
 from xdsl.parser import Parser
+from xdsl.printer import Printer
+
 from xdsl_smt.superoptimization.pattern import (
     Pattern,
     UnorderedFingerprint,
@@ -321,25 +323,26 @@ def remove_redundant_illegal_subpatterns(
     new_refinements: list[tuple[Pattern, Pattern]],
 ) -> tuple[dict[Pattern, list[Pattern]], list[tuple[Pattern, Pattern]], int]:
     buffer = StringIO()
-    print("module {", file=buffer)
-    print("module {", file=buffer)
+    printer = Printer(buffer, print_generic_format=True)
+    printer.print_string("module {")
+    printer.print_string("module {")
     for canonical in new_canonicals:
-        print("module{", file=buffer)
-        print(canonical.func, file=buffer)
-        print("}", file=buffer)
-    print("}", file=buffer)
-    print("module {", file=buffer)
+        printer.print_string("module {")
+        printer.print_op(canonical.func)
+        printer.print_string("}")
+    printer.print_string("}")
+    printer.print_string("module {")
     for programs in new_rewrites.values():
         for program in programs:
-            print("module{", file=buffer)
-            print(program.func, file=buffer)
-            print("}", file=buffer)
+            printer.print_string("module {")
+            printer.print_op(program.func)
+            printer.print_string("}")
     for _, program in new_refinements:
-        print("module{", file=buffer)
-        print(program.func, file=buffer)
-        print("}", file=buffer)
-    print("}", file=buffer)
-    print("}", file=buffer)
+        printer.print_string("module {")
+        printer.print_op(program.func)
+        printer.print_string("}")
+    printer.print_string("}")
+    printer.print_string("}")
     cpp_res = sp.run(
         [REMOVE_REDUNDANT_PATTERNS],
         input=buffer.getvalue(),
@@ -467,6 +470,7 @@ def main() -> None:
                         illegal_patterns,
                         args.dialect,
                         args.configuration.value,
+                        additional_options=["--constant-kind=none"],
                     ),
                 ):
                     if args.enumeration_order.phase(pattern) != phase:
@@ -524,7 +528,7 @@ def main() -> None:
             )
 
             new_refinements: list[tuple[Pattern, Pattern]] = []
-            if args.consider_refinements:
+            if args.consider_refinements and args.phases < 2:
                 print("Checking for refinements between canonicals:")
                 index: int = 0
                 num_canonicals = len(new_canonicals)

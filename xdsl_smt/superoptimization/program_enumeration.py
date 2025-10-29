@@ -2,6 +2,7 @@ import subprocess as sp
 import time
 from typing import Sequence, Iterable
 
+from xdsl.printer import Printer
 from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
 
 from xdsl.dialects.func import FuncOp
@@ -44,16 +45,18 @@ def enumerate_programs(
     """Enumerate all programs up to a given size."""
     if building_blocks is not None:
         with open(BUILDING_BLOCKS_FILE, "w") as f:
+            printer = Printer(f, print_generic_format=True)
             for blocks in building_blocks:
                 for program in blocks:
-                    f.write(str(program))
-                    f.write("\n// -----\n")
-                f.write("// +++++\n")
+                    printer.print_op(program)
+                    printer.print_string("\n// -----\n")
+                printer.print_string("// +++++\n")
 
     with open(EXCLUDE_SUBPATTERNS_FILE, "w") as f:
+        printer = Printer(f, print_generic_format=True)
         for illegal in illegals:
-            f.write(str(illegal))
-            f.write("\n// -----\n")
+            printer.print_op(illegal)
+            printer.print_string("\n// -----\n")
 
     enumerator = sp.Popen(
         [
