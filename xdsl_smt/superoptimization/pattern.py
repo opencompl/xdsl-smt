@@ -531,6 +531,16 @@ class OrderedPattern(Pattern):
         """The ordered fingerprint of the pattern."""
         return self.permutated_fingerprint(self.permutation)
 
+    def useful_parameters(self) -> Iterable[tuple[int, Attribute]]:
+        """
+        Returns the list of useful parameters in the pattern, in order.
+        """
+        useful_parameters = dict[int, Attribute]()
+        for i, ty in enumerate(self.func.function_type.inputs):
+            if i not in self.useless_parameters:
+                useful_parameters[self.permutation[i]] = ty
+        return useful_parameters.items()
+
     def useful_semantics_parameters(self) -> Iterable[tuple[int, Attribute]]:
         """
         Returns the list of useful parameters in the semantics function,
