@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess as sp
 import sys
 import time
@@ -176,21 +177,9 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         default=EnumerationOrder.SIZE,
     )
     arg_parser.add_argument(
-        "--out-canonicals",
+        "--out",
         type=str,
-        help="the file in which to write the generated canonical programs",
-        default="",
-    )
-    arg_parser.add_argument(
-        "--out-illegals",
-        type=str,
-        help="the file in which to write the generated illegal programs",
-        default="",
-    )
-    arg_parser.add_argument(
-        "--out-rewrites",
-        type=str,
-        help="the file in which to write the generated rewrite rules",
+        help="the directory in which to write the generated files",
         default="",
     )
     arg_parser.add_argument(
@@ -588,21 +577,26 @@ def main() -> None:
         for bucket_stat in bucket_stats:
             print(bucket_stat)
 
-        if args.out_canonicals != "":
-            with open(args.out_canonicals, "w", encoding="UTF-8") as f:
+        if args.out != "":
+            os.makedirs(args.out, exist_ok=True)
+            with open(
+                os.path.join(args.out, "canonicals.mlir"), "w", encoding="UTF-8"
+            ) as f:
                 for program in canonicals:
                     f.write(str(program.func))
                     f.write("\n// -----\n")
 
-        if args.out_rewrites != "":
             module = ModuleOp([rewrite.to_pdl() for rewrite in rewrites])
-            with open(args.out_rewrites, "w", encoding="UTF-8") as f:
+            with open(
+                os.path.join(args.out, "rewrites.mlir"), "w", encoding="UTF-8"
+            ) as f:
                 f.write(str(module))
                 f.write("\n")
 
-        if args.out_illegals != "":
             module = ModuleOp([illegal.func.clone() for illegal in illegals])
-            with open(args.out_illegals, "w", encoding="UTF-8") as f:
+            with open(
+                os.path.join(args.out, "illegals.mlir"), "w", encoding="UTF-8"
+            ) as f:
                 f.write(str(module))
                 f.write("\n")
 
