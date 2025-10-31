@@ -590,8 +590,24 @@ def main() -> None:
             with open(
                 os.path.join(args.out, "rewrites.mlir"), "w", encoding="UTF-8"
             ) as f:
-                f.write(str(module))
-                f.write("\n")
+                f.write("module {")
+                for rewrite in rewrites:
+                    f.write("\n\n\n")
+                    f.write("// Input program:\n")
+                    for line in str(
+                        rewrite._lhs.ordered_func  # pyright: ignore[reportPrivateUsage]
+                    ).splitlines():
+                        f.write(f"// {line}\n")
+                    f.write("\n")
+                    f.write("// Rewrite to:\n")
+                    for line in str(
+                        rewrite._rhs.ordered_func  # pyright: ignore[reportPrivateUsage]
+                    ).splitlines():
+                        f.write(f"// {line}\n")
+                    f.write("\n")
+                    f.write(str(rewrite.to_pdl()))
+                    f.write("\n")
+                f.write("}")
 
             module = ModuleOp([illegal.func.clone() for illegal in illegals])
             with open(

@@ -425,6 +425,16 @@ class OrderedPattern(Pattern):
         super().__init__(func, semantics)
         self.permutation = permutation
 
+    @property
+    def ordered_func(self):
+        func = self.func.clone()
+        for new_idx, (arg_idx, arg_type) in enumerate(self.useful_parameters()):
+            old_arg = func.args[arg_idx]
+            new_arg = func.body.block.insert_arg(arg_type, new_idx)
+            old_arg.replace_by(new_arg)
+            func.body.block.erase_arg(old_arg)
+        return func
+
     @staticmethod
     def _compare_values_lexicographically(
         left: SSAValue,
