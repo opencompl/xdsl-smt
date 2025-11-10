@@ -1,4 +1,4 @@
-from typing import cast
+from typing import cast, Callable
 from dataclasses import dataclass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -31,7 +31,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp,
+    TensorSubtractOp, TensorAbsOp,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -47,7 +47,7 @@ from xdsl.rewriter import Rewriter, InsertPoint
 from xdsl.passes import ModulePass
 from xdsl.utils.hints import isa
 from ..dialects.smt_array_dialect import SelectOp
-from ..dialects.smt_bitvector_dialect import BinaryBVOp
+from ..dialects.smt_bitvector_dialect import BinaryBVOp, UnaryBVOp
 
 from ..dialects.smt_dialect import (
     CallOp,
@@ -182,6 +182,62 @@ class LowerElementwiseBinaryOpPattern(RewritePattern):
             )
             op.result.replace_by(new_tensor_decl_op.res)
             rewriter.erase_matched_op()
+
+
+class LowerElementwiseUnaryOpPattern(RewritePattern):
+    def get_unary_op(self, op: ElementwiseUnaryOperation) -> Callable[[SSAValue], list[Operation]]:
+        if isinstance(op, TensorAbsOp):
+            def get_abs_ops(val:SSAValue) -> list[Operation]:
+                neg_op =smt_bv.NegOp(val)
+                less_than_op = smt_bv.SltOp(val, neg_op.res)
+                ite_op = smt.IteOp(less_than_op.res, neg_op.res, val)
+                return [neg_op, less_than_op, ite_op]
+            return get_abs_ops
+        raise ValueError("Don't support unary op for" + str(type(op)))
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: ElementwiseUnaryOperation, rewriter: PatternRewriter
+    ):
+        if not isa((pair_type := op.result.type), AnyPairType):
+            new_tensor_decl_op = DeclareConstOp(op.lhs.type)
+            new_tensor_op, new_tensor, new_tensor_index = get_tensor_and_index(
+                new_tensor_decl_op.res
+            )
+            lhs_tensor_op, lhs_tensor, lhs_tensor_index = get_tensor_and_index(op.lhs)
+            rhs_tensor_op, rhs_tensor, rhs_tensor_index = get_tensor_and_index(op.rhs)
+            eq_ops: list[EqOp] = [
+                EqOp(lhs_tensor_index, rhs_tensor_index),
+                EqOp(new_tensor_index, lhs_tensor_index),
+            ]
+            new_tensor_value_op, new_tensor_val = get_tensor_value(
+                new_tensor, new_tensor_index
+            )
+            lhs_tensor_value_op, lhs_tensor_val = get_tensor_value(
+                lhs_tensor, lhs_tensor_index
+            )
+            rhs_tensor_value_op, rhs_tensor_val = get_tensor_value(
+                rhs_tensor, rhs_tensor_index
+            )
+            binary_op = self.get_binary_op(op)(lhs_tensor_val, rhs_tensor_val)
+            eq_ops.append(EqOp(new_tensor_val, binary_op.res))
+            assert_ops = [AssertOp(eq.res) for eq in eq_ops]
+
+            rewriter.insert_op_before_matched_op(
+                [new_tensor_decl_op]
+                + new_tensor_op
+                + lhs_tensor_op
+                + rhs_tensor_op
+                + new_tensor_value_op
+                + lhs_tensor_value_op
+                + rhs_tensor_value_op
+                + [binary_op]
+                + eq_ops
+                + assert_ops
+            )
+            op.result.replace_by(new_tensor_decl_op.res)
+            rewriter.erase_matched_op()
+
 
 
 class LowerTransposeOpPattern(RewritePattern):
