@@ -22,7 +22,8 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp, TensorPadOp, INDEX_WIDTH, toTupleInt, TensorSliceOp,
+    TensorSubtractOp, TensorPadOp, INDEX_WIDTH, toTupleInt, TensorSliceOp, TensorBroadcastInDimOp, TensorConcatenateOp,
+    TensorIotaOp,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -46,6 +47,7 @@ from .dead_code_elimination import DeadCodeElimination
 bv_constants:dict[int, smt_bv.ConstantOp] = {}
 
 def getBVConstant(x:int) -> smt_bv.ConstantOp:
+    global bv_constants
     if x not in bv_constants:
         bv_constants[x]=smt_bv.ConstantOp.from_int_value(x, INDEX_WIDTH)
     return bv_constants[x]
@@ -70,6 +72,30 @@ class RewriteTransposeOpPattern(TensorRewritePattern):
         rewriter.replace_op(extract_op, new_extract_op)
         rewriter.erase_matched_op()
 
+
+
+class RewriteBroadcastInDimPattern(TensorRewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: TensorBroadcastInDimOp, rewriter: PatternRewriter):
+        extract_op = self.extract_op
+        broadcast_dimensions = op.get_broadcast_dimensions()
+        new_indices:list[SSAValue] = []
+        const_0 = getBVConstant(0)
+        operand_type = op.operand.type
+        assert isinstance(operand_type, SMTTensorType)
+        operand_shape = operand_type.get_shape()
+        assert len(operand_shape) == len(broadcast_dimensions)
+        for i, dim in zip(broadcast_dimensions, operand_shape):
+            if dim == 0:
+                new_indices.append(const_0.res)
+            else:
+                new_indices.append(extract_op.indices[i])
+        new_extract_op = TensorExtractOp(op.operand, new_indices)
+        rewriter.replace_op(extract_op, new_extract_op)
+        rewriter.erase_matched_op()
+
+
+
 def stripOpName(name:str) -> str:
     return name.replace(".", "_")
 
@@ -87,12 +113,30 @@ def initElementwiseIntFunction():
     global elementwise_unary_functions
     elementwise_binary_functions["smt_tensor_add"] = lambda x, y: [smt_bv.AddOp(x, y)]
     elementwise_binary_functions["smt_tensor_subtract"] = lambda x, y: [smt_bv.SubOp(x, y)]
+    elementwise_binary_functions["smt_tensor_multiply"] = lambda x, y: [smt_bv.MulOp(x, y)]
+
+    def get_maximum_ops(lhs:SSAValue, rhs:SSAValue) -> list[Operation]:
+        less_than_op = smt_bv.SltOp(lhs, rhs)
+        ite_op = IteOp(less_than_op.res, rhs, lhs)
+        return [less_than_op, ite_op]
+    elementwise_binary_functions["smt_tensor_maximum"] = get_maximum_ops
+
+    def get_minimum_ops(lhs: SSAValue, rhs: SSAValue) -> list[Operation]:
+        less_than_op = smt_bv.SltOp(lhs, rhs)
+        ite_op = IteOp(less_than_op.res, lhs, rhs)
+        return [less_than_op, ite_op]
+
+    elementwise_binary_functions["smt_tensor_minimum"] = get_minimum_ops
+
+
     def get_abs_ops(val:SSAValue) -> list[Operation]:
         neg_op = smt_bv.NegOp(val)
         less_than_op = smt_bv.SltOp(val, neg_op.res)
         ite_op = IteOp(less_than_op.res, neg_op.res, val)
         return [neg_op, less_than_op, ite_op]
     elementwise_unary_functions["smt_tensor_abs"] = get_abs_ops
+    elementwise_unary_functions["smt_tensor_negate"] = lambda x: [smt_bv.NegOp(x)]
+
 
 
 def getElementwiseBinaryFunction(op_name:str, element_type:Attribute):
@@ -115,6 +159,20 @@ def getElementwiseUnaryFunction(op_name:str, element_type:Attribute):
         elementwise_unary_function_set.add(defun_op)
         elementwise_unary_functions[op_name] = lambda x: [CallOp(defun_op.ret, [x])]
     return elementwise_unary_functions[op_name]
+
+
+class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: TensorIotaOp, rewriter: PatternRewriter
+    ):
+        element_type = self.extract_op.result.type
+        iota_dimension = op.iota_dimension
+        unary_function = getElementwiseUnaryFunction(op_name, element_type)
+        extract_op_op = TensorExtractOp(op.op, self.extract_op.indices)
+        call_ops = unary_function(extract_op_op.result)
+        rewriter.replace_op(self.extract_op, [extract_op_op] + call_ops)
+        rewriter.erase_matched_op()
 
 
 class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):
@@ -144,6 +202,45 @@ class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
         call_ops = binary_function(extract_lhs_op.result, extract_rhs_op.result)
         rewriter.replace_op(self.extract_op, [extract_lhs_op, extract_rhs_op] + call_ops)
         rewriter.erase_op(op)
+
+
+class RewriteConcatenateOpPattern(TensorRewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(
+        self, op: TensorConcatenateOp, rewriter: PatternRewriter
+    ):
+        dim = op.get_dimension()
+        inputs_dim:list[int] = []
+        operands = [operand for operand in op.inputs]
+        for operand in operands:
+            tensor_type = operand.type
+            assert isinstance(tensor_type, SMTTensorType)
+            inputs_dim.append(tensor_type.get_shape()[dim])
+        for i in range(1, len(inputs_dim)):
+            inputs_dim[i]+=inputs_dim[i-1]
+
+
+        ite_ops:list[Operation] = []
+        last_index_val = self.extract_op.indices[dim]
+        last_operand_val = operands[0]
+
+        extract_indices = [val for val in self.extract_op.indices]
+        for i, operand in zip(inputs_dim[:-1], operands[1:]):
+            bv_const = getBVConstant(i)
+            ge_shape_op =smt_bv.SgeOp(self.extract_op.indices[dim], bv_const.res)
+            new_index_op = smt_bv.SubOp(self.extract_op.indices[dim], bv_const.res)
+            ite_index_op = IteOp(ge_shape_op.res, new_index_op.res, last_index_val)
+            ite_operand_op =IteOp(ge_shape_op.res, operand, last_operand_val)
+            ite_ops+=[ge_shape_op, new_index_op, ite_index_op, ite_operand_op]
+            last_index_val = ite_index_op.res
+            last_operand_val = ite_operand_op.res
+
+        extract_indices[dim]=last_index_val
+        extract_op = TensorExtractOp(last_operand_val, extract_indices)
+
+        rewriter.replace_op(self.extract_op, ite_ops + [extract_op])
+        rewriter.erase_op(op)
+
 
 
 class RewritePadOpPattern(TensorRewritePattern):
@@ -266,6 +363,16 @@ def insertFunctionBeforeModule(op: ModuleOp):
         function_op = elementwise_unary_function_set.pop()
         block.insert_op_before(function_op, first_op)
 
+def insertConstantsBeforeModule(op: ModuleOp):
+    global bv_constants
+
+    block = op.body.block
+    first_op = block.first_op
+    assert first_op is not None
+    for val in bv_constants.values():
+        block.insert_op_before(val, first_op)
+
+
 
 
 class RewriteSMTTensor(ModulePass):
@@ -284,3 +391,4 @@ class RewriteSMTTensor(ModulePass):
         walker.rewrite_module(op)
 
         insertFunctionBeforeModule(op)
+        insertConstantsBeforeModule(op)

@@ -179,10 +179,10 @@ class TensorSubtractOp(ElementwiseBinaryOperation):
 @irdl_op_definition
 class TensorAndOp(ElementwiseBinaryOperation):
     """
-    Performs element-wise addition of two tensors `lhs` and `rhs` and produces a
+    Performs element-wise and of two tensors `lhs` and `rhs` and produces a
     `result` tensor. Depending on the element type, does the following:
 
-    * For integers: integer addition.
+    * For integers: integer and.
 
     """
     name = "smt.tensor.and"
@@ -191,14 +191,41 @@ class TensorAndOp(ElementwiseBinaryOperation):
 @irdl_op_definition
 class TensorMultiplyOp(ElementwiseBinaryOperation):
     """
-    Performs element-wise addition of two tensors `lhs` and `rhs` and produces a
+    Performs element-wise multiply of two tensors `lhs` and `rhs` and produces a
     `result` tensor. Depending on the element type, does the following:
 
-    * For integers: integer addition.
+    * For integers: integer multiply.
+
+    """
+    name = "smt.tensor.multiply"
+
+
+@irdl_op_definition
+class TensorMaximumOp(ElementwiseBinaryOperation):
+    """
+    Performs element-wise maximum of two tensors `lhs` and `rhs` and produces a
+    `result` tensor. Depending on the element type, does the following:
+
+    * For integers: integer maximum.
 
     """
 
-    name = "smt.tensor.multiply"
+    name = "smt.tensor.maximum"
+
+
+
+@irdl_op_definition
+class TensorMinimumOp(ElementwiseBinaryOperation):
+    """
+    Performs element-wise minimum of two tensors `lhs` and `rhs` and produces a
+    `result` tensor. Depending on the element type, does the following:
+
+    * For integers: integer minimum.
+
+    """
+
+    name = "smt.tensor.minimum"
+
 
 
 @irdl_op_definition
@@ -215,8 +242,9 @@ class TensorAbsOp(ElementwiseUnaryOperation):
     name = "smt.tensor.abs"
 
 
+
 @irdl_op_definition
-class TensorTransposeOp(IRDLOperation):
+class TensorNegateOp(ElementwiseUnaryOperation):
     """
     Performs element-wise abs operation on operand tensor and produces a result tensor.
     Depending on the element type, does the following:
@@ -225,6 +253,13 @@ class TensorTransposeOp(IRDLOperation):
 
     https://github.com/openxla/stablehlo/blob/main/docs/spec.md#abs
     """
+
+    name = "smt.tensor.negate"
+
+
+
+@irdl_op_definition
+class TensorTransposeOp(IRDLOperation):
 
     name = "smt.tensor.transpose"
 
@@ -245,6 +280,86 @@ class TensorTransposeOp(IRDLOperation):
 
     def get_permutation(self) -> tuple[int, ...]:
         return cast(tuple[int, ...], self.permutation.get_values())
+
+
+
+@irdl_op_definition
+class TensorBroadcastInDimOp(IRDLOperation):
+    """
+    """
+
+    name = "smt.tensor.broadcast_in_dim"
+
+    ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
+
+    operand = operand_def(SMTTensorType[ElementType])
+    result = result_def(SMTTensorType[ElementType])
+    broadcast_dimensions = prop_def(DenseArrayBase)
+
+    def __init__(
+        self, operand: SSAValue, broadcast_dimensions: DenseArrayBase, result_type: Attribute
+    ):
+        super().__init__(
+            operands=(operand,),
+            result_types=(result_type,),
+            properties={"broadcast_dimensions": broadcast_dimensions},
+        )
+
+    def get_broadcast_dimensions(self) -> tuple[int, ...]:
+        return cast(tuple[int, ...], self.broadcast_dimensions.get_values())
+
+
+
+@irdl_op_definition
+class TensorConcatenateOp(IRDLOperation):
+    """
+    """
+
+    name = "smt.tensor.concatenate"
+
+    ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
+
+    inputs = var_operand_def(SMTTensorType[ElementType])
+    result = result_def(SMTTensorType[ElementType])
+    dimension = prop_def(IntegerAttr[IntegerType])
+
+    def __init__(
+        self, operand: SSAValue, dimension: IntegerAttr[IntegerType], result_type: Attribute
+    ):
+        super().__init__(
+            operands=(operand,),
+            result_types=(result_type,),
+            properties={"dimension": dimension},
+        )
+
+    def get_dimension(self) -> int:
+        return self.dimension.value.data
+
+
+
+@irdl_op_definition
+class TensorIotaOp(IRDLOperation):
+    """
+    """
+
+    name = "smt.tensor.iota"
+
+    ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
+
+    result = result_def(SMTTensorType[ElementType])
+    iota_dimension = prop_def(IntegerAttr[IntegerType])
+
+    def __init__(
+        self, iota_dimension: IntegerAttr[IntegerType], result_type: Attribute
+    ):
+        super().__init__(
+            result_types=(result_type,),
+            properties={"iota_dimension": iota_dimension},
+        )
+
+    def get_iota_dimension(self) -> int:
+        return self.iota_dimension.value.data
+
 
 
 @irdl_op_definition
@@ -337,8 +452,8 @@ class TensorSliceOp(IRDLOperation):
         super().__init__(
             operands=(operand,),
             result_types=(result_type,),
-            properties={"start_indices": toIntegerArrayAttr(start_indicts),
-                        "limit_indicts": toIntegerArrayAttr(limit_indicts),
+            properties={"start_indices": toIntegerArrayAttr(start_indices),
+                        "limit_indicts": toIntegerArrayAttr(limit_indices),
                         "strides": toIntegerArrayAttr(strides)},
         )
 
@@ -360,8 +475,11 @@ SMTTensorDialect = Dialect(
         TensorMultiplyOp,
         TensorAbsOp,
         TensorTransposeOp,
+        TensorBroadcastInDimOp,
         TensorSubtractOp,
         TensorExtractOp,
+        TensorConcatenateOp,
+        TensorIotaOp,
         TensorPadOp,
         TensorSliceOp
     ],

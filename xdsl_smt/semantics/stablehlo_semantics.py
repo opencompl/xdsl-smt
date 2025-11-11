@@ -34,7 +34,9 @@ class TensorTypeSemantics(TypeSemantics):
     def get_semantics(self, type: Attribute) -> Attribute:
         if not isinstance(type, TensorType):
             raise ValueError("Expect a tensor type")
+        print(type.element_type)
         elementType = SMTLowerer.lower_type(type.element_type)
+
         # Ignore poison
         if isinstance(elementType, smt_utils.PairType):
             elementType=elementType.first
