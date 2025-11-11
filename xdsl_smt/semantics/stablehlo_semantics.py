@@ -6,6 +6,7 @@ from xdsl.pattern_rewriter import (
 from xdsl.ir import Operation
 
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl_smt.dialects import smt_utils_dialect as smt_utils
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
 from xdsl_smt.dialects.smt_tensor_dialect import (
@@ -34,6 +35,9 @@ class TensorTypeSemantics(TypeSemantics):
         if not isinstance(type, TensorType):
             raise ValueError("Expect a tensor type")
         elementType = SMTLowerer.lower_type(type.element_type)
+        # Ignore poison
+        if isinstance(elementType, smt_utils.PairType):
+            elementType=elementType.first
         tensorType = SMTTensorType(elementType, type.shape, type.encoding)
         return tensorType
 
@@ -78,9 +82,9 @@ class StableHLOMultiplyOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         assert isinstance(operands[0].type, SMTTensorType)
-        tensorAddOp = TensorMultiplyOp(operands[0], operands[1])
-        rewriter.insert_op_before_matched_op(tensorAddOp)
-        return ((tensorAddOp.result,), effect_state)
+        tensorMulOp = TensorMultiplyOp(operands[0], operands[1])
+        rewriter.insert_op_before_matched_op(tensorMulOp)
+        return ((tensorMulOp.result,), effect_state)
 
 
 class StableHLOTransposeOpSemantics(OperationSemantics):
@@ -95,8 +99,7 @@ class StableHLOTransposeOpSemantics(OperationSemantics):
         assert isinstance(operands[0].type, SMTTensorType)
         if not isinstance(results[0], TensorType):
             raise ValueError("Expect a tensor type")
-        elementType = SMTLowerer.lower_type(results[0].element_type)
-        tensorType = SMTTensorType(elementType, results[0].shape, results[0].encoding)
+        tensorType = SMTLowerer.lower_type(results[0])
         assert "permutation" in attributes
         tensorTransposeOp = TensorTransposeOp(
             operands[0], attributes["permutation"], tensorType

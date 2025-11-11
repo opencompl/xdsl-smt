@@ -11,7 +11,7 @@ import xdsl_smt.dialects.smt_dialect as smt
 from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.dialects.memory_dialect import BlockIDType
-from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp, TensorAddOp
+from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp, TensorAddOp, IndexType
 from xdsl_smt.dialects.smt_dialect import (
     BoolType,
     ConstantBoolOp,
@@ -320,10 +320,10 @@ def add_tensor_refinement(func: DefineFunOp,
         assert func_call.res.types[0] == func_call_after.res.types[0]
         tensor_type = func_call.res.types[0]
         assert isinstance(tensor_type, SMTTensorType)
-        indices: list[ConstantOp] = []
+        indices: list[DeclareConstOp] = []
         inbound_ops:list[Operation] = []
         for dim in tensor_type.shape:
-            indices.append(ConstantOp(dim, 32))
+            indices.append(DeclareConstOp(IndexType))
 
         #Assert each index is in bound
 

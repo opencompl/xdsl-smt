@@ -75,42 +75,59 @@ def stripOpName(name:str) -> str:
 
 
 elementwise_unary_function_set:set[DeclareFunOp] = set()
-elementwise_unary_functions:dict[str, Callable[[SSAValue],Operation]] = {}
+elementwise_unary_functions:dict[str, Callable[[SSAValue],list[Operation]]] = {}
 
 
 elementwise_binary_function_set:set[DeclareFunOp] = set()
-elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],Operation]] = {}
+elementwise_binary_functions:dict[str, Callable[[SSAValue, SSAValue],list[Operation]]] = {}
 
 
 def initElementwiseIntFunction():
     global elementwise_binary_functions
-    elementwise_binary_functions["smt_tensor_add"] = lambda x, y: smt_bv.AddOp(x, y)
-    elementwise_binary_functions["smt_tensor_subtract"] = lambda x, y: smt_bv.SubOp(x, y)
+    global elementwise_unary_functions
+    elementwise_binary_functions["smt_tensor_add"] = lambda x, y: [smt_bv.AddOp(x, y)]
+    elementwise_binary_functions["smt_tensor_subtract"] = lambda x, y: [smt_bv.SubOp(x, y)]
+    def get_abs_ops(val:SSAValue) -> list[Operation]:
+        neg_op = smt_bv.NegOp(val)
+        less_than_op = smt_bv.SltOp(val, neg_op.res)
+        ite_op = IteOp(less_than_op.res, neg_op.res, val)
+        return [neg_op, less_than_op, ite_op]
+    elementwise_unary_functions["smt_tensor_abs"] = get_abs_ops
 
-def getElementwiseFunction(op_name:str, element_type:Attribute, function_set:set[DeclareFunOp],
-                                  function_dict:dict[str, Callable]):
-    if op_name not in function_dict:
+
+def getElementwiseBinaryFunction(op_name:str, element_type:Attribute):
+    global elementwise_binary_function_set
+    global elementwise_binary_functions
+    if op_name not in elementwise_binary_functions:
         element_uf_type = FunctionType.from_lists([element_type, element_type], [element_type])
         defun_op = DeclareFunOp(element_uf_type, op_name)
-        function_set.add(defun_op)
-        function_dict[op_name] = lambda x, y: CallOp(defun_op.ret, [x, y])
-    return function_dict[op_name]
+        elementwise_binary_function_set.add(defun_op)
+        elementwise_binary_functions[op_name] = lambda x, y: [CallOp(defun_op.ret, [x, y])]
+    return elementwise_binary_functions[op_name]
 
 
-class LowerElementwiseUnaryOpPattern(TensorRewritePattern):
+def getElementwiseUnaryFunction(op_name:str, element_type:Attribute):
+    global elementwise_unary_function_set
+    global elementwise_unary_functions
+    if op_name not in elementwise_unary_functions:
+        element_uf_type = FunctionType.from_lists([element_type], [element_type])
+        defun_op = DeclareFunOp(element_uf_type, op_name)
+        elementwise_unary_function_set.add(defun_op)
+        elementwise_unary_functions[op_name] = lambda x: [CallOp(defun_op.ret, [x])]
+    return elementwise_unary_functions[op_name]
+
+
+class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: ElementwiseUnaryOperation, rewriter: PatternRewriter
     ):
-        global elementwise_unary_function_set
-        global elementwise_unary_functions
         element_type = self.extract_op.result.type
         op_name = stripOpName(op.name)
-        unary_function = getElementwiseFunction(op_name, element_type,
-                                                 elementwise_unary_function_set, elementwise_unary_functions)
+        unary_function = getElementwiseUnaryFunction(op_name, element_type)
         extract_op_op = TensorExtractOp(op.op, self.extract_op.indices)
-        call_op = unary_function(extract_op_op.result)
-        rewriter.replace_op(self.extract_op, [extract_op_op, call_op])
+        call_ops = unary_function(extract_op_op.result)
+        rewriter.replace_op(self.extract_op, [extract_op_op] + call_ops)
         rewriter.erase_matched_op()
 
 
@@ -119,16 +136,13 @@ class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
     def match_and_rewrite(
         self, op: ElementwiseBinaryOperation, rewriter: PatternRewriter
     ):
-        global elementwise_binary_function_set
-        global elementwise_binary_functions
         element_type = self.extract_op.result.type
         op_name = stripOpName(op.name)
-        binary_function = getElementwiseFunction(op_name, element_type,
-                                                 elementwise_binary_function_set, elementwise_binary_functions)
+        binary_function = getElementwiseBinaryFunction(op_name, element_type)
         extract_lhs_op = TensorExtractOp(op.lhs, self.extract_op.indices)
         extract_rhs_op = TensorExtractOp(op.rhs, self.extract_op.indices)
-        call_op = binary_function(extract_lhs_op.result, extract_rhs_op.result)
-        rewriter.replace_op(self.extract_op, [extract_lhs_op, extract_rhs_op, call_op])
+        call_ops = binary_function(extract_lhs_op.result, extract_rhs_op.result)
+        rewriter.replace_op(self.extract_op, [extract_lhs_op, extract_rhs_op] + call_ops)
         rewriter.erase_op(op)
 
 
@@ -228,7 +242,7 @@ class TensorExtractOpPattern(RewritePattern):
         source = op.tensor
         source_parent_op = source.owner
         if isinstance(source_parent_op, ElementwiseUnaryOperation):
-            ...
+            RewriteElementwiseUnaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
         elif isinstance(source_parent_op, ElementwiseBinaryOperation):
             RewriteElementwiseBinaryOpPattern(op).match_and_rewrite(source_parent_op, rewriter)
         elif isinstance(source_parent_op, TensorTransposeOp):
