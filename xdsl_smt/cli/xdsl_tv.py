@@ -54,7 +54,10 @@ from xdsl_smt.passes.lower_to_smt import (
     LowerToSMTPass,
 )
 from xdsl_smt.passes.transfer_inline import FunctionCallInline
-from xdsl_smt.semantics.refinements import add_function_refinement, add_tensor_refinement
+from xdsl_smt.semantics.refinements import (
+    add_function_refinement,
+    add_tensor_refinement,
+)
 from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
@@ -145,7 +148,6 @@ def main() -> None:
     func_after.detach()
     block.add_op(func_after)
 
-
     # Optionally simplify the module
     if args.opt:
         CanonicalizePass().apply(ctx, new_module)
@@ -178,12 +180,10 @@ def main() -> None:
         CanonicalizePass().apply(ctx, new_module)
 
     # Add refinement operations
-    refinement = add_tensor_refinement(
-        func, func_after, InsertPoint.at_end(block)
-    )
+    refinement = add_tensor_refinement(func, func_after, InsertPoint.at_end(block))
     block.add_op(AssertOp(refinement.results[0]))
     block.add_op(CheckSatOp())
-    '''
+    """
     refinement = add_function_refinement(
         func, func_after, func_type, InsertPoint.at_end(block)
     )
@@ -191,7 +191,7 @@ def main() -> None:
     block.add_op(not_op)
     block.add_op(AssertOp(not_op.result))
     block.add_op(CheckSatOp())
-    '''
+    """
 
     # Inline and delete functions
     FunctionCallInline(True, {}).apply(ctx, new_module)
@@ -200,8 +200,6 @@ def main() -> None:
             new_module.body.block.erase_op(op)
     RewriteSMTTensor().apply(ctx, new_module)
     LowerSMTTensor().apply(ctx, new_module)
-
-
 
     # Optionally simplify the module
     if args.opt:
@@ -235,7 +233,7 @@ def main() -> None:
     stringio = StringIO()
     print_to_smtlib(new_module, stringio)
     s = stringio.getvalue()
-    print(s.replace("$",""))
+    print(s.replace("$", ""))
 
 
 if __name__ == "__main__":

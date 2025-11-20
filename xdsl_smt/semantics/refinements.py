@@ -5,13 +5,25 @@ from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.builder import Builder, ImplicitBuilder
 
-from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType, UltOp, ConstantOp, SgeOp, SltOp
+from xdsl_smt.dialects.smt_bitvector_dialect import (
+    BitVectorType,
+    UltOp,
+    ConstantOp,
+    SgeOp,
+    SltOp,
+)
 import xdsl_smt.dialects.smt_dialect as smt
 
 from xdsl.utils.hints import isa
 from xdsl_smt.dialects import memory_dialect as mem
 from xdsl_smt.dialects.memory_dialect import BlockIDType
-from xdsl_smt.dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp, TensorAddOp, IndexType, INDEX_WIDTH
+from xdsl_smt.dialects.smt_tensor_dialect import (
+    SMTTensorType,
+    TensorExtractOp,
+    TensorAddOp,
+    IndexType,
+    INDEX_WIDTH,
+)
 from xdsl_smt.dialects.smt_dialect import (
     BoolType,
     ConstantBoolOp,
@@ -25,7 +37,8 @@ from xdsl_smt.dialects.smt_dialect import (
     OrOp,
     ImpliesOp,
     YieldOp,
-    CallOp, DistinctOp,
+    CallOp,
+    DistinctOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
 from xdsl_smt.dialects.effects import ub_effect
@@ -302,9 +315,9 @@ def add_function_refinement(
     return refinement
 
 
-def add_tensor_refinement(func: DefineFunOp,
-    func_after: DefineFunOp,
-    insert_point: InsertPoint):
+def add_tensor_refinement(
+    func: DefineFunOp, func_after: DefineFunOp, insert_point: InsertPoint
+):
     builder = Builder(insert_point)
     with ImplicitBuilder(builder):
         # Quantify over all arguments
@@ -321,7 +334,7 @@ def add_tensor_refinement(func: DefineFunOp,
         tensor_type = func_call.res.types[0]
         assert isinstance(tensor_type, SMTTensorType)
         indices: list[DeclareConstOp] = []
-        inbound_ops:list[Operation] = []
+        inbound_ops: list[Operation] = []
         const_0 = ConstantOp(0, INDEX_WIDTH)
         for shape in tensor_type.get_shape():
             index = DeclareConstOp(IndexType)
@@ -333,10 +346,6 @@ def add_tensor_refinement(func: DefineFunOp,
             lt_shape_op = SltOp(index.res, const_shape.res)
             inbound_op = AndOp(ge_0_op.res, lt_shape_op.res)
             assert_inbound_op = smt.AssertOp(inbound_op.result)
-
-
-
-
 
         extract_func_op = TensorExtractOp(func_call.res[0], indices)
         extract_func_after_op = TensorExtractOp(func_call_after.res[0], indices)

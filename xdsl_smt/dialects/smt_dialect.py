@@ -16,7 +16,8 @@ from xdsl.irdl import (
     irdl_attr_definition,
     Operand,
     IRDLOperation,
-    traits_def, prop_def,
+    traits_def,
+    prop_def,
 )
 from xdsl.ir import (
     Block,
@@ -28,7 +29,7 @@ from xdsl.ir import (
     Region,
     OpTraits,
     TypeAttribute,
-    ParametrizedAttribute
+    ParametrizedAttribute,
 )
 from xdsl.dialects.builtin import FunctionType, StringAttr
 from xdsl.dialects.smt import (
@@ -54,8 +55,10 @@ from xdsl_smt.traits.smt_printer import (
     SimpleSMTLibOp,
     SMTConversionCtx,
     SimpleSMTLibOpTrait,
-    SMTLibOpTrait, SMTLibSort,
+    SMTLibOpTrait,
+    SMTLibSort,
 )
+
 
 @irdl_attr_definition
 class SortType(ParametrizedAttribute, TypeAttribute, SMTLibSort):
@@ -63,7 +66,7 @@ class SortType(ParametrizedAttribute, TypeAttribute, SMTLibSort):
 
     name = "smt.sort"
 
-    sort_name:StringAttr
+    sort_name: StringAttr
 
     def __init__(self, sort_name: str | StringAttr):
         if isinstance(sort_name, str):
@@ -72,8 +75,6 @@ class SortType(ParametrizedAttribute, TypeAttribute, SMTLibSort):
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
         print(self.sort_name.data, file=stream, end="")
-
-
 
 
 class QuantifierCanonicalizationPatterns(HasCanonicalizationPatternsTrait):
@@ -381,6 +382,7 @@ class ReturnOp(IRDLOperation):
             if ret.type != ret_type:
                 raise VerifyException("Incorrect return type")
 
+
 @irdl_op_definition
 class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     """Declare a sort value."""
@@ -388,8 +390,8 @@ class DeclareConstOp(IRDLOperation, SMTLibScriptOp):
     name = "smt.declare_sort"
     sort = prop_def(SortType)
 
-    def __init__(self, sort:SortType):
-        super().__init__(properties={"sort":sort})
+    def __init__(self, sort: SortType):
+        super().__init__(properties={"sort": sort})
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx):
         print(f"(declare-const ", file=stream, end="")

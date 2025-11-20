@@ -9,7 +9,13 @@ from xdsl.ir import Operation
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_array_dialect as smt_array
 
-from xdsl_smt.dialects.smt_dialect import BoolType, EqOp, AssertOp, DeclareFunOp, DeclareConstOp
+from xdsl_smt.dialects.smt_dialect import (
+    BoolType,
+    EqOp,
+    AssertOp,
+    DeclareFunOp,
+    DeclareConstOp,
+)
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
@@ -20,7 +26,8 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp, IndexType,
+    TensorSubtractOp,
+    IndexType,
 )
 from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
 from xdsl.ir import Attribute
@@ -60,13 +67,12 @@ class DeclareConstOpPattern(RewritePattern):
             rewriter.replace_matched_op(new_constant_op)
 
 
-
 class TensorExtractOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TensorExtractOp, rewriter: PatternRewriter):
         source = op.tensor
         assert isinstance(source.type, smt_array.ArrayType)
-        select_ops:list[smt_array.SelectOp] = []
+        select_ops: list[smt_array.SelectOp] = []
         for idx in op.indices:
             select_ops.append(smt_array.SelectOp(source, idx))
             source = select_ops[-1].res
@@ -79,10 +85,7 @@ class LowerSMTTensor(ModulePass):
     def apply(self, ctx: Context, op: ModuleOp):
         walker = PatternRewriteWalker(
             GreedyRewritePatternApplier(
-                [
-                    DeclareConstOpPattern(),
-                    TensorExtractOpPattern()
-                ]
+                [DeclareConstOpPattern(), TensorExtractOpPattern()]
             )
         )
         walker.rewrite_module(op)

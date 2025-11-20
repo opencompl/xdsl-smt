@@ -39,7 +39,7 @@ class TensorTypeSemantics(TypeSemantics):
 
         # Ignore poison
         if isinstance(elementType, smt_utils.PairType):
-            elementType=elementType.first
+            elementType = elementType.first
         tensorType = SMTTensorType(elementType, type.shape, type.encoding)
         return tensorType
 

@@ -25,7 +25,8 @@ from xdsl.irdl import (
     Attribute,
     VarConstraint,
     base,
-    ConstraintVar, var_operand_def,
+    ConstraintVar,
+    var_operand_def,
 )
 from xdsl.ir import (
     Dialect,
@@ -37,6 +38,7 @@ from xdsl.ir import (
     AttributeCovT,
 )
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
+
 
 @irdl_attr_definition
 class SMTTensorType(
@@ -72,9 +74,11 @@ class SMTTensorType(
     def get_element_type(self) -> AttributeCovT:
         return self.element_type
 
+
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
-INDEX_WIDTH=32
+INDEX_WIDTH = 32
 IndexType = BitVectorType(INDEX_WIDTH)
+
 
 def toIntegerArrayAttr(int_list: Iterable[int | IntegerAttr]) -> ArrayAttr[IntegerAttr]:
     """
@@ -89,7 +93,7 @@ def toIntegerArrayAttr(int_list: Iterable[int | IntegerAttr]) -> ArrayAttr[Integ
     return ArrayAttr(attr_list)
 
 
-def toInt(x:int|IntegerAttr | IntAttr) -> int:
+def toInt(x: int | IntegerAttr | IntAttr) -> int:
     if isinstance(x, IntegerAttr):
         return x.value.data
     elif isinstance(x, IntAttr):
@@ -105,6 +109,7 @@ def toTupleInt(array_attr: Iterable[int | IntAttr | IntegerAttr]) -> tuple[int, 
     """
     value_list = [toInt(x) for x in array_attr]
     return tuple(value_list)
+
 
 class ElementwiseBinaryOperation(IRDLOperation, abc.ABC):
     # TODO: Remove this constraint for complex types.
@@ -122,6 +127,7 @@ class ElementwiseBinaryOperation(IRDLOperation, abc.ABC):
             result_type = lhs.type
         super().__init__(operands=(lhs, rhs), result_types=(result_type,))
 
+
 class ElementwiseUnaryOperation(IRDLOperation, abc.ABC):
     # TODO: Remove this constraint for complex types.
     T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
@@ -134,9 +140,10 @@ class ElementwiseUnaryOperation(IRDLOperation, abc.ABC):
             result_type = op.type
         super().__init__(operands=(op,), result_types=(result_type,))
 
+
 @irdl_op_definition
 class TensorExtractOp(IRDLOperation):
-    #T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
+    # T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(AnySMTTensorType))
 
     name = "smt.tensor.extract"
 
@@ -144,10 +151,15 @@ class TensorExtractOp(IRDLOperation):
     indices = var_operand_def(BitVectorType)
     result = result_def()
 
-    def __init__(self,  tensor: Operand, indices: Sequence[SSAValue | Operation], result_type: Attribute | None = None):
+    def __init__(
+        self,
+        tensor: Operand,
+        indices: Sequence[SSAValue | Operation],
+        result_type: Attribute | None = None,
+    ):
         if result_type is None:
             result_type = tensor.type.element_type
-        super().__init__(operands=(tensor,indices), result_types=(result_type,))
+        super().__init__(operands=(tensor, indices), result_types=(result_type,))
 
 
 @irdl_op_definition
@@ -185,6 +197,7 @@ class TensorAndOp(ElementwiseBinaryOperation):
     * For integers: integer and.
 
     """
+
     name = "smt.tensor.and"
 
 
@@ -197,6 +210,7 @@ class TensorMultiplyOp(ElementwiseBinaryOperation):
     * For integers: integer multiply.
 
     """
+
     name = "smt.tensor.multiply"
 
 
@@ -213,7 +227,6 @@ class TensorMaximumOp(ElementwiseBinaryOperation):
     name = "smt.tensor.maximum"
 
 
-
 @irdl_op_definition
 class TensorMinimumOp(ElementwiseBinaryOperation):
     """
@@ -225,7 +238,6 @@ class TensorMinimumOp(ElementwiseBinaryOperation):
     """
 
     name = "smt.tensor.minimum"
-
 
 
 @irdl_op_definition
@@ -242,7 +254,6 @@ class TensorAbsOp(ElementwiseUnaryOperation):
     name = "smt.tensor.abs"
 
 
-
 @irdl_op_definition
 class TensorNegateOp(ElementwiseUnaryOperation):
     """
@@ -257,10 +268,8 @@ class TensorNegateOp(ElementwiseUnaryOperation):
     name = "smt.tensor.negate"
 
 
-
 @irdl_op_definition
 class TensorTransposeOp(IRDLOperation):
-
     name = "smt.tensor.transpose"
 
     ElementType = Annotated[Attribute, ConstraintVar("ElementType")]
@@ -282,11 +291,9 @@ class TensorTransposeOp(IRDLOperation):
         return cast(tuple[int, ...], self.permutation.get_values())
 
 
-
 @irdl_op_definition
 class TensorBroadcastInDimOp(IRDLOperation):
-    """
-    """
+    """ """
 
     name = "smt.tensor.broadcast_in_dim"
 
@@ -297,7 +304,10 @@ class TensorBroadcastInDimOp(IRDLOperation):
     broadcast_dimensions = prop_def(DenseArrayBase)
 
     def __init__(
-        self, operand: SSAValue, broadcast_dimensions: DenseArrayBase, result_type: Attribute
+        self,
+        operand: SSAValue,
+        broadcast_dimensions: DenseArrayBase,
+        result_type: Attribute,
     ):
         super().__init__(
             operands=(operand,),
@@ -309,11 +319,9 @@ class TensorBroadcastInDimOp(IRDLOperation):
         return cast(tuple[int, ...], self.broadcast_dimensions.get_values())
 
 
-
 @irdl_op_definition
 class TensorConcatenateOp(IRDLOperation):
-    """
-    """
+    """ """
 
     name = "smt.tensor.concatenate"
 
@@ -324,7 +332,10 @@ class TensorConcatenateOp(IRDLOperation):
     dimension = prop_def(IntegerAttr[IntegerType])
 
     def __init__(
-        self, operand: SSAValue, dimension: IntegerAttr[IntegerType], result_type: Attribute
+        self,
+        operand: SSAValue,
+        dimension: IntegerAttr[IntegerType],
+        result_type: Attribute,
     ):
         super().__init__(
             operands=(operand,),
@@ -336,11 +347,9 @@ class TensorConcatenateOp(IRDLOperation):
         return self.dimension.value.data
 
 
-
 @irdl_op_definition
 class TensorIotaOp(IRDLOperation):
-    """
-    """
+    """ """
 
     name = "smt.tensor.iota"
 
@@ -361,7 +370,6 @@ class TensorIotaOp(IRDLOperation):
         return self.iota_dimension.value.data
 
 
-
 @irdl_op_definition
 class TensorPadOp(IRDLOperation):
     """
@@ -379,8 +387,9 @@ class TensorPadOp(IRDLOperation):
     edge_padding_high = prop_def(ArrayAttr[IntegerAttr])
     interior_padding = prop_def(ArrayAttr[IntegerAttr])
 
-
-    def get_result_shape(self, operand_type, edge_padding_low, edge_padding_high, interior_padding) -> SMTTensorType:
+    def get_result_shape(
+        self, operand_type, edge_padding_low, edge_padding_high, interior_padding
+    ) -> SMTTensorType:
         assert isinstance(operand_type, SMTTensorType)
         shape = operand_type.get_shape()
         padding_low = toTupleInt(edge_padding_low)
@@ -389,20 +398,33 @@ class TensorPadOp(IRDLOperation):
         assert len(shape) == len(padding_low) == len(padding_high) == len(padding_inner)
         new_shape = []
         for i in range(0, len(shape)):
-            new_shape.append(padding_low[i]+(shape[i]-1)*interior_padding[i]+shape[i]+padding_high[i])
+            new_shape.append(
+                padding_low[i]
+                + (shape[i] - 1) * interior_padding[i]
+                + shape[i]
+                + padding_high[i]
+            )
         return SMTTensorType(operand_type.element_type, new_shape)
 
     def __init__(
-        self, operand: SSAValue, padding_value:SSAValue, edge_padding_low:Iterable[int |IntegerAttr],
-            edge_padding_high: Iterable[int | IntegerAttr],  interior_padding:Iterable[int |IntegerAttr],
+        self,
+        operand: SSAValue,
+        padding_value: SSAValue,
+        edge_padding_low: Iterable[int | IntegerAttr],
+        edge_padding_high: Iterable[int | IntegerAttr],
+        interior_padding: Iterable[int | IntegerAttr],
     ):
-        result_type = self.get_result_shape(operand.type, edge_padding_low, edge_padding_high, interior_padding)
+        result_type = self.get_result_shape(
+            operand.type, edge_padding_low, edge_padding_high, interior_padding
+        )
         super().__init__(
-            operands=(operand,padding_value),
+            operands=(operand, padding_value),
             result_types=(result_type,),
-            properties={"edge_padding_low": toIntegerArrayAttr(edge_padding_low),
-                        "edge_padding_high": toIntegerArrayAttr(edge_padding_high),
-                        "interior_padding": toIntegerArrayAttr(interior_padding)},
+            properties={
+                "edge_padding_low": toIntegerArrayAttr(edge_padding_low),
+                "edge_padding_high": toIntegerArrayAttr(edge_padding_high),
+                "interior_padding": toIntegerArrayAttr(interior_padding),
+            },
         )
 
     def get_edge_padding_low(self) -> tuple[int, ...]:
@@ -431,30 +453,38 @@ class TensorSliceOp(IRDLOperation):
     limit_indices = prop_def(ArrayAttr[IntegerAttr])
     strides = prop_def(ArrayAttr[IntegerAttr])
 
-
-    def get_result_shape(self, operand_type, start_indices,limit_indices, strides) -> SMTTensorType:
-        assert  isinstance(operand_type, SMTTensorType)
+    def get_result_shape(
+        self, operand_type, start_indices, limit_indices, strides
+    ) -> SMTTensorType:
+        assert isinstance(operand_type, SMTTensorType)
         start_indices = toTupleInt(start_indices)
         limit_indices = toTupleInt(limit_indices)
         strides = toTupleInt(strides)
         assert len(start_indices) == len(limit_indices) == len(strides)
         new_shape = []
         for i in range(0, len(strides)):
-            new_shape.append((limit_indices[i]-start_indices[i])//strides[i])
+            new_shape.append((limit_indices[i] - start_indices[i]) // strides[i])
             assert new_shape[-1] > 0
         return SMTTensorType(operand_type.element_type, new_shape)
 
     def __init__(
-        self, operand: SSAValue, start_indices:Iterable[int | IntegerAttr],
-            limit_indices: Iterable[int | IntegerAttr],  strides:Iterable[int | IntegerAttr],
+        self,
+        operand: SSAValue,
+        start_indices: Iterable[int | IntegerAttr],
+        limit_indices: Iterable[int | IntegerAttr],
+        strides: Iterable[int | IntegerAttr],
     ):
-        result_type = self.get_result_shape(operand.type, start_indices, limit_indices, strides)
+        result_type = self.get_result_shape(
+            operand.type, start_indices, limit_indices, strides
+        )
         super().__init__(
             operands=(operand,),
             result_types=(result_type,),
-            properties={"start_indices": toIntegerArrayAttr(start_indices),
-                        "limit_indicts": toIntegerArrayAttr(limit_indices),
-                        "strides": toIntegerArrayAttr(strides)},
+            properties={
+                "start_indices": toIntegerArrayAttr(start_indices),
+                "limit_indicts": toIntegerArrayAttr(limit_indices),
+                "strides": toIntegerArrayAttr(strides),
+            },
         )
 
     def get_start_indices(self) -> tuple[int, ...]:
@@ -481,7 +511,7 @@ SMTTensorDialect = Dialect(
         TensorConcatenateOp,
         TensorIotaOp,
         TensorPadOp,
-        TensorSliceOp
+        TensorSliceOp,
     ],
     [SMTTensorType],
 )
