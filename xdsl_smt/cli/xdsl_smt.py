@@ -12,6 +12,7 @@ from xdsl.dialects.comb import Comb
 from xdsl.dialects.test import Test
 from xdsl.dialects.memref import MemRef
 from xdsl_smt.dialects.smt_array_dialect import SMTArray
+from xdsl_smt.dialects.smt_floatingpoint_dialect import SMTFloatingPointDialect
 from xdsl_smt.dialects.smt_int_dialect import SMTIntDialect
 from xdsl_smt.dialects.effects.effect import EffectDialect
 from xdsl_smt.dialects.effects.ub_effect import UBEffectDialect
@@ -79,6 +80,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTArray.name, lambda: SMTArray)
         self.ctx.register_dialect(SMTTensorDialect.name, lambda: SMTTensorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
+        self.ctx.register_dialect(SMTFloatingPointDialect.name, lambda: SMTFloatingPointDialect)
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
         self.ctx.register_dialect(MemoryEffectDialect.name, lambda: MemoryEffectDialect)
@@ -99,6 +101,7 @@ class OptMain(xDSLOptMain):
         self.ctx.load_registered_dialect(SMTBitVectorDialect.name)
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
         self.ctx.load_registered_dialect(SMTArray.name)
+        self.ctx.load_registered_dialect(SMTFloatingPointDialect.name)
 
     def register_all_passes(self):
         super().register_all_passes()
