@@ -161,17 +161,25 @@ def getElementwiseUnaryFunction(op_name:str, element_type:Attribute):
     return elementwise_unary_functions[op_name]
 
 
-class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):
+class RewriteIotaOpPattern(TensorRewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(
         self, op: TensorIotaOp, rewriter: PatternRewriter
     ):
         element_type = self.extract_op.result.type
-        iota_dimension = op.iota_dimension
-        unary_function = getElementwiseUnaryFunction(op_name, element_type)
-        extract_op_op = TensorExtractOp(op.op, self.extract_op.indices)
-        call_ops = unary_function(extract_op_op.result)
-        rewriter.replace_op(self.extract_op, [extract_op_op] + call_ops)
+        assert isinstance(element_type, smt_bv.BitVectorType)
+        iota_dimension = op.get_iota_dimension()
+        result_width = element_type.width.data
+        result_ops = []
+        if result_width > INDEX_WIDTH:
+            result_ops = [smt_bv.ZeroExtendOp(self.extract_op.indices[iota_dimension], element_type)]
+        elif result_width < INDEX_WIDTH:
+            result_ops =[smt_bv.ExtractOp(self.extract_op.indices[iota_dimension], result_width, 0)]
+        if result_ops!=[]:
+            rewriter.replace_op(self.extract_op, result_ops)
+        else:
+            rewriter.replace_all_uses_with(self.extract_op.result, self.extract_op.indices[iota_dimension])
+            rewriter.erase_op(self.extract_op)
         rewriter.erase_matched_op()
 
 
