@@ -80,7 +80,9 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(SMTArray.name, lambda: SMTArray)
         self.ctx.register_dialect(SMTTensorDialect.name, lambda: SMTTensorDialect)
         self.ctx.register_dialect(SMTUtilsDialect.name, lambda: SMTUtilsDialect)
-        self.ctx.register_dialect(SMTFloatingPointDialect.name, lambda: SMTFloatingPointDialect)
+        self.ctx.register_dialect(
+            SMTFloatingPointDialect.name, lambda: SMTFloatingPointDialect
+        )
         self.ctx.register_dialect(EffectDialect.name, lambda: EffectDialect)
         self.ctx.register_dialect(UBEffectDialect.name, lambda: UBEffectDialect)
         self.ctx.register_dialect(MemoryEffectDialect.name, lambda: MemoryEffectDialect)

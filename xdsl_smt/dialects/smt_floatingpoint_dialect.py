@@ -16,7 +16,8 @@ from xdsl.ir import (
     TypeAttribute,
     OpResult,
     Attribute,
-    Operation, Dialect,
+    Operation,
+    Dialect,
 )
 
 from xdsl.irdl import (
@@ -44,11 +45,12 @@ class FloatingPointType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     eb defines the number of bits in the exponent;
     sb defines the number of bits in the significand, *including * the hidden bit.
     """
+
     name = "smt.fp"
     eb: IntAttr
     sb: IntAttr
 
-    def __init__(self, eb: int|IntAttr, sb:int|IntAttr):
+    def __init__(self, eb: int | IntAttr, sb: int | IntAttr):
         if isinstance(eb, int):
             eb = IntAttr(eb)
         if isinstance(sb, int):
@@ -75,22 +77,22 @@ class FloatingPointType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
             parser.parse_characters(",")
             sb = parser.parse_integer(allow_boolean=False, allow_negative=False)
 
-        return IntAttr(eb),IntAttr(sb)
+        return IntAttr(eb), IntAttr(sb)
 
     def print_parameters(self, printer: Printer) -> None:
         printer.print_string(f"<{self.eb.data}, {self.sb.data}>")
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
-        print(f"(_ FloatingPoint {self.eb.data} {self.sb.data})",file=stream, end="")
+        print(f"(_ FloatingPoint {self.eb.data} {self.sb.data})", file=stream, end="")
 
 
 """
 These correspond to the IEEE binary16, binary32, binary64 and binary128 formats.
 """
-float16 =FloatingPointType(5, 11)
-float32 =FloatingPointType(8, 24)
-float64 =FloatingPointType(11, 53)
-float128 =FloatingPointType(15, 113)
+float16 = FloatingPointType(5, 11)
+float32 = FloatingPointType(8, 24)
+float64 = FloatingPointType(11, 53)
+float128 = FloatingPointType(15, 113)
 
 
 def getWidthFromBitVectorType(typ: Attribute):
@@ -99,10 +101,10 @@ def getWidthFromBitVectorType(typ: Attribute):
     raise ValueError("Expected a BitVector type")
 
 
-
 ################################################################################
 #                          FP Value Constructors                               #
 ################################################################################
+
 
 @irdl_op_definition
 class ConstantOp(IRDLOperation, Pure, SimpleSMTLibOp):
@@ -111,16 +113,21 @@ class ConstantOp(IRDLOperation, Pure, SimpleSMTLibOp):
     (fp (_ BitVec 1) (_ BitVec eb) (_ BitVec i) (_ FloatingPoint eb sb))
     where eb and sb are numerals greater than 1 and i = sb - 1.
     """
+
     name = "smt.fp.constant"
     lsb = operand_def(BitVectorType)
     eb = operand_def(BitVectorType)
     rsb = operand_def(BitVectorType)
     result = result_def(FloatingPointType)
 
-    def __init__(self, lsb: Operand, eb: Operand, rsb:Operand):
+    def __init__(self, lsb: Operand, eb: Operand, rsb: Operand):
         eb_len = getWidthFromBitVectorType(eb.type)
-        sb_len = getWidthFromBitVectorType(lsb.type) + getWidthFromBitVectorType(rsb.type)
-        super().__init__(result_types=[FloatingPointType(eb_len, sb_len)], operands=[lsb, eb, rsb])
+        sb_len = getWidthFromBitVectorType(lsb.type) + getWidthFromBitVectorType(
+            rsb.type
+        )
+        super().__init__(
+            result_types=[FloatingPointType(eb_len, sb_len)], operands=[lsb, eb, rsb]
+        )
 
     def verify_(self):
         if not (1 == getWidthFromBitVectorType(self.lsb.type)):
@@ -134,9 +141,10 @@ class SpecialConstantOp(IRDLOperation, Pure, SMTLibOp):
     """
     This class is an abstract class for -/+infinity, -/+zero and NaN
     """
+
     res: OpResult = result_def(FloatingPointType)
 
-    def __init__(self, eb: int|IntAttr, sb:int|IntAttr):
+    def __init__(self, eb: int | IntAttr, sb: int | IntAttr):
         super().__init__(result_types=[FloatingPointType(eb, sb)])
 
     def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
@@ -150,33 +158,41 @@ class SpecialConstantOp(IRDLOperation, Pure, SMTLibOp):
         """Expression name when printed in SMTLib."""
         ...
 
+
 class PositiveInfinityOp(SpecialConstantOp):
     name = "smt.fp.pinf"
+
     def constant_name(self) -> str:
         return "+oo"
 
+
 class NegativeInfinityOp(SpecialConstantOp):
     name = "smt.fp.ninf"
+
     def constant_name(self) -> str:
         return "-oo"
 
 
 class PositiveZeroOp(SpecialConstantOp):
     name = "smt.fp.pzero"
+
     def constant_name(self) -> str:
         return "+zero"
 
 
 class NegativeZeroOp(SpecialConstantOp):
     name = "smt.fp.nzero"
+
     def constant_name(self) -> str:
         return "-zero"
 
 
 class NaNOp(SpecialConstantOp):
     name = "smt.fp.nan"
+
     def constant_name(self) -> str:
         return "nan"
+
 
 SMTFloatingPointDialect = Dialect(
     "smt.fp",
@@ -187,7 +203,6 @@ SMTFloatingPointDialect = Dialect(
         PositiveInfinityOp,
         NegativeInfinityOp,
         NaNOp,
-
     ],
     [FloatingPointType],
 )
