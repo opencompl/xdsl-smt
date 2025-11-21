@@ -196,7 +196,7 @@ class NaNOp(SpecialConstantOp):
     name = "smt.fp.nan"
 
     def constant_name(self) -> str:
-        return "nan"
+        return "NaN"
 
 
 SMTFloatingPointDialect = Dialect(

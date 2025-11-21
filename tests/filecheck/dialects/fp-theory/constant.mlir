@@ -23,7 +23,7 @@
 
   %eq = "smt.eq"(%random_fp, %nan) : (!smt.fp<8,11>, !smt.fp<8,11>) -> !smt.bool
   "smt.assert"(%eq) : (!smt.bool) -> ()
-  // CHECK: (assert (= (fp (_ bv0 1) (_ bv3 8) (_ bv4 10)) (_ nan 8 11)))
+  // CHECK: (assert (= (fp (_ bv0 1) (_ bv3 8) (_ bv4 10)) (_ NaN 8 11)))
 
 
 
