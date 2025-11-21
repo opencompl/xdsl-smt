@@ -159,6 +159,7 @@ class SpecialConstantOp(IRDLOperation, Pure, SMTLibOp):
         ...
 
 
+@irdl_op_definition
 class PositiveInfinityOp(SpecialConstantOp):
     name = "smt.fp.pinf"
 
@@ -166,6 +167,7 @@ class PositiveInfinityOp(SpecialConstantOp):
         return "+oo"
 
 
+@irdl_op_definition
 class NegativeInfinityOp(SpecialConstantOp):
     name = "smt.fp.ninf"
 
@@ -173,6 +175,7 @@ class NegativeInfinityOp(SpecialConstantOp):
         return "-oo"
 
 
+@irdl_op_definition
 class PositiveZeroOp(SpecialConstantOp):
     name = "smt.fp.pzero"
 
@@ -180,6 +183,7 @@ class PositiveZeroOp(SpecialConstantOp):
         return "+zero"
 
 
+@irdl_op_definition
 class NegativeZeroOp(SpecialConstantOp):
     name = "smt.fp.nzero"
 
@@ -187,6 +191,7 @@ class NegativeZeroOp(SpecialConstantOp):
         return "-zero"
 
 
+@irdl_op_definition
 class NaNOp(SpecialConstantOp):
     name = "smt.fp.nan"
 
