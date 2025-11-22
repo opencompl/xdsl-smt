@@ -288,6 +288,16 @@ class SAddOverflowOp(PredicateOp):
 
 
 @irdl_op_definition
+class USubOverflowOp(PredicateOp):
+    name = "transfer.usub_overflow"
+
+
+@irdl_op_definition
+class SSubOverflowOp(PredicateOp):
+    name = "transfer.ssub_overflow"
+
+
+@irdl_op_definition
 class AndOp(BinOp):
     name = "transfer.and"
 
@@ -785,6 +795,11 @@ class GetSignedMinValueOp(UnaryOp):
     name = "transfer.get_signed_min_value"
 
 
+@irdl_op_definition
+class GetLimitedValueOp(BinOp):
+    name = "transfer.get_limited_value"
+
+
 Transfer = Dialect(
     "transfer",
     [
@@ -829,6 +844,8 @@ Transfer = Dialect(
         SAddOverflowOp,
         UShlOverflowOp,
         SShlOverflowOp,
+        USubOverflowOp,
+        SSubOverflowOp,
         SelectOp,
         IsPowerOf2Op,
         IsAllOnesOp,
@@ -845,6 +862,7 @@ Transfer = Dialect(
         AddPoisonOp,
         RemovePoisonOp,
         ReverseBitsOp,
+        GetLimitedValueOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],
 )
