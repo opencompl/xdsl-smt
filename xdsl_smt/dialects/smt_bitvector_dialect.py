@@ -708,6 +708,26 @@ class SaddOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
 
 
 @irdl_op_definition
+class UsubOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.usubo"
+
+    traits = traits_def(traits.Pure())
+
+    def op_name(self) -> str:
+        return "bvusubo"
+
+
+@irdl_op_definition
+class SsubOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
+    name = "smt.bv.ssubo"
+
+    traits = traits_def(traits.Pure())
+
+    def op_name(self) -> str:
+        return "bvssubo"
+
+
+@irdl_op_definition
 class UmulOverflowOp(BinaryPredBVOp, SimpleSMTLibOp):
     """
     [[(bvumulo s t)]] := (bv2nat([[s]]) * bv2nat([[t]])) >= 2^m
@@ -909,6 +929,8 @@ SMTBitVectorDialect = Dialect(
         NegOverflowOp,
         UaddOverflowOp,
         SaddOverflowOp,
+        UsubOverflowOp,
+        SsubOverflowOp,
         UmulOverflowOp,
         SmulOverflowOp,
         UmulNoOverflowOp,
