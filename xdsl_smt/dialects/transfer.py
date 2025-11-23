@@ -288,6 +288,16 @@ class SAddOverflowOp(PredicateOp):
 
 
 @irdl_op_definition
+class USubOverflowOp(PredicateOp):
+    name = "transfer.usub_overflow"
+
+
+@irdl_op_definition
+class SSubOverflowOp(PredicateOp):
+    name = "transfer.ssub_overflow"
+
+
+@irdl_op_definition
 class AndOp(BinOp):
     name = "transfer.and"
 
@@ -335,6 +345,11 @@ class CountLOneOp(UnaryOp):
 @irdl_op_definition
 class CountROneOp(UnaryOp):
     name = "transfer.countr_one"
+
+
+@irdl_op_definition
+class PopCountOp(UnaryOp):
+    name = "transfer.popcount"
 
 
 @irdl_op_definition
@@ -810,6 +825,7 @@ Transfer = Dialect(
         CountLZeroOp,
         CountROneOp,
         CountRZeroOp,
+        PopCountOp,
         SetHighBitsOp,
         SetLowBitsOp,
         SetSignBitOp,
@@ -827,6 +843,8 @@ Transfer = Dialect(
         SMulOverflowOp,
         UAddOverflowOp,
         SAddOverflowOp,
+        USubOverflowOp,
+        SSubOverflowOp,
         UShlOverflowOp,
         SShlOverflowOp,
         SelectOp,
