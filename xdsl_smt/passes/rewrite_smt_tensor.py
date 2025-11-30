@@ -34,7 +34,7 @@ def getBVConstant(x: int) -> smt_bv.ConstantOp:
 class TensorRewritePattern(RewritePattern, ABC):
     extract_op: TensorExtractOp
 
-    def __init__(self, extract_op):
+    def __init__(self, extract_op: TensorExtractOp):
         self.extract_op = extract_op
         super().__init__()
 
@@ -43,7 +43,7 @@ class RewriteTransposeOpPattern(TensorRewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: TensorTransposeOp, rewriter: PatternRewriter):
         extract_op = self.extract_op
-        permutations = op.permutation.get_values()
+        permutations = op.get_permutation()
         new_indices: list[SSAValue] = []
         for i in permutations:
             new_indices.append(extract_op.indices[i])
