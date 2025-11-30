@@ -11,6 +11,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import Attribute
+from xdsl.utils.hints import isa
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
@@ -23,7 +24,7 @@ from xdsl.passes import ModulePass
 
 
 def lower_tensor_type(typ: Attribute) -> Attribute:
-    if isinstance(typ, SMTTensorType):
+    if isa(typ, SMTTensorType):
         result = typ.element_type
         index_type = IndexType
         for _ in typ.shape:
@@ -35,7 +36,7 @@ def lower_tensor_type(typ: Attribute) -> Attribute:
 class DeclareConstOpPattern(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: DeclareConstOp, rewriter: PatternRewriter):
-        if isinstance(op.res.type, SMTTensorType):
+        if isa(op.res.type, SMTTensorType):
             new_constant_op = DeclareConstOp(lower_tensor_type(op.res.type))
             rewriter.replace_matched_op(new_constant_op)
 
