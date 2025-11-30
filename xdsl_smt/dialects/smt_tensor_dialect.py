@@ -69,6 +69,8 @@ class SMTTensorType(
 
 
 AnySMTTensorType: TypeAlias = SMTTensorType[Attribute]
+INDEX_WIDTH = 64
+IndexType = BitVectorType(INDEX_WIDTH)
 
 
 def to_integer_array_attr(
