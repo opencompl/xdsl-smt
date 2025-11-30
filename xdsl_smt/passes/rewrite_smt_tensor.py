@@ -4,14 +4,14 @@ from typing import Callable
 
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 
-from xdsl_smt.dialects.smt_dialect import  DeclareFunOp, IteOp
+from xdsl_smt.dialects.smt_dialect import DeclareFunOp, IteOp
 from xdsl.ir import Operation, SSAValue
 from xdsl_smt.dialects.smt_tensor_dialect import (
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
     INDEX_WIDTH,
-    TensorExtractOp
+    TensorExtractOp,
 )
 from xdsl.dialects.builtin import FunctionType, ModuleOp
 from xdsl.ir import Attribute
@@ -134,7 +134,6 @@ def getElementwiseUnaryFunction(op_name: str, element_type: Attribute):
         elementwise_unary_function_set.add(defun_op)
         elementwise_unary_functions[op_name] = lambda x: [CallOp(defun_op.ret, [x])]
     return elementwise_unary_functions[op_name]
-
 
 
 class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):

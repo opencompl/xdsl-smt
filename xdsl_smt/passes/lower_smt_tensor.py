@@ -6,7 +6,7 @@ from xdsl_smt.dialects.smt_dialect import (
 from xdsl_smt.dialects.smt_tensor_dialect import (
     IndexType,
     SMTTensorType,
-    TensorExtractOp
+    TensorExtractOp,
 )
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl.dialects.builtin import ModuleOp
