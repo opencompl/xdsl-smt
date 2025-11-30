@@ -1,28 +1,16 @@
 from abc import ABC
-from typing import cast, Callable
-from dataclasses import dataclass
+from typing import Callable
 
 from xdsl.dialects.smt import AndOp
-from xdsl.pattern_rewriter import (
-    PatternRewriter,
-)
-from xdsl.ir import Operation
 
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
-from xdsl_smt.dialects import smt_array_dialect as smt_array
 
-from xdsl_smt.dialects.smt_dialect import BoolType, EqOp, AssertOp, DeclareFunOp, IteOp
-from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
-from xdsl.ir import Operation, SSAValue, Attribute
-from typing import Mapping, Sequence
-from xdsl.dialects.builtin import IntegerAttr, IntegerType
+from xdsl_smt.dialects.smt_dialect import EqOp, DeclareFunOp, IteOp
+from xdsl.ir import Operation, SSAValue
 from xdsl_smt.dialects.smt_tensor_dialect import (
-    SMTTensorType,
-    TensorAddOp,
     ElementwiseBinaryOperation,
     TensorTransposeOp,
     ElementwiseUnaryOperation,
-    TensorSubtractOp,
     TensorPadOp,
     INDEX_WIDTH,
     toTupleInt,
@@ -31,7 +19,7 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     TensorConcatenateOp,
     TensorIotaOp,
 )
-from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
+from xdsl.dialects.builtin import FunctionType, ModuleOp
 from xdsl.ir import Attribute
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
@@ -48,7 +36,6 @@ from ..dialects.smt_dialect import (
 )
 from ..dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
 
-from .dead_code_elimination import DeadCodeElimination
 
 bv_constants: dict[int, smt_bv.ConstantOp] = {}
 
@@ -102,7 +89,7 @@ class RewriteBroadcastInDimPattern(TensorRewritePattern):
         rewriter.erase_matched_op()
 
 
-def stripOpName(name: str) -> str:
+def toFuncName(name: str) -> str:
     return name.replace(".", "_")
 
 
@@ -213,7 +200,7 @@ class RewriteElementwiseUnaryOpPattern(TensorRewritePattern):
         self, op: ElementwiseUnaryOperation, rewriter: PatternRewriter
     ):
         element_type = self.extract_op.result.type
-        op_name = stripOpName(op.name)
+        op_name = toFuncName(op.name)
         unary_function = getElementwiseUnaryFunction(op_name, element_type)
         extract_op_op = TensorExtractOp(op.op, self.extract_op.indices)
         call_ops = unary_function(extract_op_op.result)
@@ -227,7 +214,7 @@ class RewriteElementwiseBinaryOpPattern(TensorRewritePattern):
         self, op: ElementwiseBinaryOperation, rewriter: PatternRewriter
     ):
         element_type = self.extract_op.result.type
-        op_name = stripOpName(op.name)
+        op_name = toFuncName(op.name)
         binary_function = getElementwiseBinaryFunction(op_name, element_type)
         extract_lhs_op = TensorExtractOp(op.lhs, self.extract_op.indices)
         extract_rhs_op = TensorExtractOp(op.rhs, self.extract_op.indices)

@@ -1,35 +1,12 @@
-from abc import ABC
-from typing import cast, Callable
-from dataclasses import dataclass
-from xdsl.pattern_rewriter import (
-    PatternRewriter,
-)
-from xdsl.ir import Operation
-
-from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_array_dialect as smt_array
 
 from xdsl_smt.dialects.smt_dialect import (
-    BoolType,
-    EqOp,
-    AssertOp,
-    DeclareFunOp,
     DeclareConstOp,
 )
-from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
-from xdsl.ir import Operation, SSAValue, Attribute
-from typing import Mapping, Sequence
-from xdsl.dialects.builtin import IntegerAttr, IntegerType
 from xdsl_smt.dialects.smt_tensor_dialect import (
-    SMTTensorType,
-    TensorAddOp,
-    ElementwiseBinaryOperation,
-    TensorTransposeOp,
-    ElementwiseUnaryOperation,
-    TensorSubtractOp,
     IndexType,
 )
-from xdsl.dialects.builtin import ArrayAttr, FunctionType, ModuleOp, StringAttr
+from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import Attribute
 from xdsl.context import Context
 from xdsl.pattern_rewriter import (
@@ -41,9 +18,6 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.passes import ModulePass
 
-from ..dialects.smt_dialect import (
-    CallOp,
-)
 from ..dialects.smt_tensor_dialect import SMTTensorType, TensorExtractOp
 
 from .dead_code_elimination import DeadCodeElimination
