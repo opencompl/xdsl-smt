@@ -98,9 +98,17 @@ class RewriteRule:
     def to_pdl(self) -> pdl.PatternOp:
         """Expresses this rewrite rule as a PDL pattern and rewrite."""
 
+        num_ops_before = len(
+            ["op" for op in self._lhs.func.body.block.ops if "constant" not in op.name]
+        )
+        num_ops_after = len(
+            ["op" for op in self._rhs.func.body.block.ops if "constant" not in op.name]
+        )
+        benefit = num_ops_before - num_ops_after
+
         lhs, args, left_root, _ = func_to_pdl(self._lhs.func)
         assert left_root is not None
-        pattern = pdl.PatternOp(1, None, lhs)
+        pattern = pdl.PatternOp(benefit, None, lhs)
 
         # Unify LHS and RHS arguments.
         arguments: list[SSAValue | None] = [None] * self._rhs.arity
