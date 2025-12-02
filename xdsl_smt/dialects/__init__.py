@@ -6,6 +6,11 @@ from xdsl.ir import Dialect
 def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
     all_dialects = xdsl_get_all_dialects()
 
+    def get_abbv_dialect():
+        from xdsl_smt.dialects.ab_bitvector_dialect import ABBitVectorDialect
+
+        return ABBitVectorDialect
+
     def get_pdl_dialect():
         from xdsl.dialects.pdl import PDL
         from xdsl_smt.dialects.pdl_dataflow import PDLDataflowDialect
@@ -78,6 +83,7 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
 
         return SynthDialect
 
+    all_dialects["abbv"] = get_abbv_dialect
     all_dialects["pdl"] = get_pdl_dialect
     all_dialects["smt"] = get_smt_dialect
     all_dialects["effect"] = get_effect_dialect

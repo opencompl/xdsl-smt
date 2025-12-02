@@ -10,7 +10,7 @@ from xdsl_smt.traits.smt_printer import print_to_smtlib
 
 
 def run_module_through_smtlib(
-    module: ModuleOp, timeout: int = 25000
+    module: ModuleOp, timeout: int = 1000
 ) -> tuple[Any, z3.Solver]:
     smtlib_program = StringIO()
     print_to_smtlib(module, smtlib_program)
