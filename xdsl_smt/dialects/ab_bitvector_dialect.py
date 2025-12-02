@@ -19,24 +19,26 @@ from xdsl.irdl import (
     traits_def,
     prop_def,
 )
+from xdsl.parser import Parser
+from xdsl.printer import Printer
 from xdsl.traits import Pure
 
 from xdsl_smt.dialects.smt_dialect import BoolType
-from xdsl.dialects.smt import BitVectorType, BitVectorAttr
+from xdsl.dialects.smt import BitVectorType
 
 
 @irdl_attr_definition
 class BitWidthType(ParametrizedAttribute, TypeAttribute):
     """The bitwidth of an arbitrary-bitvector type."""
 
-    name = "ab.bitwidth"
+    name = "abbv.bitwidth"
 
 
 @irdl_attr_definition
 class ArbitraryBitVectorType(ParametrizedAttribute, TypeAttribute):
     """An arbitrary-width bitvector type."""
 
-    name = "abbv"
+    name = "abbv.bv"
 
 
 @irdl_op_definition
@@ -44,11 +46,24 @@ class ConstantBitWidthOp(IRDLOperation):
     name = "abbv.constant_bitwidth"
 
     value = prop_def(IntAttr)
-    result = result_def(BitWidthType)
-
-    assembly_format = "$value attr-dict"
+    result = result_def(BitWidthType())
 
     traits = traits_def(Pure())
+
+    @classmethod
+    def parse(cls, parser: Parser) -> ConstantBitWidthOp:
+        value = parser.parse_integer()
+        attr_dict = parser.parse_optional_attr_dict()
+        op = ConstantBitWidthOp(value)
+        if attr_dict:
+            op.attributes = attr_dict
+        return op
+
+    def print(self, printer: Printer):
+        printer.print_string(" ")
+        printer.print_int(self.value.data)
+        printer.print_string(" ")
+        printer.print_attr_dict(self.properties)
 
     def __init__(
         self,
@@ -56,21 +71,31 @@ class ConstantBitWidthOp(IRDLOperation):
     ) -> None:
         if isinstance(value, int):
             value = IntAttr(value)
-        super().__init__(
-            result_types=[ArbitraryBitVectorType()], properties={"value": value}
-        )
+        super().__init__(result_types=[BitWidthType()], properties={"value": value})
 
 
 @irdl_op_definition
-class ConstantBitVectorOp(IRDLOperation):
-    name = "abbv.bv.constant_abbv"
+class ConstantOp(IRDLOperation):
+    name = "abbv.constant"
 
     width = operand_def(BitWidthType)
     value = prop_def(IntAttr)
-
-    assembly_format = "$value attr-dict : $width"
+    result = result_def(ArbitraryBitVectorType())
 
     traits = traits_def(Pure())
+
+    @classmethod
+    def parse(cls, parser: Parser) -> ConstantOp:
+        value = parser.parse_integer()
+        parser.parse_characters(":")
+        width = parser.parse_operand()
+        return ConstantOp(width, value)
+
+    def print(self, printer: Printer):
+        printer.print_string(" ")
+        printer.print_int(self.value.data)
+        printer.print_string(" : ")
+        printer.print_operand(self.width)
 
     def __init__(
         self,
@@ -91,11 +116,11 @@ class FromFixedBitWidthOp(IRDLOperation):
     name = "abbv.from_fixed_bitwidth"
 
     operand = operand_def(BitVectorType)
-    result = result_def(ArbitraryBitVectorType)
+    result = result_def(ArbitraryBitVectorType())
 
     traits = traits_def(Pure())
 
-    assembly_format = "$operand attr-dict"
+    assembly_format = "$operand attr-dict `:` type($operand)"
 
     def __init__(self, operand: SSAValue) -> None:
         super().__init__(result_types=[ArbitraryBitVectorType()], operands=[operand])
@@ -116,7 +141,7 @@ class ToFixedBitWidthOp(IRDLOperation):
 
     traits = traits_def(Pure())
 
-    assembly_format = "$operand attr-dict : type($result)"
+    assembly_format = "$operand attr-dict `:` type($result)"
 
     def __init__(self, operand: SSAValue, result_type: BitVectorType) -> None:
         super().__init__(result_types=[result_type], operands=[operand])
@@ -147,6 +172,8 @@ class UnaryBVOp(IRDLOperation):
 
     traits = traits_def(Pure())
 
+    assembly_format = "$arg attr-dict"
+
     def __init__(self, arg: SSAValue):
         super().__init__(result_types=[arg.type], operands=[arg])
 
@@ -157,6 +184,8 @@ class BinaryBVOp(IRDLOperation):
     rhs = operand_def(ArbitraryBitVectorType())
 
     traits = traits_def(Pure())
+
+    assembly_format = "$lhs `,` $rhs attr-dict"
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[ArbitraryBitVectorType()], operands=[lhs, rhs])
@@ -316,6 +345,8 @@ class UnaryPredBVOp(IRDLOperation):
 
     traits = traits_def(Pure())
 
+    assembly_format = "$operand attr-dict"
+
     def __init__(self, operand: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[operand])
 
@@ -326,6 +357,8 @@ class BinaryPredBVOp(IRDLOperation):
     rhs = operand_def(ArbitraryBitVectorType())
 
     traits = traits_def(Pure())
+
+    assembly_format = "$lhs `,` $rhs attr-dict"
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
         super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
@@ -438,6 +471,8 @@ class ConcatOp(IRDLOperation):
     rhs = operand_def(ArbitraryBitVectorType())
     res = result_def(ArbitraryBitVectorType())
 
+    assembly_format = "$lhs `,` $rhs attr-dict"
+
     traits = traits_def(Pure())
 
     def __init__(self, lhs: SSAValue, rhs: SSAValue):
@@ -451,6 +486,8 @@ class ZeroExtendOp(IRDLOperation):
     operand = operand_def(ArbitraryBitVectorType())
     width = operand_def(BitWidthType)
     res = result_def(ArbitraryBitVectorType())
+
+    assembly_format = "$operand attr-dict `:` $width"
 
     traits = traits_def(Pure())
 
@@ -468,6 +505,8 @@ class SignExtendOp(IRDLOperation):
     width = operand_def(BitWidthType)
     res = result_def(ArbitraryBitVectorType())
 
+    assembly_format = "$operand attr-dict `:` $width"
+
     traits = traits_def(Pure())
 
     def __init__(self, operand: SSAValue, width: SSAValue):
@@ -480,7 +519,7 @@ ABBitVectorDialect = Dialect(
     "abbv",
     [
         ConstantBitWidthOp,
-        ConstantBitVectorOp,
+        ConstantOp,
         FromFixedBitWidthOp,
         ToFixedBitWidthOp,
         GetBitWidthOp,
@@ -521,5 +560,5 @@ ABBitVectorDialect = Dialect(
         ZeroExtendOp,
         SignExtendOp,
     ],
-    [BitVectorType, BitVectorAttr],
+    [ArbitraryBitVectorType, BitWidthType],
 )

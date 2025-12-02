@@ -460,8 +460,10 @@ class CmpOp(SimpleSMTLibOp, IRDLOperation, Pure):
 
     pred = prop_def(IntegerAttr[IntegerType])
 
-    def __init__(self, lhs: SSAValue, rhs: SSAValue):
-        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
+    def __init__(self, pred: IntegerAttr[IntegerType], lhs: SSAValue, rhs: SSAValue):
+        super().__init__(
+            result_types=[BoolType()], operands=[lhs, rhs], properties={"pred": pred}
+        )
 
     traits = traits_def(traits.Pure())
 

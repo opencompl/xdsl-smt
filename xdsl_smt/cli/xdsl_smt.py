@@ -26,6 +26,7 @@ from xdsl_smt.passes.lower_effects_with_memory import LowerEffectsWithMemoryPass
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.passes.raise_llvm_to_func import RaiseLLVMToFunc
+from xdsl_smt.passes.lower_abbv_to_bv import LowerAbbvToBvPass
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -40,6 +41,7 @@ from xdsl_smt.dialects.hw_dialect import HW
 from xdsl_smt.dialects.llvm_dialect import LLVM
 from xdsl_smt.dialects.tv_dialect import TVDialect
 from xdsl_smt.dialects.ub import UBDialect
+from xdsl_smt.dialects.ab_bitvector_dialect import ABBitVectorDialect
 
 from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
@@ -97,6 +99,7 @@ class OptMain(xDSLOptMain):
         self.ctx.register_dialect(Test.name, lambda: Test)
         self.ctx.register_dialect(MemRef.name, lambda: MemRef)
         self.ctx.register_dialect(UBDialect.name, lambda: UBDialect)
+        self.ctx.register_dialect(ABBitVectorDialect.name, lambda: ABBitVectorDialect)
         self.ctx.load_registered_dialect(SMTDialect.name)
         self.ctx.load_registered_dialect(Transfer.name)
         self.ctx.load_registered_dialect(SMTIntDialect.name)
@@ -126,6 +129,7 @@ class OptMain(xDSLOptMain):
             PDLAddImplicitPropertiesPass.name, lambda: PDLAddImplicitPropertiesPass
         )
         self.register_pass(RaiseLLVMToFunc.name, lambda: RaiseLLVMToFunc)
+        self.register_pass(LowerAbbvToBvPass.name, lambda: LowerAbbvToBvPass)
 
     def register_all_targets(self):
         super().register_all_targets()
