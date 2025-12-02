@@ -86,6 +86,61 @@ class ConstantBitVectorOp(IRDLOperation):
         )
 
 
+@irdl_op_definition
+class FromFixedBitWidthOp(IRDLOperation):
+    name = "abbv.from_fixed_bitwidth"
+
+    operand = operand_def(BitVectorType)
+    result = result_def(ArbitraryBitVectorType)
+
+    traits = traits_def(Pure())
+
+    assembly_format = "$operand attr-dict"
+
+    def __init__(self, operand: SSAValue) -> None:
+        super().__init__(result_types=[ArbitraryBitVectorType()], operands=[operand])
+
+
+@irdl_op_definition
+class ToFixedBitWidthOp(IRDLOperation):
+    """
+    Converts an arbitrary-width bitvector to a fixed-width bitvector.
+    It is expected that the bitwidth of the arbitrary-width bitvector is equal to
+    the bitwidth of the fixed-width bitvector.
+    """
+
+    name = "abbv.to_fixed_bitwidth"
+
+    operand = operand_def(ArbitraryBitVectorType)
+    result = result_def(BitVectorType)
+
+    traits = traits_def(Pure())
+
+    assembly_format = "$operand attr-dict : type($result)"
+
+    def __init__(self, operand: SSAValue, result_type: BitVectorType) -> None:
+        super().__init__(result_types=[result_type], operands=[operand])
+
+
+@irdl_op_definition
+class GetBitWidthOp(IRDLOperation):
+    """
+    Get the bitwidth of an arbitrary-width bitvector.
+    """
+
+    name = "abbv.get_bitwidth"
+
+    operand = operand_def(ArbitraryBitVectorType)
+    result = result_def(BitWidthType)
+
+    traits = traits_def(Pure())
+
+    assembly_format = "$operand attr-dict"
+
+    def __init__(self, operand: SSAValue) -> None:
+        super().__init__(result_types=[BitWidthType()], operands=[operand])
+
+
 class UnaryBVOp(IRDLOperation):
     res = result_def(ArbitraryBitVectorType())
     arg = operand_def(ArbitraryBitVectorType())
@@ -426,6 +481,9 @@ ABBitVectorDialect = Dialect(
     [
         ConstantBitWidthOp,
         ConstantBitVectorOp,
+        FromFixedBitWidthOp,
+        ToFixedBitWidthOp,
+        GetBitWidthOp,
         # Arithmetic
         NegOp,
         AddOp,
