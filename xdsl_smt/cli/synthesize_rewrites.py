@@ -112,8 +112,10 @@ class RewriteRule:
 
         # Unify LHS and RHS arguments.
         arguments: list[SSAValue | None] = [None] * self._rhs.arity
-        for i, (k, _) in enumerate(self._rhs.useful_parameters()):
-            arguments[k] = args[list(self._lhs.useful_parameters())[i][0]]
+        for (k, _), (k2, _) in zip(
+            self._rhs.useful_parameters(), self._lhs.useful_parameters(), strict=True
+        ):
+            arguments[k] = args[k2]
         rhs, _, _, right_res = func_to_pdl(self._rhs.func, arguments=arguments)
         rhs.block.add_op(pdl.ReplaceOp(left_root, None, right_res))
 
