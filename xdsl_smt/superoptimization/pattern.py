@@ -387,10 +387,8 @@ class Pattern:
         for permuted in self.ordered_patterns():
             if permuted.fingerprint == other.fingerprint:
                 if (
-                    self.exact_fingerprint
-                    and other.exact_fingerprint
-                    or permuted.is_same_behavior(other)
-                ):
+                    self.exact_fingerprint and other.exact_fingerprint
+                ) or permuted.has_same_behavior(other):
                     return permuted
 
         return None
