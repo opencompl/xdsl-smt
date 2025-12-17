@@ -34,7 +34,6 @@ op_name_to_lean_infix: dict[str, str] = {
     "smt.bv.and": "&&&",
     "smt.bv.or": "|||",
     "smt.bv.xor": "^^^",
-    "smt.bv.lshr": ">>>",
     "smt.bv.shl": "<<<",
 }
 
@@ -65,6 +64,8 @@ def get_lean_expression(value: SSAValue, operand_to_str: dict[SSAValue, str]) ->
             if op_name in op_name_to_lean_prefix.keys():
                 lean_prefix = op_name_to_lean_prefix[op_name]
                 return f"({lean_prefix} {lhs} {rhs})"
+            if op_name == "smt.bv.lshr":
+                return f"(BitVec.ushiftRight {lhs} {rhs}.toNat)"
             assert False, f"Unsupported operation: {op_name}"
     assert False, f"Unsupported owner: {value.owner}"
 
