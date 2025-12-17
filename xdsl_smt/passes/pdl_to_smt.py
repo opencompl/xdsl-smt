@@ -18,7 +18,7 @@ from xdsl.rewriter import InsertPoint, Rewriter
 
 from xdsl_smt.dialects.effects import ub_effect
 from xdsl_smt.dialects.effects.effect import StateType
-from xdsl_smt.semantics.refinements import IntegerTypeRefinementSemantics
+from xdsl_smt.semantics.refinements import find_refinement_semantics
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 from xdsl_smt.dialects import pdl_dataflow as pdl_dataflow
@@ -263,7 +263,7 @@ class OperationRewrite(RewritePattern):
 @dataclass
 class ReplaceRewrite(RewritePattern):
     rewrite_context: PDLToSMTRewriteContext
-    refinement: RefinementSemantics
+    refinement: RefinementSemantics | None
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ReplaceOp, rewriter: PatternRewriter):
@@ -289,7 +289,14 @@ class ReplaceRewrite(RewritePattern):
                 raise Exception("Cannot handle operations with multiple results")
             replacing_value = replacing_values[0]
 
-        value_refinement = self.refinement.get_semantics(
+        if self.refinement is None:
+            refinement = find_refinement_semantics(
+                replaced_value.type, replacing_value.type
+            )
+        else:
+            refinement = self.refinement
+
+        value_refinement = refinement.get_semantics(
             replaced_value,
             replacing_value,
             rewriter,
@@ -557,7 +564,7 @@ class PDLToSMTLowerer:
             str, Callable[[ApplyNativeConstraintOp, PDLToSMTRewriteContext], bool]
         ]
     )
-    refinement: RefinementSemantics = IntegerTypeRefinementSemantics()
+    refinement: RefinementSemantics | None = None
 
     def mark_pdl_operations(self, op: PatternOp):
         """

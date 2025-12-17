@@ -29,6 +29,17 @@ from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, Any
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
+class EqualityRefinementSemantics(RefinementSemantics):
+    def get_semantics(
+        self,
+        val_before: SSAValue,
+        val_after: SSAValue,
+        builder: Builder,
+    ) -> SSAValue:
+        """Compute the refinement as equality between before and after values."""
+        return builder.insert(smt.EqOp(val_before, val_after)).res
+
+
 class IntegerTypeRefinementSemantics(RefinementSemantics):
     def get_semantics(
         self,
@@ -154,6 +165,10 @@ def find_refinement_semantics(
     type_before: Attribute,
     type_after: Attribute,
 ) -> RefinementSemantics:
+    if isinstance(type_before, smt_bv.BitVectorType | smt.BoolType) and isinstance(
+        type_after, smt_bv.BitVectorType | smt.BoolType
+    ):
+        return EqualityRefinementSemantics()
     if isinstance(type_before, IntegerType) and isinstance(type_after, IntegerType):
         return IntegerTypeRefinementSemantics()
     if isinstance(type_before, BitVectorType) and isinstance(type_after, IntegerType):

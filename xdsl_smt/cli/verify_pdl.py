@@ -28,7 +28,6 @@ from ..dialects.hoare_dialect import Hoare
 from ..dialects.pdl_dataflow import PDLDataflowDialect
 from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_dialect import SMTDialect
-from ..dialects.smt_bitvector_dialect import SMTBitVectorDialect
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
 from ..dialects.index_dialect import Index
 from ..dialects.transfer import TransIntegerType, Transfer
