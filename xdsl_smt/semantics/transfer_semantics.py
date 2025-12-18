@@ -325,6 +325,42 @@ class SAddOverflowOpSemantics(OperationSemantics):
         return ((res.res,), effect_state)
 
 
+class USubOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        usub_overflow = smt_bv.UsubOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(usub_overflow.res)
+
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
+        rewriter.insert_op_before_matched_op([usub_overflow] + ops + [poison_op, res])
+        return ((res.res,), effect_state)
+
+
+class SSubOverflowOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        ssub_overflow = smt_bv.SsubOverflowOp(operands[0], operands[1])
+        bv_res, ops = smt_bool_to_bv1(ssub_overflow.res)
+
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(bv_res, poison_op.result)
+        rewriter.insert_op_before_matched_op([ssub_overflow] + ops + [poison_op, res])
+        return ((res.res,), effect_state)
+
+
 class UShlOverflowOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -628,6 +664,36 @@ class CountRZeroOpSemantics(OperationSemantics):
         rewriter.insert_op_before_matched_op(resList)
         rewriter.insert_op_before_matched_op(afterList)
         return ((resList[-1].results[0],), effect_state)
+
+
+class PopCountOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        operand = operands[0]
+        assert isinstance(bv_type := operand.type, smt_bv.BitVectorType)
+        width = bv_type.width
+
+        const_zero = smt_bv.ConstantOp(0, width)
+        ops: list[Operation] = [const_zero]
+        acc = const_zero.res
+
+        for i in range(width.data):
+            extract = smt_bv.ExtractOp(operand, i, i)
+            ops.append(extract)
+            zext = smt_bv.ZeroExtendOp(extract.res, bv_type)
+            ops.append(zext)
+            add = smt_bv.AddOp(acc, zext.res)
+            ops.append(add)
+            acc = add.res
+
+        rewriter.insert_op_before_matched_op(ops)
+        return ((acc,), effect_state)
 
 
 class SetHighBitsOpSemantics(OperationSemantics):
@@ -971,6 +1037,8 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.SMulOverflowOp: SMulOverflowOpSemantics(),
     transfer.UAddOverflowOp: UAddOverflowOpSemantics(),
     transfer.SAddOverflowOp: SAddOverflowOpSemantics(),
+    transfer.USubOverflowOp: USubOverflowOpSemantics(),
+    transfer.SSubOverflowOp: SSubOverflowOpSemantics(),
     transfer.UShlOverflowOp: UShlOverflowOpSemantics(),
     transfer.SShlOverflowOp: SShlOverflowOpSemantics(),
     transfer.CmpOp: CmpOpSemantics(),
@@ -981,6 +1049,7 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.CountLZeroOp: CountLZeroOpSemantics(),
     transfer.CountROneOp: CountROneOpSemantics(),
     transfer.CountRZeroOp: CountRZeroOpSemantics(),
+    transfer.PopCountOp: PopCountOpSemantics(),
     transfer.SMaxOp: SMaxOpSemantics(),
     transfer.SMinOp: SMinOpSemantics(),
     transfer.UMaxOp: UMaxOpSemantics(),
