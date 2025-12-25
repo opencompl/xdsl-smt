@@ -16,5 +16,5 @@ builtin.module {
   %zero = "smt.fp.pzero"() : () -> !smt.fp<8,24>
   %eq_zero = "smt.eq"(%extract, %zero) : (!smt.fp<8,24>, !smt.fp<8,24>) -> !smt.bool
   "smt.assert"(%eq_zero) : (!smt.bool) -> ()
-  // CHECK-NEXT: // CHECK-NEXT: (declare-const $idx2 (_ BitVec 64))
+  // CHECK-NEXT: (assert (= (select (select $tmp $idx1) $idx2) (_ +zero 8 24)))
 }
