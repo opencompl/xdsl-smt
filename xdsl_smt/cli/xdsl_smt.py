@@ -23,6 +23,7 @@ from xdsl_smt.passes.lower_effects import LowerEffectPass
 from xdsl_smt.passes.load_parametric_int_semantics import LoadIntSemanticsPass
 from xdsl_smt.passes.lower_memory_effects import LowerMemoryEffectsPass
 from xdsl_smt.passes.lower_effects_with_memory import LowerEffectsWithMemoryPass
+from xdsl_smt.passes.lower_smt_tensor import LowerSMTTensor
 from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.passes.raise_llvm_to_func import RaiseLLVMToFunc
@@ -47,6 +48,7 @@ from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl_smt.passes.lower_pairs import LowerPairs
 from xdsl_smt.passes.lower_to_smt import LowerToSMTPass
 from xdsl_smt.passes.lower_ub_to_pairs import LowerUBToPairs
+from xdsl_smt.passes.rewrite_smt_tensor import RewriteSMTTensor
 from xdsl_smt.passes.smt_expand import SMTExpand
 from xdsl_smt.passes.pdl_add_implicit_properties import PDLAddImplicitPropertiesPass
 
@@ -107,6 +109,8 @@ class OptMain(xDSLOptMain):
         self.ctx.load_registered_dialect(SMTUtilsDialect.name)
         self.ctx.load_registered_dialect(SMTArray.name)
         self.ctx.load_registered_dialect(SMTFloatingPointDialect.name)
+        self.ctx.load_registered_dialect(SMTTensorDialect.name)
+
 
     def register_all_passes(self):
         super().register_all_passes()
@@ -130,6 +134,8 @@ class OptMain(xDSLOptMain):
         )
         self.register_pass(RaiseLLVMToFunc.name, lambda: RaiseLLVMToFunc)
         self.register_pass(LowerAbbvToBvPass.name, lambda: LowerAbbvToBvPass)
+        self.register_pass(RewriteSMTTensor.name, lambda: RewriteSMTTensor)
+        self.register_pass(LowerSMTTensor.name, lambda: LowerSMTTensor)
 
     def register_all_targets(self):
         super().register_all_targets()

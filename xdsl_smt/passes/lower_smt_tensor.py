@@ -8,7 +8,6 @@ from xdsl_smt.dialects.smt_tensor_dialect import (
     SMTTensorType,
     TensorExtractOp,
 )
-from xdsl_smt.passes.dead_code_elimination import DeadCodeElimination
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.ir import Attribute
 from xdsl.utils.hints import isa
@@ -63,6 +62,3 @@ class LowerSMTTensor(ModulePass):
             )
         )
         walker.rewrite_module(op)
-
-        # Apply DCE pass
-        DeadCodeElimination().apply(ctx, op)
