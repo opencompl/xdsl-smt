@@ -88,7 +88,6 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
 
         return SMTTensorDialect
 
-
     all_dialects["abbv"] = get_abbv_dialect
     all_dialects["pdl"] = get_pdl_dialect
     all_dialects["smt"] = get_smt_dialect
