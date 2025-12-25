@@ -33,6 +33,10 @@ from xdsl.utils.hints import isa
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 
 
+INDEX_WIDTH = 64
+IndexType = BitVectorType(INDEX_WIDTH)
+
+
 @irdl_attr_definition
 class SMTTensorType(
     Generic[AttributeCovT],
@@ -41,20 +45,25 @@ class SMTTensorType(
     ShapedType,
     ContainerType[AttributeCovT],
 ):
-    name = "smt.tensor"
+    name = "smt.tensor.tensor"
 
-    shape: ArrayAttr[IntAttr]
+    shape: ArrayAttr[IntegerAttr]
     element_type: AttributeCovT
     encoding: Attribute
 
     def __init__(
         self,
         element_type: AttributeCovT,
-        shape: Iterable[int] | Iterable[IntAttr],
+        shape: Iterable[int] | Iterable[IntegerAttr],
         encoding: Attribute = NoneAttr(),
     ):
         shape = ArrayAttr(
-            [IntAttr(dim) if isinstance(dim, int) else dim for dim in shape]
+            [
+                IntegerAttr.from_int_and_width(dim, INDEX_WIDTH)
+                if isinstance(dim, int)
+                else dim
+                for dim in shape
+            ]
         )
         super().__init__(shape, element_type, encoding)
 
@@ -62,7 +71,7 @@ class SMTTensorType(
         return len(self.shape.data)
 
     def get_shape(self) -> tuple[int, ...]:
-        return tuple(i.data for i in self.shape.data)
+        return tuple(i.value.data for i in self.shape.data)
 
     def get_element_type(self) -> AttributeCovT:
         return self.element_type
