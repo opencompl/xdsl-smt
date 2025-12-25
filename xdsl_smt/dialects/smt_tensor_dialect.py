@@ -36,6 +36,7 @@ from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
 INDEX_WIDTH = 64
 IndexType = BitVectorType(INDEX_WIDTH)
 
+
 @irdl_attr_definition
 class SMTTensorType(
     Generic[AttributeCovT],
@@ -57,7 +58,12 @@ class SMTTensorType(
         encoding: Attribute = NoneAttr(),
     ):
         shape = ArrayAttr(
-            [IntegerAttr.from_int_and_width(dim, INDEX_WIDTH) if isinstance(dim, int) else dim for dim in shape]
+            [
+                IntegerAttr.from_int_and_width(dim, INDEX_WIDTH)
+                if isinstance(dim, int)
+                else dim
+                for dim in shape
+            ]
         )
         super().__init__(shape, element_type, encoding)
 

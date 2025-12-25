@@ -111,7 +111,6 @@ class OptMain(xDSLOptMain):
         self.ctx.load_registered_dialect(SMTFloatingPointDialect.name)
         self.ctx.load_registered_dialect(SMTTensorDialect.name)
 
-
     def register_all_passes(self):
         super().register_all_passes()
         self.register_pass(LowerToSMTPass.name, lambda: LowerToSMTPass)

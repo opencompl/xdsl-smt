@@ -1,4 +1,6 @@
-from xdsl.transforms.common_subexpression_elimination import CommonSubexpressionElimination
+from xdsl.transforms.common_subexpression_elimination import (
+    CommonSubexpressionElimination,
+)
 
 from xdsl.ir import SSAValue
 from xdsl_smt.dialects.smt_tensor_dialect import (
@@ -33,11 +35,11 @@ class RewriteTransposeOpPattern(RewritePattern):
             rewriter.erase_matched_op()
 
 
-
 class RewriteSMTTensor(ModulePass):
     """
     Rewrite patterns like `extract(op(arg))` to `extract(arg')`
     """
+
     name = "rewrite-smt-tensor"
 
     def apply(self, ctx: Context, op: ModuleOp):
