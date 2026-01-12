@@ -40,6 +40,132 @@ from ..traits.smt_printer import (
 
 
 @irdl_attr_definition
+class RoundingModeType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
+    """
+    Defines Rounding Mode of FP operations, it includes following constants and their abbreviated version
+    :funs ((roundNearestTiesToEven RoundingMode) (RNE RoundingMode)
+        (roundNearestTiesToAway RoundingMode) (RNA RoundingMode)
+        (roundTowardPositive RoundingMode)    (RTP RoundingMode)
+        (roundTowardNegative RoundingMode)    (RTN RoundingMode)
+        (roundTowardZero RoundingMode)        (RTZ RoundingMode)
+        )
+    """
+
+    name = "smt.fp.rounding_mode"
+
+    def __init__(self):
+        super().__init__()
+
+    def print_sort_to_smtlib(self, stream: IO[str]) -> None:
+        print(f"RoundingMode", file=stream, end="")
+
+
+class RunningModeConstantOp(IRDLOperation, Pure, SMTLibOp):
+    """
+    This class is an abstract class for all RoundingMode constants
+    :funs ((roundNearestTiesToEven RoundingMode) (RNE RoundingMode)
+        (roundNearestTiesToAway RoundingMode) (RNA RoundingMode)
+        (roundTowardPositive RoundingMode)    (RTP RoundingMode)
+        (roundTowardNegative RoundingMode)    (RTN RoundingMode)
+        (roundTowardZero RoundingMode)        (RTZ RoundingMode)
+        )
+    """
+
+    res: OpResult = result_def(RoundingModeType)
+
+    def __init__(self):
+        super().__init__(result_types=[RoundingModeType()])
+
+    def print_expr_to_smtlib(self, stream: IO[str], ctx: SMTConversionCtx) -> None:
+        print(f"{self.constant_name()}", file=stream, end="")
+
+    @abstractmethod
+    def constant_name(self) -> str:
+        """RoundingMode name when printed in SMTLib."""
+        ...
+
+
+@irdl_op_definition
+class RoundNearestTiesToEvenOp(RunningModeConstantOp):
+    name = "smt.fp.round_nearest_ties_to_even"
+
+    def constant_name(self) -> str:
+        return "roundNearestTiesToEven"
+
+
+@irdl_op_definition
+class RNEOp(RunningModeConstantOp):
+    name = "smt.fp.rne"
+
+    def constant_name(self) -> str:
+        return "RNE"
+
+
+@irdl_op_definition
+class RoundNearestTiesToAwayOp(RunningModeConstantOp):
+    name = "smt.fp.round_nearest_ties_to_away"
+
+    def constant_name(self) -> str:
+        return "roundNearestTiesToAway"
+
+
+@irdl_op_definition
+class RNAOp(RunningModeConstantOp):
+    name = "smt.fp.rna"
+
+    def constant_name(self) -> str:
+        return "RNA"
+
+
+@irdl_op_definition
+class RoundTowardPositiveOp(RunningModeConstantOp):
+    name = "smt.fp.round_toward_positive"
+
+    def constant_name(self) -> str:
+        return "roundTowardPositive"
+
+
+@irdl_op_definition
+class RTPOp(RunningModeConstantOp):
+    name = "smt.fp.rtp"
+
+    def constant_name(self) -> str:
+        return "RTP"
+
+
+@irdl_op_definition
+class RoundTowardNegativeOp(RunningModeConstantOp):
+    name = "smt.fp.round_toward_negative"
+
+    def constant_name(self) -> str:
+        return "roundTowardNegative"
+
+
+@irdl_op_definition
+class RTNOp(RunningModeConstantOp):
+    name = "smt.fp.rtn"
+
+    def constant_name(self) -> str:
+        return "RTN"
+
+
+@irdl_op_definition
+class RoundTowardZeroOp(RunningModeConstantOp):
+    name = "smt.fp.round_toward_zero"
+
+    def constant_name(self) -> str:
+        return "roundTowardZero"
+
+
+@irdl_op_definition
+class RTZOp(RunningModeConstantOp):
+    name = "smt.fp.rtz"
+
+    def constant_name(self) -> str:
+        return "RTZ"
+
+
+@irdl_attr_definition
 class FloatingPointType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
     """
     eb defines the number of bits in the exponent;
@@ -208,6 +334,17 @@ SMTFloatingPointDialect = Dialect(
         PositiveInfinityOp,
         NegativeInfinityOp,
         NaNOp,
+        # Rounding Mode constants
+        RoundNearestTiesToEvenOp,
+        RNEOp,
+        RoundNearestTiesToAwayOp,
+        RNAOp,
+        RoundTowardPositiveOp,
+        RTPOp,
+        RoundTowardNegativeOp,
+        RTNOp,
+        RoundTowardZeroOp,
+        RTZOp,
     ],
-    [FloatingPointType],
+    [FloatingPointType, RoundingModeType],
 )
