@@ -57,7 +57,7 @@ class RoundingModeType(ParametrizedAttribute, SMTLibSort, TypeAttribute):
         super().__init__()
 
     def print_sort_to_smtlib(self, stream: IO[str]) -> None:
-        print(f"RoundingMode")
+        print(f"RoundingMode", file=stream, end="")
 
 
 class RunningModeConstantOp(IRDLOperation, Pure, SMTLibOp):
