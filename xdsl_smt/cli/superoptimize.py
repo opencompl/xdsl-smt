@@ -84,18 +84,6 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
     )
 
 
-def replace_synth_with_constants(
-    program: ModuleOp, values: list[IntegerAttr[IntegerType]]
-) -> None:
-    synth_ops: list[synth.ConstantOp] = []
-    for op in program.walk():
-        if isinstance(op, synth.ConstantOp):
-            synth_ops.append(op)
-
-    for op, value in zip(synth_ops, values):
-        Rewriter.replace_op(op, hw.ConstantOp(value))
-
-
 def main() -> None:
     arg_parser = argparse.ArgumentParser()
     register_all_arguments(arg_parser)
