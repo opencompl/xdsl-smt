@@ -9,13 +9,10 @@ from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
 
 from xdsl.context import Context
 from xdsl.parser import Parser
-from xdsl.rewriter import Rewriter
 
 from xdsl_smt.superoptimization.synthesizer import synthesize_constants
 from xdsl_smt.dialects import get_all_dialects
-import xdsl_smt.dialects.synth_dialect as synth
-from xdsl.dialects.builtin import ModuleOp, IntegerAttr, IntegerType
-import xdsl_smt.dialects.hw_dialect as hw
+from xdsl.dialects.builtin import ModuleOp
 
 
 def read_program_from_enumerator(
