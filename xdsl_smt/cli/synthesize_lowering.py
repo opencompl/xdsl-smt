@@ -1,6 +1,7 @@
 import argparse
 import subprocess as sp
 
+from xdsl.printer import Printer
 from xdsl.context import Context
 from xdsl.ir import Operation
 from xdsl.parser import Parser
@@ -90,7 +91,7 @@ def try_synthesize_lowering_for_module(
     number of operations to output.
     """
     with open("/tmp/input-synthesize.mlir", "w") as f:
-        f.write(str(module))
+        Printer(f, print_generic_format=True).print_op(module)
     res = sp.run(
         [
             "superoptimize",
