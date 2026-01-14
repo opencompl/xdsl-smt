@@ -34,6 +34,7 @@ synthesize-symbolic-rewrites = "xdsl_smt.cli.synthesize_symbolic_rewrites:main"
 sanity-checker = "xdsl_smt.cli.sanity_checker:main"
 superoptimize = "xdsl_smt.cli.superoptimize:main"
 xdsl-smt-run = "xdsl_smt.cli.xdsl_smt_run:main"
+convert-pdl-to-dialect = "xdsl_smt.cli.convert_pdl_to_dialect:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
