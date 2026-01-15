@@ -4,9 +4,11 @@ from typing import Iterator
 from xdsl.parser import Parser
 from xdsl.context import Context
 from xdsl.dialects import pdl
+from xdsl.ir import Attribute
 
 from xdsl_smt.dialects import get_all_dialects
-from xdsl.dialects.builtin import StringAttr
+from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
+from xdsl.dialects.builtin import StringAttr, IntegerType
 
 
 def iterate_pdl_patterns(file_path: str, ctx: Context) -> Iterator[pdl.PatternOp]:
@@ -24,6 +26,14 @@ def convert_name_to_dialect(name: str) -> str | None:
             return "arith.addi"
         case "smt.bv.sub":
             return "arith.subi"
+        case "smt.bv.mul":
+            return "arith.muli"
+        case "smt.bv.lshr":
+            return "arith.shrui"
+        case "smt.bv.ashr":
+            return "arith.shri"
+        case "smt.bv.shl":
+            return "arith.shli"
         case "smt.bv.and":
             return "arith.andi"
         case "smt.bv.or":
@@ -32,6 +42,12 @@ def convert_name_to_dialect(name: str) -> str | None:
             return "arith.xori"
         case _:
             return None
+
+
+def convert_type_to_dialect(type: Attribute) -> Attribute | None:
+    if isinstance(type, smt_bv.BitVectorType):
+        return IntegerType(type.width.data)
+    return None
 
 
 def convert_pdl_to_dialect(pattern: pdl.PatternOp) -> pdl.PatternOp | None:
@@ -44,7 +60,13 @@ def convert_pdl_to_dialect(pattern: pdl.PatternOp) -> pdl.PatternOp | None:
             if new_name is None:
                 return None
             op.opName = StringAttr(new_name)
-
+            continue
+        if isinstance(op, pdl.TypeOp):
+            if op.constantType is not None:
+                new_type = convert_type_to_dialect(op.constantType)
+                if new_type is None:
+                    return None
+                op.constantType = new_type
     return new_pattern
 
 
@@ -64,7 +86,6 @@ def main():
 
     for pattern in iterate_pdl_patterns(args.input_file, ctx):
         if new_pattern := convert_pdl_to_dialect(pattern):
-            print(pattern)
             print(new_pattern)
 
 
