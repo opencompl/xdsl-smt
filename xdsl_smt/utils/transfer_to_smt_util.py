@@ -73,26 +73,6 @@ def get_high_bits_constant(high_bits: SSAValue) -> list[Operation]:
     return result + get_bits_constant(result[-1].results[0], width_constant)
 
 
-def clear_low_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
-    """
-    clear_low_bits(x, low_bits) -> x & ~(get_low_bits_constant(low_bits))
-    """
-    result = get_low_bits_constant(low_bits)
-    result.append(smt_bv.NotOp(result[-1].results[0]))
-    result.append(smt_bv.AndOp(result[-1].results[0], b))
-    return result
-
-
-def clear_high_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
-    """
-    clear_high_bits(x, high_bits) -> x & ~(get_high_bits_constant(high_bits))
-    """
-    result = get_high_bits_constant(low_bits)
-    result.append(smt_bv.NotOp(result[-1].results[0]))
-    result.append(smt_bv.AndOp(result[-1].results[0], b))
-    return result
-
-
 def get_low_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
     """
     get_low_bits(x, low_bits) -> x & (get_low_bits_constant(low_bits))
@@ -108,24 +88,6 @@ def get_high_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
     """
     result = get_high_bits_constant(low_bits)
     result.append(smt_bv.AndOp(result[-1].results[0], b))
-    return result
-
-
-def set_high_bits(b: SSAValue, high_bits: SSAValue) -> list[Operation]:
-    """
-    set_high_bits(x, high_bits) -> x | (get_high_bits_constant(high_bits))
-    """
-    result = get_high_bits_constant(high_bits)
-    result.append(smt_bv.OrOp(result[-1].results[0], b))
-    return result
-
-
-def set_low_bits(b: SSAValue, low_bits: SSAValue) -> list[Operation]:
-    """
-    set_low_bits(x, low_bits) -> x | (get_low_bits_constant(low_bits))
-    """
-    result = get_low_bits_constant(low_bits)
-    result.append(smt_bv.OrOp(result[-1].results[0], b))
     return result
 
 
