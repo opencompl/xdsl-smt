@@ -800,6 +800,11 @@ class GetSignedMinValueOp(UnaryOp):
     name = "transfer.get_signed_min_value"
 
 
+@irdl_op_definition
+class GetLimitedValueOp(BinOp):
+    name = "transfer.get_limited_value"
+
+
 Transfer = Dialect(
     "transfer",
     [
@@ -847,6 +852,8 @@ Transfer = Dialect(
         SSubOverflowOp,
         UShlOverflowOp,
         SShlOverflowOp,
+        USubOverflowOp,
+        SSubOverflowOp,
         SelectOp,
         IsPowerOf2Op,
         IsAllOnesOp,
@@ -863,6 +870,7 @@ Transfer = Dialect(
         AddPoisonOp,
         RemovePoisonOp,
         ReverseBitsOp,
+        GetLimitedValueOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],
 )
