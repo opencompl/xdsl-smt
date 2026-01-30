@@ -12,6 +12,9 @@ from xdsl.pattern_rewriter import PatternRewriteWalker, PatternRewriter, Rewrite
 
 
 def check_dominance(value: SSAValue, constant_ops: list[transfer.Constant]) -> bool:
+    """
+    Given a SSA value, it returns if the value dominates all constant operations.
+    """
     if isinstance(value, BlockArgument):
         return True
     parent_op = value.owner
@@ -27,8 +30,7 @@ def find_dominator(constant_ops: list[transfer.Constant]) -> SSAValue:
     -------
     A dominator that dominates all constant operations
 
-
-    It checks
+    Find a SSA value that dominates all constant operations
     """
     for op in constant_ops:
         for use in op.result.uses:
