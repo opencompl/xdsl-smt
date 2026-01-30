@@ -5,7 +5,6 @@ import argparse
 import subprocess as sp
 
 from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
-    load_vanilla_semantics,
     load_vanilla_semantics_with_transfer,
 )
 from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
