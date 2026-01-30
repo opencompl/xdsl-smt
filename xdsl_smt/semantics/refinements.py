@@ -26,6 +26,7 @@ from xdsl_smt.dialects.smt_dialect import (
     CallOp,
 )
 from xdsl_smt.dialects.smt_utils_dialect import FirstOp, PairType, SecondOp, AnyPairType
+from xdsl_smt.dialects.transfer import TransIntegerType
 from xdsl_smt.semantics.semantics import RefinementSemantics
 
 
@@ -175,6 +176,10 @@ def find_refinement_semantics(
         return IntToIntPoisonRefinementSemantics()
     if isinstance(type_before, BoolType) and type_after == i1:
         return BoolToIntPoisonRefinementSemantics()
+    if isinstance(type_before, TransIntegerType) and isinstance(
+        type_after, TransIntegerType
+    ):
+        return EqualityRefinementSemantics()
     raise Exception(f"No refinement semantics for types {type_before}, {type_after}")
 
 

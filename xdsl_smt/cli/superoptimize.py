@@ -4,7 +4,10 @@ import sys
 import argparse
 import subprocess as sp
 
-from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import load_vanilla_semantics
+from xdsl_smt.passes.lower_to_smt.smt_lowerer_loaders import (
+    load_vanilla_semantics,
+    load_vanilla_semantics_with_transfer,
+)
 from xdsl_smt.utils.get_submodule_path import get_mlir_fuzz_executable_path
 
 from xdsl.context import Context
@@ -79,6 +82,12 @@ def register_all_arguments(arg_parser: argparse.ArgumentParser):
         help="Optimize SMT queries before sending them to the solver",
         action="store_true",
     )
+    arg_parser.add_argument(
+        "--transfer-bitwidth",
+        type=int,
+        help="Transfer bitwidth when lowering",
+        default=8,
+    )
 
 
 def main() -> None:
@@ -89,7 +98,7 @@ def main() -> None:
     ctx = Context()
     ctx.allow_unregistered = True
 
-    load_vanilla_semantics()
+    load_vanilla_semantics_with_transfer(args.transfer_bitwidth)
 
     # Register all dialects
     for dialect_name, dialect_factory in get_all_dialects().items():

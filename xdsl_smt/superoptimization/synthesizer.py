@@ -18,6 +18,7 @@ from xdsl.dialects.builtin import (
     StringAttr,
     IntegerAttr,
     IntegerType,
+    IndexType,
 )
 from xdsl_smt.dialects.smt_dialect import (
     DeclareConstOp,
@@ -30,10 +31,13 @@ from xdsl_smt.dialects import (
     synth_dialect as synth,
     smt_utils_dialect as smt_utils,
     smt_bitvector_dialect as smt_bv,
+    transfer as transfer,
 )
 from xdsl.dialects.func import FuncOp
 from xdsl.dialects.builtin import ArrayAttr
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorAttr
+from xdsl_smt.dialects.transfer import TransIntegerType
+from xdsl_smt.passes.transfer_fill_bitwidth_hole import FillBitwidthHole
 from xdsl_smt.semantics.semantics import OperationSemantics
 from xdsl_smt.semantics.refinements import (
     insert_function_refinement_with_forall,
@@ -162,6 +166,10 @@ def compute_value(
         return ssavalue_to_value[value]
     if isinstance(value.owner, synth.ConversionOp):
         inner_value = compute_value(module, value.owner.input, ssavalue_to_value)
+        if isinstance(value.owner.input.type, smt_bv.BitVectorType) and isinstance(
+            value.type, TransIntegerType
+        ):
+            return IntegerAttr.from_index_int_value(inner_value.value.data)
         if isa(
             value.owner.input.type, smt_utils.PairType[smt_bv.BitVectorType, BoolType]
         ) and isinstance(value.type, IntegerType):
@@ -187,8 +195,13 @@ def compute_value(
 def replace_synth_constant_with_op(synth_const: synth.ConstantOp, value: Any) -> None:
     rewriter = Rewriter()
     if isa(value, IntegerAttr):
-        new_op = arith.ConstantOp(value)
-        rewriter.replace_op(synth_const, [new_op])
+        if isinstance(value.type, IndexType):
+            hole_op = transfer.BitwidthHoleOp()
+            new_op = transfer.Constant(hole_op.result, value.value.data)
+            rewriter.replace_op(synth_const, [hole_op, new_op])
+        else:
+            new_op = arith.ConstantOp(value)
+            rewriter.replace_op(synth_const, [new_op])
 
 
 def synthesize_constants(
@@ -258,7 +271,6 @@ def synthesize_constants(
         InsertPoint.at_end(block),
     )
     block.add_op(AssertOp(refinement))
-
     if optimize:
         optimize_module(ctx, new_module)
 
@@ -326,5 +338,7 @@ def synthesize_constants(
 
     for synth_const, value in synth_const_to_values.items():
         replace_synth_constant_with_op(synth_const, value)
+
+    FillBitwidthHole().apply(ctx, rhs_old)
 
     return rhs_old

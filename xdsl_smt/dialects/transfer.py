@@ -78,6 +78,23 @@ class RemovePoisonOp(IRDLOperation):
 
 
 @irdl_op_definition
+class BitwidthHoleOp(IRDLOperation):
+    """
+    This operation is used as a temporary argument for constant operation
+    It requires a separate pass for replacing holes with actual SSA values
+    """
+
+    name = "transfer.bitwidth_hole"
+    result: OpResult = result_def(TransIntegerType)
+
+    def __init__(self):
+        super().__init__(
+            operands=[],
+            result_types=[TransIntegerType()],
+        )
+
+
+@irdl_op_definition
 class Constant(IRDLOperation, InferResultTypeInterface):
     name = "transfer.constant"
 
@@ -804,6 +821,7 @@ Transfer = Dialect(
     "transfer",
     [
         Constant,
+        BitwidthHoleOp,
         CmpOp,
         AndOp,
         OrOp,
