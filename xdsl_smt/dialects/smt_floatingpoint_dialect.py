@@ -399,7 +399,7 @@ class RoundToIntegralOp(UnaryFPOpWithRoundingMode):
 ################################################################################
 class BinaryFPOp(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for min, max, rem
+    A binary floating-point operation.
     """
 
     lhs: Operand = operand_def(FloatingPointType)
