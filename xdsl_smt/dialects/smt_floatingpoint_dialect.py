@@ -569,7 +569,7 @@ class IsPositiveOp(UnaryFPPredicate):
 ################################################################################
 class BinaryFPPredicate(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for eq, leq, lt, geq, gt
+      A binary predicate for floating-points.
     """
 
     lhs: Operand = operand_def(FloatingPointType)
