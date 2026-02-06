@@ -442,7 +442,7 @@ class RemOp(BinaryFPOp):
 
 class BinaryFPOpWithRoundingMode(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for add, sub, mul, div
+    A binary floating-point operation with a rounding mode operand.
     """
 
     roundingMode: Operand = operand_def(RoundingModeType)
