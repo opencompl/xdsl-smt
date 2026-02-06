@@ -569,7 +569,7 @@ class IsPositiveOp(UnaryFPPredicate):
 ################################################################################
 class BinaryFPPredicate(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-      A binary predicate for floating-points.
+    A binary predicate for floating-points.
     """
 
     lhs: Operand = operand_def(FloatingPointType)
