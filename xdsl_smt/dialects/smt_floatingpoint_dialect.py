@@ -10,6 +10,7 @@ from xdsl.dialects.builtin import (
 )
 from typing import IO, Sequence
 from xdsl_smt.dialects.smt_bitvector_dialect import BitVectorType
+from xdsl_smt.dialects.smt_dialect import BoolType
 
 from xdsl.ir import (
     ParametrizedAttribute,
@@ -492,6 +493,137 @@ class DivOp(BinaryFPOpWithRoundingMode):
         return "fp.div"
 
 
+################################################################################
+#                          FP Unary Predicates                                 #
+################################################################################
+class UnaryFPPredicate(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for isNormal, isSubnormal, isZero, isInfinity, isNan, isNegative, isPositive
+    """
+
+    arg: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(BoolType)
+
+    def __init__(self, arg: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[arg])
+
+
+@irdl_op_definition
+class IsNormalOp(UnaryFPPredicate):
+    name = "smt.fp.isNormal"
+
+    def op_name(self) -> str:
+        return "fp.isNormal"
+
+
+@irdl_op_definition
+class IsSubnormalOp(UnaryFPPredicate):
+    name = "smt.fp.isSubnormal"
+
+    def op_name(self) -> str:
+        return "fp.isSubnormal"
+
+
+@irdl_op_definition
+class IsZeroOp(UnaryFPPredicate):
+    name = "smt.fp.isZero"
+
+    def op_name(self) -> str:
+        return "fp.isZero"
+
+
+@irdl_op_definition
+class IsInfiniteOp(UnaryFPPredicate):
+    name = "smt.fp.isInfinite"
+
+    def op_name(self) -> str:
+        return "fp.isInfinite"
+
+
+@irdl_op_definition
+class IsNaNOp(UnaryFPPredicate):
+    name = "smt.fp.isNaN"
+
+    def op_name(self) -> str:
+        return "fp.isNaN"
+
+
+@irdl_op_definition
+class IsNegativeOp(UnaryFPPredicate):
+    name = "smt.fp.isNegative"
+
+    def op_name(self) -> str:
+        return "fp.isNegative"
+
+
+@irdl_op_definition
+class IsPositiveOp(UnaryFPPredicate):
+    name = "smt.fp.isPositive"
+
+    def op_name(self) -> str:
+        return "fp.isPositive"
+
+
+################################################################################
+#                          FP Binary Predicates                                #
+################################################################################
+class BinaryFPPredicate(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for eq, leq, lt, geq, gt
+    """
+
+    lhs: Operand = operand_def(FloatingPointType)
+    rhs: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(BoolType)
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[BoolType()], operands=[lhs, rhs])
+
+    def verify_(self):
+        if not (self.lhs.type == self.rhs.type):
+            raise VerifyException("Operands must have the same type")
+
+
+@irdl_op_definition
+class EqOp(BinaryFPPredicate):
+    name = "smt.fp.eq"
+
+    def op_name(self) -> str:
+        return "fp.eq"
+
+
+@irdl_op_definition
+class LeqOp(BinaryFPPredicate):
+    name = "smt.fp.leq"
+
+    def op_name(self) -> str:
+        return "fp.leq"
+
+
+@irdl_op_definition
+class LtOp(BinaryFPPredicate):
+    name = "smt.fp.lt"
+
+    def op_name(self) -> str:
+        return "fp.lt"
+
+
+@irdl_op_definition
+class GeqOp(BinaryFPPredicate):
+    name = "smt.fp.geq"
+
+    def op_name(self) -> str:
+        return "fp.geq"
+
+
+@irdl_op_definition
+class GtOp(BinaryFPPredicate):
+    name = "smt.fp.gt"
+
+    def op_name(self) -> str:
+        return "fp.gt"
+
+
 SMTFloatingPointDialect = Dialect(
     "smt.fp",
     [
@@ -525,6 +657,20 @@ SMTFloatingPointDialect = Dialect(
         SubOp,
         MulOp,
         DivOp,
+        # Unary predicates
+        IsNormalOp,
+        IsSubnormalOp,
+        IsZeroOp,
+        IsInfiniteOp,
+        IsNaNOp,
+        IsNegativeOp,
+        IsPositiveOp,
+        # Binary predicates
+        EqOp,
+        LeqOp,
+        LtOp,
+        GeqOp,
+        GtOp,
     ],
     [FloatingPointType, RoundingModeType],
 )
