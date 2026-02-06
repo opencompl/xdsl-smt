@@ -331,7 +331,7 @@ class NaNOp(SpecialConstantOp):
 ################################################################################
 class UnaryFPOp(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for abs, neg
+    A unary floating-point operation.
     """
 
     arg: Operand = operand_def(FloatingPointType)
