@@ -498,7 +498,7 @@ class DivOp(BinaryFPOpWithRoundingMode):
 ################################################################################
 class UnaryFPPredicate(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for isNormal, isSubnormal, isZero, isInfinity, isNan, isNegative, isPositive
+    A unary predicate for floating-points.
     """
 
     arg: Operand = operand_def(FloatingPointType)
