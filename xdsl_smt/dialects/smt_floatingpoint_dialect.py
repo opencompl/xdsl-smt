@@ -363,7 +363,7 @@ class NegOp(UnaryFPOp):
 
 class UnaryFPOpWithRoundingMode(IRDLOperation, Pure, SimpleSMTLibOp):
     """
-    This class is an abstract class for sqrt and roundToIntegral
+    A binary floating-point operation with a rounding mode operand.
     """
 
     roundingMode: Operand = operand_def(RoundingModeType)
