@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 
 from xdsl.printer import Printer
 
@@ -18,6 +18,7 @@ from xdsl.ir import (
     Attribute,
     Operation,
     Dialect,
+    SSAValue,
 )
 
 from xdsl.irdl import (
@@ -325,6 +326,172 @@ class NaNOp(SpecialConstantOp):
         return "NaN"
 
 
+################################################################################
+#                          FP Unary Ops                                        #
+################################################################################
+class UnaryFPOp(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for abs, neg
+    """
+
+    arg: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(FloatingPointType)
+
+    def __init__(self, arg: SSAValue):
+        super().__init__(result_types=[arg.type], operands=[arg])
+
+    def verify_(self):
+        if not (self.res.type == self.arg.type):
+            raise VerifyException("Operand and result must have the same type")
+
+
+@irdl_op_definition
+class AbsOp(UnaryFPOp):
+    name = "smt.fp.abs"
+
+    def op_name(self) -> str:
+        return "fp.abs"
+
+
+@irdl_op_definition
+class NegOp(UnaryFPOp):
+    name = "smt.fp.neg"
+
+    def op_name(self) -> str:
+        return "fp.neg"
+
+
+class UnaryFPOpWithRoundingMode(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for sqrt and roundToIntegral
+    """
+
+    roundingMode: Operand = operand_def(RoundingModeType)
+    arg: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(FloatingPointType)
+
+    def __init__(self, roundingMode: SSAValue, arg: SSAValue):
+        super().__init__(result_types=[arg.type], operands=[roundingMode, arg])
+
+    def verify_(self):
+        if not (self.res.type == self.arg.type):
+            raise VerifyException("Operand and result must have the same type")
+
+
+@irdl_op_definition
+class SqrtOp(UnaryFPOpWithRoundingMode):
+    name = "smt.fp.sqrt"
+
+    def op_name(self) -> str:
+        return "fp.sqrt"
+
+
+@irdl_op_definition
+class RoundToIntegralOp(UnaryFPOpWithRoundingMode):
+    name = "smt.fp.roundToIntegral"
+
+    def op_name(self) -> str:
+        return "fp.roundToIntegral"
+
+
+################################################################################
+#                          FP Binary Ops                                       #
+################################################################################
+class BinaryFPOp(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for min, max, rem
+    """
+
+    lhs: Operand = operand_def(FloatingPointType)
+    rhs: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(FloatingPointType)
+
+    def __init__(self, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[lhs.type], operands=[lhs, rhs])
+
+    def verify_(self):
+        if not (self.res.type == self.lhs.type):
+            raise VerifyException("Operand and result must have the same type")
+        if not (self.lhs.type == self.rhs.type):
+            raise VerifyException("LHS and RHS must have the same type")
+
+
+@irdl_op_definition
+class MaxOp(BinaryFPOp):
+    name = "smt.fp.max"
+
+    def op_name(self) -> str:
+        return "fp.max"
+
+
+@irdl_op_definition
+class MinOp(BinaryFPOp):
+    name = "smt.fp.min"
+
+    def op_name(self) -> str:
+        return "fp.min"
+
+
+@irdl_op_definition
+class RemOp(BinaryFPOp):
+    name = "smt.fp.rem"
+
+    def op_name(self) -> str:
+        return "fp.rem"
+
+
+class BinaryFPOpWithRoundingMode(IRDLOperation, Pure, SimpleSMTLibOp):
+    """
+    This class is an abstract class for add, sub, mul, div
+    """
+
+    roundingMode: Operand = operand_def(RoundingModeType)
+    lhs: Operand = operand_def(FloatingPointType)
+    rhs: Operand = operand_def(FloatingPointType)
+    res: OpResult = result_def(FloatingPointType)
+
+    def __init__(self, roundingMode: SSAValue, lhs: SSAValue, rhs: SSAValue):
+        super().__init__(result_types=[lhs.type], operands=[roundingMode, lhs, rhs])
+
+    def verify_(self):
+        if not (self.res.type == self.lhs.type):
+            raise VerifyException("Operand and result must have the same type")
+        if not (self.lhs.type == self.rhs.type):
+            raise VerifyException("LHS and RHS must have the same type")
+
+
+@irdl_op_definition
+class AddOp(BinaryFPOpWithRoundingMode):
+    name = "smt.fp.add"
+
+    def op_name(self) -> str:
+        return "fp.add"
+
+
+@irdl_op_definition
+class SubOp(BinaryFPOpWithRoundingMode):
+    name = "smt.fp.sub"
+
+    def op_name(self) -> str:
+        return "fp.sub"
+
+
+@irdl_op_definition
+class MulOp(BinaryFPOpWithRoundingMode):
+    name = "smt.fp.mul"
+
+    def op_name(self) -> str:
+        return "fp.mul"
+
+
+@irdl_op_definition
+class DivOp(BinaryFPOpWithRoundingMode):
+    name = "smt.fp.div"
+
+    def op_name(self) -> str:
+        return "fp.div"
+
+
 SMTFloatingPointDialect = Dialect(
     "smt.fp",
     [
@@ -345,6 +512,19 @@ SMTFloatingPointDialect = Dialect(
         RTNOp,
         RoundTowardZeroOp,
         RTZOp,
+        # Unary ops
+        AbsOp,
+        NegOp,
+        SqrtOp,
+        RoundToIntegralOp,
+        # Binary ops,
+        MaxOp,
+        MinOp,
+        RemOp,
+        AddOp,
+        SubOp,
+        MulOp,
+        DivOp,
     ],
     [FloatingPointType, RoundingModeType],
 )
