@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 
 from xdsl.printer import Printer
 
