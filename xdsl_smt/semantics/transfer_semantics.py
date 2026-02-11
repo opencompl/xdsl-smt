@@ -985,9 +985,10 @@ class TruncOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
-        assert isinstance(results[0], smt_bv.BitVectorType)
+        lowered_result = SMTLowerer.lower_type(results[0])
+        assert isinstance(lowered_result, smt_bv.BitVectorType)
         in_width = operands[0].type.width.data
-        out_width = results[0].width.data
+        out_width = lowered_result.width.data
         if out_width > in_width:
             raise VerifyException("transfer.trunc requires smaller result width")
         if out_width == in_width:
@@ -1007,12 +1008,13 @@ class ZExtOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
-        assert isinstance(results[0], smt_bv.BitVectorType)
-        if results[0].width.data < operands[0].type.width.data:
+        lowered_result = SMTLowerer.lower_type(results[0])
+        assert isinstance(lowered_result, smt_bv.BitVectorType)
+        if lowered_result.width.data < operands[0].type.width.data:
             raise VerifyException("transfer.zext requires larger result width")
-        if results[0].width.data == operands[0].type.width.data:
+        if lowered_result.width.data == operands[0].type.width.data:
             return ((operands[0],), effect_state)
-        zext_op = smt_bv.ZeroExtendOp(operands[0], results[0])
+        zext_op = smt_bv.ZeroExtendOp(operands[0], lowered_result)
         rewriter.insert_op_before_matched_op(zext_op)
         return ((zext_op.res,), effect_state)
 
@@ -1027,12 +1029,13 @@ class SExtOpSemantics(OperationSemantics):
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
         assert isinstance(operands[0].type, smt_bv.BitVectorType)
-        assert isinstance(results[0], smt_bv.BitVectorType)
-        if results[0].width.data < operands[0].type.width.data:
+        lowered_result = SMTLowerer.lower_type(results[0])
+        assert isinstance(lowered_result, smt_bv.BitVectorType)
+        if lowered_result.width.data < operands[0].type.width.data:
             raise VerifyException("transfer.sext requires larger result width")
-        if results[0].width.data == operands[0].type.width.data:
+        if lowered_result.width.data == operands[0].type.width.data:
             return ((operands[0],), effect_state)
-        sext_op = smt_bv.SignExtendOp(operands[0], results[0])
+        sext_op = smt_bv.SignExtendOp(operands[0], lowered_result)
         rewriter.insert_op_before_matched_op(sext_op)
         return ((sext_op.res,), effect_state)
 
