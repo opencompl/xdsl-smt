@@ -7,7 +7,6 @@ from xdsl.dialects.builtin import (
     IntegerAttr,
     IntegerType,
     SymbolRefAttr,
-    i1,
 )
 from typing import ClassVar, Mapping, Sequence, cast, Any
 
@@ -114,26 +113,8 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
         return isinstance(attr_type, IndexType)
 
 
-@irdl_op_definition
-class AddPoisonOp(IRDLOperation):
-    name = "transfer.add_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
-
-@irdl_op_definition
-class RemovePoisonOp(IRDLOperation):
-    name = "transfer.remove_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
+def _transfer_bool_type() -> TransIntegerType:
+    return TransIntegerType(IntegerAttr(1, IndexType()))
 
 
 @irdl_op_definition
@@ -245,7 +226,7 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
 
     lhs: Operand = operand_def(T)
     rhs: Operand = operand_def(T)
-    result: OpResult = result_def(i1)
+    result: OpResult = result_def(_transfer_bool_type())
 
     @staticmethod
     def infer_result_type(
@@ -253,7 +234,7 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
     ) -> Sequence[Attribute]:
         match operand_types:
             case [_, _]:
-                return [i1]
+                return [_transfer_bool_type()]
             case _:
                 raise VerifyException("Bin operation expects exactly two operands")
 
@@ -263,7 +244,11 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         rhs: SSAValue,
         attributes: dict[str, Attribute] = {},
     ):
-        super().__init__(operands=[lhs, rhs], result_types=[i1], attributes=attributes)
+        super().__init__(
+            operands=[lhs, rhs],
+            result_types=[_transfer_bool_type()],
+            attributes=attributes,
+        )
 
 
 @irdl_op_definition
@@ -575,7 +560,7 @@ class UnaryPredicateOp(IRDLOperation):
     )
 
     val: Operand = operand_def(T)
-    result: OpResult = result_def(i1)
+    result: OpResult = result_def(_transfer_bool_type())
 
     def __init__(
         self,
@@ -583,7 +568,7 @@ class UnaryPredicateOp(IRDLOperation):
     ):
         super().__init__(
             operands=[val],
-            result_types=[i1],
+            result_types=[_transfer_bool_type()],
         )
 
 
@@ -764,7 +749,7 @@ class SelectOp(IRDLOperation):
         "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
     )
 
-    cond: Operand = operand_def(IntegerType(1))
+    cond: Operand = operand_def(_transfer_bool_type())
     true_value: Operand = operand_def(T)
     false_value: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -955,8 +940,6 @@ Transfer = Dialect(
         GetSignedMaxValueOp,
         GetSignedMinValueOp,
         IntersectsOp,
-        AddPoisonOp,
-        RemovePoisonOp,
         ReverseBitsOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],

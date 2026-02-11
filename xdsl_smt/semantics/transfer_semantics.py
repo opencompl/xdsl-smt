@@ -261,6 +261,13 @@ def smt_bool_to_bv1(bool_val: SSAValue) -> tuple[SSAValue, list[Operation]]:
     return ite_op.res, [b1, b0, ite_op]
 
 
+def _require_bv1_type(type_attr: Attribute, context: str) -> None:
+    lowered = SMTLowerer.lower_type(type_attr)
+    assert isinstance(lowered, smt_bv.BitVectorType)
+    if lowered.width.data != 1:
+        raise VerifyException(f"{context} requires a 1-bit result")
+
+
 class UMulOverflowOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -270,13 +277,12 @@ class UMulOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.umul_overflow result")
         umul_overflow = smt_bv.UmulOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(umul_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([umul_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([umul_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class SMulOverflowOpSemantics(OperationSemantics):
@@ -288,13 +294,12 @@ class SMulOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.smul_overflow result")
         smul_overflow = smt_bv.SmulOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(smul_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([smul_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([smul_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class UAddOverflowOpSemantics(OperationSemantics):
@@ -306,13 +311,12 @@ class UAddOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.uadd_overflow result")
         uadd_overflow = smt_bv.UaddOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(uadd_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([uadd_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([uadd_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class SAddOverflowOpSemantics(OperationSemantics):
@@ -324,13 +328,12 @@ class SAddOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.sadd_overflow result")
         sadd_overflow = smt_bv.SaddOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(sadd_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([sadd_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([sadd_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class USubOverflowOpSemantics(OperationSemantics):
@@ -342,13 +345,12 @@ class USubOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.usub_overflow result")
         usub_overflow = smt_bv.UsubOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(usub_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([usub_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([usub_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class SSubOverflowOpSemantics(OperationSemantics):
@@ -360,13 +362,12 @@ class SSubOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.ssub_overflow result")
         ssub_overflow = smt_bv.SsubOverflowOp(operands[0], operands[1])
         bv_res, ops = smt_bool_to_bv1(ssub_overflow.res)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-        rewriter.insert_op_before_matched_op([ssub_overflow] + ops + [poison_op, res])
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op([ssub_overflow] + ops)
+        return ((bv_res,), effect_state)
 
 
 class UShlOverflowOpSemantics(OperationSemantics):
@@ -378,6 +379,7 @@ class UShlOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.ushl_overflow result")
         """
         Overflow = ShAmt >= getBitWidth();
         if (Overflow)
@@ -409,13 +411,8 @@ class UShlOverflowOpSemantics(OperationSemantics):
 
         bv_res, bool_to_bv1_ops = smt_bool_to_bv1(or_op.result)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-
-        rewriter.insert_op_before_matched_op(
-            overflow_ops + bool_to_bv1_ops + [poison_op, res]
-        )
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op(overflow_ops + bool_to_bv1_ops)
+        return ((bv_res,), effect_state)
 
 
 class SShlOverflowOpSemantics(OperationSemantics):
@@ -427,6 +424,7 @@ class SShlOverflowOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.sshl_overflow result")
         """
         Overflow = ShAmt >= getBitWidth();
         if (Overflow)
@@ -492,13 +490,8 @@ class SShlOverflowOpSemantics(OperationSemantics):
 
         bv_res, bool_to_bv1_ops = smt_bool_to_bv1(final_or_op.result)
 
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bv_res, poison_op.result)
-
-        rewriter.insert_op_before_matched_op(
-            overflow_ops + bool_to_bv1_ops + [poison_op, res]
-        )
-        return ((res.res,), effect_state)
+        rewriter.insert_op_before_matched_op(overflow_ops + bool_to_bv1_ops)
+        return ((bv_res,), effect_state)
 
 
 class IsPowerOf2OpSemantics(OperationSemantics):
@@ -510,6 +503,7 @@ class IsPowerOf2OpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.is_power_of_2 result")
         assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
         width = lhs_type.width
         const_value = width.data
@@ -522,8 +516,6 @@ class IsPowerOf2OpSemantics(OperationSemantics):
         and_op = smt_bv.AndOp(operands[0], op_minus_one.res)
         eq_op = smt.EqOp(b0.res, and_op.res)
         bool_to_bv = smt.IteOp(eq_op.res, b1_1.res, b0_1.res)
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bool_to_bv.res, poison_op.result)
         rewriter.insert_op_before_matched_op(
             [
                 b0,
@@ -534,11 +526,9 @@ class IsPowerOf2OpSemantics(OperationSemantics):
                 and_op,
                 eq_op,
                 bool_to_bv,
-                poison_op,
-                res,
             ]
         )
-        return ((res.res,), effect_state)
+        return ((bool_to_bv.res,), effect_state)
 
 
 class CmpOpSemantics(OperationSemantics):
@@ -563,6 +553,7 @@ class CmpOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.cmp result")
         predicate = attributes["predicate"]
         assert isinstance(predicate, IntegerAttr)
         predicate = predicate.value.data
@@ -576,12 +567,9 @@ class CmpOpSemantics(OperationSemantics):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b1.results[0], b0.results[0])
 
-        poison_op = smt.ConstantBoolOp(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
-
-        resList += [b1, b0, bool_to_bv, poison_op, res_op]
+        resList += [b1, b0, bool_to_bv]
         rewriter.insert_op_before_matched_op(resList)
-        return ((res_op.res,), effect_state)
+        return ((bool_to_bv.res,), effect_state)
 
 
 class IntersectsOpSemantics(OperationSemantics):
@@ -593,6 +581,7 @@ class IntersectsOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        _require_bv1_type(results[0], "transfer.intersects result")
         and_res = smt_bv.AndOp(operands[0], operands[1])
         assert isinstance(and_res.res.type, smt_bv.BitVectorType)
         const_0 = smt_bv.ConstantOp(0, and_res.res.type.width)
@@ -604,12 +593,9 @@ class IntersectsOpSemantics(OperationSemantics):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b0.results[0], b1.results[0])
 
-        poison_op = smt.ConstantBoolOp(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
-
-        resList += [b1, b0, bool_to_bv, poison_op, res_op]
+        resList += [b1, b0, bool_to_bv]
         rewriter.insert_op_before_matched_op(resList)
-        return ((res_op.res,), effect_state)
+        return ((bool_to_bv.res,), effect_state)
 
 
 class CountLOneOpSemantics(OperationSemantics):
@@ -903,11 +889,13 @@ class SelectOpSemantics(OperationSemantics):
         effect_state: SSAValue | None,
         rewriter: PatternRewriter,
     ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(cond_type := operands[0].type, smt_bv.BitVectorType)
+        if cond_type.width.data != 1:
+            raise VerifyException("transfer.select requires a 1-bit condition")
         bv1 = smt_bv.ConstantOp.from_int_value(1, 1)
-        bv_val = FirstOp(operands[0])
-        eq1 = smt.EqOp(bv_val.res, bv1.res)
+        eq1 = smt.EqOp(operands[0], bv1.res)
         ite_op = smt.IteOp(eq1.res, operands[1], operands[2])
-        rewriter.insert_op_before_matched_op([bv1, bv_val, eq1, ite_op])
+        rewriter.insert_op_before_matched_op([bv1, eq1, ite_op])
         return ((ite_op.res,), effect_state)
 
 
@@ -1038,40 +1026,6 @@ class SExtOpSemantics(OperationSemantics):
         return ((sext_op.res,), effect_state)
 
 
-class AddPoisonOpSemantics(OperationSemantics):
-    def get_semantics(
-        self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue | None,
-        rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        op_ty = operands[0].type
-        assert isinstance(op_ty, smt_bv.BitVectorType)
-        bool_false = smt.ConstantBoolOp(False)
-        res = PairOp(operands[0], bool_false.result)
-
-        rewriter.insert_op_before_matched_op([bool_false, res])
-        return ((res.res,), effect_state)
-
-
-class RemovePoisonOpSemantics(OperationSemantics):
-    def get_semantics(
-        self,
-        operands: Sequence[SSAValue],
-        results: Sequence[Attribute],
-        attributes: Mapping[str, Attribute | SSAValue],
-        effect_state: SSAValue | None,
-        rewriter: PatternRewriter,
-    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
-        op_ty = operands[0].type
-        assert isinstance(op_ty, PairType)
-        res = FirstOp(operands[0])
-        rewriter.insert_op_before_matched_op([res])
-        return ((res.res,), effect_state)
-
-
 class ReverseBitsOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -1144,7 +1098,5 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.GetSignedMaxValueOp: GetSignedMaxValueOpSemantics(),
     transfer.GetSignedMinValueOp: GetSignedMinValueOpSemantics(),
     transfer.IntersectsOp: IntersectsOpSemantics(),
-    transfer.AddPoisonOp: AddPoisonOpSemantics(),
-    transfer.RemovePoisonOp: RemovePoisonOpSemantics(),
     transfer.ReverseBitsOp: ReverseBitsOpSemantics(),
 }
