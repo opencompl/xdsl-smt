@@ -4,7 +4,7 @@
 
 // xor(x) -> x
 pdl.pattern @XorSingle : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %xor_op = pdl.operation "comb.xor"(%x : !pdl.value) -> (%t : !pdl.type)
@@ -16,7 +16,7 @@ pdl.pattern @XorSingle : benefit(0) {
 
 // xor(x, x) -> 0
 pdl.pattern @XorSame : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %xor_op = pdl.operation "comb.xor"(%x, %x : !pdl.value, !pdl.value) -> (%t : !pdl.type)
@@ -31,7 +31,7 @@ pdl.pattern @XorSame : benefit(0) {
 
 // xor(a, b, x, x) -> xor(a, b)
 pdl.pattern @XorSameExtended : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %a = pdl.operand : %t
     %b = pdl.operand : %t
     %x = pdl.operand : %t
@@ -46,7 +46,7 @@ pdl.pattern @XorSameExtended : benefit(0) {
 
 // xor(x, 0) -> x
 pdl.pattern @XorZero : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %zero_attr = pdl.attribute : %t
@@ -64,7 +64,7 @@ pdl.pattern @XorZero : benefit(0) {
 
 // xor(a, b, 0) -> xor(a, b)
 pdl.pattern @XorZeroExtended : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %a = pdl.operand : %t
     %b = pdl.operand : %t
 
@@ -84,7 +84,7 @@ pdl.pattern @XorZeroExtended : benefit(0) {
 
 // xor(x, cst1, cst2) -> xor(x, cst1 ^ cst2)
 pdl.pattern @OrMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %cst1_attr = pdl.attribute : %t
@@ -110,8 +110,8 @@ pdl.pattern @OrMinusOne : benefit(0) {
 //    ==> xor(a, b, c, concat(xor(x,cst2'), xor(cst1,cst2'')).
 pdl.pattern @XOrConcatCst : benefit(0) {
     %i32 = pdl.type : i32
-    %t = pdl.type : !transfer.integer
-    %t_left = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
+    %t_left = pdl.type : !transfer.integer<8>
 
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
     %t_width = pdl.apply_native_rewrite "get_width"(%t, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
@@ -196,7 +196,7 @@ pdl.pattern @XorIcmpTrue : benefit(0) {
 
 // xor(x, xor(val1, val2)) -> xor(x, val1, val2) -- flatten
 pdl.pattern @XOrFlatten : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
     %val2 = pdl.operand : %t

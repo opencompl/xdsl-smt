@@ -3,7 +3,7 @@
 builtin.module {
     // addi(addi(x, c0), c1) -> addi(x, c0 + c1)
     pdl.pattern @AddIAddConstant : benefit(0) {
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %c0_attr = pdl.attribute : %type
         %c1_attr = pdl.attribute : %type
@@ -34,7 +34,7 @@ builtin.module {
 
     // addi(subi(x, c0), c1) -> addi(x, c0 - c1)
     pdl.pattern @AddISubConstantRHS : benefit(0) {
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %c0_attr = pdl.attribute : %type
         %c1_attr = pdl.attribute : %type
@@ -62,7 +62,7 @@ builtin.module {
 
     // addi(subi(c0, x), c1) -> addi(c0 + c1, x)
     pdl.pattern @AddISubConstantLHS : benefit(0) {
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %c0_attr = pdl.attribute : %type
         %c1_attr = pdl.attribute : %type
@@ -90,7 +90,7 @@ builtin.module {
 
     // addi(x, muli(y, -1)) -> subi(x, y)
     pdl.pattern @AddIMulNegativeOneRhs : benefit(0) {
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %x = pdl.operand : %type
         %y = pdl.operand : %type
@@ -114,7 +114,7 @@ builtin.module {
 
     // addi(muli(x, -1), y) -> subi(y, x)
     pdl.pattern @AddIMulNegativeOneLhs : benefit(0) {
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %x = pdl.operand : %type
         %y = pdl.operand : %type

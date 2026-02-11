@@ -4,7 +4,7 @@ builtin.module {
     // select(predA, x, select(predB, y, x)) => select(or(predA, not(predB)), x, y)
     pdl.pattern @SelectOrNotCond : benefit(0) {
         %i1 = pdl.type : i1
-        %type = pdl.type : !transfer.integer
+        %type = pdl.type : !transfer.integer<8>
 
         %predA = pdl.operand : %i1
         %predB = pdl.operand : %i1

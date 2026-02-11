@@ -7,7 +7,7 @@
 
 // and(x, and(val1, val2)) -> and(x, val1, val2) -- flatten
 pdl.pattern @AndFlatten : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
     %val2 = pdl.operand : %t
@@ -25,7 +25,7 @@ pdl.pattern @AndFlatten : benefit(0) {
 
 // and(x, val1, x) -> and(x, val1) -- idempotent
 pdl.pattern @AndIdempotent : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
 
@@ -39,7 +39,7 @@ pdl.pattern @AndIdempotent : benefit(0) {
 
 // and(x, -1, y) -> and(x, y)
 pdl.pattern @AndMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
     %y = pdl.operand : %t
 
@@ -59,7 +59,7 @@ pdl.pattern @AndMinusOne : benefit(0) {
 
 // and(x, -1) -> x
 pdl.pattern @AndMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %cst_attr = pdl.attribute : %t
@@ -77,7 +77,7 @@ pdl.pattern @AndMinusOne : benefit(0) {
 
 // and(x, cst1, cst2) -> and(x, cst1 & cst2)
 pdl.pattern @AndMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     %x = pdl.operand : %t
 
     %cst1_attr = pdl.attribute : %t
@@ -103,7 +103,7 @@ pdl.pattern @AndMinusOne : benefit(0) {
 pdl.pattern @AndReplicateOne : benefit(0) {
     %i1 = pdl.type : i1
     %i32 = pdl.type : i32
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %i1 : !pdl.type, !pdl.type)
 
     %type_width = pdl.apply_native_rewrite "get_width"(%t, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
@@ -134,7 +134,7 @@ pdl.pattern @AndReplicateOne : benefit(0) {
 pdl.pattern @AndReplicateMin : benefit(0) {
     %i1 = pdl.type : i1
     %i32 = pdl.type : i32
-    %t = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %i1 : !pdl.type, !pdl.type)
 
     %type_width = pdl.apply_native_rewrite "get_width"(%t, %i32 : !pdl.type, !pdl.type) : !pdl.attribute
@@ -165,8 +165,8 @@ pdl.pattern @AndReplicateMin : benefit(0) {
 //    ==> and(a, b, c, concat(and(x,cst2'), and(cst1,cst2'')).
 pdl.pattern @AndConcatCst : benefit(0) {
     %i32 = pdl.type : i32
-    %t = pdl.type : !transfer.integer
-    %t_left = pdl.type : !transfer.integer
+    %t = pdl.type : !transfer.integer<8>
+    %t_left = pdl.type : !transfer.integer<8>
 
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
 

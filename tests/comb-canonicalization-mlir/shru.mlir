@@ -3,12 +3,12 @@
 // ShrOp(x, cst) -> Concat(zeros, Extract(x)) with cst < width(x) and cst != 0
 pdl.pattern @ShrRhsKnownConstant : benefit(0) {
     %i32 = pdl.type : i32
-    %type = pdl.type : !transfer.integer
+    %type = pdl.type : !transfer.integer<8>
 
     // Limitation of the current SMT solving capabilities. We cannot express
     // the type i{shift} in a generic way, so we have to duplicate this pattern "for all shift values".
     // Note that this pattern will likely cannot be used to rewrite, as shift_type is never actually matched.
-    %shift_type = pdl.type : !transfer.integer
+    %shift_type = pdl.type : !transfer.integer<8>
 
     %shift_attr = pdl.attribute : %type
     %shift_op = pdl.operation "hw.constant" {"value" = %shift_attr} -> (%type : !pdl.type)
