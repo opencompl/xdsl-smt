@@ -65,8 +65,6 @@ class AbstractValueTypeSemantics(TypeSemantics):
 class TransferIntegerTypeSemantics(TypeSemantics):
     """Lower an integer type to a bitvector integer."""
 
-    default_width: int
-
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, transfer.TransIntegerType)
         width = type.width

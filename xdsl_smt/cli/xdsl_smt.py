@@ -145,14 +145,6 @@ class OptMain(xDSLOptMain):
     def register_all_arguments(self, arg_parser: argparse.ArgumentParser):
         super().register_all_arguments(arg_parser)
         arg_parser.add_argument(
-            "-w",
-            "--width",
-            type=int,
-            required=False,
-            help="width used for transfer integers",
-            default=8,
-        )
-        arg_parser.add_argument(
             "-s",
             "--semantics",
             type=str,
@@ -165,7 +157,7 @@ class OptMain(xDSLOptMain):
 def main():
     xdsl_main = OptMain()
     if xdsl_main.args.semantics == "default":
-        load_vanilla_semantics_with_transfer(xdsl_main.args.width)
+        load_vanilla_semantics_with_transfer()
     else:
         load_vanilla_semantics_using_control_flow_dialects()
 
