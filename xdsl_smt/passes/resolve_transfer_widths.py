@@ -143,16 +143,12 @@ class ResolveTransferWidthsPattern(RewritePattern):
 
         has_done_action = False
         for name, attr in op.attributes.items():
-            new_attr = resolve_transfer_widths(
-                attr, self.width_map, self.default_width
-            )
+            new_attr = resolve_transfer_widths(attr, self.width_map, self.default_width)
             if new_attr != attr:
                 op.attributes[name] = new_attr
                 has_done_action = True
         for name, attr in op.properties.items():
-            new_attr = resolve_transfer_widths(
-                attr, self.width_map, self.default_width
-            )
+            new_attr = resolve_transfer_widths(attr, self.width_map, self.default_width)
             if new_attr != attr:
                 op.properties[name] = new_attr
                 has_done_action = True

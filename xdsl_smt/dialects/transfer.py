@@ -10,7 +10,7 @@ from xdsl.dialects.builtin import (
     SymbolRefAttr,
     i1,
 )
-from typing import ClassVar, Mapping, Sequence, cast, Any 
+from typing import ClassVar, Mapping, Sequence, cast, Any
 
 from xdsl.ir import (
     ParametrizedAttribute,
