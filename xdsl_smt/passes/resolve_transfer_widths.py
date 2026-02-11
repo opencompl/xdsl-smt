@@ -26,11 +26,9 @@ from xdsl_smt.dialects.transfer import TransIntegerType
 
 
 def _get_width_from_attr(attr: Attribute) -> int:
-    if isinstance(attr, IntegerAttr):
-        if not isinstance(attr.type, IndexType):
-            raise VerifyException("Width mapping values must be index-typed integers")
-        attr = cast(IntegerAttr[IndexType], attr)
-        return attr.value.data
+    if TransIntegerType.is_index_integer_attr(attr):
+        width_attr = cast(IntegerAttr[IndexType], attr)
+        return width_attr.value.data
     raise VerifyException("Width mapping values must be integer attributes")
 
 
@@ -88,11 +86,13 @@ def resolve_transfer_widths(
         raise VerifyException("transfer.integer has invalid width parameter")
 
     if isinstance(attr, ArrayAttr):
-        new_data = [
-            resolve_transfer_widths(a, width_map, default_width) for a in attr.data
+        attr_typed = cast(ArrayAttr[Attribute], attr)
+        data = attr_typed.data
+        new_data: list[Attribute] = [
+            resolve_transfer_widths(a, width_map, default_width) for a in data
         ]
-        if all(a1 is a2 for a1, a2 in zip(new_data, attr.data, strict=True)):
-            return attr
+        if all(a1 is a2 for a1, a2 in zip(new_data, data, strict=True)):
+            return attr_typed
         return ArrayAttr(new_data)
 
     if isinstance(attr, DictionaryAttr):
@@ -169,6 +169,5 @@ class ResolveTransferWidths(ModulePass):
             ResolveTransferWidthsPattern(width_map, default_width), walk_reverse=True
         )
         walker.rewrite_module(op)
-        # Clear width metadata after resolution to keep output clean.
         op.attributes.pop("transfer.widths", None)
         op.attributes.pop("transfer.default_width", None)

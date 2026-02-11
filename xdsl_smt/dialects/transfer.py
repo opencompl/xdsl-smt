@@ -87,7 +87,7 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
         width_attr = self._width_attr()
         if isinstance(width_attr, NoneAttr):
             return
-        if self._is_index_integer_attr(width_attr):
+        if self.is_index_integer_attr(width_attr):
             width_attr = cast(IntegerAttr[IndexType], width_attr)
             printer.print_string(f"<{width_attr.value.data}>")
             return
@@ -102,7 +102,7 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
             raise VerifyException(
                 "transfer.integer width must be an integer attr, symbol ref, or none"
             )
-        if isinstance(width_attr, IntegerAttr) and not self._is_index_integer_attr(
+        if isinstance(width_attr, IntegerAttr) and not self.is_index_integer_attr(
             width_attr
         ):
             raise VerifyException(
@@ -113,7 +113,7 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
         return cast(IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr, self.width)
 
     @staticmethod
-    def _is_index_integer_attr(attr: Attribute) -> bool:
+    def is_index_integer_attr(attr: Attribute) -> bool:
         if not isinstance(attr, IntegerAttr):
             return False
         attr_type = cast(Any, attr).type
