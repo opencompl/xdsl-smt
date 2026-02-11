@@ -6,9 +6,11 @@ from xdsl.dialects.builtin import (
     IndexType,
     IntegerAttr,
     IntegerType,
+    NoneAttr,
+    SymbolRefAttr,
     i1,
 )
-from typing import ClassVar, Mapping, Sequence
+from typing import ClassVar, Mapping, Sequence, cast, Any 
 
 from xdsl.ir import (
     ParametrizedAttribute,
@@ -20,6 +22,8 @@ from xdsl.ir import (
     SSAValue,
 )
 from xdsl.utils.hints import isa
+from xdsl.parser import AttrParser
+from xdsl.printer import Printer
 
 from xdsl.irdl import (
     attr_def,
@@ -53,6 +57,67 @@ from xdsl.traits import (
 @irdl_attr_definition
 class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.integer"
+    width: Attribute = param_def(AnyAttr())
+
+    def __init__(self, width: int | Attribute | None = None):
+        if width is None:
+            width_attr: Attribute = NoneAttr()
+        elif isinstance(width, int):
+            width_attr = IntegerAttr(width, IndexType())
+        else:
+            width_attr = width
+        super().__init__(width_attr)
+
+    @classmethod
+    def parse_parameters(cls, parser: AttrParser) -> Sequence[Attribute]:
+        if parser.parse_optional_punctuation("<") is None:
+            return (NoneAttr(),)
+        if (
+            width := parser.parse_optional_integer(
+                allow_boolean=False, allow_negative=False
+            )
+        ) is not None:
+            parser.parse_punctuation(">")
+            return (IntegerAttr(width, IndexType()),)
+        width = parser.parse_attribute()
+        parser.parse_punctuation(">")
+        return (width,)
+
+    def print_parameters(self, printer: Printer) -> None:
+        width_attr = self._width_attr()
+        if isinstance(width_attr, NoneAttr):
+            return
+        if self._is_index_integer_attr(width_attr):
+            width_attr = cast(IntegerAttr[IndexType], width_attr)
+            printer.print_string(f"<{width_attr.value.data}>")
+            return
+        printer.print_string("<")
+        printer.print_attribute(width_attr)
+        printer.print_string(">")
+
+    def verify(self) -> None:
+        super().verify()
+        width_attr = self._width_attr()
+        if not isinstance(width_attr, (IntegerAttr, SymbolRefAttr, NoneAttr)):
+            raise VerifyException(
+                "transfer.integer width must be an integer attr, symbol ref, or none"
+            )
+        if isinstance(width_attr, IntegerAttr) and not self._is_index_integer_attr(
+            width_attr
+        ):
+            raise VerifyException(
+                "transfer.integer width must be an index-typed integer"
+            )
+
+    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr:
+        return cast(IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr, self.width)
+
+    @staticmethod
+    def _is_index_integer_attr(attr: Attribute) -> bool:
+        if not isinstance(attr, IntegerAttr):
+            return False
+        attr_type = cast(Any, attr).type
+        return isinstance(attr_type, IndexType)
 
 
 @irdl_op_definition
@@ -405,6 +470,39 @@ class ExtractOp(IRDLOperation):
             operands=[val, numBits, bitPosition],
             result_types=[val.type],
         )
+
+
+class CastOp(IRDLOperation, ABC):
+    T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(TransIntegerType))
+    U: ClassVar = VarConstraint("U", irdl_to_attr_constraint(TransIntegerType))
+
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(U)
+
+    def __init__(
+        self,
+        op: SSAValue,
+        result_type: Attribute,
+    ):
+        super().__init__(
+            operands=[op],
+            result_types=[result_type],
+        )
+
+
+@irdl_op_definition
+class TruncOp(CastOp):
+    name = "transfer.trunc"
+
+
+@irdl_op_definition
+class ZExtOp(CastOp):
+    name = "transfer.zext"
+
+
+@irdl_op_definition
+class SExtOp(CastOp):
+    name = "transfer.sext"
 
 
 @irdl_op_definition
@@ -854,6 +952,9 @@ Transfer = Dialect(
         ConcatOp,
         RepeatOp,
         ExtractOp,
+        TruncOp,
+        ZExtOp,
+        SExtOp,
         ConstRangeForOp,
         NextLoopOp,
         GetAllOnesOp,

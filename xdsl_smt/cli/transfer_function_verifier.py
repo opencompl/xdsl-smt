@@ -65,6 +65,7 @@ from ..utils.transfer_function_check_util import (
     backward_precision_check,
 )
 from ..passes.transfer_unroll_loop import UnrollTransferLoop
+from ..passes.resolve_transfer_widths import ResolveTransferWidths
 from xdsl_smt.semantics import transfer_semantics
 from ..traits.smt_printer import print_to_smtlib
 from xdsl_smt.passes.lower_pairs import LowerPairs
@@ -239,6 +240,7 @@ def get_concrete_function(
 
 
 def lower_to_smt_module(module: ModuleOp, width: int, ctx: Context):
+    ResolveTransferWidths(default_width=width).apply(ctx, module)
     # lower to SMT
     SMTLowerer.rewrite_patterns = {
         **func_to_smt_patterns,

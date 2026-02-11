@@ -21,7 +21,13 @@ from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
 from typing import Mapping, Sequence
 from xdsl.utils.hints import isa
-from xdsl.dialects.builtin import IntegerAttr, IntegerType
+from xdsl.utils.exceptions import VerifyException
+from xdsl.dialects.builtin import (
+    IntegerAttr,
+    IntegerType,
+    NoneAttr,
+    SymbolRefAttr,
+)
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
@@ -68,11 +74,20 @@ class AbstractValueTypeSemantics(TypeSemantics):
 class TransferIntegerTypeSemantics(TypeSemantics):
     """Lower an integer type to a bitvector integer."""
 
-    width: int
+    default_width: int
 
     def get_semantics(self, type: Attribute) -> Attribute:
         assert isinstance(type, transfer.TransIntegerType)
-        return smt_bv.BitVectorType(self.width)
+        width = type.width
+        if isinstance(width, IntegerAttr):
+            return smt_bv.BitVectorType(width.value.data)
+        if isinstance(width, NoneAttr):
+            return smt_bv.BitVectorType(self.default_width)
+        if isinstance(width, SymbolRefAttr):
+            raise VerifyException(
+                "Unresolved symbolic transfer.integer width encountered during lowering"
+            )
+        raise VerifyException("transfer.integer has invalid width parameter")
 
 
 class ConstantOpSemantics(OperationSemantics):
@@ -965,6 +980,68 @@ class ExtractOpSemantics(OperationSemantics):
         return ((extractOp.res,), effect_state)
 
 
+class TruncOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        assert isinstance(results[0], smt_bv.BitVectorType)
+        in_width = operands[0].type.width.data
+        out_width = results[0].width.data
+        if out_width > in_width:
+            raise VerifyException("transfer.trunc requires smaller result width")
+        if out_width == in_width:
+            return ((operands[0],), effect_state)
+        trunc_op = smt_bv.ExtractOp(operands[0], out_width - 1, 0)
+        rewriter.insert_op_before_matched_op(trunc_op)
+        return ((trunc_op.res,), effect_state)
+
+
+class ZExtOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        assert isinstance(results[0], smt_bv.BitVectorType)
+        if results[0].width.data < operands[0].type.width.data:
+            raise VerifyException("transfer.zext requires larger result width")
+        if results[0].width.data == operands[0].type.width.data:
+            return ((operands[0],), effect_state)
+        zext_op = smt_bv.ZeroExtendOp(operands[0], results[0])
+        rewriter.insert_op_before_matched_op(zext_op)
+        return ((zext_op.res,), effect_state)
+
+
+class SExtOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(operands[0].type, smt_bv.BitVectorType)
+        assert isinstance(results[0], smt_bv.BitVectorType)
+        if results[0].width.data < operands[0].type.width.data:
+            raise VerifyException("transfer.sext requires larger result width")
+        if results[0].width.data == operands[0].type.width.data:
+            return ((operands[0],), effect_state)
+        sext_op = smt_bv.SignExtendOp(operands[0], results[0])
+        rewriter.insert_op_before_matched_op(sext_op)
+        return ((sext_op.res,), effect_state)
+
+
 class AddPoisonOpSemantics(OperationSemantics):
     def get_semantics(
         self,
@@ -1033,6 +1110,9 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.ConcatOp: ConcatOpSemantics(),
     transfer.RepeatOp: RepeatOpSemantics(),
     transfer.ExtractOp: ExtractOpSemantics(),
+    transfer.TruncOp: TruncOpSemantics(),
+    transfer.ZExtOp: ZExtOpSemantics(),
+    transfer.SExtOp: SExtOpSemantics(),
     transfer.UMulOverflowOp: UMulOverflowOpSemantics(),
     transfer.SMulOverflowOp: SMulOverflowOpSemantics(),
     transfer.UAddOverflowOp: UAddOverflowOpSemantics(),

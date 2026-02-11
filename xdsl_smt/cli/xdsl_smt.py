@@ -28,6 +28,7 @@ from xdsl_smt.passes.merge_func_results import MergeFuncResultsPass
 from xdsl_smt.passes.lower_memory_to_array import LowerMemoryToArrayPass
 from xdsl_smt.passes.raise_llvm_to_func import RaiseLLVMToFunc
 from xdsl_smt.passes.lower_abbv_to_bv import LowerAbbvToBvPass
+from xdsl_smt.passes.resolve_transfer_widths import ResolveTransferWidths
 
 from xdsl_smt.passes.dynamic_semantics import DynamicSemantics
 
@@ -135,6 +136,7 @@ class OptMain(xDSLOptMain):
         self.register_pass(LowerAbbvToBvPass.name, lambda: LowerAbbvToBvPass)
         self.register_pass(RewriteSMTTensor.name, lambda: RewriteSMTTensor)
         self.register_pass(LowerSMTTensor.name, lambda: LowerSMTTensor)
+        self.register_pass(ResolveTransferWidths.name, lambda: ResolveTransferWidths)
 
     def register_all_targets(self):
         super().register_all_targets()
