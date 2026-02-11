@@ -6,7 +6,6 @@ from xdsl.dialects.builtin import (
     IndexType,
     IntegerAttr,
     IntegerType,
-    NoneAttr,
     SymbolRefAttr,
     i1,
 )
@@ -59,10 +58,8 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.integer"
     width: Attribute = param_def(AnyAttr())
 
-    def __init__(self, width: int | Attribute | None = None):
-        if width is None:
-            width_attr: Attribute = NoneAttr()
-        elif isinstance(width, int):
+    def __init__(self, width: int | Attribute):
+        if isinstance(width, int):
             width_attr = IntegerAttr(width, IndexType())
         else:
             width_attr = width
@@ -70,8 +67,7 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
     @classmethod
     def parse_parameters(cls, parser: AttrParser) -> Sequence[Attribute]:
-        if parser.parse_optional_punctuation("<") is None:
-            return (NoneAttr(),)
+        parser.parse_punctuation("<")
         if (
             width := parser.parse_optional_integer(
                 allow_boolean=False, allow_negative=False
@@ -85,8 +81,6 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
     def print_parameters(self, printer: Printer) -> None:
         width_attr = self._width_attr()
-        if isinstance(width_attr, NoneAttr):
-            return
         if self.is_index_integer_attr(width_attr):
             width_attr = cast(IntegerAttr[IndexType], width_attr)
             printer.print_string(f"<{width_attr.value.data}>")
@@ -98,9 +92,9 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     def verify(self) -> None:
         super().verify()
         width_attr = self._width_attr()
-        if not isinstance(width_attr, (IntegerAttr, SymbolRefAttr, NoneAttr)):
+        if not isinstance(width_attr, (IntegerAttr, SymbolRefAttr)):
             raise VerifyException(
-                "transfer.integer width must be an integer attr, symbol ref, or none"
+                "transfer.integer width must be an integer attr or symbol ref"
             )
         if isinstance(width_attr, IntegerAttr) and not self.is_index_integer_attr(
             width_attr
@@ -109,8 +103,8 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
                 "transfer.integer width must be an index-typed integer"
             )
 
-    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr:
-        return cast(IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr, self.width)
+    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr:
+        return cast(IntegerAttr[IndexType] | SymbolRefAttr, self.width)
 
     @staticmethod
     def is_index_integer_attr(attr: Attribute) -> bool:

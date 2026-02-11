@@ -1,14 +1,10 @@
 from dataclasses import dataclass
-from xdsl.pattern_rewriter import (
-    PatternRewriter,
-)
+from xdsl.pattern_rewriter import PatternRewriter
 
 from xdsl_smt.dialects import smt_bitvector_dialect as smt_bv
 from xdsl_smt.dialects import smt_dialect as smt
 from xdsl_smt.dialects import transfer
-from xdsl_smt.passes.lower_to_smt.smt_lowerer import (
-    SMTLowerer,
-)
+from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl_smt.dialects.smt_utils_dialect import (
     AnyPairType,
     PairType,
@@ -19,15 +15,10 @@ from xdsl_smt.dialects.smt_utils_dialect import (
 from xdsl_smt.dialects.smt_dialect import BoolType
 from xdsl_smt.semantics.semantics import OperationSemantics, TypeSemantics
 from xdsl.ir import Operation, SSAValue, Attribute
-from typing import Mapping, Sequence
+from typing import cast, Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.utils.exceptions import VerifyException
-from xdsl.dialects.builtin import (
-    IntegerAttr,
-    IntegerType,
-    NoneAttr,
-    SymbolRefAttr,
-)
+from xdsl.dialects.builtin import IntegerAttr, IntegerType, SymbolRefAttr
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
@@ -80,9 +71,13 @@ class TransferIntegerTypeSemantics(TypeSemantics):
         assert isinstance(type, transfer.TransIntegerType)
         width = type.width
         if isinstance(width, IntegerAttr):
+            if not transfer.TransIntegerType.is_index_integer_attr(
+                cast(Attribute, width)
+            ):
+                raise VerifyException(
+                    "transfer.integer width must be an index-typed integer"
+                )
             return smt_bv.BitVectorType(width.value.data)
-        if isinstance(width, NoneAttr):
-            return smt_bv.BitVectorType(self.default_width)
         if isinstance(width, SymbolRefAttr):
             raise VerifyException(
                 "Unresolved symbolic transfer.integer width encountered during lowering"
