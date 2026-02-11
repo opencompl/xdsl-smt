@@ -323,11 +323,6 @@ class GetBitWidthOp(UnaryOp):
 
 
 @irdl_op_definition
-class setAllBitsOp(UnaryOp):
-    name = "transfer.set_all_bits"
-
-
-@irdl_op_definition
 class CountLZeroOp(UnaryOp):
     name = "transfer.countl_zero"
 

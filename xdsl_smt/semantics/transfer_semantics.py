@@ -758,7 +758,7 @@ class ClearSignBitOpSemantics(OperationSemantics):
         operand_type = operand.type
         assert isinstance(operand_type, smt_bv.BitVectorType)
         width = operand_type.width.data
-        signed_max_value = smt_bv.ConstantOp(1 << (width - 1) - 1, width)
+        signed_max_value = smt_bv.ConstantOp((1 << (width - 1)) - 1, width)
         and_op = smt_bv.AndOp(signed_max_value.res, operand)
         result = [signed_max_value, and_op]
 
