@@ -1,4 +1,4 @@
-// RUN: xdsl-smt %s -p=resolve-transfer-widths | filecheck %s
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width-map=\"@X=8,@Y=16\"} | filecheck %s
 
 "builtin.module"() ({
   "func.func"() ({
@@ -8,7 +8,7 @@
     %s = "transfer.sext"(%t) : (!transfer.integer<@X>) -> !transfer.integer<@Y>
     "func.return"(%s) : (!transfer.integer<@Y>) -> ()
   }) {"sym_name" = "test", "function_type" = (!transfer.integer<@X>, !transfer.integer<16>) -> !transfer.integer<@Y>, "sym_visibility" = "private"} : () -> ()
-}) {"transfer.widths" = {X = 8 : index, Y = 16 : index}} : () -> ()
+}) : () -> ()
 
 // CHECK:      builtin.module {
 // CHECK-NEXT:   func.func private @test(%x : !transfer.integer<8>, %y : !transfer.integer<16>) -> !transfer.integer<16> {

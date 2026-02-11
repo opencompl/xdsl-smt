@@ -1,4 +1,4 @@
-// RUN: xdsl-smt %s -p=resolve-transfer-widths,lower-to-smt,lower-effects,canonicalize,dce,merge-func-results -t smt | filecheck %s
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width-map=\"@X=8,@Y=16\"},lower-to-smt,lower-effects,canonicalize,dce,merge-func-results -t smt | filecheck %s
 
 "builtin.module"() ({
   "func.func"() ({
@@ -10,7 +10,7 @@
     %mix = "transfer.add"(%zx, %sx) : (!transfer.integer<@Y>, !transfer.integer<@Y>) -> !transfer.integer<@Y>
     "func.return"(%mix) : (!transfer.integer<@Y>) -> ()
   }) {"sym_name" = "test", "function_type" = (!transfer.integer<@X>, !transfer.integer<@Y>) -> !transfer.integer<@Y>, "sym_visibility" = "private"} : () -> ()
-}) {"transfer.widths" = {X = 8 : index, Y = 16 : index}} : () -> ()
+}) : () -> ()
 
 // CHECK:       (define-fun $test
 // CHECK-SAME:  (_ BitVec 8)

@@ -1,5 +1,5 @@
-// RUN: xdsl-smt %s -p=resolve-transfer-widths,lower-to-smt,canonicalize,dce | filecheck %s
-// RUN: xdsl-smt %s -p=resolve-transfer-widths,lower-to-smt,lower-effects,smt-expand,canonicalize,dce,merge-func-results -t=smt
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width-map=\"default=8\"},lower-to-smt,canonicalize,dce | filecheck %s
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width-map=\"default=8\"},lower-to-smt,lower-effects,smt-expand,canonicalize,dce,merge-func-results -t=smt
 
 "builtin.module"() ({
   "func.func"() ({
@@ -7,7 +7,7 @@
     %r = "transfer.sshl_overflow"(%x, %y) : (!transfer.integer<@W>,!transfer.integer<@W>) -> i1
     "func.return"(%r) : (i1) -> ()
   }) {"sym_name" = "test", "function_type" = (!transfer.integer<@W>, !transfer.integer<@W>) -> i1, "sym_visibility" = "private"} : () -> ()
-}) {"transfer.widths" = {W = 8 : index}} : () -> ()
+}) : () -> ()
 
 // CHECK:       %3 = "smt.bv.uge"(%y, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
 // CHECK:       %5 = "smt.bv.sge"(%x, %4) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
