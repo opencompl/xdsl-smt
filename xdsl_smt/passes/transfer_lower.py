@@ -1,55 +1,41 @@
-from typing import TextIO
-from xdsl.dialects.func import *
-from xdsl.pattern_rewriter import *
-from functools import singledispatch
 from dataclasses import dataclass
-from xdsl.passes import ModulePass
+from typing import TextIO
+import sys
 
+from xdsl.dialects.builtin import ModuleOp
+from xdsl.dialects.func import FuncOp
 from xdsl.ir import Operation
-from xdsl.context import Context
+from xdsl.pattern_rewriter import (
+    GreedyRewritePatternApplier,
+    PatternRewriter,
+    PatternRewriteWalker,
+    RewritePattern,
+    op_type_rewrite_pattern,
+)
+
 from ..utils.lower_utils import (
     lowerOperation,
-    CPP_CLASS_KEY,
-    lowerDispatcher,
-    INDUCTION_KEY,
-    lowerInductionOps,
+    set_use_apint,
+    set_use_custom_vec,
+    set_use_llvm_kb,
 )
-
-from xdsl.pattern_rewriter import (
-    RewritePattern,
-    PatternRewriter,
-    op_type_rewrite_pattern,
-    PatternRewriteWalker,
-    GreedyRewritePatternApplier,
-)
-from xdsl.dialects import builtin
 
 autogen = 0
-
-
-@singledispatch
-def transferFunction(op, fout):
-    pass
-
-
 funcStr = ""
-indent = "\t"
-needDispatch: list[FuncOp] = []
-inductionOp: list[FuncOp] = []
 
 
-@transferFunction.register
-def _(op: Operation, fout):
-    global needDispatch
-    global inductionOp
+def transfer_func(op: Operation, fout: TextIO):
     if isinstance(op, ModuleOp):
         return
-        # print(lowerDispatcher(needDispatch))
-        # fout.write(lowerDispatcher(needDispatch))
     if len(op.results) > 0 and op.results[0].name_hint is None:
         global autogen
         op.results[0].name_hint = "autogen" + str(autogen)
         autogen += 1
+    if isinstance(op, FuncOp):
+        for arg in op.args:
+            if arg.name_hint is None:
+                arg.name_hint = "autogen" + str(autogen)
+                autogen += 1
     global funcStr
     funcStr += lowerOperation(op)
     parentOp = op.parent_op()
@@ -57,46 +43,36 @@ def _(op: Operation, fout):
         funcStr += "}\n"
         fout.write(funcStr)
         funcStr = ""
-    if isinstance(op, FuncOp):
-        if CPP_CLASS_KEY in op.attributes:
-            needDispatch.append(op)
-        if INDUCTION_KEY in op.attributes:
-            inductionOp.append(op)
 
 
 @dataclass
 class LowerOperation(RewritePattern):
-    def __init__(self, fout):
+    def __init__(self, fout: TextIO):
         self.fout = fout
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-        transferFunction(op, self.fout)
+    def match_and_rewrite(self, op: Operation, _: PatternRewriter):
+        transfer_func(op, self.fout)
 
 
-def addInductionOps(fout: TextIO):
-    global inductionOp
-    if len(inductionOp) != 0:
-        fout.write(lowerInductionOps(inductionOp))
+def lower_to_cpp(
+    op: ModuleOp,
+    fout: TextIO = sys.stdout,
+    use_apint: bool = False,
+    use_custom_vec: bool = False,
+    use_llvm_kb: bool = False,
+) -> None:
+    global autogen
+    autogen = 0
 
+    # set options
+    set_use_apint(use_apint)
+    set_use_custom_vec(use_custom_vec)
+    set_use_llvm_kb(use_llvm_kb)
 
-def addDispatcher(fout: TextIO, is_forward: bool):
-    global needDispatch
-    if len(needDispatch) != 0:
-        # print(lowerDispatcher(needDispatch))
-        fout.write(lowerDispatcher(needDispatch, is_forward))
-
-
-@dataclass(frozen=True)
-class LowerToCpp(ModulePass):
-    name = "trans_lower"
-    fout: TextIO = None
-
-    def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
-        walker = PatternRewriteWalker(
-            GreedyRewritePatternApplier([LowerOperation(self.fout)]),
-            walk_regions_first=False,
-            apply_recursively=True,
-            walk_reverse=False,
-        )
-        walker.rewrite_module(op)
+    PatternRewriteWalker(
+        GreedyRewritePatternApplier([LowerOperation(fout)]),
+        walk_regions_first=False,
+        apply_recursively=False,
+        walk_reverse=False,
+    ).rewrite_module(op)
