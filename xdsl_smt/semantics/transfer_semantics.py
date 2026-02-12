@@ -18,7 +18,7 @@ from xdsl.ir import Operation, SSAValue, Attribute
 from typing import cast, Mapping, Sequence
 from xdsl.utils.hints import isa
 from xdsl.utils.exceptions import VerifyException
-from xdsl.dialects.builtin import IntegerAttr, IntegerType, SymbolRefAttr
+from xdsl.dialects.builtin import IntegerAttr, IntegerType, NoneAttr, SymbolRefAttr
 from xdsl_smt.utils.transfer_to_smt_util import (
     get_low_bits,
     set_high_bits,
@@ -72,14 +72,12 @@ class TransferIntegerTypeSemantics(TypeSemantics):
             if not transfer.TransIntegerType.is_index_integer_attr(
                 cast(Attribute, width)
             ):
-                raise VerifyException(
-                    "transfer.integer width must be an index-typed integer"
-                )
+                raise VerifyException("width must be an index-typed integer")
             return smt_bv.BitVectorType(width.value.data)
         if isinstance(width, SymbolRefAttr):
-            raise VerifyException(
-                "Unresolved symbolic transfer.integer width encountered during lowering"
-            )
+            raise VerifyException("Unresolved width encountered during lowering")
+        if isinstance(width, NoneAttr):
+            raise VerifyException("Unresolved width encountered during lowering")
         raise VerifyException("transfer.integer has invalid width parameter")
 
 

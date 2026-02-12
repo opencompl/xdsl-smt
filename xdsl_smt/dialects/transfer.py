@@ -6,6 +6,7 @@ from xdsl.dialects.builtin import (
     IndexType,
     IntegerAttr,
     IntegerType,
+    NoneAttr,
     SymbolRefAttr,
 )
 from typing import ClassVar, Mapping, Sequence, cast, Any
@@ -66,7 +67,8 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
     @classmethod
     def parse_parameters(cls, parser: AttrParser) -> Sequence[Attribute]:
-        parser.parse_punctuation("<")
+        if not parser.parse_optional_punctuation("<"):
+            return (NoneAttr(),)
         if (
             width := parser.parse_optional_integer(
                 allow_boolean=False, allow_negative=False
@@ -80,9 +82,16 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
     def print_parameters(self, printer: Printer) -> None:
         width_attr = self._width_attr()
+        if isinstance(width_attr, NoneAttr):
+            return
         if self.is_index_integer_attr(width_attr):
             width_attr = cast(IntegerAttr[IndexType], width_attr)
             printer.print_string(f"<{width_attr.value.data}>")
+            return
+        if isinstance(width_attr, SymbolRefAttr):
+            printer.print_string("<")
+            printer.print_attribute(width_attr)
+            printer.print_string(">")
             return
         printer.print_string("<")
         printer.print_attribute(width_attr)
@@ -91,19 +100,21 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     def verify(self) -> None:
         super().verify()
         width_attr = self._width_attr()
+        if isinstance(width_attr, NoneAttr):
+            return
         if not isinstance(width_attr, (IntegerAttr, SymbolRefAttr)):
-            raise VerifyException(
-                "transfer.integer width must be an integer attr or symbol ref"
-            )
+            raise VerifyException("width must be an integer attr, symbol ref, or none")
+        if isinstance(width_attr, SymbolRefAttr):
+            if len(width_attr.nested_references.data) != 0:
+                raise VerifyException("width symbol must be a root symbol ref")
+            return
         if isinstance(width_attr, IntegerAttr) and not self.is_index_integer_attr(
             width_attr
         ):
-            raise VerifyException(
-                "transfer.integer width must be an index-typed integer"
-            )
+            raise VerifyException("width must be an index-typed integer")
 
-    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr:
-        return cast(IntegerAttr[IndexType] | SymbolRefAttr, self.width)
+    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr:
+        return cast(IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr, self.width)
 
     @staticmethod
     def is_index_integer_attr(attr: Attribute) -> bool:

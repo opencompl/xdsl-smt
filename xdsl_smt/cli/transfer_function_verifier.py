@@ -239,7 +239,7 @@ def get_concrete_function(
 
 
 def lower_to_smt_module(module: ModuleOp, width: int, ctx: Context):
-    ResolveTransferWidths(default_width=width).apply(ctx, module)
+    ResolveTransferWidths(width=width).apply(ctx, module)
     # lower to SMT
     SMTLowerer.rewrite_patterns = {
         **func_to_smt_patterns,
