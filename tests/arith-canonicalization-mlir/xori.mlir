@@ -3,7 +3,7 @@
 builtin.module {
     // xor(cmpi(pred, a, b), 1) -> cmpi(~pred, a, b)
     pdl.pattern @XOrINotCmpI : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
         %i64 = pdl.type : i64
 
         %predicate_attr = pdl.attribute : %i64
@@ -31,8 +31,8 @@ builtin.module {
 
     // xor extui(x), extui(y) -> extui(xor(x,y))
     pdl.pattern @XOrIOfExtUI : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 
@@ -60,8 +60,8 @@ builtin.module {
 
     // xor extsi(x), extsi(y) -> extsi(xor(x,y))
     pdl.pattern @XOrIOfExtSI : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 

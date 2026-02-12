@@ -3,8 +3,8 @@
 builtin.module {
     // and extui(x), extui(y) -> extui(and(x,y))
     pdl.pattern @AndOfExtUI : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 
@@ -32,8 +32,8 @@ builtin.module {
 
     // and extsi(x), extsi(y) -> extsi(and(x,y))
     pdl.pattern @AndOfExtSI : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 

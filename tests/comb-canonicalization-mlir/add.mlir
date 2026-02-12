@@ -5,7 +5,7 @@
 
 // add(a, b, 0) -> add(a, b)
 pdl.pattern @AddZero : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %a = pdl.operand : %t
     %b = pdl.operand : %t
 
@@ -24,7 +24,7 @@ pdl.pattern @AddZero : benefit(0) {
 
 // add(x, cst1, cst2) -> add(x, cst1 + cst2)
 pdl.pattern @AddConstantFolding : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
     %cst1_attr = pdl.attribute : %t
@@ -48,7 +48,7 @@ pdl.pattern @AddConstantFolding : benefit(0) {
 
 // add(..., x, x) -> add(..., shl(x, 1))
 pdl.pattern @AddTwice : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %a = pdl.operand : %t
     %x = pdl.operand : %t
 
@@ -69,7 +69,7 @@ pdl.pattern @AddTwice : benefit(0) {
 
 // add(..., x, shl(x, c)) -> add(..., mul(x, (1 << c) + 1))
 pdl.pattern @AddShift : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %a = pdl.operand : %t
     %x = pdl.operand : %t
 
@@ -99,7 +99,7 @@ pdl.pattern @AddShift : benefit(0) {
 
 // add(..., x, mul(x, c)) -> add(..., mul(x, c + 1))
 pdl.pattern @AddMul : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %a = pdl.operand : %t
     %x = pdl.operand : %t
 
@@ -128,7 +128,7 @@ pdl.pattern @AddMul : benefit(0) {
 
 // add(x, add(val1, val2)) -> add(x, val1, val2) -- flatten
 pdl.pattern @AddFlatten : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
     %val2 = pdl.operand : %t
@@ -146,7 +146,7 @@ pdl.pattern @AddFlatten : benefit(0) {
 
 // add(add(x, c1), c2) -> add(x, c1 + c2)
 pdl.pattern @AddFolding : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
     %cst1_attr = pdl.attribute : %t

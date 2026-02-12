@@ -9,8 +9,9 @@ from xdsl.dialects.builtin import (
     ModuleOp,
     IndexType,
     NoneAttr,
+    FunctionType,
 )
-from xdsl.ir import Attribute, Operation
+from xdsl.ir import Attribute, Operation, ParametrizedAttribute
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -24,31 +25,52 @@ from xdsl_smt.dialects.transfer import TransIntegerType
 
 
 def _resolve_symbolic_widths(attr: Attribute, width_map: dict[str, int]) -> Attribute:
-    assert isinstance(attr, TransIntegerType)
-    assert not isinstance(attr.width, NoneAttr)
-
-    if isinstance(attr.width, SymbolRefAttr):
-        assert len(attr.width.nested_references.data) == 0
-        sym_name = attr.width.root_reference.data
-        if sym_name in width_map:
+    if isinstance(attr, TransIntegerType):
+        assert not isinstance(attr.width, NoneAttr)
+        if isinstance(attr.width, SymbolRefAttr):
+            assert len(attr.width.nested_references.data) == 0
+            sym_name = attr.width.root_reference.data
+            assert sym_name in width_map
             return TransIntegerType(IntegerAttr(width_map[sym_name], IndexType()))
-        raise VerifyException(f"Unresolved transfer.integer width symbol @{sym_name}")
-
-    if isinstance(attr.width, IntegerAttr):
+        assert isinstance(attr.width, IntegerAttr)
         return attr
+    if isinstance(attr, FunctionType):
+        new_inputs = tuple(_resolve_symbolic_widths(t, width_map) for t in attr.inputs)
+        new_outputs = tuple(
+            _resolve_symbolic_widths(t, width_map) for t in attr.outputs
+        )
+        if new_inputs == attr.inputs and new_outputs == attr.outputs:
+            return attr
+        return FunctionType.from_lists(new_inputs, new_outputs)
+    if isinstance(attr, ParametrizedAttribute):
+        new_params = [_resolve_symbolic_widths(p, width_map) for p in attr.parameters]
+        if all(p1 is p2 for p1, p2 in zip(new_params, attr.parameters, strict=True)):
+            return attr
+        return attr.new(new_params)
 
-    raise VerifyException("transfer.integer has invalid width parameter")
+    return attr
 
 
 def _resolve_legacy_widths(attr: Attribute, width: int) -> Attribute:
-    assert isinstance(attr, TransIntegerType)
-    assert not isinstance(attr.width, SymbolRefAttr)
-    if isinstance(attr.width, NoneAttr):
-        return TransIntegerType(IntegerAttr(width, IndexType()))
-    if isinstance(attr.width, IntegerAttr):
+    if isinstance(attr, TransIntegerType):
+        assert not isinstance(attr.width, SymbolRefAttr)
+        if isinstance(attr.width, NoneAttr):
+            return TransIntegerType(IntegerAttr(width, IndexType()))
+        assert isinstance(attr.width, IntegerAttr)
         return attr
+    if isinstance(attr, FunctionType):
+        new_inputs = tuple(_resolve_legacy_widths(t, width) for t in attr.inputs)
+        new_outputs = tuple(_resolve_legacy_widths(t, width) for t in attr.outputs)
+        if new_inputs == attr.inputs and new_outputs == attr.outputs:
+            return attr
+        return FunctionType.from_lists(new_inputs, new_outputs)
+    if isinstance(attr, ParametrizedAttribute):
+        new_params = [_resolve_legacy_widths(p, width) for p in attr.parameters]
+        if all(p1 is p2 for p1, p2 in zip(new_params, attr.parameters, strict=True)):
+            return attr
+        return attr.new(new_params)
 
-    raise VerifyException("transfer.integer has invalid width parameter")
+    return attr
 
 
 def _parse_width_map_spec(spec: str) -> dict[str, int]:
@@ -151,19 +173,34 @@ class ResolveTransferWidths(ModulePass):
             if only_key.isdigit() and len(only_val) == 0:
                 return cls(width=int(only_key))
         width_map_spec: str | None = None
+        width_value: int | None = None
         if "width_map" in args:
             arg = args.pop("width_map")
             if len(arg) == 0:
                 width_map_spec = ""
             else:
                 width_map_spec = ",".join(str(v) for v in arg)
+        if "width" in args:
+            arg = args.pop("width")
+            if len(arg) != 1:
+                raise ValueError('Expected a single value for "width"')
+            value = str(arg[0]).strip()
+            if not value.isdigit():
+                raise ValueError(f'Invalid width value "{value}"')
+            width_value = int(value)
+            if width_value <= 0:
+                raise ValueError("Width must be positive")
+        if width_map_spec is not None and width_value is not None:
+            raise ValueError('Args "width_map" and "width" are exclusive')
         if len(args) != 0:
             args_str = ", ".join(f'"{arg}"' for arg in args)
-            raise ValueError(f"Args [{args_str}] not found in expected ['width_map']")
+            raise ValueError(
+                f"Args [{args_str}] not found in expected ['width_map', 'width']"
+            )
         if width_map_spec is None:
-            return cls()
+            return cls(width=width_value)
         width_map = _parse_width_map_spec(width_map_spec)
-        return cls(width_map=width_map)
+        return cls(width_map=width_map, width=width_value)
 
     def apply(self, ctx: Context, op: ModuleOp):
         if self.width is not None:

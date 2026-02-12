@@ -4,7 +4,7 @@ builtin.module {
     // select(not(pred), a, b) => select(pred, b, a)
     pdl.pattern @SelectNotCond : benefit(0) {
         %i1 = pdl.type : i1
-        %type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
 
         %pred = pdl.operand : %i1
         %a = pdl.operand : %type
@@ -28,7 +28,7 @@ builtin.module {
     // select(pred, select(pred, a, b), c) => select(pred, a, c)
     pdl.pattern @RedundantSelectTrue : benefit(0) {
         %i1 = pdl.type : i1
-        %type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
 
         %pred = pdl.operand : %i1
         %a = pdl.operand : %type
@@ -49,7 +49,7 @@ builtin.module {
     // select(pred, a, select(pred, b, c)) => select(pred, a, c)
     pdl.pattern @RedundantSelectFalse : benefit(0) {
         %i1 = pdl.type : i1
-        %type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
 
         %pred = pdl.operand : %i1
         %a = pdl.operand : %type

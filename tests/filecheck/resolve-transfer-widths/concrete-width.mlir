@@ -1,4 +1,4 @@
-// RUN: xdsl-smt %s -p=resolve-transfer-widths | filecheck %s
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width=8} | filecheck %s
 
 "builtin.module"() ({
   "func.func"() ({

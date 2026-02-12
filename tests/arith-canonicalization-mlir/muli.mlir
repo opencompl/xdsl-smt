@@ -3,7 +3,7 @@
 builtin.module {
     // muli(muli(x, c0), c1) -> muli(x, c0 * c1)
     pdl.pattern @MulIMulIConstant : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
         %c1_attr = pdl.attribute : %type

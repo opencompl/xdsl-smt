@@ -3,8 +3,8 @@
 builtin.module {
     // cmpi(==, a extsi iNN, b extsi iNN) -> cmpi(==, a, b)
     pdl.pattern @CmpIExtSIEq : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 
@@ -29,8 +29,8 @@ builtin.module {
 
     // cmpi(!=, a extsi iNN, b extsi iNN) -> cmpi(!=, a, b)
     pdl.pattern @CmpIExtSINe : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 
@@ -55,8 +55,8 @@ builtin.module {
 
     // cmpi(==, a extui iNN, b extui iNN) -> cmpi(==, a, b)
     pdl.pattern @CmpIExtUIEq : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 
@@ -81,8 +81,8 @@ builtin.module {
 
     // cmpi(!=, a extui iNN, b extui iNN) -> cmpi(!=, a, b)
     pdl.pattern @CmpIExtUINe : benefit(0) {
-        %type = pdl.type : !transfer.integer<8>
-        %new_type = pdl.type : !transfer.integer<8>
+        %type = pdl.type : !transfer.integer
+        %new_type = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%new_type, %type : !pdl.type, !pdl.type)
 

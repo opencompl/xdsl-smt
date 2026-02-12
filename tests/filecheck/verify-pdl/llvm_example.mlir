@@ -4,7 +4,7 @@
 
 builtin.module {
   pdl.pattern @llvm_example : benefit(0) {
-    %type = pdl.type : !transfer.integer<8>
+    %type = pdl.type : !transfer.integer
 
     // Get the constants 0, 1, C and C + 1 as attributes
     %C_attr = pdl.attribute : %type

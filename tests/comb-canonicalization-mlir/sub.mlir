@@ -4,7 +4,7 @@
 
 // sub(x, cst) -> add(x, -cst)
 pdl.pattern @SubCst : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
     %cst_attr = pdl.attribute : %t

@@ -7,7 +7,7 @@
 
 // or(x, or(val1, val2)) -> or(x, val1, val2) -- flatten
 pdl.pattern @OrFlatten : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
     %val2 = pdl.operand : %t
@@ -25,7 +25,7 @@ pdl.pattern @OrFlatten : benefit(0) {
 
 // or(x, val1, x) -> or(x, val1) -- idempotent
 pdl.pattern @OrIdempotent : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
     %val1 = pdl.operand : %t
 
@@ -39,7 +39,7 @@ pdl.pattern @OrIdempotent : benefit(0) {
 
 // or(x, 0, y) -> or(x, y)
 pdl.pattern @OrMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
     %y = pdl.operand : %t
 
@@ -59,7 +59,7 @@ pdl.pattern @OrMinusOne : benefit(0) {
 
 // or(x, 0) -> x
 pdl.pattern @OrMinusOne : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
     %cst_attr = pdl.attribute : %t
@@ -77,7 +77,7 @@ pdl.pattern @OrMinusOne : benefit(0) {
 
 // or(x, cst1, cst2) -> or(x, cst1 | cst2)
 pdl.pattern @OrConstantFolding : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %x = pdl.operand : %t
 
     %cst1_attr = pdl.attribute : %t
@@ -102,8 +102,8 @@ pdl.pattern @OrConstantFolding : benefit(0) {
 // or(concat(x, cst1), a, b, c, cst2)
 //    ==> or(a, b, c, concat(or(x,cst2'), or(cst1,cst2'')).
 pdl.pattern @OrConcatCst : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
-    %t_left = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
+    %t_left = pdl.type : !transfer.integer
     %i32 = pdl.type : i32
 
     pdl.apply_native_constraint "is_greater_integer_type"(%t, %t_left : !pdl.type, !pdl.type)
@@ -193,7 +193,7 @@ pdl.pattern @OrCommonOperand : benefit(0) {
 // or(mux(c_1, a, 0), mux(c_2, a, 0), ..., mux(c_n, a, 0)) -> mux(or(c_1, c_2, .., c_n), a, 0)
 // This is only implemented with 3 values, as we do not have variadics yet
 pdl.pattern @OrMuxSwap : benefit(0) {
-    %t = pdl.type : !transfer.integer<8>
+    %t = pdl.type : !transfer.integer
     %i1 = pdl.type : i1
 
     %a = pdl.operand : %t

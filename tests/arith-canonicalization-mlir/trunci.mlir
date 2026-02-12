@@ -3,9 +3,9 @@
 builtin.module {
     // trunci(extsi(x)) -> extsi(x), when only the sign-extension bits are truncated
     pdl.pattern @TruncIExtSIToExtSI : benefit(0) {
-        %iN = pdl.type : !transfer.integer<8>
-        %iM = pdl.type : !transfer.integer<8>
-        %iL = pdl.type : !transfer.integer<8>
+        %iN = pdl.type : !transfer.integer
+        %iM = pdl.type : !transfer.integer
+        %iL = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%iN, %iM : !pdl.type, !pdl.type)
         pdl.apply_native_constraint "is_greater_integer_type"(%iM, %iL : !pdl.type, !pdl.type)
@@ -25,9 +25,9 @@ builtin.module {
 
     // trunci(extui(x)) -> extui(x), when only the zero-extension bits are truncated
     pdl.pattern @TruncIExtUIToExtUI : benefit(0) {
-        %iN = pdl.type : !transfer.integer<8>
-        %iM = pdl.type : !transfer.integer<8>
-        %iL = pdl.type : !transfer.integer<8>
+        %iN = pdl.type : !transfer.integer
+        %iM = pdl.type : !transfer.integer
+        %iL = pdl.type : !transfer.integer
 
         pdl.apply_native_constraint "is_greater_integer_type"(%iN, %iM : !pdl.type, !pdl.type)
         pdl.apply_native_constraint "is_greater_integer_type"(%iM, %iL : !pdl.type, !pdl.type)
@@ -47,8 +47,8 @@ builtin.module {
 
     // trunci(shrsi(x, c)) -> trunci(shrui(x, c)) if c is the number of bits truncated
     pdl.pattern @TruncIShrSIToTrunciShrUI : benefit(0) {
-        %iN = pdl.type : !transfer.integer<8>
-        %iM = pdl.type : !transfer.integer<8>
+        %iN = pdl.type : !transfer.integer
+        %iM = pdl.type : !transfer.integer
         %i32 = pdl.type : i32
 
         pdl.apply_native_constraint "is_greater_integer_type"(%iN, %iM : !pdl.type, !pdl.type)
