@@ -11,7 +11,8 @@ from xdsl.dialects.builtin import (
     NoneAttr,
     FunctionType,
 )
-from xdsl.ir import Attribute, Operation, ParametrizedAttribute
+from xdsl.dialects.func import FuncOp
+from xdsl.ir import Attribute, Operation
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     RewritePattern,
@@ -21,7 +22,7 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.parse_pipeline import PipelinePassSpec
 
-from xdsl_smt.dialects.transfer import TransIntegerType
+from xdsl_smt.dialects.transfer import AbstractValueType, TransIntegerType
 
 
 def _resolve_symbolic_widths(attr: Attribute, width_map: dict[str, int]) -> Attribute:
@@ -34,19 +35,13 @@ def _resolve_symbolic_widths(attr: Attribute, width_map: dict[str, int]) -> Attr
             return TransIntegerType(IntegerAttr(width_map[sym_name], IndexType()))
         assert isinstance(attr.width, IntegerAttr)
         return attr
-    if isinstance(attr, FunctionType):
-        new_inputs = tuple(_resolve_symbolic_widths(t, width_map) for t in attr.inputs)
-        new_outputs = tuple(
-            _resolve_symbolic_widths(t, width_map) for t in attr.outputs
+    if isinstance(attr, AbstractValueType):
+        new_fields = tuple(
+            _resolve_symbolic_widths(t, width_map) for t in attr.fields.data
         )
-        if new_inputs == attr.inputs and new_outputs == attr.outputs:
+        if new_fields == attr.fields.data:
             return attr
-        return FunctionType.from_lists(new_inputs, new_outputs)
-    if isinstance(attr, ParametrizedAttribute):
-        new_params = [_resolve_symbolic_widths(p, width_map) for p in attr.parameters]
-        if all(p1 is p2 for p1, p2 in zip(new_params, attr.parameters, strict=True)):
-            return attr
-        return attr.new(new_params)
+        return AbstractValueType(list(new_fields))
 
     return attr
 
@@ -58,17 +53,11 @@ def _resolve_legacy_widths(attr: Attribute, width: int) -> Attribute:
             return TransIntegerType(IntegerAttr(width, IndexType()))
         assert isinstance(attr.width, IntegerAttr)
         return attr
-    if isinstance(attr, FunctionType):
-        new_inputs = tuple(_resolve_legacy_widths(t, width) for t in attr.inputs)
-        new_outputs = tuple(_resolve_legacy_widths(t, width) for t in attr.outputs)
-        if new_inputs == attr.inputs and new_outputs == attr.outputs:
+    if isinstance(attr, AbstractValueType):
+        new_fields = tuple(_resolve_legacy_widths(t, width) for t in attr.fields.data)
+        if new_fields == attr.fields.data:
             return attr
-        return FunctionType.from_lists(new_inputs, new_outputs)
-    if isinstance(attr, ParametrizedAttribute):
-        new_params = [_resolve_legacy_widths(p, width) for p in attr.parameters]
-        if all(p1 is p2 for p1, p2 in zip(new_params, attr.parameters, strict=True)):
-            return attr
-        return attr.new(new_params)
+        return AbstractValueType(list(new_fields))
 
     return attr
 
@@ -123,6 +112,16 @@ class ResolveSymbolicWidthsPattern(RewritePattern):
             if new_attr != attr:
                 op.properties[name] = new_attr
                 has_done_action = True
+        if isinstance(op, FuncOp):
+            new_inputs = tuple(arg.type for arg in op.body.block.args)
+            new_outputs = tuple(
+                _resolve_symbolic_widths(t, self.width_map)
+                for t in op.function_type.outputs
+            )
+            new_type = FunctionType.from_lists(new_inputs, new_outputs)
+            if new_type != op.function_type:
+                op.function_type = new_type
+                has_done_action = True
         if has_done_action:
             rewriter.handle_operation_modification(op)
 
@@ -154,6 +153,15 @@ class ResolveLegacyWidthsPattern(RewritePattern):
             new_attr = _resolve_legacy_widths(attr, self.width)
             if new_attr != attr:
                 op.properties[name] = new_attr
+                has_done_action = True
+        if isinstance(op, FuncOp):
+            new_inputs = tuple(arg.type for arg in op.body.block.args)
+            new_outputs = tuple(
+                _resolve_legacy_widths(t, self.width) for t in op.function_type.outputs
+            )
+            new_type = FunctionType.from_lists(new_inputs, new_outputs)
+            if new_type != op.function_type:
+                op.function_type = new_type
                 has_done_action = True
         if has_done_action:
             rewriter.handle_operation_modification(op)
