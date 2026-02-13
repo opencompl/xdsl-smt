@@ -6,9 +6,10 @@ from xdsl.dialects.builtin import (
     IndexType,
     IntegerAttr,
     IntegerType,
-    i1,
+    NoneAttr,
+    SymbolRefAttr,
 )
-from typing import ClassVar, Mapping, Sequence
+from typing import ClassVar, Mapping, Sequence, cast, Any
 
 from xdsl.ir import (
     ParametrizedAttribute,
@@ -20,6 +21,8 @@ from xdsl.ir import (
     SSAValue,
 )
 from xdsl.utils.hints import isa
+from xdsl.parser import AttrParser
+from xdsl.printer import Printer
 
 from xdsl.irdl import (
     attr_def,
@@ -53,28 +56,76 @@ from xdsl.traits import (
 @irdl_attr_definition
 class TransIntegerType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.integer"
+    width: Attribute = param_def(AnyAttr())
+
+    def __init__(self, width: int | Attribute):
+        if isinstance(width, int):
+            width_attr = IntegerAttr(width, IndexType())
+        else:
+            width_attr = width
+        super().__init__(width_attr)
+
+    @classmethod
+    def parse_parameters(cls, parser: AttrParser) -> Sequence[Attribute]:
+        if not parser.parse_optional_punctuation("<"):
+            return (NoneAttr(),)
+        if (
+            width := parser.parse_optional_integer(
+                allow_boolean=False, allow_negative=False
+            )
+        ) is not None:
+            parser.parse_punctuation(">")
+            return (IntegerAttr(width, IndexType()),)
+        width = parser.parse_attribute()
+        parser.parse_punctuation(">")
+        return (width,)
+
+    def print_parameters(self, printer: Printer) -> None:
+        width_attr = self._width_attr()
+        if isinstance(width_attr, NoneAttr):
+            return
+        if self.is_index_integer_attr(width_attr):
+            width_attr = cast(IntegerAttr[IndexType], width_attr)
+            printer.print_string(f"<{width_attr.value.data}>")
+            return
+        if isinstance(width_attr, SymbolRefAttr):
+            printer.print_string("<")
+            printer.print_attribute(width_attr)
+            printer.print_string(">")
+            return
+        printer.print_string("<")
+        printer.print_attribute(width_attr)
+        printer.print_string(">")
+
+    def verify(self) -> None:
+        super().verify()
+        width_attr = self._width_attr()
+        if isinstance(width_attr, NoneAttr):
+            return
+        if not isinstance(width_attr, (IntegerAttr, SymbolRefAttr)):
+            raise VerifyException("width must be an integer attr, symbol ref, or none")
+        if isinstance(width_attr, SymbolRefAttr):
+            if len(width_attr.nested_references.data) != 0:
+                raise VerifyException("width symbol must be a root symbol ref")
+            return
+        if isinstance(width_attr, IntegerAttr) and not self.is_index_integer_attr(
+            width_attr
+        ):
+            raise VerifyException("width must be an index-typed integer")
+
+    def _width_attr(self) -> IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr:
+        return cast(IntegerAttr[IndexType] | SymbolRefAttr | NoneAttr, self.width)
+
+    @staticmethod
+    def is_index_integer_attr(attr: Attribute) -> bool:
+        if not isinstance(attr, IntegerAttr):
+            return False
+        attr_type = cast(Any, attr).type
+        return isinstance(attr_type, IndexType)
 
 
-@irdl_op_definition
-class AddPoisonOp(IRDLOperation):
-    name = "transfer.add_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
-
-@irdl_op_definition
-class RemovePoisonOp(IRDLOperation):
-    name = "transfer.remove_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
+def _transfer_bool_type() -> TransIntegerType:
+    return TransIntegerType(IntegerAttr(1, IndexType()))
 
 
 @irdl_op_definition
@@ -186,7 +237,7 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
 
     lhs: Operand = operand_def(T)
     rhs: Operand = operand_def(T)
-    result: OpResult = result_def(i1)
+    result: OpResult = result_def(_transfer_bool_type())
 
     @staticmethod
     def infer_result_type(
@@ -194,7 +245,7 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
     ) -> Sequence[Attribute]:
         match operand_types:
             case [_, _]:
-                return [i1]
+                return [_transfer_bool_type()]
             case _:
                 raise VerifyException("Bin operation expects exactly two operands")
 
@@ -204,7 +255,11 @@ class PredicateOp(IRDLOperation, InferResultTypeInterface, ABC):
         rhs: SSAValue,
         attributes: dict[str, Attribute] = {},
     ):
-        super().__init__(operands=[lhs, rhs], result_types=[i1], attributes=attributes)
+        super().__init__(
+            operands=[lhs, rhs],
+            result_types=[_transfer_bool_type()],
+            attributes=attributes,
+        )
 
 
 @irdl_op_definition
@@ -402,6 +457,39 @@ class ExtractOp(IRDLOperation):
         )
 
 
+class CastOp(IRDLOperation, ABC):
+    T: ClassVar = VarConstraint("T", irdl_to_attr_constraint(TransIntegerType))
+    U: ClassVar = VarConstraint("U", irdl_to_attr_constraint(TransIntegerType))
+
+    op: Operand = operand_def(T)
+    result: OpResult = result_def(U)
+
+    def __init__(
+        self,
+        op: SSAValue,
+        result_type: Attribute,
+    ):
+        super().__init__(
+            operands=[op],
+            result_types=[result_type],
+        )
+
+
+@irdl_op_definition
+class TruncOp(CastOp):
+    name = "transfer.trunc"
+
+
+@irdl_op_definition
+class ZExtOp(CastOp):
+    name = "transfer.zext"
+
+
+@irdl_op_definition
+class SExtOp(CastOp):
+    name = "transfer.sext"
+
+
 @irdl_op_definition
 class GetLowBitsOp(BinOp):
     """
@@ -478,7 +566,7 @@ class UnaryPredicateOp(IRDLOperation):
     )
 
     val: Operand = operand_def(T)
-    result: OpResult = result_def(i1)
+    result: OpResult = result_def(_transfer_bool_type())
 
     def __init__(
         self,
@@ -486,7 +574,7 @@ class UnaryPredicateOp(IRDLOperation):
     ):
         super().__init__(
             operands=[val],
-            result_types=[i1],
+            result_types=[_transfer_bool_type()],
         )
 
 
@@ -667,7 +755,7 @@ class SelectOp(IRDLOperation):
         "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
     )
 
-    cond: Operand = operand_def(IntegerType(1))
+    cond: Operand = operand_def(_transfer_bool_type())
     true_value: Operand = operand_def(T)
     false_value: Operand = operand_def(T)
     result: OpResult = result_def(T)
@@ -849,14 +937,15 @@ Transfer = Dialect(
         ConcatOp,
         RepeatOp,
         ExtractOp,
+        TruncOp,
+        ZExtOp,
+        SExtOp,
         ConstRangeForOp,
         NextLoopOp,
         GetAllOnesOp,
         GetSignedMaxValueOp,
         GetSignedMinValueOp,
         IntersectsOp,
-        AddPoisonOp,
-        RemovePoisonOp,
         ReverseBitsOp,
     ],
     [TransIntegerType, AbstractValueType, TupleType],

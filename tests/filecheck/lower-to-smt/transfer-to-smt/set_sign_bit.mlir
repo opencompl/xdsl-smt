@@ -1,5 +1,5 @@
-// RUN: xdsl-smt %s -p=lower-to-smt,canonicalize,dce | filecheck %s
-// RUN: xdsl-smt %s -p=lower-to-smt,lower-effects,canonicalize,dce,merge-func-results -t=smt | z3 -in
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width=8},lower-to-smt,canonicalize,dce | filecheck %s
+// RUN: xdsl-smt %s -p=resolve-transfer-widths{width=8},lower-to-smt,lower-effects,canonicalize,dce,merge-func-results -t=smt | z3 -in
 
 "builtin.module"() ({
   "func.func"() ({
