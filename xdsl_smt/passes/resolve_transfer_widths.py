@@ -22,7 +22,11 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.parse_pipeline import PipelinePassSpec
 
-from xdsl_smt.dialects.transfer import AbstractValueType, TransIntegerType
+from xdsl_smt.dialects.transfer import (
+    AbstractValueType,
+    TransIntegerType,
+    TupleType,
+)
 
 
 def _resolve_symbolic_widths(attr: Attribute, width_map: dict[str, int]) -> Attribute:
@@ -42,6 +46,13 @@ def _resolve_symbolic_widths(attr: Attribute, width_map: dict[str, int]) -> Attr
         if new_fields == attr.fields.data:
             return attr
         return AbstractValueType(list(new_fields))
+    if isinstance(attr, TupleType):
+        new_fields = tuple(
+            _resolve_symbolic_widths(t, width_map) for t in attr.fields.data
+        )
+        if new_fields == attr.fields.data:
+            return attr
+        return TupleType(list(new_fields))
 
     return attr
 
@@ -58,6 +69,11 @@ def _resolve_legacy_widths(attr: Attribute, width: int) -> Attribute:
         if new_fields == attr.fields.data:
             return attr
         return AbstractValueType(list(new_fields))
+    if isinstance(attr, TupleType):
+        new_fields = tuple(_resolve_legacy_widths(t, width) for t in attr.fields.data)
+        if new_fields == attr.fields.data:
+            return attr
+        return TupleType(list(new_fields))
 
     return attr
 
