@@ -533,6 +533,56 @@ class IsPowerOf2OpSemantics(OperationSemantics):
         return ((res.res,), effect_state)
 
 
+class IsAllOnesOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        assert isinstance(lhs_type := operands[0].type, smt_bv.BitVectorType)
+        width = lhs_type.width
+        all_ones = smt_bv.ConstantOp((1 << width.data) - 1, width)
+        eq_op = smt.EqOp(operands[0], all_ones.res)
+
+        bv0 = smt_bv.ConstantOp.from_int_value(0, 1)
+        bv1 = smt_bv.ConstantOp.from_int_value(1, 1)
+        ite_op = smt.IteOp(eq_op.res, bv1.res, bv0.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(ite_op.res, poison_op.result)
+
+        rewriter.insert_op_before_matched_op(
+            [all_ones, eq_op, bv0, bv1, ite_op, poison_op, res]
+        )
+        return ((res.res,), effect_state)
+
+
+class IsNegativeOpSemantics(OperationSemantics):
+    def get_semantics(
+        self,
+        operands: Sequence[SSAValue],
+        results: Sequence[Attribute],
+        attributes: Mapping[str, Attribute | SSAValue],
+        effect_state: SSAValue | None,
+        rewriter: PatternRewriter,
+    ) -> tuple[Sequence[SSAValue], SSAValue | None]:
+        neg_ops = is_negative(operands[0])
+        neg_res = neg_ops[-1].results[0]
+
+        bv0 = smt_bv.ConstantOp.from_int_value(0, 1)
+        bv1 = smt_bv.ConstantOp.from_int_value(1, 1)
+        ite_op = smt.IteOp(neg_res, bv1.res, bv0.res)
+        poison_op = smt.ConstantBoolOp(False)
+        res = PairOp(ite_op.res, poison_op.result)
+
+        rewriter.insert_op_before_matched_op(
+            neg_ops + [bv0, bv1, ite_op, poison_op, res]
+        )
+        return ((res.res,), effect_state)
+
+
 class CmpOpSemantics(OperationSemantics):
     new_ops = [
         smt.EqOp,
@@ -1064,6 +1114,8 @@ transfer_semantics: dict[type[Operation], OperationSemantics] = {
     transfer.ClearLowBitsOp: ClearLowBitsOpSemantics(),
     transfer.SelectOp: SelectOpSemantics(),
     transfer.IsPowerOf2Op: IsPowerOf2OpSemantics(),
+    transfer.IsAllOnesOp: IsAllOnesOpSemantics(),
+    transfer.IsNegativeOp: IsNegativeOpSemantics(),
     transfer.GetAllOnesOp: GetAllOnesOpSemantics(),
     transfer.GetSignedMaxValueOp: GetSignedMaxValueOpSemantics(),
     transfer.GetSignedMinValueOp: GetSignedMinValueOpSemantics(),
