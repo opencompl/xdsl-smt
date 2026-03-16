@@ -35,6 +35,7 @@ sanity-checker = "xdsl_smt.cli.sanity_checker:main"
 superoptimize = "xdsl_smt.cli.superoptimize:main"
 xdsl-smt-run = "xdsl_smt.cli.xdsl_smt_run:main"
 convert-pdl-to-dialect = "xdsl_smt.cli.convert_pdl_to_dialect:main"
+transfer-to-pbv = "xdsl_smt.cli.transfer_to_pbv:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
