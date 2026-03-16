@@ -686,9 +686,14 @@ class PopCountOpSemantics(OperationSemantics):
         for i in range(width.data):
             extract = smt_bv.ExtractOp(operand, i, i)
             ops.append(extract)
-            zext = smt_bv.ZeroExtendOp(extract.res, bv_type)
-            ops.append(zext)
-            add = smt_bv.AddOp(acc, zext.res)
+            if width.data == 1:
+                extract_res = extract.res
+            else:
+                zext = smt_bv.ZeroExtendOp(extract.res, bv_type)
+                extract_res = zext.res
+                ops.append(zext)
+
+            add = smt_bv.AddOp(acc, extract_res)
             ops.append(add)
             acc = add.res
 
