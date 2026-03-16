@@ -49,19 +49,19 @@
 
   // ---- Signed-specific cases with negative operands ----
 
-  // Case 6: (-13) srem 5  ==>  2
+  // Case 6: (-13) srem 5  ==>  -3
   %f = "smt.bv.srem"(%cneg13, %five) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
   %f_eq = "smt.eq"(%f, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   "smt.assert"(%f_eq) : (!smt.bool) -> ()
-  // CHECK-NEXT: %f = smt.bv.constant #smt.bv<2> : !smt.bv<8>
+  // CHECK-NEXT: %f = smt.bv.constant #smt.bv<253> : !smt.bv<8>
   // CHECK-NEXT: %f_eq = "smt.eq"(%f, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%f_eq) : (!smt.bool) -> ()
 
-  // Case 7: 13 srem (-5)  ==>  -2
+  // Case 7: 13 srem (-5)  ==>  3
   %g = "smt.bv.srem"(%c13, %cneg5) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
   %g_eq = "smt.eq"(%g, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   "smt.assert"(%g_eq) : (!smt.bool) -> ()
-  // CHECK-NEXT: %g = smt.bv.constant #smt.bv<254> : !smt.bv<8>
+  // CHECK-NEXT: %g = smt.bv.constant #smt.bv<3> : !smt.bv<8>
   // CHECK-NEXT: %g_eq = "smt.eq"(%g, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
   // CHECK-NEXT: "smt.assert"(%g_eq) : (!smt.bool) -> ()
 

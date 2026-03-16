@@ -201,7 +201,14 @@ class SRemFold(RewritePattern):
 
         lhs = unsigned_to_signed(lhs, width)
 
-        value = wrap_value(lhs % rhs, width)
+        # bvsrem is signed remainder, which doesn't work like Python mod
+        # srem(a, b) = a - trunc(a / b) * b
+        q = abs(lhs) // abs(rhs)
+        if (lhs < 0) != (rhs < 0):
+            q = -q
+
+        rem = lhs - q * rhs
+        value = wrap_value(rem, width)
         rewriter.replace_matched_op(smt_bv.ConstantOp(value, type.width))
 
 
