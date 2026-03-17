@@ -12,7 +12,7 @@ from typing import Iterable
 from xdsl.ir import Dialect
 from xdsl.context import Context
 
-from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType
+from xdsl.dialects.builtin import Builtin, ModuleOp, IntegerType, SymbolRefAttr
 from xdsl.dialects.func import Func
 from xdsl.dialects.pdl import PDL, PatternOp, TypeOp
 from xdsl.dialects.arith import Arith
@@ -115,7 +115,7 @@ def iterate_on_all_integers(
             break
 
     for type_op in type_ops:
-        type_op.constantType = TransIntegerType()
+        type_op.constantType = TransIntegerType(SymbolRefAttr("W"))
 
 
 class OptMain(xDSLOptMain):

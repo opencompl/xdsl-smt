@@ -108,25 +108,6 @@ def smt_pure_lowering_pattern(
     return SMTPureLoweringPatternImpl
 
 
-class UMulOverflowOpPattern(smt_pure_lowering_pattern(transfer.UMulOverflowOp)):
-    def rewrite_pure(
-        self,
-        op: transfer.UMulOverflowOp,
-        rewriter: PatternRewriter,
-    ):
-        assert isinstance(op, transfer.UMulOverflowOp)
-        suml_nooverflow = smt_bv.UmulNoOverflowOp.get(op.operands[0], op.operands[1])
-
-        b1 = smt_bv.ConstantOp.from_int_value(1, 1)
-        b0 = smt_bv.ConstantOp.from_int_value(0, 1)
-        bool_to_bv = smt.IteOp(suml_nooverflow.res, b1.res, b0.res)
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bool_to_bv.res, poison_op.result)
-        rewriter.replace_matched_op(
-            [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
-        )
-
-
 class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
     new_ops = [
         smt.EqOp,
@@ -348,7 +329,6 @@ transfer_to_smt_patterns: dict[type[Operation], SMTLoweringRewritePattern] = {
     transfer.AddOp: trivial_pattern(transfer.AddOp, smt_bv.AddOp),
     transfer.MulOp: trivial_pattern(transfer.MulOp, smt_bv.MulOp),
     transfer.NegOp: trivial_pattern(transfer.NegOp, smt_bv.NotOp),
-    transfer.UMulOverflowOp: UMulOverflowOpPattern(),
     transfer.CmpOp: CmpOpPattern(),
     transfer.GetOp: GetOpPattern(),
     transfer.MakeOp: MakeOpPattern(),

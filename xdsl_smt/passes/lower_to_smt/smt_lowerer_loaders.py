@@ -43,9 +43,9 @@ from xdsl_smt.passes.lower_to_smt import (
 from xdsl_smt.dialects import smt_int_dialect as smt_int
 
 
-def load_vanilla_semantics_with_transfer(transfer_width: int):
+def load_vanilla_semantics_with_transfer():
     load_vanilla_semantics()
-    load_transfer_type_lowerer(transfer_width)
+    load_transfer_type_lowerer()
 
 
 def load_vanilla_semantics():
@@ -73,10 +73,10 @@ def load_vanilla_semantics():
     }
 
 
-def load_transfer_type_lowerer(transfer_width: int):
+def load_transfer_type_lowerer():
     SMTLowerer.type_lowerers = {
         **SMTLowerer.type_lowerers,
-        **{TransIntegerType: TransferIntegerTypeSemantics(transfer_width)},
+        **{TransIntegerType: TransferIntegerTypeSemantics()},
     }
 
 
