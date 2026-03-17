@@ -30,12 +30,11 @@ def abstract_value_type_lowerer(
     type: Attribute,
 ) -> PairType[Attribute, Attribute] | None:
     """Lower all types in an abstract value to SMT types
-    But the last element is useless, this makes GetOp easier"""
+    as a nested pair chain."""
     if isinstance(type, transfer.AbstractValueType):
-        result: PairType[Attribute, Attribute] = PairType(
-            SMTLowerer.lower_type(type.get_fields()[-1]), BoolType()
-        )
-        for ty in reversed(type.get_fields()[:-1]):
+        fields = type.get_fields()
+        result = SMTLowerer.lower_type(fields[-1])
+        for ty in reversed(fields[:-1]):
             result = PairType[Attribute, Attribute](SMTLowerer.lower_type(ty), result)
         return result
     return None
@@ -120,11 +119,7 @@ class UMulOverflowOpPattern(smt_pure_lowering_pattern(transfer.UMulOverflowOp)):
         b1 = smt_bv.ConstantOp.from_int_value(1, 1)
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(suml_nooverflow.res, b1.res, b0.res)
-        poison_op = smt.ConstantBoolOp(False)
-        res = PairOp(bool_to_bv.res, poison_op.result)
-        rewriter.replace_matched_op(
-            [suml_nooverflow, b0, b1, bool_to_bv, poison_op, res]
-        )
+        rewriter.replace_matched_op([suml_nooverflow, b0, b1, bool_to_bv])
 
 
 class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
@@ -158,10 +153,7 @@ class CmpOpPattern(smt_pure_lowering_pattern(transfer.CmpOp)):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(resList[-1].results[0], b1.results[0], b0.results[0])
 
-        poison_op = smt.ConstantBoolOp(False)
-        res_op = PairOp(bool_to_bv.results[0], poison_op.result)
-
-        resList += [b1, b0, bool_to_bv, poison_op, res_op]
+        resList += [b1, b0, bool_to_bv]
         rewriter.replace_matched_op(resList)
         # return resList
 
@@ -177,26 +169,28 @@ class GetOpPattern(smt_pure_lowering_pattern(transfer.GetOp)):
             rewriter.insert_op_before_matched_op(insertOps[-1])
             index -= 1
 
-        new_op = FirstOp(arg)
-        rewriter.replace_matched_op([new_op])
+        if isinstance(arg.type, PairType):
+            new_op = FirstOp(arg)
+            rewriter.replace_matched_op([new_op])
+            return
+
+        rewriter.replace_matched_op([], [arg])
 
 
 class MakeOpPattern(smt_pure_lowering_pattern(transfer.MakeOp)):
     def rewrite_pure(self, op: transfer.MakeOp, rewriter: PatternRewriter) -> None:
         argList = op.arguments
-        # The last element is useless, getOp won't access it
-        # So it can be any bool value
-        false_constant = smt.ConstantBoolOp(False)
-        opList: list[Operation] = [PairOp(argList[-1], false_constant.result)]
-        result = opList[-1].results[0]
+        result = argList[-1]
+        opList: list[Operation] = []
         for ty in reversed(argList[:-1]):
             opList.append(PairOp(ty, result))
             result = opList[-1].results[0]
 
-        rewriter.insert_op_before_matched_op(false_constant)
-        for newOp in opList[:-1]:
-            rewriter.insert_op_before_matched_op(newOp)
-        rewriter.replace_matched_op(opList[-1])
+        if opList:
+            rewriter.replace_matched_op(opList)
+            return
+
+        rewriter.replace_matched_op([], [result])
 
 
 class GetBitWidthOpPattern(smt_pure_lowering_pattern(transfer.GetBitWidthOp)):

@@ -36,9 +36,6 @@ from ..dialects.transfer import (
     RepeatOp,
     IntersectsOp,
     # FromArithOp,
-    TupleType,
-    AddPoisonOp,
-    RemovePoisonOp,
 )
 from xdsl.dialects.func import FuncOp, Return, Call
 from xdsl.pattern_rewriter import *
@@ -103,8 +100,6 @@ operNameToCpp = {
     "transfer.get_all_ones": "APInt::getAllOnes",
     "transfer.select": ["?", ":"],
     "transfer.reverse_bits": ".reverseBits",
-    "transfer.add_poison": " ",
-    "transfer.remove_poison": " ",
 }
 # transfer.constRangeLoop and NextLoop are controller operations, should be handle specially
 
@@ -127,7 +122,7 @@ def lowerType(typ, specialOp=None):
                 return "unsigned"
     if isinstance(typ, TransIntegerType):
         return "APInt"
-    elif isinstance(typ, AbstractValueType) or isinstance(typ, TupleType):
+    elif isinstance(typ, AbstractValueType):
         fields = typ.get_fields()
         typeName = lowerType(fields[0])
         for i in range(1, len(fields)):
@@ -827,35 +822,3 @@ def _(op: RepeatOp):
     )
     forEnd = indent + "}\n"
     return initExpr + forHead + forBody + forEnd
-
-
-@lowerOperation.register
-def _(op: AddPoisonOp):
-    returnedType = lowerType(op.results[0].type)
-    returnedValue = op.results[0].name_hint
-    opName = operNameToCpp[op.name]
-    return (
-        indent
-        + returnedType
-        + " "
-        + returnedValue
-        + " = "
-        + op.operands[0].name_hint
-        + ends
-    )
-
-
-@lowerOperation.register
-def _(op: RemovePoisonOp):
-    returnedType = lowerType(op.results[0].type)
-    returnedValue = op.results[0].name_hint
-    opName = operNameToCpp[op.name]
-    return (
-        indent
-        + returnedType
-        + " "
-        + returnedValue
-        + " = "
-        + op.operands[0].name_hint
-        + ends
-    )

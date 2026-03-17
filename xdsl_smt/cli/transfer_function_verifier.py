@@ -20,7 +20,6 @@ from ..dialects.smt_bitvector_dialect import (
 from xdsl_smt.dialects.transfer import (
     AbstractValueType,
     TransIntegerType,
-    TupleType,
 )
 from ..dialects.index_dialect import Index
 from ..dialects.smt_utils_dialect import SMTUtilsDialect
@@ -247,8 +246,6 @@ def lower_to_smt_module(module: ModuleOp, width: int, ctx: Context):
         IntegerType: IntegerTypeSemantics(),
         AbstractValueType: AbstractValueTypeSemantics(),
         TransIntegerType: TransferIntegerTypeSemantics(width),
-        # tuple and abstract use the same type lowerers
-        TupleType: AbstractValueTypeSemantics(),
     }
     SMTLowerer.op_semantics = {
         **arith_semantics,

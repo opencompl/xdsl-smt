@@ -56,28 +56,6 @@ class TransIntegerType(ParametrizedAttribute, TypeAttribute):
 
 
 @irdl_op_definition
-class AddPoisonOp(IRDLOperation):
-    name = "transfer.add_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
-
-@irdl_op_definition
-class RemovePoisonOp(IRDLOperation):
-    name = "transfer.remove_poison"
-    T: ClassVar = VarConstraint(
-        "T", irdl_to_attr_constraint(TransIntegerType | IntegerType)
-    )
-
-    op: Operand = operand_def(T)
-    result: OpResult = result_def(T)
-
-
-@irdl_op_definition
 class Constant(IRDLOperation, InferResultTypeInterface):
     name = "transfer.constant"
 
@@ -546,24 +524,7 @@ class CmpOp(PredicateOp):
 @irdl_attr_definition
 class AbstractValueType(ParametrizedAttribute, TypeAttribute):
     name = "transfer.abs_value"
-    fields: ArrayAttr[Attribute] = param_def()
-
-    def get_num_fields(self) -> int:
-        return len(self.fields.data)
-
-    def get_fields(self):
-        return [i for i in self.fields.data]
-
-    def __init__(self, shape: list[Attribute] | ArrayAttr[Attribute]) -> None:
-        if isinstance(shape, list):
-            shape = ArrayAttr(shape)
-        super().__init__(shape)
-
-
-@irdl_attr_definition
-class TupleType(ParametrizedAttribute, TypeAttribute):
-    name = "transfer.tuple"
-    fields: ArrayAttr[Attribute] = param_def()
+    fields: ArrayAttr[TransIntegerType] = param_def()
 
     def get_num_fields(self) -> int:
         return len(self.fields.data)
@@ -583,7 +544,7 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
 
     abs_val: Operand = operand_def(AbstractValueType)
     index: IntegerAttr[IndexType] = attr_def(IntegerAttr[IndexType])
-    result: OpResult = result_def(Attribute)
+    result: OpResult = result_def(TransIntegerType)
 
     @staticmethod
     def infer_result_type(
@@ -612,7 +573,7 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
         op: Operand,
         index: int,
     ):
-        assert isinstance(op.type, AbstractValueType) or isinstance(op.type, TupleType)
+        assert isinstance(op.type, AbstractValueType)
         ith_type = op.type.get_fields()[index]
         super().__init__(
             operands=[op],
@@ -625,7 +586,7 @@ class GetOp(IRDLOperation, InferResultTypeInterface):
 class MakeOp(IRDLOperation, InferResultTypeInterface):
     name = "transfer.make"
 
-    arguments: VarOperand = var_operand_def(Attribute)
+    arguments: VarOperand = var_operand_def(TransIntegerType)
     result: OpResult = result_def(AbstractValueType)
 
     @staticmethod
@@ -855,9 +816,7 @@ Transfer = Dialect(
         GetSignedMaxValueOp,
         GetSignedMinValueOp,
         IntersectsOp,
-        AddPoisonOp,
-        RemovePoisonOp,
         ReverseBitsOp,
     ],
-    [TransIntegerType, AbstractValueType, TupleType],
+    [TransIntegerType, AbstractValueType],
 )

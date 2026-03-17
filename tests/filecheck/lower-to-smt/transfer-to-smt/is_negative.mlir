@@ -17,10 +17,10 @@
 // CHECK-NEXT:     %3 = "smt.bv.slt"(%x, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
 // CHECK-NEXT:     %4 = smt.bv.constant #smt.bv<0> : !smt.bv<1>
 // CHECK-NEXT:     %5 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
-// CHECK-NEXT:     %6 = "smt.ite"(%3, %5, %4) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
-// CHECK-NEXT:     %7 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
-// CHECK-NEXT:     %8 = "smt.eq"(%6, %7) : (!smt.bv<1>, !smt.bv<1>) -> !smt.bool
-// CHECK-NEXT:     %r = "smt.ite"(%8, %x, %y) : (!smt.bool, !smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:     %neg = "smt.ite"(%3, %5, %4) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
+// CHECK-NEXT:     %6 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
+// CHECK-NEXT:     %7 = "smt.eq"(%neg, %6) : (!smt.bv<1>, !smt.bv<1>) -> !smt.bool
+// CHECK-NEXT:     %r = "smt.ite"(%7, %x, %y) : (!smt.bool, !smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
 // CHECK-NEXT:     "smt.return"(%r, %1) : (!smt.bv<8>, !effect.state) -> ()
 // CHECK-NEXT:   }) {fun_name = "test"} : () -> ((!smt.bv<8>, !smt.bv<8>, !effect.state) -> (!smt.bv<8>, !effect.state))
 // CHECK-NEXT: }
