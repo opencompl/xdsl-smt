@@ -9,7 +9,6 @@ from xdsl.ir import Operation, SSAValue
 from ...dialects import smt_bitvector_dialect as smt_bv
 from ...dialects import smt_dialect as smt
 from ...dialects import transfer
-from xdsl.ir import Attribute
 from xdsl_smt.passes.lower_to_smt.smt_rewrite_patterns import SMTLoweringRewritePattern
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl.dialects import func
@@ -24,28 +23,6 @@ from ...utils.transfer_to_smt_util import (
     count_lones,
     count_rones,
 )
-
-
-def abstract_value_type_lowerer(
-    type: Attribute,
-) -> PairType[Attribute, Attribute] | None:
-    """Lower all types in an abstract value to SMT types
-    as a nested pair chain."""
-    if isinstance(type, transfer.AbstractValueType):
-        fields = type.get_fields()
-        result = SMTLowerer.lower_type(fields[-1])
-        for ty in reversed(fields[:-1]):
-            result = PairType[Attribute, Attribute](SMTLowerer.lower_type(ty), result)
-        return result
-    return None
-
-
-def transfer_integer_type_lowerer(
-    type: Attribute, width: int
-) -> smt_bv.BitVectorType | None:
-    if isinstance(type, transfer.TransIntegerType):
-        return smt_bv.BitVectorType(width)
-    return None
 
 
 def trivial_pattern(
@@ -82,8 +59,7 @@ class SMTPureLoweringPattern(Generic[_OpType], SMTLoweringRewritePattern):
         self,
         op: _OpType,
         rewriter: PatternRewriter,
-    ):
-        ...
+    ): ...
 
     def rewrite(
         self: SMTPureLoweringPattern[_OpType],

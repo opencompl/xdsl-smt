@@ -586,7 +586,9 @@ class IntersectsOpSemantics(OperationSemantics):
         b0 = smt_bv.ConstantOp.from_int_value(0, 1)
         bool_to_bv = smt.IteOp(eq_0.results[0], b0.results[0], b1.results[0])
 
-        rewriter.insert_op_before_matched_op([and_res, const_0, eq_0, b1, b0, bool_to_bv])
+        rewriter.insert_op_before_matched_op(
+            [and_res, const_0, eq_0, b1, b0, bool_to_bv]
+        )
         return ((bool_to_bv.res,), effect_state)
 
 
