@@ -10,17 +10,13 @@
 }) : () -> ()
 
 // CHECK:       %3 = "smt.bv.uge"(%y, %2) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK:       %5 = "smt.bv.sge"(%x, %4) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK:       %29 = "smt.bv.uge"(%y, %28) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK:       %31 = "smt.bv.slt"(%x, %30) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK:       %56 = "smt.bv.uge"(%y, %55) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
-// CHECK-NEXT:    %57 = smt.and %5, %29
-// CHECK-NEXT:    %58 = smt.and %31, %56
-// CHECK-NEXT:    %59 = smt.or %57, %58
-// CHECK-NEXT:    %60 = smt.or %3, %59
-// CHECK-NEXT:    %61 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
-// CHECK-NEXT:    %62 = smt.bv.constant #smt.bv<0> : !smt.bv<1>
-// CHECK-NEXT:    %63 = "smt.ite"(%60, %61, %62) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
-// CHECK-NEXT:    %64 = smt.constant false
-// CHECK-NEXT:    %r = "smt.utils.pair"(%63, %64) : (!smt.bv<1>, !smt.bool) -> !smt.utils.pair<!smt.bv<1>, !smt.bool>
-// CHECK-NEXT:    smt.return"(%r, %1) : (!smt.utils.pair<!smt.bv<1>, !smt.bool>, !effect.state) -> ()
+// CHECK-NEXT:  %4 = "smt.bv.shl"(%x, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:  %5 = "smt.bv.ashr"(%4, %y) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bv<8>
+// CHECK-NEXT:  %6 = "smt.distinct"(%5, %x) : (!smt.bv<8>, !smt.bv<8>) -> !smt.bool
+// CHECK-NEXT:  %7 = smt.or %3, %6
+// CHECK-NEXT:  %8 = smt.bv.constant #smt.bv<1> : !smt.bv<1>
+// CHECK-NEXT:  %9 = smt.bv.constant #smt.bv<0> : !smt.bv<1>
+// CHECK-NEXT:  %10 = "smt.ite"(%7, %8, %9) : (!smt.bool, !smt.bv<1>, !smt.bv<1>) -> !smt.bv<1>
+// CHECK-NEXT:  %11 = smt.constant false
+// CHECK-NEXT:  %r = "smt.utils.pair"(%10, %11) : (!smt.bv<1>, !smt.bool) -> !smt.utils.pair<!smt.bv<1>, !smt.bool>
+// CHECK-NEXT:  "smt.return"(%r, %1) : (!smt.utils.pair<!smt.bv<1>, !smt.bool>, !effect.state) -> ()
