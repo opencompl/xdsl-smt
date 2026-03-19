@@ -186,7 +186,9 @@ def count_zero_side_bits(b: SSAValue, from_left: bool) -> list[Operation]:
     minus_b = smt_bv.SubOp(zero.results[0], b)
     isolated = smt_bv.AndOp(b, minus_b.results[0])
     input_is_zero = smt.EqOp(b, zero.results[0])
-    count = smt.IteOp(input_is_zero.results[0], width_bv.results[0], get_const(width - 1).results[0])
+    count = smt.IteOp(
+        input_is_zero.results[0], width_bv.results[0], get_const(width - 1).results[0]
+    )
     ops.extend([minus_b, isolated, input_is_zero, count])
 
     for step in descending_powers_of_two():
@@ -202,7 +204,9 @@ def count_zero_side_bits(b: SSAValue, from_left: bool) -> list[Operation]:
         masked = smt_bv.AndOp(isolated.results[0], mask_bv.results[0])
         masked_is_zero = smt.EqOp(masked.results[0], zero.results[0])
         next_count = smt_bv.SubOp(count.results[0], step_bv.results[0])
-        count = smt.IteOp(masked_is_zero.results[0], count.results[0], next_count.results[0])
+        count = smt.IteOp(
+            masked_is_zero.results[0], count.results[0], next_count.results[0]
+        )
         ops.extend([masked, masked_is_zero, next_count, count])
 
     return ops
