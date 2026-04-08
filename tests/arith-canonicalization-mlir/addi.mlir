@@ -2,7 +2,7 @@
 
 builtin.module {
     // addi(addi(x, c0), c1) -> addi(x, c0 + c1)
-    pdl.pattern @AddIAddConstant : benefit(0) {
+    pdl.pattern @AddIAddConstantNone : benefit(0) {
         %type = pdl.type : !transfer.integer
 
         %c0_attr = pdl.attribute : %type
@@ -22,11 +22,117 @@ builtin.module {
         %ovf2 = pdl.attribute attributes {base_type = "arith.overflow"}
         %add2 = pdl.operation "arith.addi"(%add1, %c1 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf2} -> (%type : !pdl.type)
 
+        %ovf_none = pdl.attribute = #arith.overflow<none>
+        %ovf = pdl.apply_native_rewrite "merge_overflow"(%ovf1, %ovf2 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        pdl.apply_native_constraint "is_attr_equal"(%ovf_none, %ovf : !pdl.attribute, !pdl.attribute)
+
         pdl.rewrite %add2 {
             %res = pdl.apply_native_rewrite "addi"(%c0_attr, %c1_attr : !pdl.attribute, !pdl.attribute) : !pdl.attribute
             %folded_op = pdl.operation "arith.constant" {"value" = %res} -> (%type : !pdl.type)
             %folded = pdl.result 0 of %folded_op
-            %ovf = pdl.apply_native_rewrite "merge_overflow"(%ovf1, %ovf2 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+            %add = pdl.operation "arith.addi"(%x, %folded : !pdl.value, !pdl.value) {"overflowFlags" = %ovf} -> (%type : !pdl.type)
+            pdl.replace %add2 with %add
+        }
+    }
+
+    // addi(addi(x, c0), c1) -> addi(x, c0 + c1)
+    pdl.pattern @AddIAddConstantNuw : benefit(0) {
+        %type = pdl.type : !transfer.integer
+
+        %c0_attr = pdl.attribute : %type
+        %c1_attr = pdl.attribute : %type
+
+        %c0_op = pdl.operation "arith.constant" {"value" = %c0_attr} -> (%type : !pdl.type)
+        %c1_op = pdl.operation "arith.constant" {"value" = %c1_attr} -> (%type : !pdl.type)
+
+        %x = pdl.operand : %type
+        %c0 = pdl.result 0 of %c0_op
+        %c1 = pdl.result 0 of %c1_op
+
+        %ovf1 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add1_op = pdl.operation "arith.addi"(%x, %c0 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf1} -> (%type : !pdl.type)
+        %add1 = pdl.result 0 of %add1_op
+
+        %ovf2 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add2 = pdl.operation "arith.addi"(%add1, %c1 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf2} -> (%type : !pdl.type)
+
+        %ovf_none = pdl.attribute = #arith.overflow<nuw>
+        %ovf = pdl.apply_native_rewrite "merge_overflow"(%ovf1, %ovf2 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        pdl.apply_native_constraint "is_attr_equal"(%ovf_none, %ovf : !pdl.attribute, !pdl.attribute)
+
+        pdl.rewrite %add2 {
+            %res = pdl.apply_native_rewrite "addi"(%c0_attr, %c1_attr : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+            %folded_op = pdl.operation "arith.constant" {"value" = %res} -> (%type : !pdl.type)
+            %folded = pdl.result 0 of %folded_op
+            %add = pdl.operation "arith.addi"(%x, %folded : !pdl.value, !pdl.value) {"overflowFlags" = %ovf} -> (%type : !pdl.type)
+            pdl.replace %add2 with %add
+        }
+    }
+
+    // addi(addi(x, c0), c1) -> addi(x, c0 + c1)
+    pdl.pattern @AddIAddConstantNuwNsw : benefit(0) {
+        %type = pdl.type : !transfer.integer
+
+        %c0_attr = pdl.attribute : %type
+        %c1_attr = pdl.attribute : %type
+
+        %c0_op = pdl.operation "arith.constant" {"value" = %c0_attr} -> (%type : !pdl.type)
+        %c1_op = pdl.operation "arith.constant" {"value" = %c1_attr} -> (%type : !pdl.type)
+
+        %x = pdl.operand : %type
+        %c0 = pdl.result 0 of %c0_op
+        %c1 = pdl.result 0 of %c1_op
+
+        %ovf1 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add1_op = pdl.operation "arith.addi"(%x, %c0 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf1} -> (%type : !pdl.type)
+        %add1 = pdl.result 0 of %add1_op
+
+        %ovf2 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add2 = pdl.operation "arith.addi"(%add1, %c1 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf2} -> (%type : !pdl.type)
+
+        %ovf_none = pdl.attribute = #arith.overflow<nuw, nsw>
+        %ovf = pdl.apply_native_rewrite "merge_overflow"(%ovf1, %ovf2 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        pdl.apply_native_constraint "is_attr_equal"(%ovf_none, %ovf : !pdl.attribute, !pdl.attribute)
+
+        pdl.rewrite %add2 {
+            %res = pdl.apply_native_rewrite "addi"(%c0_attr, %c1_attr : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+            %folded_op = pdl.operation "arith.constant" {"value" = %res} -> (%type : !pdl.type)
+            %folded = pdl.result 0 of %folded_op
+            %add = pdl.operation "arith.addi"(%x, %folded : !pdl.value, !pdl.value) {"overflowFlags" = %ovf} -> (%type : !pdl.type)
+            pdl.replace %add2 with %add
+        }
+    }
+
+    // addi(addi(x, c0), c1) -> addi(x, c0 + c1)
+    pdl.pattern @AddIAddConstantNuwNsw : benefit(0) {
+        %type = pdl.type : !transfer.integer
+
+        %c0_attr = pdl.attribute : %type
+        %c1_attr = pdl.attribute : %type
+
+        %c0_op = pdl.operation "arith.constant" {"value" = %c0_attr} -> (%type : !pdl.type)
+        %c1_op = pdl.operation "arith.constant" {"value" = %c1_attr} -> (%type : !pdl.type)
+
+        %x = pdl.operand : %type
+        %c0 = pdl.result 0 of %c0_op
+        %c1 = pdl.result 0 of %c1_op
+
+        %ovf1 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add1_op = pdl.operation "arith.addi"(%x, %c0 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf1} -> (%type : !pdl.type)
+        %add1 = pdl.result 0 of %add1_op
+
+        %ovf2 = pdl.attribute attributes {base_type = "arith.overflow"}
+        %add2 = pdl.operation "arith.addi"(%add1, %c1 : !pdl.value, !pdl.value) {"overflowFlags" = %ovf2} -> (%type : !pdl.type)
+
+        %ovf_none = pdl.attribute = #arith.overflow<nsw>
+        %ovf = pdl.apply_native_rewrite "merge_overflow"(%ovf1, %ovf2 : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+        pdl.apply_native_constraint "is_attr_equal"(%ovf_none, %ovf : !pdl.attribute, !pdl.attribute)
+        pdl.apply_native_constraint "is_different_sign_than"(%c0_attr, %c1_attr : !pdl.attribute, !pdl.attribute)
+
+        pdl.rewrite %add2 {
+            %res = pdl.apply_native_rewrite "addi"(%c0_attr, %c1_attr : !pdl.attribute, !pdl.attribute) : !pdl.attribute
+            %folded_op = pdl.operation "arith.constant" {"value" = %res} -> (%type : !pdl.type)
+            %folded = pdl.result 0 of %folded_op
             %add = pdl.operation "arith.addi"(%x, %folded : !pdl.value, !pdl.value) {"overflowFlags" = %ovf} -> (%type : !pdl.type)
             pdl.replace %add2 with %add
         }

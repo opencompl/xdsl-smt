@@ -415,6 +415,27 @@ def is_attr_not_equal(
     rewriter.replace_matched_op([eq_op], [])
     return eq_op.res
 
+def is_different_sign_than(
+    op: ApplyNativeConstraintOp,
+    rewriter: PatternRewriter,
+    context: PDLToSMTRewriteContext,
+) -> SSAValue:
+    (lhs, rhs) = op.args
+
+    if not isinstance(lhs.type, smt_bv.BitVectorType) or not isinstance(
+        rhs.type, smt_bv.BitVectorType
+    ):
+        raise Exception(
+            "is_different_sign_than expects both inputs to be of type `!smt.bv`"
+        )
+
+    width = lhs.type.width.data
+    sign_bit = rewriter.insert(smt_bv.ConstantOp(1 << (width - 1), width)).res
+    lhs_sign = rewriter.insert(smt_bv.AndOp(lhs, sign_bit)).res
+    rhs_sign = rewriter.insert(smt_bv.AndOp(rhs, sign_bit)).res
+    different_sign = rewriter.insert(smt.DistinctOp(lhs_sign, rhs_sign)).res
+    rewriter.erase_matched_op()
+    return different_sign
 
 def is_arith_cmpi_predicate(
     op: ApplyNativeConstraintOp,
@@ -588,6 +609,7 @@ integer_arith_native_constraints = {
     # Equality between attributes
     "is_attr_equal": is_attr_equal,
     "is_attr_not_equal": is_attr_not_equal,
+    "is_different_sign_than": is_different_sign_than,
     # Predicates
     "is_arith_cmpi_predicate": is_arith_cmpi_predicate,
     "is_comb_icmp_predicate": is_comb_icmp_predicate,
