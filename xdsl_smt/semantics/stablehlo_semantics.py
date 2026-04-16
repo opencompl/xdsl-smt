@@ -31,16 +31,16 @@ class TensorTypeSemantics(TypeSemantics):
     """Lower all tensor types in stable HLO to SMT tensor types
     But the last element is useless, this makes GetOp easier"""
 
-    def get_semantics(self, type: Attribute) -> Attribute:
-        if not isinstance(type, TensorType):
+    def get_semantics(self, typ: Attribute) -> Attribute:
+        if not isinstance(typ, TensorType):
             raise ValueError("Expect a tensor type")
-        print(type.element_type)
-        elementType = SMTLowerer.lower_type(type.element_type)
+        print(typ.element_type)
+        elementType = SMTLowerer.lower_type(typ.element_type)
 
         # Ignore poison
         if isinstance(elementType, smt_utils.PairType):
             elementType = elementType.first
-        tensorType = SMTTensorType(elementType, type.shape, type.encoding)
+        tensorType = SMTTensorType(elementType, typ.shape, typ.encoding)
         return tensorType
 
 

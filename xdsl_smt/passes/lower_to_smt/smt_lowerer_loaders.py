@@ -31,12 +31,20 @@ from xdsl.dialects.builtin import (
     IndexType,
     MemRefType,
     TensorType,
+    Float16Type,
+    Float32Type,
+    Float64Type,
+    Float128Type
 )
 from xdsl_smt.passes.lower_to_smt.smt_lowerer import SMTLowerer
 from xdsl_smt.semantics.builtin_semantics import (
     IndexTypeSemantics,
     IntegerAttrSemantics,
     IntegerTypeSemantics,
+    Float16TypeSemantics,
+    Float32TypeSemantics,
+    Float64TypeSemantics,
+    Float128TypeSemantics,
 )
 from xdsl_smt.semantics.arith_semantics import (
     arith_semantics,
@@ -60,6 +68,10 @@ def load_vanilla_semantics_with_transfer(transfer_width: int):
 
 def load_vanilla_semantics():
     SMTLowerer.type_lowerers = {
+        Float16Type: Float16TypeSemantics(),
+        Float32Type: Float32TypeSemantics(),
+        Float64Type: Float64TypeSemantics(),
+        Float128Type: Float128TypeSemantics(),
         IntegerType: IntegerTypeSemantics(),
         IndexType: IndexTypeSemantics(),
         MemRefType: MemrefSemantics(),
