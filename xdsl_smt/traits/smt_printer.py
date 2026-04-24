@@ -241,12 +241,18 @@ def print_to_smtlib(module: ModuleOp, stream: IO[str]) -> None:
     Print a program to its SMTLib representation.
     """
     ctx = SMTConversionCtx()
-    # We use this hack for now
-    # TODO: check for usage of pairs in the program to not always print this.
-    print(
-        "(declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))",
-        file=stream,
-    )
+
+    # only print the datatype def if the emmited smt code will have a pair
+    if any(
+        getattr(value.type, "name", None) == "smt.utils.pair"
+        for op in module.walk()
+        for value in (*op.operands, *op.results)
+    ):
+        print(
+            "(declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))",
+            file=stream,
+        )
+
     for op in module.ops:
         if isinstance(op, SMTLibScriptOp):
             op.print_expr_to_smtlib(stream, ctx)

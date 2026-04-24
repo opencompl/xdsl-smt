@@ -33,8 +33,7 @@
       %mod = "smt.int.mod"(%x, %y) : (!smt.int.int, !smt.int.int) -> !smt.int.int
   }) : () -> ()
 
-// CHECK:       (declare-datatypes ((Pair 2)) ((par (X Y) ((pair (first X) (second Y))))))
-// CHECK-NEXT:  (assert (let (($x 42))
+// CHECK:       (assert (let (($x 42))
 // CHECK-NEXT:    (let (($y 84))
 // CHECK-NEXT:    (< $x $y))))
 // CHECK-NEXT:  (assert (let (($x 42))
